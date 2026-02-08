@@ -1,0 +1,32 @@
+# node_modules
+node_modules/
+
+# Build output
+dist/
+release/
+
+# Data (profiles, logs, etc.)
+data/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
