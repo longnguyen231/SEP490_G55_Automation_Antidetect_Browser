@@ -1,252 +1,142 @@
-# SEP490 G55 - Automation Antidetect Browser
+# OBT Automation Antidetect Browser
 
-## 📋 Mô Tả Dự Án
+An Electron + React application for managing browser profiles with advanced antidetect capabilities. This tool allows users to create, manage, and launch browser profiles with customized fingerprints to avoid browser detection.
 
-Đây là base code cho dự án Automation Antidetect Browser của nhóm SEP490 G55.
+## Features
 
-**Tech Stack:**
-- **Electron** - Desktop application framework
-- **React** - Frontend UI library 
-- **Playwright** - Browser automation
-- **Vite** - Build tool
+- 🎨 **Profile Management**: Create, edit, and delete browser profiles
+- 🔒 **Antidetect Technology**: Customize browser fingerprints including:
+  - Operating System spoofing (Windows, macOS, Linux)
+  - Browser type and version
+  - Custom User Agent strings
+  - Screen resolution settings
+  - Language and timezone configuration
+  - WebGL, Canvas, and Audio Context control
+- 🚀 **Profile Launcher**: Launch isolated browser instances with custom profiles
+- 💾 **Persistent Storage**: Profiles are saved locally in JSON format
+- 🎯 **Modern UI**: Clean and intuitive React-based interface
 
----
+## Technology Stack
 
-## 📁 Cấu Trúc Thư Mục
+- **Electron**: Desktop application framework
+- **React**: UI library
+- **Vite**: Build tool and development server
+- **Node.js**: Backend runtime
 
-```
-SEP490_G55_Automation_Antidetect_Browser/
-├── src/
-│   ├── main/                 # Electron Main Process
-│   │   ├── config/           # Cấu hình ứng dụng
-│   │   │   └── app.config.js # File config chính
-│   │   ├── controllers/      # Controllers xử lý IPC requests
-│   │   ├── models/           # Data models
-│   │   │   └── Profile.js    # Model Profile
-│   │   ├── services/         # Business logic services
-│   │   │   ├── ProfileService.js    # CRUD profiles
-│   │   │   ├── BrowserService.js    # Launch/stop browser
-│   │   │   └── AutomationService.js # Automation execution
-│   │   ├── utils/            # Utilities
-│   │   │   └── logger.js     # Logging utility
-│   │   └── index.js          # Entry point
-│   │
-│   ├── preload/              # Electron Preload Scripts
-│   │   └── preload.js        # IPC bridge
-│   │
-│   └── renderer/             # React Frontend
-│       ├── components/       # React components
-│       ├── pages/            # Page components
-│       ├── hooks/            # Custom React hooks
-│       ├── styles/           # CSS styles
-│       ├── App.jsx           # Main App component
-│       ├── App.css           # App styles
-│       ├── main.jsx          # React entry point
-│       └── index.css         # Global styles
-│
-├── tests/                    # Unit tests
-├── docs/                     # Documentation
-├── package.json              # Dependencies
-└── vite.config.js            # Vite configuration
-```
+## Installation
 
----
-
-## 🏗️ Giải Thích Architecture
-
-### 1. **Main Process** (`src/main/`)
-
-Đây là process chính của Electron, chạy trong môi trường Node.js.
-
-| Thư mục | Mô tả |
-|---------|-------|
-| `config/` | Chứa tất cả cấu hình của ứng dụng (APP_CONFIG, BROWSER_CONFIG...) |
-| `models/` | Định nghĩa cấu trúc dữ liệu (Profile model) |
-| `services/` | Business logic - nơi xử lý chính (CRUD, browser control, automation) |
-| `controllers/` | Xử lý requests từ Renderer (qua IPC) |
-| `utils/` | Các utility functions (logging, helpers...) |
-
-### 2. **Preload Script** (`src/preload/`)
-
-Cầu nối giữa Main và Renderer process. Expose các API an toàn thông qua `contextBridge`.
-
-### 3. **Renderer Process** (`src/renderer/`)
-
-Frontend React application.
-
-| Thư mục | Mô tả |
-|---------|-------|
-| `components/` | Các React components tái sử dụng |
-| `pages/` | Page-level components |
-| `hooks/` | Custom React hooks |
-| `styles/` | CSS files |
-
----
-
-## 🔄 Data Flow
-
-```
-┌──────────────┐     IPC      ┌──────────────┐
-│   Renderer   │ ←──────────→ │     Main     │
-│   (React)    │   invoke     │  (Electron)  │
-└──────────────┘              └──────────────┘
-       ↑                             ↓
-       │                      ┌──────────────┐
-   preload.js                 │   Services   │
-       │                      └──────────────┘
-       ↓                             ↓
-┌──────────────┐              ┌──────────────┐
-│  electronAPI │              │   Storage    │
-│   (window)   │              │   (JSON)     │
-└──────────────┘              └──────────────┘
-```
-
----
-
-## 🚀 Bắt Đầu
-
-### 1. Cài đặt dependencies
-
+1. Clone the repository:
 ```bash
-cd SEP490_G55_Automation_Antidetect_Browser
+git clone https://github.com/OngBanTat/ObtAutomationAntidetectBrowser.git
+cd ObtAutomationAntidetectBrowser
+```
+
+2. Install dependencies:
+```bash
 npm install
 ```
 
-### 2. Chạy Development
+## Development
+
+Run the application in development mode:
 
 ```bash
 npm run dev
 ```
 
-### 3. Build Production
+This will start both the Vite development server (for React hot reload) and the Electron application.
+
+## Building
+
+Build the application for production:
 
 ```bash
 npm run build
 ```
 
----
+This will:
+1. Build the React application using Vite
+2. Package the Electron application using electron-builder
 
-## 📝 Phân Công Công Việc
+The built application will be available in the `release` directory.
 
-### Suggested Task Division (5 members):
+## Usage
 
-| Thành Viên | Nhiệm Vụ | Files Chính |
-|------------|----------|-------------|
-| **Member 1** | Profile Management UI | `src/renderer/components/ProfileCard.jsx`, `ProfileForm.jsx`, `ProfileList.jsx` |
-| **Member 2** | Browser Control & Fingerprint | `src/main/services/BrowserService.js`, fingerprint logic |
-| **Member 3** | Automation Engine | `src/main/services/AutomationService.js`, script editor UI |
-| **Member 4** | Proxy & Network | Proxy handling, network interceptor |
-| **Member 5** | Settings & Storage | `src/main/services/SettingsService.js`, export/import |
+### Creating a Profile
 
----
+1. Click the "Create New Profile" button
+2. Fill in the profile details:
+   - **Profile Name**: A unique name for your profile
+   - **Description**: Optional description
+   - **Start URL**: The URL to open when launching the profile
+3. Configure the browser fingerprint:
+   - Select Operating System
+   - Choose Browser type
+   - Set Browser Version
+   - Customize User Agent (auto-generated based on OS)
+   - Configure Language and Timezone
+   - Set Screen Resolution
+   - Enable/disable WebGL, Canvas, and Audio features
+4. Click "Create Profile" to save
 
-## 🔧 Các Services Chính
+### Editing a Profile
 
-### ProfileService
+1. Click the "Edit" button on any profile card
+2. Modify the desired settings
+3. Click "Update Profile" to save changes
 
-```javascript
-// Lấy tất cả profiles
-ProfileService.getAllProfiles()
+### Launching a Profile
 
-// Tạo profile mới
-ProfileService.createProfile({ name: 'My Profile' })
+Click the "Launch" button on any profile card to open a new browser window with the configured fingerprint settings.
 
-// Cập nhật profile
-ProfileService.updateProfile(id, { name: 'New Name' })
+### Deleting a Profile
 
-// Xóa profile
-ProfileService.deleteProfile(id)
+Click the "Delete" button on any profile card and confirm the deletion.
+
+## Profile Storage & Data
+
+- Runtime data stored under `data/` (git-ignored): profiles.json, settings.json, logs, storage state, CDP user-data
+- When deleting a profile, its storage state and `data/cdp-user-data/<id>/` are removed automatically
+
+## Architecture
+
+```
+├── src/
+│   ├── main/
+│   │   ├── bootstrap.js        # Main entry; composes window, IPC, REST, heartbeat
+│   │   ├── api/                # REST server + OpenAPI
+│   │   ├── controllers/        # Profile lifecycle & browser control
+│   │   ├── engine/             # CDP helpers & overrides, health checks
+│   │   ├── ipc/                # Centralized IPC handlers
+│   │   ├── logging/            # File logger
+│   │   ├── state/              # In-memory running profiles map
+│   │   ├── storage/            # paths, settings, profiles
+│   │   └── window/             # BrowserWindow setup
+│   ├── preload/                # contextBridge exposing electronAPI
+│   └── renderer/               # React UI
+├── data/                       # Runtime data (git-ignored)
+├── vendor/                     # Portable Chrome/Chromium (optional)
+└── package.json
 ```
 
-### BrowserService
+## Engines: Playwright vs CDP
 
-```javascript
-// Launch browser với profile
-BrowserService.launchProfile(profileId, { headless: false })
+- Playwright engine: launches a Playwright server; applies fingerprint via context options and init scripts
+- CDP (real Chrome) engine: launches real Chrome with `--remote-debugging-port`; applies fingerprint via CDP Emulation + init scripts
+- Parity achieved:
+   - UA, locale, timezone, DPR, languages, WebGL vendor/renderer, plugins, maxTouchPoints, DNT
+   - Viewport applied (PW: viewport/deviceScaleFactor, CDP: DeviceMetricsOverride)
+   - Geolocation (both)
+   - WebRTC proxy-only (both via flags)
 
-// Dừng browser
-BrowserService.stopProfile(profileId)
+## Security Considerations
 
-// Lấy danh sách profiles đang chạy
-BrowserService.getRunningProfiles()
-```
+This tool is designed for legitimate testing and automation purposes. Users are responsible for ensuring their use of this software complies with applicable laws and terms of service.
 
-### AutomationService
+## License
 
-```javascript
-// Chạy automation steps
-AutomationService.runAutomation(profileId, [
-  { action: 'navigate', url: 'https://example.com' },
-  { action: 'click', selector: '#login-btn' },
-  { action: 'type', selector: '#username', text: 'user123' },
-  { action: 'wait', ms: 2000 },
-  { action: 'screenshot', path: './screenshot.png' }
-])
-```
+ISC
 
----
+## Contributing
 
-## 📚 Automation Actions
-
-| Action | Mô Tả | Params |
-|--------|-------|--------|
-| `navigate` | Điều hướng URL | `url`, `waitUntil` |
-| `click` | Click element | `selector`, `button`, `clickCount` |
-| `type` | Gõ text (từng ký tự) | `selector`, `text`, `delay` |
-| `fill` | Điền text (nhanh) | `selector`, `text` |
-| `wait` | Chờ thời gian | `ms` |
-| `waitForSelector` | Chờ element | `selector`, `state` |
-| `screenshot` | Chụp màn hình | `path`, `fullPage` |
-| `eval` | Chạy JavaScript | `expression` |
-| `scroll` | Cuộn trang | `x`, `y`, `selector` |
-| `hover` | Di chuột | `selector` |
-| `select` | Chọn dropdown | `selector`, `value` |
-| `press` | Nhấn phím | `key` |
-| `upload` | Upload file | `selector`, `file` |
-
----
-
-## 🎨 Coding Conventions
-
-### File Naming
-- Components: `PascalCase.jsx` (e.g., `ProfileCard.jsx`)
-- Services: `PascalCase.js` (e.g., `ProfileService.js`)
-- Utilities: `camelCase.js` (e.g., `logger.js`)
-- Styles: `ComponentName.css`
-
-### Code Style
-- Use ES6+ syntax
-- Async/await for async operations
-- JSDoc comments for functions
-- Vietnamese comments are OK
-
----
-
-## 🐛 Troubleshooting
-
-### 1. Playwright browsers not installed
-```bash
-npx playwright install chromium
-```
-
-### 2. Electron không chạy được
-```bash
-npm rebuild
-```
-
-### 3. Port 5173 đã được sử dụng
-```bash
-# Tìm và kill process
-netstat -ano | findstr :5173
-taskkill /PID <PID> /F
-```
-
----
-
-## 📞 Liên Hệ
-
-Nhóm SEP490 G55 - FPT University
-
----
-
-*Last updated: February 2026*
+Contributions are welcome! Please feel free to submit a Pull Request.

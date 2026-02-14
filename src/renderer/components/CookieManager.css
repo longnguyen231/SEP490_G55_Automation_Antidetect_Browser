@@ -1,0 +1,20 @@
+.cookie-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000}
+.cookie-modal{background:#111;color:#eee;border:1px solid #333;border-radius:8px;width:900px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column}
+.cookie-modal-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #333}
+.cookie-modal-body{padding:12px 16px;overflow:auto}
+.cookie-sections{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.cookie-sections section{background:#0d0d0d;border:1px solid #222;border-radius:6px;padding:10px}
+.cookie-table{border:1px solid #222;border-radius:6px;overflow:hidden}
+.cookie-table-header,.cookie-row{display:grid;grid-template-columns:2fr 2fr 1fr 1.5fr;gap:8px}
+.cookie-table-header{background:#1a1a1a;padding:8px 10px;font-weight:600}
+.cookie-table-body{max-height:300px;overflow:auto}
+.cookie-row{padding:8px 10px;border-top:1px solid #222}
+.cookie-textarea{width:100%;min-height:140px;background:#0b0b0b;color:#ddd;border:1px solid #222;border-radius:6px;padding:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace}
+.actions{margin-top:8px;display:flex;gap:8px}
+.error{background:#3a0b0b;color:#ffb3b3;border:1px solid #5c1515;padding:8px 10px;border-radius:6px;margin:8px 0}
+.loading{padding:16px}
+.empty{padding:12px;color:#aaa}
+.btn-close{background:transparent;border:none;color:#ccc;font-size:18px;cursor:pointer}
+.btn{background:#222;border:1px solid #333;color:#ddd;border-radius:6px;padding:6px 10px;cursor:pointer}
+.btn-primary{background:#2d5a1d;border-color:#3b7a28}
+.btn:hover{filter:brightness(1.1)}

@@ -1,0 +1,300 @@
+.profile-form-container {
+  background: var(--color-card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  max-width: 1100px;
+  margin: 0 auto;
+  position: relative; /* ensure above any list remnants */
+  z-index: 50; /* keep above other panels */
+  display: flex;
+  flex-direction: column; /* header then body */
+  height: 100%;
+  max-height: 100%; /* will be expanded by parent in form-open mode */
+  overflow-y: hidden; /* prevent container from scrolling; inner form will scroll */
+  overflow-x: hidden; /* prevent horizontal shift on header */
+  overscroll-behavior: contain; /* keep scroll contained in the form */
+}
+
+/* In form-open context force full viewport occupation for single inner scrollbar */
+.app-main.form-open .profile-form-container {
+  /* Lock the container to the viewport to eliminate any outer scrolling */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0 auto; /* keep centered horizontally with max-width */
+  width: 100%;
+  height: 100vh;
+  max-height: 100vh;
+  /* preserve existing layout behavior */
+  display: flex;
+}
+
+.profile-form-header {
+  padding: 1.1rem 1.5rem;
+  background: linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%);
+  color: white;
+  border-radius: var(--radius) var(--radius) 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  /* header stays fixed because only the form body scrolls */
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  flex: 0 0 auto; /* never shrink; keep header height fixed */
+}
+
+.profile-form-header h2 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.btn-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.btn-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.profile-form {
+  padding: 2rem;
+  position: relative;
+  background: var(--color-card);
+  flex: 1 1 auto; /* fill remaining height under header */
+  min-height: 0; /* enable proper overflow inside flex container */
+  overflow-y: auto; /* make form body the scrolling area */
+  overscroll-behavior: contain;
+}
+
+.form-section {
+  margin-bottom: 2rem;
+}
+
+.form-section h3 {
+  font-size: 1.25rem;
+  color: var(--color-text);
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.form-hint {
+  margin-top: 0.35rem;
+  color: #6b7280; /* gray-500 */
+  font-size: 0.78rem;
+}
+
+.form-group input[type="text"],
+.form-group input[type="url"],
+.form-group input[type="number"],
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 0.875rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="url"]:focus,
+.form-group input[type="number"]:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-group textarea {
+  resize: vertical;
+  font-family: inherit;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: auto;
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+/* Preset toolbar (compact, beautiful) */
+.preset-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  background: #f8f9fb;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 1rem;
+}
+.preset-bar .preset-select { flex: 1; min-width: 240px; }
+.preset-bar .preset-actions { display: inline-flex; gap: 0.4rem; }
+.preset-count { display: inline-flex; align-items: center; gap: 0.25rem; color: #6b7280; }
+.preset-count select { padding: 0.2rem 0.35rem; font-size: 0.85rem; border-radius: 6px; border: 1px solid var(--color-border); background: #fff; }
+.icon-btn {
+  background: white;
+  border: 1px solid var(--color-border);
+  color: #374151;
+  border-radius: 6px;
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn:hover { background: #f3f4f6; }
+.icon-btn.disabled,
+.icon-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.icon-btn.active { background: #eef2ff; border-color: #6366f1; }
+.preset-note { color: #6b7280; font-size: 0.8rem; }
+.preset-note .badge {
+  display: inline-block;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+}
+
+/* Override regions styling */
+.override-regions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: #f8f9fb;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.override-region .region-header {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.override-region input[type="checkbox"] {
+  margin: 0;
+}
+
+.override-region .region-hint {
+  font-size: 0.7rem;
+  color: #6b7280;
+  margin-left: 1.5rem;
+  margin-top: 0.25rem;
+}
+
+/* New region block styling for adjacent enable checkboxes */
+.region-block {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 1rem;
+  background: #fafbff;
+}
+.region-block-header {
+  display: block;
+}
+.region-block-body {
+  margin-top: 0.75rem;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.form-actions .btn {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+}
+
+.btn-ghost {
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.35);
+  color: #fff;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-ghost:hover {
+  background: rgba(255,255,255,0.26);
+}
+
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-form {
+    padding: 1.5rem;
+  }
+}

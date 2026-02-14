@@ -2,36 +2,59 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-/**
- * Vite Configuration
- * SEP490 G55 - Automation Antidetect Browser
- */
-export default defineConfig({
+export default defineConfig(async ({ mode, command }) => {
+  const isProd = command === 'build' || mode === 'production' || process.env.NODE_ENV === 'production';
+  const rollupPlugins = [];
+  if (isProd) {
+    try {
+      const { default: obfuscator } = await import('rollup-plugin-obfuscator');
+      rollupPlugins.push(obfuscator({
+        compact: true,
+        controlFlowFlattening: false,
+        deadCodeInjection: false,
+        debugProtection: false,
+        disableConsoleOutput: true,
+        identifierNamesGenerator: 'hexadecimal',
+        log: false,
+        numbersToExpressions: false,
+        renameGlobals: false,
+        selfDefending: false,
+        simplify: true,
+        splitStrings: false,
+        stringArray: true,
+        stringArrayCallsTransform: true,
+        stringArrayEncoding: ['rc4'],
+        stringArrayIndexShift: true,
+        stringArrayRotate: true,
+        stringArrayShuffle: true,
+        stringArrayWrappersCount: 1,
+        stringArrayWrappersChainedCalls: true,
+        stringArrayWrappersType: 'variable',
+        transformObjectKeys: false,
+        unicodeEscapeSequence: false,
+      }));
+    } catch (e) {
+      console.warn('Obfuscation plugin not installed, skipping:', e?.message || e);
+    }
+  }
+  return {
     plugins: [react()],
-
-    // Thư mục gốc cho source files
-    root: path.join(__dirname, 'src/renderer'),
-
-    // Output directory
+    base: './',
+    root: 'src/renderer',
     build: {
-        outDir: path.join(__dirname, 'dist'),
-        emptyOutDir: true,
+      outDir: '../../dist/renderer',
+      emptyOutDir: true,
+      rollupOptions: { plugins: rollupPlugins },
     },
-
-    // Development server
     server: {
-        port: 5173,
-        strictPort: true,
+      port: 5173,
+      watch: {
+        // Ignore runtime data folder to reduce needless reloads
+        ignored: [
+          '**/data/**',
+          '**/vendor/**',
+        ],
+      },
     },
-
-    // Resolve aliases
-    resolve: {
-        alias: {
-            '@': path.join(__dirname, 'src/renderer'),
-            '@components': path.join(__dirname, 'src/renderer/components'),
-            '@pages': path.join(__dirname, 'src/renderer/pages'),
-            '@hooks': path.join(__dirname, 'src/renderer/hooks'),
-            '@styles': path.join(__dirname, 'src/renderer/styles'),
-        },
-    },
+  };
 });
