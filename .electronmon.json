@@ -1,0 +1,22 @@
+{
+  "watch": [
+    "src/main",
+    "src/preload"
+  ],
+  "ignore": [
+    "dist",
+    "release",
+    "node_modules",
+    "vendor",
+    "data",
+    "data/**",
+    "logs",
+    "src/data",
+    "src/data/**",
+    "src/data/logs",
+    "src/data/logs/**",
+    "**/*.json"
+  ],
+  "ext": ["js","cjs","mjs","ts"],
+  "verbose": true
+}

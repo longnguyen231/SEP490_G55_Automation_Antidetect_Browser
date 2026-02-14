@@ -1,2 +1,2 @@
-// Main Entry Point - Electron Main Process
-// TODO: Khởi tạo BrowserWindow, load preload, setup IPC handlers
+// Entry shim: all logic lives in bootstrap.js
+require('./bootstrap');
