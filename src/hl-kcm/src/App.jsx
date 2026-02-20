@@ -4,6 +4,7 @@ import Profiles from "./pages/Profiles";
 import Subscription from "./pages/Subscription";
 import CreateProfileForm from "./components/CreateProfileForm";
 import Proxies from "./pages/Proxies";
+import Extensions from "./pages/Extensions";
 
 export default function App() {
   const [activeNav, setActiveNav] = useState("profiles");
@@ -64,21 +65,24 @@ export default function App() {
           <Profiles onBuyMore={handleBuyProfiles} onNewProfile={handleNewProfile} />
         ) : activeNav === "proxies" ? (
           <Proxies />
-        ) : (
-          <div className="h-100 d-flex flex-column">
-            <div className="px-4 px-lg-5 py-4 border-bottom">
-              <div className="fw-bold" style={{ fontSize: 34, letterSpacing: -0.6 }}>
-                {activeNav.toUpperCase()}
+        ) : activeNav === "extensions" ? (
+          <Extensions />
+        )
+          : (
+            <div className="h-100 d-flex flex-column">
+              <div className="px-4 px-lg-5 py-4 border-bottom">
+                <div className="fw-bold" style={{ fontSize: 34, letterSpacing: -0.6 }}>
+                  {activeNav.toUpperCase()}
+                </div>
+                <div className="k-muted">Screen placeholder — làm sau.</div>
               </div>
-              <div className="k-muted">Screen placeholder — làm sau.</div>
-            </div>
-            <div className="flex-grow-1 overflow-auto px-4 px-lg-5 py-4">
-              <div className="k-card p-4">
-                <div className="k-muted">Placeholder for {activeNav}.</div>
+              <div className="flex-grow-1 overflow-auto px-4 px-lg-5 py-4">
+                <div className="k-card p-4">
+                  <div className="k-muted">Placeholder for {activeNav}.</div>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
       </main>
     </div>
   );

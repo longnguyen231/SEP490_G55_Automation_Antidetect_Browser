@@ -627,3 +627,175 @@ body{
   opacity: .75;
 }
 .btn-close:hover{ opacity: 1; }
+/* =========================
+   EXTENSIONS PAGE
+========================= */
+.ext-ig-left{
+  background: rgba(255,255,255,.03) !important;
+  border: 1px solid var(--border) !important;
+  border-right: none !important;
+  color: rgba(238,240,245,.70) !important;
+}
+.ext-search{
+  background: rgba(255,255,255,.03) !important;
+  border: 1px solid var(--border) !important;
+  border-left: none !important;
+  color: var(--fg) !important;
+}
+.ext-search::placeholder{ color: rgba(238,240,245,.35) !important; }
+.ext-search:focus{ box-shadow:none !important; border-color: rgba(0,210,211,.45) !important; }
+
+.ext-select{
+  background: rgba(255,255,255,.03) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--fg) !important;
+}
+.ext-select:focus{ box-shadow:none !important; border-color: rgba(0,210,211,.45) !important; }
+
+.ext-viewtoggle{
+  display:flex;
+  gap:4px;
+  padding:4px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border);
+}
+.ext-viewbtn{
+  width: 38px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  display:grid;
+  place-items:center;
+  color: rgba(238,240,245,.65);
+}
+.ext-viewbtn:hover{ background: rgba(255,255,255,.05); color: rgba(238,240,245,.9); }
+.ext-viewbtn.active{
+  background: rgba(0,210,211,.14);
+  border-color: rgba(0,210,211,.22);
+  color: #7dfffd;
+}
+
+.ext-grid{
+  display:grid;
+  grid-template-columns: repeat(1, minmax(0,1fr));
+  gap: 14px;
+}
+@media (min-width: 768px){ .ext-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (min-width: 1200px){ .ext-grid{ grid-template-columns: repeat(3, minmax(0,1fr)); } }
+
+.ext-card{
+  transition: 140ms ease;
+}
+.ext-card:hover{
+  border-color: rgba(0,210,211,.25) !important;
+}
+
+.ext-disabled{
+  opacity: .62;
+}
+
+.ext-icon{
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: radial-gradient(circle at 30% 30%, rgba(108,92,231,.28), transparent 55%),
+              radial-gradient(circle at 70% 70%, rgba(0,210,211,.22), transparent 55%),
+              rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.08);
+  display:grid;
+  place-items:center;
+  font-weight: 900;
+  font-size: 12px;
+}
+.ext-icon-sm{
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+.ext-desc{
+  display:-webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow:hidden;
+}
+
+.ext-cat{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+}
+.ext-blue{ background: rgba(59,130,246,.14); border-color: rgba(59,130,246,.25); color:#93c5fd; }
+.ext-green{ background: rgba(34,197,94,.14); border-color: rgba(34,197,94,.25); color:#86efac; }
+.ext-orange{ background: rgba(249,115,22,.14); border-color: rgba(249,115,22,.25); color:#fdba74; }
+.ext-pink{ background: rgba(236,72,153,.14); border-color: rgba(236,72,153,.25); color:#f9a8d4; }
+.ext-gray{ background: rgba(148,163,184,.10); border-color: rgba(148,163,184,.22); color: rgba(238,240,245,.70); }
+
+.ext-empty{
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+  display:grid;
+  place-items:center;
+  color: rgba(238,240,245,.55);
+}
+
+.ext-mode-tabs{
+  display:flex;
+  gap:8px;
+  padding:6px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.08);
+}
+.ext-mode-btn{
+  flex: 1 1 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(238,240,245,.72);
+  font-weight: 800;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+}
+.ext-mode-btn:hover{ background: rgba(255,255,255,.05); }
+.ext-mode-btn.active{
+  background: rgba(0,210,211,.14);
+  border-color: rgba(0,210,211,.22);
+  color: #7dfffd;
+}
+
+.ext-dropzone{
+  border: 2px dashed rgba(255,255,255,.14);
+  border-radius: 16px;
+  padding: 28px;
+  text-align:center;
+  cursor:pointer;
+  background: rgba(255,255,255,.02);
+}
+.ext-dropzone:hover{
+  border-color: rgba(0,210,211,.35);
+}
+
+.ext-warning{
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(245,158,11,.25);
+  background: rgba(245,158,11,.08);
+  color: #fbbf24;
+  font-size: 12px;
+  line-height: 1.35;
+}
