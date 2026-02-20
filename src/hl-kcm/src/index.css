@@ -1,0 +1,231 @@
+:root{
+  color-scheme: dark;
+
+  --bg:#07080a;
+  --fg:#eef0f5;
+  --muted:rgba(238,240,245,.62);
+
+  /* card đen solid như mẫu 2 */
+  --card:#0b0d10;
+  --card2:#0b0d10;
+
+  --border: rgba(255,255,255,.10);
+  --border2: rgba(255,255,255,.14);
+
+  --primary:#6c5ce7;
+  --accent:#00d2d3;
+  --danger:#ff4d4f;
+
+  --radius: 18px;
+}
+
+html, body, #root { height: 100%; }
+
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  color: var(--fg);
+  background:
+    radial-gradient(900px 520px at 75% 0%, rgba(108,92,231,.10), transparent 55%),
+    radial-gradient(900px 520px at 15% 100%, rgba(0,210,211,.06), transparent 55%),
+    linear-gradient(180deg, #050608 0%, #07080a 45%, #07080a 100%);
+}
+
+/* ========== Bootstrap overrides để không bị “light” ========== */
+.card{
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--fg) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: 0 18px 60px rgba(0,0,0,.55) !important;
+}
+.card *{ color: inherit; }
+
+.border-bottom, .border-top { border-color: var(--border) !important; }
+
+.dropdown-menu{
+  background: rgba(11,13,16,.98) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 18px 60px rgba(0,0,0,.55) !important;
+}
+.dropdown-item{ color: var(--fg) !important; }
+.dropdown-item:hover{ background: rgba(255,255,255,.06) !important; }
+
+/* Header divider giống v0 */
+.k-headerline{ border-bottom: 1px solid var(--border); }
+
+/* ========== Sidebar ========== */
+.k-sidebar{
+  width: 280px;
+  border-right: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(10,12,16,.92), rgba(10,12,16,.82));
+}
+
+.k-muted{ color: var(--muted); }
+.k-divider{ border-top:1px solid var(--border); }
+
+.k-card{
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 18px 60px rgba(0,0,0,.55);
+}
+.k-card-quiet{
+  background: rgba(11,13,16,.65);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* Sidebar navigation buttons */
+.k-navbtn{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid transparent;
+  color:var(--fg);
+  background:transparent;
+  transition:150ms ease;
+}
+.k-navbtn:hover{ background: rgba(255,255,255,.06); }
+.k-navbtn.active{
+  background: linear-gradient(90deg, rgba(108,92,231,.95), rgba(0,210,211,.55));
+  border-color: rgba(255,255,255,.10);
+}
+
+/* Pills/badges */
+.k-pill{
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:999px;
+  padding:4px 12px;
+  font-size:12px;
+  background: rgba(255,255,255,.04);
+}
+.k-badge{
+  background: rgba(0,210,211,.12) !important;
+  border: 1px solid rgba(0,210,211,.22);
+  color: #7dfffd !important;
+  font-weight:800;
+}
+
+/* Buttons */
+.k-btn-primary{
+  background: var(--primary) !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  color: #0b0f14 !important;
+  font-weight: 900 !important;
+}
+.k-btn-primary:hover{ filter: brightness(1.05); }
+
+.k-btn-accent{
+  background: var(--accent) !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  color:#051014 !important;
+  font-weight:900 !important;
+}
+.k-btn-accent:hover{ filter: brightness(1.05); }
+
+.k-btn-ghost{
+  background: rgba(255,255,255,.03) !important;
+  border:1px solid var(--border) !important;
+  color: var(--fg) !important;
+}
+.k-btn-ghost:hover{ background: rgba(255,255,255,.06) !important; }
+
+/* icon button nhỏ cho dấu 3 chấm */
+.k-icon-btn{
+  padding: 6px 8px !important;
+  border-radius: 10px !important;
+}
+
+/* Grid: card to giống v0 */
+.k-grid{ display:grid; grid-template-columns:repeat(1,minmax(0,1fr)); gap:18px; }
+@media (min-width: 768px){ .k-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (min-width: 1200px){ .k-grid{ grid-template-columns:repeat(3,minmax(0,1fr)); } }
+
+/* Profile cards + hover options giống v0 */
+.k-profile-card{ position:relative; overflow:hidden; cursor:pointer; }
+.k-profile-card:hover{ border-color: var(--border2); }
+
+.k-opts{ opacity:0; transition:140ms ease; }
+.k-profile-card:hover .k-opts{ opacity:1; }
+
+/* Blob giảm mạnh để card nhìn đen như mẫu 2 */
+.k-grad-blob{
+  position:absolute; inset:-55% -40% auto auto;
+  width:340px; height:340px;
+  background: radial-gradient(circle at 35% 35%, rgba(108,92,231,.16), transparent 60%);
+  pointer-events:none;
+  filter: blur(10px);
+  opacity: .35;
+}
+
+/* Upgrade empty card */
+.k-empty{
+  border:2px dashed rgba(255,255,255,.14) !important;
+  background: rgba(255,255,255,.02) !important;
+  min-height: 420px;
+}
+.k-empty:hover{ border-color: rgba(0,210,211,.35) !important; }
+
+/* Checkbox chuẩn v0 */
+.form-check-input{
+  width:16px;
+  height:16px;
+  border-radius:4px;
+  background-color: rgba(255,255,255,.06);
+  border-color: rgba(255,255,255,.14);
+}
+.form-check-input:checked{
+  background-color: var(--accent);
+  border-color: rgba(255,255,255,.12);
+}
+
+/* Typography giống v0 */
+.k-title{
+  font-size: 22px;
+  font-weight: 850;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+  margin-bottom: 14px;
+}
+.k-meta{
+  font-size: 14px;
+  color: rgba(238,240,245,.62);
+}
+.k-value{
+  font-size: 14px;
+  font-weight: 800;
+  color: rgba(238,240,245,.92);
+}
+
+/* Fix checkbox sát tiêu đề: đẩy content xuống + thoáng hơn */
+.k-profile-pad{
+  padding-top: 80px !important;  /* quan trọng: tạo khoảng giữa checkbox và title */
+  padding-left: 22px !important;
+  padding-right: 22px !important;
+  padding-bottom: 28px !important;
+}
+
+/* Details thoáng */
+.k-details{
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* Tags thoáng */
+.k-tags{
+  gap: 10px !important;
+  margin-bottom: 16px !important;
+}
+
+/* Actions thoáng */
+.k-actions{
+  padding-top: 14px !important;
+  gap: 10px !important;
+}
