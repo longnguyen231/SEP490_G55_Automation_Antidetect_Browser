@@ -3,6 +3,7 @@ import DashboardSidebar from "./components/DashboardSidebar";
 import Profiles from "./pages/Profiles";
 import Subscription from "./pages/Subscription";
 import CreateProfileForm from "./components/CreateProfileForm";
+import Proxies from "./pages/Proxies";
 
 export default function App() {
   const [activeNav, setActiveNav] = useState("profiles");
@@ -32,9 +33,7 @@ export default function App() {
     setShowCreateProfile(true);
   };
 
-  const handleCloseCreateProfile = () => {
-    setShowCreateProfile(false);
-  };
+  const handleCloseCreateProfile = () => setShowCreateProfile(false);
 
   const handleSaveProfile = (payload) => {
     console.log("payload:", payload);
@@ -58,14 +57,13 @@ export default function App() {
         ) : showCreateProfile ? (
           <div className="h-100 p-0">
             <div className="cp-panel h-100">
-              <CreateProfileForm
-                onClose={handleCloseCreateProfile}
-                onSave={handleSaveProfile}
-              />
+              <CreateProfileForm onClose={handleCloseCreateProfile} onSave={handleSaveProfile} />
             </div>
           </div>
         ) : activeNav === "profiles" ? (
           <Profiles onBuyMore={handleBuyProfiles} onNewProfile={handleNewProfile} />
+        ) : activeNav === "proxies" ? (
+          <Proxies />
         ) : (
           <div className="h-100 d-flex flex-column">
             <div className="px-4 px-lg-5 py-4 border-bottom">

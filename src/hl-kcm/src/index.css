@@ -229,3 +229,401 @@ body{
   padding-top: 14px !important;
   gap: 10px !important;
 }
+
+/* =========================================================
+   CREATE PROFILE 
+  
+========================================================= */
+
+/* Panel nằm trong main (sidebar vẫn tồn tại) */
+.cp-panel{
+  height: 100%;
+  background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
+  border-left: 1px solid var(--border);
+}
+
+/* Wrapper của CreateProfileForm: bỏ vh-100, dùng h-100 trong component */
+.cp-screen{
+  height: 100%;
+}
+
+/* Header */
+.cp-screen .cp-header{
+  padding: 22px 28px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* nếu bạn chưa set class cp-header thì không sao, sẽ không áp */
+.cp-screen h1{
+  color: var(--fg);
+}
+.cp-screen small,
+.cp-screen .text-body-secondary{
+  color: var(--muted) !important;
+}
+
+
+.cp-screen .nav-tabs{
+  border-bottom: 1px solid var(--border) !important;
+  padding: 10px 18px 0 18px;
+  gap: 10px;
+}
+.cp-screen .nav-tabs .nav-item{
+  margin-bottom: 0 !important;
+}
+.cp-screen .nav-tabs .nav-link{
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-bottom: none !important;
+  color: rgba(238,240,245,.75) !important;
+
+  padding: 10px 16px !important;
+  border-top-left-radius: 10px !important;
+  border-top-right-radius: 10px !important;
+}
+.cp-screen .nav-tabs .nav-link:hover{
+  background: rgba(255,255,255,.04) !important;
+  color: rgba(238,240,245,.92) !important;
+}
+.cp-screen .nav-tabs .nav-link.active{
+  color: rgba(238,240,245,.95) !important;
+  background: rgba(255,255,255,.03) !important;
+  border-color: rgba(0,210,211,.55) !important; /* accent */
+  border-bottom-color: transparent !important;
+}
+
+/* Form controls dark */
+.cp-screen .form-label{
+  color: rgba(238,240,245,.92) !important;
+  font-weight: 700;
+}
+.cp-screen .form-control,
+.cp-screen .form-select,
+.cp-screen textarea{
+  background: rgba(255,255,255,.03) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--fg) !important;
+  border-radius: 10px !important;
+}
+.cp-screen .form-control::placeholder,
+.cp-screen textarea::placeholder{
+  color: rgba(238,240,245,.35) !important;
+}
+.cp-screen .form-control:focus,
+.cp-screen .form-select:focus{
+  box-shadow: none !important;
+  border-color: rgba(0,210,211,.45) !important;
+}
+
+/* ========== Browser cards (Chromium / Firefox) ========== */
+.cp-screen .border-accent{
+  border-color: rgba(0,210,211,.55) !important;
+}
+.cp-screen button.border-secondary{
+  border-color: var(--border) !important;
+}
+
+/* Các button card chọn Browser: giống mẫu */
+.cp-screen .browser-card{
+  background: rgba(255,255,255,.02) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  transition: 140ms ease;
+}
+.cp-screen .browser-card:hover{
+  background: rgba(255,255,255,.03) !important;
+  border-color: var(--border2) !important;
+}
+.cp-screen .browser-card.selected{
+  background: rgba(0,210,211,.06) !important;
+  border-color: rgba(0,210,211,.55) !important;
+}
+
+/* ========== FP pill (Windows/macOS/Linux...) ========== */
+.fp-option{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.02);
+  color: rgba(238,240,245,.86);
+  font-weight: 750;
+  font-size: 13px;
+  line-height: 1;
+  transition: 140ms ease;
+}
+.fp-option:hover{
+  background: rgba(255,255,255,.04);
+  border-color: var(--border2);
+}
+.fp-option.selected{
+  background: rgba(0,210,211,.10);
+  border-color: rgba(0,210,211,.55);
+  color: rgba(238,240,245,.95);
+}
+
+/* ========== Fingerprint overview panel (bảng bên phải) ========== */
+.cp-screen .overview-row{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.cp-screen .overview-row:last-child{
+  border-bottom: none;
+}
+.cp-screen .overview-row span:first-child{
+  color: rgba(238,240,245,.55);
+  font-size: 12px;
+}
+.cp-screen .overview-row span:last-child{
+  color: rgba(238,240,245,.92);
+  font-weight: 800;
+  font-size: 12.5px;
+}
+
+/* Card header / footer nhỏ gọn giống mẫu */
+.cp-screen .card-header{
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255,255,255,.06) !important;
+}
+.cp-screen .card-footer{
+  background: transparent !important;
+  border-top: 1px solid rgba(255,255,255,.06) !important;
+}
+
+/* Nút accent trong CreateProfileForm */
+.btn-accent{
+  background: var(--accent) !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  color:#051014 !important;
+  font-weight: 900 !important;
+  border-radius: 10px !important;
+}
+.btn-accent:hover{ filter: brightness(1.05); }
+
+/* Nút outline secondary trong dark */
+.cp-screen .btn-outline-secondary{
+  background: rgba(255,255,255,.02) !important;
+  border: 1px solid var(--border) !important;
+  color: rgba(238,240,245,.9) !important;
+}
+.cp-screen .btn-outline-secondary:hover{
+  background: rgba(255,255,255,.06) !important;
+  border-color: var(--border2) !important;
+}
+
+/* Link button (Regenerate / View all details) */
+.cp-screen .btn-link{
+  color: rgba(0,210,211,.9) !important;
+  text-decoration: none !important;
+}
+.cp-screen .btn-link:hover{
+  color: rgba(0,210,211,1) !important;
+  text-decoration: underline !important;
+}
+
+/* =========================
+   PROXIES PAGE STYLES
+========================= */
+.proxy-tab{
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 16px;
+  border-radius:12px;
+  border:1px solid transparent;
+  background: rgba(255,255,255,.02);
+  color: rgba(238,240,245,.72);
+  transition: 140ms ease;
+}
+.proxy-tab:hover{
+  background: rgba(255,255,255,.04);
+  color: rgba(238,240,245,.92);
+}
+.proxy-tab.active{
+  background: rgba(255,255,255,.03);
+  border-color: rgba(255,255,255,.12);
+  color: rgba(238,240,245,.95);
+}
+
+.proxy-ig-left{
+  background: rgba(255,255,255,.03) !important;
+  border: 1px solid var(--border) !important;
+  border-right: none !important;
+  color: rgba(238,240,245,.70) !important;
+}
+.proxy-search{
+  background: rgba(255,255,255,.03) !important;
+  border: 1px solid var(--border) !important;
+  border-left: none !important;
+  color: var(--fg) !important;
+}
+.proxy-search::placeholder{ color: rgba(238,240,245,.35) !important; }
+.proxy-search:focus{ box-shadow:none !important; border-color: rgba(0,210,211,.45) !important; }
+
+.proxy-selection{
+  background: rgba(0,210,211,.08);
+  border: 1px solid rgba(0,210,211,.18);
+  border-radius: 12px;
+  padding: 10px 14px;
+  color: rgba(238,240,245,.92);
+}
+.proxy-link{
+  background: transparent;
+  border: none;
+  color: rgba(0,210,211,.95);
+  font-weight: 700;
+}
+.proxy-link:hover{ text-decoration: underline; }
+
+.proxy-table-wrap{
+  height: 100%;
+  overflow: auto;
+}
+.proxy-table{
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 1100px;
+}
+.proxy-table thead th{
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(255,255,255,.02);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  padding: 14px 14px;
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: .08em;
+  color: rgba(238,240,245,.55);
+}
+.proxy-table tbody td{
+  padding: 16px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  vertical-align: middle;
+}
+.proxy-table tbody tr:hover{
+  background: rgba(255,255,255,.02);
+}
+.proxy-table tbody tr.selected{
+  background: rgba(0,210,211,.05);
+}
+
+.proxy-flag{
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.08);
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 12px;
+  color: rgba(238,240,245,.9);
+}
+
+.proxy-badge{
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+}
+.proxy-http{ background: rgba(59,130,246,.12); border-color: rgba(59,130,246,.25); color: #93c5fd; }
+.proxy-https{ background: rgba(34,197,94,.12); border-color: rgba(34,197,94,.25); color: #86efac; }
+.proxy-socks4{ background: rgba(249,115,22,.12); border-color: rgba(249,115,22,.25); color: #fdba74; }
+.proxy-socks5{ background: rgba(168,85,247,.12); border-color: rgba(168,85,247,.25); color: #d8b4fe; }
+
+.proxy-status{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+}
+.proxy-status-active{ background: rgba(34,197,94,.12); border-color: rgba(34,197,94,.22); color: #86efac; }
+.proxy-status-inactive{ background: rgba(148,163,184,.10); border-color: rgba(148,163,184,.22); color: rgba(238,240,245,.70); }
+.proxy-status-checking{ background: rgba(0,210,211,.10); border-color: rgba(0,210,211,.22); color: #7dfffd; }
+.proxy-status-error{ background: rgba(255,77,79,.10); border-color: rgba(255,77,79,.22); color: #ffb2b2; }
+
+.proxy-tag{
+  display:inline-flex;
+  align-items:center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.08);
+  color: rgba(238,240,245,.9);
+}
+
+.proxy-empty{
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+  display:grid;
+  place-items:center;
+  color: rgba(238,240,245,.55);
+}
+
+.proxy-preview{
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+}
+
+.spin{
+  animation: spin 1s linear infinite;
+}
+@keyframes spin{
+  from{ transform: rotate(0deg); }
+  to{ transform: rotate(360deg); }
+}
+
+/* ===== Bootstrap Modal DARK (fix Add Proxy bị trắng) ===== */
+.modal-backdrop.show{
+  opacity: .55; /* giống app */
+}
+
+.modal-content{
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--fg) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: 0 18px 60px rgba(0,0,0,.55) !important;
+}
+
+.modal-header, .modal-footer{
+  border-color: var(--border) !important;
+  background: transparent !important;
+}
+
+.modal-title{
+  color: var(--fg) !important;
+}
+
+.btn-close{
+  filter: invert(1);
+  opacity: .75;
+}
+.btn-close:hover{ opacity: 1; }
