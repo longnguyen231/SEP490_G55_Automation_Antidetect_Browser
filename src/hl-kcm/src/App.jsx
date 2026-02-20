@@ -2,24 +2,44 @@ import { useState } from "react";
 import DashboardSidebar from "./components/DashboardSidebar";
 import Profiles from "./pages/Profiles";
 import Subscription from "./pages/Subscription";
+import CreateProfileForm from "./components/CreateProfileForm";
 
 export default function App() {
   const [activeNav, setActiveNav] = useState("profiles");
   const [showSubscription, setShowSubscription] = useState(false);
+  const [showCreateProfile, setShowCreateProfile] = useState(false);
 
   const handleBack = () => {
     setShowSubscription(false);
+    setShowCreateProfile(false);
     setActiveNav("profiles");
   };
 
-  const handleBuyProfiles = () => setShowSubscription(true);
+  const handleBuyProfiles = () => {
+    setShowSubscription(true);
+    setShowCreateProfile(false);
+  };
 
   const handleNavigate = (itemId) => {
     setActiveNav(itemId);
     setShowSubscription(false);
+    setShowCreateProfile(false);
   };
 
-  const handleNewProfile = () => alert("New Profile (UI only).");
+  const handleNewProfile = () => {
+    setActiveNav("profiles");
+    setShowSubscription(false);
+    setShowCreateProfile(true);
+  };
+
+  const handleCloseCreateProfile = () => {
+    setShowCreateProfile(false);
+  };
+
+  const handleSaveProfile = (payload) => {
+    console.log("payload:", payload);
+    setShowCreateProfile(false);
+  };
 
   return (
     <div className="d-flex" style={{ height: "100vh", overflow: "hidden" }}>
@@ -35,6 +55,15 @@ export default function App() {
       <main className="flex-grow-1" style={{ height: "100vh", overflow: "hidden" }}>
         {showSubscription ? (
           <Subscription onBack={handleBack} />
+        ) : showCreateProfile ? (
+          <div className="h-100 p-0">
+            <div className="cp-panel h-100">
+              <CreateProfileForm
+                onClose={handleCloseCreateProfile}
+                onSave={handleSaveProfile}
+              />
+            </div>
+          </div>
         ) : activeNav === "profiles" ? (
           <Profiles onBuyMore={handleBuyProfiles} onNewProfile={handleNewProfile} />
         ) : (
