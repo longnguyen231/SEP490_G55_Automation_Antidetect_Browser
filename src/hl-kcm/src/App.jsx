@@ -5,6 +5,7 @@ import Subscription from "./pages/Subscription";
 import CreateProfileForm from "./components/CreateProfileForm";
 import Proxies from "./pages/Proxies";
 import Extensions from "./pages/Extensions";
+import Automation from "./pages/Automation";
 
 export default function App() {
   const [activeNav, setActiveNav] = useState("profiles");
@@ -63,8 +64,11 @@ export default function App() {
           </div>
         ) : activeNav === "profiles" ? (
           <Profiles onBuyMore={handleBuyProfiles} onNewProfile={handleNewProfile} />
+        ) : activeNav === "automation" ? (
+          <Automation />
         ) : activeNav === "proxies" ? (
           <Proxies />
+
         ) : activeNav === "extensions" ? (
           <Extensions />
         )
