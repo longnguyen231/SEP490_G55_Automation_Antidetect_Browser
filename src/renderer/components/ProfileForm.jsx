@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
+import { Shuffle, Save, X, RefreshCw, Lock, Unlock, Copy, ChevronDown } from 'lucide-react';
+import { useI18n } from '../i18n/index';
 import './ProfileForm.css';
 
 const defaultFingerprint = {
@@ -50,6 +52,8 @@ const defaultSettings = {
 };
 
 function ProfileForm({ profile, onSave, onCancel }) {
+  const { t } = useI18n();
+  const [activeTab, setActiveTab] = useState('basic');
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -473,775 +477,730 @@ function ProfileForm({ profile, onSave, onCancel }) {
     );
   };
 
+  const TABS = [
+    { id: 'basic', labelKey: 'pf.tab.basic' },
+    { id: 'fingerprint', labelKey: 'pf.tab.fingerprint' },
+    { id: 'environment', labelKey: 'pf.tab.environment' },
+    { id: 'advanced', labelKey: 'pf.tab.advanced' },
+  ];
+
   return (
     <div className="profile-form-container">
       <div className="profile-form-header">
-        <h2>{profile ? 'Edit Profile' : 'Create New Profile'}</h2>
+        <h2>{profile ? t('profileForm.header.edit') : t('profileForm.header.create')}</h2>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <button type="button" className="btn-ghost" title="Tạo nhanh cấu hình ngẫu nhiên" onClick={randomize} disabled={lockedPreset}>🔀 Randomize</button>
+          <button type="button" className="btn" onClick={randomize} disabled={lockedPreset}>
+            <Shuffle size={14} /> {t('profileForm.randomize')}
+          </button>
           <button
             type="submit"
             form="profile-edit-form"
             className="btn btn-primary"
-            title={profile ? 'Lưu thay đổi' : 'Tạo profile mới'}
           >
-            {profile ? 'Save' : 'Create'}
+            <Save size={14} /> {profile ? t('profileForm.save') : t('profileForm.create')}
           </button>
-          <button className="btn-close" onClick={onCancel}>✕</button>
+          <button className="btn btn-icon" onClick={onCancel}>
+            <X size={18} />
+          </button>
         </div>
       </div>
 
-      <form id="profile-edit-form" onSubmit={handleSubmit} className="profile-form">
-        <section className="form-section">
-          <h3>Basic Information</h3>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="name">Profile Name *</label>
-              <input
-                type="text"
-                id="name"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                placeholder="Enter profile name"
-                required
-              />
-              <div className="form-hint">Tên dùng để phân biệt các profile. Có thể đổi sau.</div>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="startUrl">Start URL</label>
-              <input
-                type="url"
-                id="startUrl"
-                name="startUrl"
-                value={formData.startUrl}
-                onChange={handleChange}
-                placeholder="https://www.google.com"
-              />
-              <div className="form-hint">URL sẽ mở khi khởi chạy profile.</div>
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="description">Description</label>
-            <textarea
-              id="description"
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              placeholder="Enter profile description"
-              rows="3"
-            />
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="engine">Engine</label>
-              <select id="engine" name="engine" value={formData.settings.engine} onChange={handleSettingsChange}>
-                <option value="playwright">Playwright</option>
-                <option value="cdp">Chrome (CDP)</option>
-              </select>
-              <div className="form-hint">Chọn engine chạy profile (Playwright hay Chrome CDP).</div>
-            </div>
-            {formData.settings.engine === 'cdp' && (
-              <div className="form-group">
-                <label>CDP Init Script</label>
-                <div className="checkbox-group">
-                  <label>
-                    <input
-                      type="checkbox"
-                      name="cdpApplyInitScript"
-                      checked={formData.settings.cdpApplyInitScript !== false}
-                      onChange={(e) => handleSettingsChange({ target: { name: 'cdpApplyInitScript', type: 'checkbox', checked: e.target.checked } })}
-                    />
-                    <span>Enable fingerprint InitScript</span>
-                  </label>
-                </div>
-                <div className="form-hint">Tắt để chỉ dùng Emulation (timezone, UA...). Mặc định bật.</div>
-              </div>
-            )}
-            {formData.settings.engine === 'playwright' && (
-              <div className="form-group">
-                <label htmlFor="headless">Headless (Playwright)</label>
-                <select
-                  id="headless"
-                  name="headless"
-                  value={String(!!formData.settings.headless)}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    settings: { ...prev.settings, headless: e.target.value === 'true' }
-                  }))}
-                >
-                  <option value="false">Show UI</option>
-                  <option value="true">Headless (no UI)</option>
-                </select>
-                <div className="form-hint">Chỉ áp dụng cho Playwright. Với Chrome (CDP) sẽ luôn hiển thị UI.</div>
-              </div>
-            )}
-          </div>
-
-          {/* Removed 'Active Profile' toggle to simplify UI and requested removal */}
-        </section>
-
-        {/* Automation section removed per request */}
-
-        <section className="form-section">
-          <h3>Browser Fingerprint (Antidetect)</h3>
-
-          {/* Preset toolbar (compact) */}
-          <div className="preset-bar">
-            <div className="preset-select">
-              <label htmlFor="fp_preset">Fingerprint Preset</label>
-              <select
-                id="fp_preset"
-                value={selectedPreset}
-                disabled={lockedPreset}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  setSelectedPreset(raw);
-                  let p = null;
-                  if (raw && raw.startsWith('c:')) {
-                    const id = raw.slice(2);
-                    p = customPresets.find(x => x.id === id);
-                  } else {
-                    const idx = Number(raw);
-                    if (!Number.isNaN(idx) && presets[idx]) p = presets[idx];
-                  }
-                  if (p) {
-                    setFormData(prev => ({
-                      ...prev,
-                      fingerprint: { ...prev.fingerprint, ...p.fingerprint },
-                      settings: {
-                        ...prev.settings,
-                        language: p.settingsPatch.language,
-                        timezone: p.settingsPatch.timezone,
-                        geolocation: { ...(prev.settings.geolocation || {}), ...(p.settingsPatch.geolocation || {}) },
-                        advanced: { ...(prev.settings.advanced || {}), ...(p.settingsPatch.advanced || {}) },
-                      }
-                    }));
-                  }
-                }}
-              >
-                <option value="">Generated suggestions…</option>
-                {presets.map((p, i) => (
-                  <option key={i} value={i}>{p.label}</option>
-                ))}
-                {customPresets.length > 0 && (
-                  <optgroup label="Custom presets">
-                    {customPresets.map(p => {
-                      const fp = p.fingerprint || {};
-                      const sum = [fp.browser && (fp.browser + (fp.browserVersion ? ` ${fp.browserVersion}` : '')),
-                      fp.language,
-                      fp.screenResolution].filter(Boolean).join(' · ');
-                      const text = [p.name || p.label || 'Custom', sum ? `(${sum})` : ''].filter(Boolean).join(' ');
-                      return (
-                        <option key={p.id} value={`c:${p.id}`}>{text}</option>
-                      );
-                    })}
-                  </optgroup>
-                )}
-              </select>
-            </div>
-
-            <div className="preset-actions" aria-label="Preset actions">
-              <label className="preset-count" title="Số lượng preset gợi ý">
-                <span>×</span>
-                <select value={presetCount} onChange={(e) => setPresetCount(Number(e.target.value))}>
-                  <option value={3}>3</option>
-                  <option value={6}>6</option>
-                  <option value={9}>9</option>
-                </select>
-              </label>
-              <button
-                type="button"
-                className={`icon-btn ${lockedPreset ? 'disabled' : ''}`}
-                onClick={() => !lockedPreset && regeneratePresets(presetCount)}
-                title="Regenerate suggestions"
-                disabled={lockedPreset}
-              >↻</button>
-              <button
-                type="button"
-                className="icon-btn"
-                title="Save current as preset"
-                onClick={async () => {
-                  const name = prompt('Tên preset:');
-                  if (!name) return;
-                  const preset = {
-                    name,
-                    label: name,
-                    fingerprint: { ...formData.fingerprint },
-                    settingsPatch: {
-                      language: formData.settings.language,
-                      timezone: formData.settings.timezone,
-                      geolocation: { ...(formData.settings.geolocation || {}) },
-                      advanced: { ...(formData.settings.advanced || {}) },
-                    },
-                  };
-                  try {
-                    const res = await window.electronAPI?.addPreset?.(preset);
-                    if (res?.success && res.preset) {
-                      setCustomPresets(prev => [...prev, res.preset]);
-                      alert('Đã lưu preset');
-                    } else alert('Không thể lưu preset');
-                  } catch { alert('Không thể lưu preset'); }
-                }}
-              >💾</button>
-              <button
-                type="button"
-                className={`icon-btn ${lockedPreset ? 'active' : ''}`}
-                onClick={() => setLockedPreset(v => !v)}
-                title={lockedPreset ? 'Unlock presets' : 'Lock presets'}
-              >{lockedPreset ? '🔒' : '🔓'}</button>
-            </div>
-
-            {selectedPreset !== '' && (
-              <div className="preset-note" title="Current preset label">
-                {(() => {
-                  let label = '';
-                  const raw = selectedPreset;
-                  if (raw && String(raw).startsWith('c:')) {
-                    const id = String(raw).slice(2);
-                    const p = customPresets.find(x => x.id === id);
-                    label = p ? (p.name || p.label || '') : '';
-                  } else {
-                    const idx = Number(raw);
-                    const p = (!Number.isNaN(idx) && presets[idx]) ? presets[idx] : null;
-                    label = p ? p.label : '';
-                  }
-                  return label ? (<span className="badge">{label}</span>) : null;
-                })()}
-              </div>
-            )}
-          </div>
-          <div className="form-hint" style={{ marginTop: '-0.25rem' }}>Chọn nhanh fingerprint gợi ý; có thể tinh chỉnh bên dưới.</div>
-
-          {/* Override toggles removed from this central block; now each appears near its setting. */}
-
-          <div className="form-row-3">
-            <div className="form-group">
-              <label htmlFor="os">Operating System</label>
-              <select
-                id="os"
-                name="os"
-                value={formData.fingerprint.os}
-                onChange={handleOsChange}
-              >
-                <option value="Windows">Windows</option>
-                <option value="macOS">macOS</option>
-                <option value="Linux">Linux</option>
-              </select>
-              <div className="form-hint">Ảnh hưởng tới userAgent và một số API nhận diện hệ điều hành.</div>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="browser">Browser</label>
-              <select
-                id="browser"
-                name="browser"
-                value={formData.fingerprint.browser}
-                onChange={handleFingerprintChange}
-              >
-                {(formData.settings.engine === 'playwright' ? ['Chrome', 'Firefox'] : ['Chrome', 'Edge']).map(b => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
-              </select>
-              <div className="form-hint">Chọn trình duyệt mô phỏng. Nên đồng bộ với userAgent.</div>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="browserVersion">Browser Version</label>
-              <input
-                type="text"
-                id="browserVersion"
-                name="browserVersion"
-                value={formData.fingerprint.browserVersion}
-                onChange={handleFingerprintChange}
-                placeholder="120.0.0.0"
-              />
-              <div className="form-hint">Phiên bản dùng trong userAgent.</div>
-            </div>
-          </div>
-
-          <RegionBlock
-            flag="userAgent"
-            label="User Agent Override"
-            hint="Bỏ chọn để dùng UA mặc định của engine."
+      {/* Tab Navigation */}
+      <div className="pf-tabs">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`pf-tab ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
           >
-            <div className="form-group" style={{ marginTop: '0.5rem' }}>
-              <label htmlFor="userAgent" style={{ fontWeight: 500 }}>User Agent String</label>
+            {t(tab.labelKey)}
+          </button>
+        ))}
+      </div>
+
+      <form id="profile-edit-form" onSubmit={handleSubmit} className="profile-form">
+
+        {/* ===== TAB: BASIC ===== */}
+        {activeTab === 'basic' && (
+          <section className="form-section">
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="name">{t('pf.name')}</label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  placeholder={t('pf.name.ph')}
+                  required
+                />
+                <div className="form-hint">{t('pf.name.hint')}</div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="startUrl">{t('pf.startUrl')}</label>
+                <input
+                  type="url"
+                  id="startUrl"
+                  name="startUrl"
+                  value={formData.startUrl}
+                  onChange={handleChange}
+                  placeholder="https://www.google.com"
+                />
+                <div className="form-hint">{t('pf.startUrl.hint')}</div>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="description">{t('pf.description')}</label>
               <textarea
-                id="userAgent"
-                name="userAgent"
-                value={formData.fingerprint.userAgent}
-                onChange={handleFingerprintChange}
-                placeholder="Enter custom user agent"
-                rows="2"
-                disabled={(formData.settings.applyOverrides?.userAgent) === false}
+                id="description"
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                placeholder={t('pf.description.ph')}
+                rows="3"
               />
-              <div style={{ marginTop: '0.25rem' }}>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="engine">{t('pf.engine')}</label>
+                <select id="engine" name="engine" value={formData.settings.engine} onChange={handleSettingsChange}>
+                  <option value="playwright">Playwright</option>
+                  <option value="cdp">Chrome (CDP)</option>
+                </select>
+                <div className="form-hint">{t('pf.engine.hint')}</div>
+              </div>
+              {formData.settings.engine === 'cdp' && (
+                <div className="form-group">
+                  <label>{t('pf.cdpInit')}</label>
+                  <div className="checkbox-group">
+                    <label>
+                      <input
+                        type="checkbox"
+                        name="cdpApplyInitScript"
+                        checked={formData.settings.cdpApplyInitScript !== false}
+                        onChange={(e) => handleSettingsChange({ target: { name: 'cdpApplyInitScript', type: 'checkbox', checked: e.target.checked } })}
+                      />
+                      <span>{t('pf.cdpInit.enable')}</span>
+                    </label>
+                  </div>
+                  <div className="form-hint">{t('pf.cdpInit.hint')}</div>
+                </div>
+              )}
+              {formData.settings.engine === 'playwright' && (
+                <div className="form-group">
+                  <label htmlFor="headless">{t('pf.headless')}</label>
+                  <select
+                    id="headless"
+                    name="headless"
+                    value={String(!!formData.settings.headless)}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      settings: { ...prev.settings, headless: e.target.value === 'true' }
+                    }))}
+                  >
+                    <option value="false">{t('pf.headless.show')}</option>
+                    <option value="true">{t('pf.headless.hide')}</option>
+                  </select>
+                  <div className="form-hint">{t('pf.headless.hint')}</div>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* ===== TAB: FINGERPRINT ===== */}
+        {activeTab === 'fingerprint' && (
+          <section className="form-section">
+            {/* Preset toolbar */}
+            <div className="preset-bar">
+              <div className="preset-select">
+                <label htmlFor="fp_preset">{t('pf.fp.preset')}</label>
+                <select
+                  id="fp_preset"
+                  value={selectedPreset}
+                  disabled={lockedPreset}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setSelectedPreset(raw);
+                    let p = null;
+                    if (raw && raw.startsWith('c:')) {
+                      const id = raw.slice(2);
+                      p = customPresets.find(x => x.id === id);
+                    } else {
+                      const idx = Number(raw);
+                      if (!Number.isNaN(idx) && presets[idx]) p = presets[idx];
+                    }
+                    if (p) {
+                      setFormData(prev => ({
+                        ...prev,
+                        fingerprint: { ...prev.fingerprint, ...p.fingerprint },
+                        settings: {
+                          ...prev.settings,
+                          language: p.settingsPatch.language,
+                          timezone: p.settingsPatch.timezone,
+                          geolocation: { ...(prev.settings.geolocation || {}), ...(p.settingsPatch.geolocation || {}) },
+                          advanced: { ...(prev.settings.advanced || {}), ...(p.settingsPatch.advanced || {}) },
+                        }
+                      }));
+                    }
+                  }}
+                >
+                  <option value="">{t('pf.fp.suggestions')}</option>
+                  {presets.map((p, i) => (
+                    <option key={i} value={i}>{p.label}</option>
+                  ))}
+                  {customPresets.length > 0 && (
+                    <optgroup label={t('pf.fp.customPresets')}>
+                      {customPresets.map(p => {
+                        const fp = p.fingerprint || {};
+                        const sum = [fp.browser && (fp.browser + (fp.browserVersion ? ` ${fp.browserVersion}` : '')),
+                        fp.language,
+                        fp.screenResolution].filter(Boolean).join(' · ');
+                        const text = [p.name || p.label || 'Custom', sum ? `(${sum})` : ''].filter(Boolean).join(' ');
+                        return (
+                          <option key={p.id} value={`c:${p.id}`}>{text}</option>
+                        );
+                      })}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
+
+              <div className="preset-actions" aria-label="Preset actions">
+                <label className="preset-count" title="Count">
+                  <span>×</span>
+                  <select value={presetCount} onChange={(e) => setPresetCount(Number(e.target.value))}>
+                    <option value={3}>3</option>
+                    <option value={6}>6</option>
+                    <option value={9}>9</option>
+                  </select>
+                </label>
                 <button
                   type="button"
-                  className="btn-ghost"
+                  className={`btn btn-icon ${lockedPreset ? 'disabled' : ''}`}
+                  onClick={() => !lockedPreset && regeneratePresets(presetCount)}
+                  title={t('pf.fp.regenerate')}
+                  disabled={lockedPreset}
+                >
+                  <RefreshCw size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-icon"
+                  title={t('pf.fp.savePreset')}
                   onClick={async () => {
-                    try { await navigator.clipboard.writeText(formData.fingerprint.userAgent || ''); alert('Đã copy UA'); }
-                    catch { alert('Copy UA thất bại'); }
+                    const name = prompt('Preset name:');
+                    if (!name) return;
+                    const preset = {
+                      name,
+                      label: name,
+                      fingerprint: { ...formData.fingerprint },
+                      settingsPatch: {
+                        language: formData.settings.language,
+                        timezone: formData.settings.timezone,
+                        geolocation: { ...(formData.settings.geolocation || {}) },
+                        advanced: { ...(formData.settings.advanced || {}) },
+                      },
+                    };
+                    try {
+                      const res = await window.electronAPI?.addPreset?.(preset);
+                      if (res?.success && res.preset) {
+                        setCustomPresets(prev => [...prev, res.preset]);
+                      }
+                    } catch { }
                   }}
-                >📋 Copy UA</button>
+                >
+                  <Save size={14} />
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-icon ${lockedPreset ? 'active' : ''}`}
+                  onClick={() => setLockedPreset(v => !v)}
+                  title={lockedPreset ? 'Unlock presets' : 'Lock presets'}
+                >
+                  {lockedPreset ? <Lock size={14} /> : <Unlock size={14} />}
+                </button>
               </div>
-              <div className="form-hint">Chuỗi UA tuỳ chỉnh để che dấu phiên bản & nền tảng.</div>
-            </div>
-          </RegionBlock>
 
-          <RegionBlock
-            flag="language"
-            label="Language Override"
-            hint="Bỏ chọn để dùng ngôn ngữ gốc của browser (Accept-Language / navigator.languages)."
-          >
-            <div className="form-group">
-              <label htmlFor="language">Primary Language</label>
-              <select
-                id="language"
-                name="language"
-                value={formData.settings.language}
-                onChange={(e) => { handleSettingsChange(e); setFormData(prev => ({ ...prev, fingerprint: { ...prev.fingerprint, language: e.target.value } })); }}
-                disabled={(formData.settings.applyOverrides?.language) === false}
-              >
-                {options.locales && options.locales.length > 0 ? (
-                  options.locales.map(loc => (
-                    <option key={loc} value={loc}>{loc}</option>
-                  ))
-                ) : (
-                  <>
-                    <option value="en-US">English (US)</option>
-                    <option value="en-GB">English (UK)</option>
-                    <option value="vi-VN">Tiếng Việt</option>
-                    <option value="fr-FR">Français</option>
-                    <option value="de-DE">Deutsch</option>
-                    <option value="es-ES">Español</option>
-                    <option value="it-IT">Italiano</option>
-                    <option value="pt-BR">Português (BR)</option>
-                    <option value="ru-RU">Русский</option>
-                    <option value="ja-JP">日本語</option>
-                    <option value="ko-KR">한국어</option>
-                    <option value="zh-CN">中文(简体)</option>
-                  </>
-                )}
-              </select>
-              <div className="form-hint">Ngôn ngữ hiển thị mặc định.</div>
+              {selectedPreset !== '' && (
+                <div className="preset-note" title="Current preset label">
+                  {(() => {
+                    let label = '';
+                    const raw = selectedPreset;
+                    if (raw && String(raw).startsWith('c:')) {
+                      const id = String(raw).slice(2);
+                      const p = customPresets.find(x => x.id === id);
+                      label = p ? (p.name || p.label || '') : '';
+                    } else {
+                      const idx = Number(raw);
+                      const p = (!Number.isNaN(idx) && presets[idx]) ? presets[idx] : null;
+                      label = p ? p.label : '';
+                    }
+                    return label ? (<span className="badge">{label}</span>) : null;
+                  })()}
+                </div>
+              )}
             </div>
-          </RegionBlock>
-          <RegionBlock
-            flag="timezone"
-            label="Timezone Override"
-            hint="Bỏ chọn để dùng múi giờ hệ thống."
-          >
-            <div className="form-group">
-              <label htmlFor="timezone">Timezone</label>
-              <select
-                id="timezone"
-                name="timezone"
-                value={formData.settings.timezone}
-                onChange={(e) => { handleSettingsChange(e); setFormData(prev => ({ ...prev, fingerprint: { ...prev.fingerprint, timezone: e.target.value } })); }}
-                disabled={(formData.settings.applyOverrides?.timezone) === false}
-              >
-                {options.timezones && options.timezones.length > 0 ? (
-                  options.timezones.map(tz => (
-                    <option key={tz} value={tz}>{tz}</option>
-                  ))
-                ) : (
-                  <>
-                    <option value="UTC">UTC</option>
-                    <option value="America/New_York">America/New_York (EST)</option>
-                    <option value="America/Chicago">America/Chicago (CST)</option>
-                    <option value="America/Denver">America/Denver (MST)</option>
-                    <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
-                    <option value="Europe/London">Europe/London (GMT)</option>
-                    <option value="Europe/Paris">Europe/Paris (CET)</option>
-                    <option value="Europe/Berlin">Europe/Berlin (CET)</option>
-                    <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh (ICT)</option>
-                    <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
-                    <option value="Asia/Seoul">Asia/Seoul (KST)</option>
-                    <option value="Asia/Shanghai">Asia/Shanghai (CST)</option>
-                    <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
-                  </>
-                )}
-              </select>
-              <div className="form-hint">Nên phù hợp với vị trí / Proxy.</div>
-            </div>
-          </RegionBlock>
+            <div className="form-hint" style={{ marginTop: '-0.25rem' }}>{t('pf.fp.presetHint')}</div>
 
-          <RegionBlock
-            flag="viewport"
-            label="Viewport & DPR Override"
-            hint="Bỏ chọn để dùng kích thước và DPR mặc định."
-          >
-            <div className="form-group">
-              <label htmlFor="screenResolution">Screen Resolution</label>
-              <select
-                id="screenResolution"
-                name="screenResolution"
-                value={formData.fingerprint.screenResolution}
-                onChange={handleFingerprintChange}
-                disabled={(formData.settings.applyOverrides?.viewport) === false}
-              >
-                <option value="1024x768">1024x768</option>
-                <option value="1280x720">1280x720</option>
-                <option value="1280x800">1280x800</option>
-                <option value="1360x768">1360x768</option>
-                <option value="1366x768">1366x768</option>
-                <option value="1440x900">1440x900</option>
-                <option value="1536x864">1536x864</option>
-                <option value="1600x900">1600x900</option>
-                <option value="1680x1050">1680x1050</option>
-                <option value="1920x1080">1920x1080</option>
-                <option value="1920x1200">1920x1200</option>
-                <option value="2560x1440">2560x1440</option>
-                <option value="2560x1600">2560x1600</option>
-                <option value="2880x1800">2880x1800</option>
-                <option value="3000x2000">3000x2000</option>
-                <option value="3200x1800">3200x1800</option>
-                <option value="3440x1440">3440x1440 (Ultrawide)</option>
-                <option value="3840x2160">3840x2160 (4K)</option>
-              </select>
-              <div className="form-hint">Kích thước màn hình mô phỏng.</div>
-            </div>
-          </RegionBlock>
-
-          <div className="form-group">
-            <label>Advanced Features</label>
-            <div className="checkbox-group">
-              <label>
-                <input
-                  type="checkbox"
-                  name="webgl"
-                  checked={formData.settings.webgl}
-                  onChange={(e) => {
-                    handleSettingsChange(e);
-                    setFormData(prev => ({ ...prev, fingerprint: { ...prev.fingerprint, webgl: e.target.checked } }));
-                  }}
-                />
-                <span>Enable WebGL</span>
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  name="canvas"
-                  checked={formData.fingerprint.canvas}
-                  onChange={handleFingerprintChange}
-                />
-                <span>Enable Canvas</span>
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  name="audio"
-                  checked={formData.fingerprint.audio}
-                  onChange={handleFingerprintChange}
-                />
-                <span>Enable Audio Context</span>
-              </label>
-            </div>
-            <div className="form-hint">Bật/tắt các API có thể bị dùng để lấy dấu vân tay (WebGL, Canvas, Audio).</div>
-          </div>
-        </section>
-
-        <section className="form-section">
-          <h3>Environment & Privacy</h3>
-
-          <RegionBlock
-            flag="hardware"
-            label="Hardware Concurrency & Memory"
-            hint="Bỏ chọn để giữ navigator.hardwareConcurrency & deviceMemory thực tế."
-          >
-            <div className="form-row">
+            <div className="form-row-3">
               <div className="form-group">
-                <label htmlFor="cpuCores">CPU Cores</label>
-                <input
-                  type="number"
-                  id="cpuCores"
-                  name="cpuCores"
-                  min="1"
-                  max="32"
-                  value={formData.settings.cpuCores}
-                  onChange={(e) => handleSettingsChange({ target: { ...e.target, value: Number(e.target.value) } })}
-                  disabled={(formData.settings.applyOverrides?.hardware) === false}
-                />
-                <div className="form-hint">navigator.hardwareConcurrency</div>
+                <label htmlFor="os">{t('pf.fp.os')}</label>
+                <select id="os" name="os" value={formData.fingerprint.os} onChange={handleOsChange}>
+                  <option value="Windows">Windows</option>
+                  <option value="macOS">macOS</option>
+                  <option value="Linux">Linux</option>
+                </select>
+                <div className="form-hint">{t('pf.fp.os.hint')}</div>
               </div>
+
               <div className="form-group">
-                <label htmlFor="memoryGB">Memory (GB)</label>
+                <label htmlFor="browser">{t('pf.fp.browser')}</label>
+                <select
+                  id="browser"
+                  name="browser"
+                  value={formData.fingerprint.browser}
+                  onChange={handleFingerprintChange}
+                >
+                  {(formData.settings.engine === 'playwright' ? ['Chrome', 'Firefox'] : ['Chrome', 'Edge']).map(b => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+                <div className="form-hint">{t('pf.fp.browser.hint')}</div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="browserVersion">{t('pf.fp.browserVer')}</label>
                 <input
-                  type="number"
-                  id="memoryGB"
-                  name="memoryGB"
-                  min="1"
-                  max="64"
-                  value={formData.settings.memoryGB}
-                  onChange={(e) => handleSettingsChange({ target: { ...e.target, value: Number(e.target.value) } })}
-                  disabled={(formData.settings.applyOverrides?.hardware) === false}
+                  type="text"
+                  id="browserVersion"
+                  name="browserVersion"
+                  value={formData.fingerprint.browserVersion}
+                  onChange={handleFingerprintChange}
+                  placeholder="120.0.0.0"
                 />
-                <div className="form-hint">navigator.deviceMemory</div>
+                <div className="form-hint">{t('pf.fp.browserVer.hint')}</div>
               </div>
             </div>
-          </RegionBlock>
 
-          {/* Headless moved out of profile settings: configured at launch time in the list UI */}
+            <RegionBlock flag="userAgent" label={t('pf.fp.ua')} hint={t('pf.fp.ua.hint')}>
+              <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                <label htmlFor="userAgent" style={{ fontWeight: 500 }}>{t('pf.fp.ua.str')}</label>
+                <textarea
+                  id="userAgent"
+                  name="userAgent"
+                  value={formData.fingerprint.userAgent}
+                  onChange={handleFingerprintChange}
+                  placeholder="Enter custom user agent"
+                  rows="2"
+                  disabled={(formData.settings.applyOverrides?.userAgent) === false}
+                />
+                <div style={{ marginTop: '0.25rem' }}>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={async () => {
+                      try { await navigator.clipboard.writeText(formData.fingerprint.userAgent || ''); }
+                      catch { }
+                    }}
+                  >
+                    <Copy size={13} /> {t('pf.fp.ua.copy')}
+                  </button>
+                </div>
+              </div>
+            </RegionBlock>
 
-          <div className="form-group">
-            <label>Proxy</label>
-            <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-              <input
-                type="text"
-                placeholder="host:port or http://host:port"
-                value={formData.settings.proxy.server}
-                onChange={handleNestedSettingsChange('proxy', 'server')}
-              />
-              <div className="form-hint">Áp dụng cho toàn bộ profile. Hỗ trợ http://host:port (user/pass nếu có).</div>
-            </div>
-            <div className="form-row">
-              <input
-                type="text"
-                placeholder="username"
-                value={formData.settings.proxy.username}
-                onChange={handleNestedSettingsChange('proxy', 'username')}
-              />
-              <input
-                type="text"
-                placeholder="password"
-                value={formData.settings.proxy.password}
-                onChange={handleNestedSettingsChange('proxy', 'password')}
-              />
-            </div>
-          </div>
+            <RegionBlock flag="language" label={t('pf.fp.lang')} hint={t('pf.fp.lang.hint')}>
+              <div className="form-group">
+                <label htmlFor="language">{t('pf.fp.lang.primary')}</label>
+                <select
+                  id="language"
+                  name="language"
+                  value={formData.settings.language}
+                  onChange={(e) => { handleSettingsChange(e); setFormData(prev => ({ ...prev, fingerprint: { ...prev.fingerprint, language: e.target.value } })); }}
+                  disabled={(formData.settings.applyOverrides?.language) === false}
+                >
+                  {options.locales && options.locales.length > 0 ? (
+                    options.locales.map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="en-US">English (US)</option>
+                      <option value="en-GB">English (UK)</option>
+                      <option value="vi-VN">Tiếng Việt</option>
+                      <option value="fr-FR">Français</option>
+                      <option value="de-DE">Deutsch</option>
+                      <option value="es-ES">Español</option>
+                      <option value="it-IT">Italiano</option>
+                      <option value="pt-BR">Português (BR)</option>
+                      <option value="ru-RU">Русский</option>
+                      <option value="ja-JP">日本語</option>
+                      <option value="ko-KR">한국어</option>
+                      <option value="zh-CN">中文(简体)</option>
+                    </>
+                  )}
+                </select>
+              </div>
+            </RegionBlock>
 
-          <div className="form-row">
+            <RegionBlock flag="timezone" label={t('pf.fp.tz')} hint={t('pf.fp.tz.hint')}>
+              <div className="form-group">
+                <label htmlFor="timezone">{t('pf.fp.tz.label')}</label>
+                <select
+                  id="timezone"
+                  name="timezone"
+                  value={formData.settings.timezone}
+                  onChange={(e) => { handleSettingsChange(e); setFormData(prev => ({ ...prev, fingerprint: { ...prev.fingerprint, timezone: e.target.value } })); }}
+                  disabled={(formData.settings.applyOverrides?.timezone) === false}
+                >
+                  {options.timezones && options.timezones.length > 0 ? (
+                    options.timezones.map(tz => (
+                      <option key={tz} value={tz}>{tz}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="UTC">UTC</option>
+                      <option value="America/New_York">America/New_York (EST)</option>
+                      <option value="America/Chicago">America/Chicago (CST)</option>
+                      <option value="America/Denver">America/Denver (MST)</option>
+                      <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
+                      <option value="Europe/London">Europe/London (GMT)</option>
+                      <option value="Europe/Paris">Europe/Paris (CET)</option>
+                      <option value="Europe/Berlin">Europe/Berlin (CET)</option>
+                      <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh (ICT)</option>
+                      <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                      <option value="Asia/Seoul">Asia/Seoul (KST)</option>
+                      <option value="Asia/Shanghai">Asia/Shanghai (CST)</option>
+                      <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                    </>
+                  )}
+                </select>
+                <div className="form-hint">{t('pf.fp.tz.matchHint')}</div>
+              </div>
+            </RegionBlock>
+
+            <RegionBlock flag="viewport" label={t('pf.fp.vp')} hint={t('pf.fp.vp.hint')}>
+              <div className="form-group">
+                <label htmlFor="screenResolution">{t('pf.fp.vp.res')}</label>
+                <select
+                  id="screenResolution"
+                  name="screenResolution"
+                  value={formData.fingerprint.screenResolution}
+                  onChange={handleFingerprintChange}
+                  disabled={(formData.settings.applyOverrides?.viewport) === false}
+                >
+                  <option value="1024x768">1024x768</option>
+                  <option value="1280x720">1280x720</option>
+                  <option value="1280x800">1280x800</option>
+                  <option value="1360x768">1360x768</option>
+                  <option value="1366x768">1366x768</option>
+                  <option value="1440x900">1440x900</option>
+                  <option value="1536x864">1536x864</option>
+                  <option value="1600x900">1600x900</option>
+                  <option value="1680x1050">1680x1050</option>
+                  <option value="1920x1080">1920x1080</option>
+                  <option value="1920x1200">1920x1200</option>
+                  <option value="2560x1440">2560x1440</option>
+                  <option value="2560x1600">2560x1600</option>
+                  <option value="2880x1800">2880x1800</option>
+                  <option value="3000x2000">3000x2000</option>
+                  <option value="3200x1800">3200x1800</option>
+                  <option value="3440x1440">3440x1440 (Ultrawide)</option>
+                  <option value="3840x2160">3840x2160 (4K)</option>
+                </select>
+              </div>
+            </RegionBlock>
+
             <div className="form-group">
-              <label htmlFor="webrtc">WebRTC Policy</label>
-              <select id="webrtc" name="webrtc" value={formData.settings.webrtc} onChange={handleSettingsChange}>
-                <option value="default">Default</option>
-                <option value="proxy_only">Proxy only (disable UDP)</option>
-              </select>
-              <div className="form-hint">proxy_only giúp hạn chế rò rỉ IP qua UDP (WebRTC).</div>
-            </div>
-            <div className="form-group">
-              <label>Media Devices</label>
+              <label>{t('pf.fp.features')}</label>
               <div className="checkbox-group">
                 <label>
-                  <input type="checkbox" checked={formData.settings.mediaDevices.audio} onChange={handleNestedSettingsChange('mediaDevices', 'audio', Boolean)} />
-                  <span>Microphone</span>
+                  <input
+                    type="checkbox"
+                    name="webgl"
+                    checked={formData.settings.webgl}
+                    onChange={(e) => {
+                      handleSettingsChange(e);
+                      setFormData(prev => ({ ...prev, fingerprint: { ...prev.fingerprint, webgl: e.target.checked } }));
+                    }}
+                  />
+                  <span>Enable WebGL</span>
                 </label>
                 <label>
-                  <input type="checkbox" checked={formData.settings.mediaDevices.video} onChange={handleNestedSettingsChange('mediaDevices', 'video', Boolean)} />
-                  <span>Camera</span>
+                  <input
+                    type="checkbox"
+                    name="canvas"
+                    checked={formData.fingerprint.canvas}
+                    onChange={handleFingerprintChange}
+                  />
+                  <span>Enable Canvas</span>
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    name="audio"
+                    checked={formData.fingerprint.audio}
+                    onChange={handleFingerprintChange}
+                  />
+                  <span>Enable Audio Context</span>
                 </label>
               </div>
-              <div className="form-hint">Quyền thiết bị ghi âm/ghi hình khi trang web yêu cầu.</div>
+              <div className="form-hint">{t('pf.fp.features.hint')}</div>
             </div>
-          </div>
+          </section>
+        )}
 
-          <RegionBlock
-            flag="geolocation"
-            label="Geolocation Override"
-            hint="Bỏ chọn để không set Emulation.setGeolocationOverride."
-          >
-            <div className="form-group" style={{ marginTop: '0.5rem' }}>
+        {/* ===== TAB: ENVIRONMENT ===== */}
+        {activeTab === 'environment' && (
+          <section className="form-section">
+            <RegionBlock flag="hardware" label={t('pf.env.hw')} hint={t('pf.env.hw.hint')}>
               <div className="form-row">
-                <input type="number" step="0.0001" placeholder="Latitude" value={formData.settings.geolocation.latitude} onChange={handleNestedSettingsChange('geolocation', 'latitude', Number)} />
-                <input type="number" step="0.0001" placeholder="Longitude" value={formData.settings.geolocation.longitude} onChange={handleNestedSettingsChange('geolocation', 'longitude', Number)} />
-                <input type="number" step="1" placeholder="Accuracy (m)" value={formData.settings.geolocation.accuracy} onChange={handleNestedSettingsChange('geolocation', 'accuracy', Number)} />
+                <div className="form-group">
+                  <label htmlFor="cpuCores">{t('pf.env.cpu')}</label>
+                  <input
+                    type="number"
+                    id="cpuCores"
+                    name="cpuCores"
+                    min="1"
+                    max="32"
+                    value={formData.settings.cpuCores}
+                    onChange={(e) => handleSettingsChange({ target: { ...e.target, value: Number(e.target.value) } })}
+                    disabled={(formData.settings.applyOverrides?.hardware) === false}
+                  />
+                  <div className="form-hint">navigator.hardwareConcurrency</div>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="memoryGB">{t('pf.env.mem')}</label>
+                  <input
+                    type="number"
+                    id="memoryGB"
+                    name="memoryGB"
+                    min="1"
+                    max="64"
+                    value={formData.settings.memoryGB}
+                    onChange={(e) => handleSettingsChange({ target: { ...e.target, value: Number(e.target.value) } })}
+                    disabled={(formData.settings.applyOverrides?.hardware) === false}
+                  />
+                  <div className="form-hint">navigator.deviceMemory</div>
+                </div>
               </div>
-              <div className="form-hint">Chỉ áp dụng nếu có toạ độ hợp lệ.</div>
-            </div>
-          </RegionBlock>
-        </section>
+            </RegionBlock>
 
-        <section className="form-section">
-          <h3>Advanced Anti-Detect Metrics</h3>
-          <RegionBlock
-            flag="navigator"
-            label="Navigator Properties Override"
-            hint="Bỏ chọn để giữ nguyên platform, maxTouchPoints, dnt, plugins, languages count."
-          >
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="adv_platform">Platform (navigator.platform)</label>
-                <input
-                  id="adv_platform"
-                  type="text"
-                  value={formData.settings.advanced.platform}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    settings: { ...prev.settings, advanced: { ...prev.settings.advanced, platform: e.target.value } },
-                  }))}
-                  disabled={(formData.settings.applyOverrides?.navigator) === false}
-                />
-                <div className="form-hint">navigator.platform</div>
-              </div>
-              <div className="form-group">
-                <label htmlFor="adv_mtp">Max Touch Points</label>
-                <input
-                  id="adv_mtp"
-                  type="number"
-                  min="0"
-                  max="10"
-                  value={formData.settings.advanced.maxTouchPoints}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    settings: { ...prev.settings, advanced: { ...prev.settings.advanced, maxTouchPoints: Number(e.target.value) } },
-                  }))}
-                  disabled={(formData.settings.applyOverrides?.navigator) === false}
-                />
-                <div className="form-hint">navigator.maxTouchPoints</div>
-              </div>
-              <div className="form-group">
-                <label>Do Not Track</label>
-                <div className="checkbox-group">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={formData.settings.advanced.dnt}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        settings: { ...prev.settings, advanced: { ...prev.settings.advanced, dnt: e.target.checked } },
-                      }))}
-                      disabled={(formData.settings.applyOverrides?.navigator) === false}
-                    />
-                    <span>Enable DNT</span>
-                  </label>
-                </div>
-                <div className="form-hint">navigator.doNotTrack</div>
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="adv_plugins">Plugins Count</label>
-                <input
-                  id="adv_plugins"
-                  type="number"
-                  min="0"
-                  max="10"
-                  value={formData.settings.advanced.plugins}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    settings: { ...prev.settings, advanced: { ...prev.settings.advanced, plugins: Number(e.target.value) } },
-                  }))}
-                  disabled={(formData.settings.applyOverrides?.navigator) === false}
-                />
-                <div className="form-hint">Giả lập số plugin.</div>
-              </div>
-              <div className="form-group">
-                <label htmlFor="adv_langs">Navigator Languages (comma-separated)</label>
-                <input
-                  id="adv_langs"
-                  type="text"
-                  placeholder="e.g. vi-VN,en-US"
-                  value={formData.settings.advanced.languages}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    settings: { ...prev.settings, advanced: { ...prev.settings.advanced, languages: e.target.value } },
-                  }))}
-                  disabled={(formData.settings.applyOverrides?.language) === false && (formData.settings.applyOverrides?.navigator) === false}
-                />
-                <div className="form-hint">navigator.languages list.</div>
-              </div>
-            </div>
-          </RegionBlock>
-          <RegionBlock
-            flag="viewport"
-            label="Device Pixel Ratio Override"
-            hint="Thuộc viewport; bỏ chọn viewport để trả về DPR thực tế."
-          >
             <div className="form-group">
-              <label htmlFor="adv_dpr">Device Pixel Ratio</label>
-              <input
-                id="adv_dpr"
-                type="number"
-                step="0.1"
-                min="0.5"
-                max="4"
-                value={formData.settings.advanced.devicePixelRatio}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  settings: { ...prev.settings, advanced: { ...prev.settings.advanced, devicePixelRatio: Number(e.target.value) } },
-                }))}
-                disabled={(formData.settings.applyOverrides?.viewport) === false}
-              />
-              <div className="form-hint">window.devicePixelRatio</div>
-            </div>
-          </RegionBlock>
-          <RegionBlock
-            flag="webgl"
-            label="WebGL Vendor/Renderer Override"
-            hint="Bỏ chọn để giữ GPU renderer gốc."
-          >
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="adv_wgl_vendor">WebGL Vendor</label>
+              <label>{t('pf.env.proxy')}</label>
+              <div className="form-group" style={{ marginBottom: '0.75rem' }}>
                 <input
-                  id="adv_wgl_vendor"
                   type="text"
-                  value={formData.settings.advanced.webglVendor}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    settings: { ...prev.settings, advanced: { ...prev.settings.advanced, webglVendor: e.target.value } },
-                  }))}
-                  disabled={(formData.settings.applyOverrides?.webgl) === false}
+                  placeholder="host:port or http://host:port"
+                  value={formData.settings.proxy.server}
+                  onChange={handleNestedSettingsChange('proxy', 'server')}
                 />
-                <div className="form-hint">UNMASKED_VENDOR_WEBGL</div>
+                <div className="form-hint">{t('pf.env.proxy.hint')}</div>
               </div>
-              <div className="form-group">
-                <label htmlFor="adv_wgl_renderer">WebGL Renderer</label>
+              <div className="form-row">
                 <input
-                  id="adv_wgl_renderer"
                   type="text"
-                  value={formData.settings.advanced.webglRenderer}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    settings: { ...prev.settings, advanced: { ...prev.settings.advanced, webglRenderer: e.target.value } },
-                  }))}
-                  disabled={(formData.settings.applyOverrides?.webgl) === false}
+                  placeholder="username"
+                  value={formData.settings.proxy.username}
+                  onChange={handleNestedSettingsChange('proxy', 'username')}
                 />
-                <div className="form-hint">UNMASKED_RENDERER_WEBGL</div>
+                <input
+                  type="text"
+                  placeholder="password"
+                  value={formData.settings.proxy.password}
+                  onChange={handleNestedSettingsChange('proxy', 'password')}
+                />
               </div>
             </div>
-          </RegionBlock>
-          {isOn('navigator') && (
+
             <div className="form-row">
               <div className="form-group">
-                <label htmlFor="adv_mtp">Max Touch Points</label>
-                <input id="adv_mtp" type="number" min="0" max="10" value={formData.settings.advanced.maxTouchPoints}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    settings: { ...prev.settings, advanced: { ...prev.settings.advanced, maxTouchPoints: Number(e.target.value) } },
-                  }))}
-                  disabled={(formData.settings.applyOverrides?.navigator) === false} />
-                <div className="form-hint">navigator.maxTouchPoints (0 nếu không có màn hình cảm ứng).</div>
+                <label htmlFor="webrtc">{t('pf.env.webrtc')}</label>
+                <select id="webrtc" name="webrtc" value={formData.settings.webrtc} onChange={handleSettingsChange}>
+                  <option value="default">Default</option>
+                  <option value="proxy_only">Proxy only (disable UDP)</option>
+                </select>
+                <div className="form-hint">{t('pf.env.webrtc.hint')}</div>
               </div>
               <div className="form-group">
-                <label>Do Not Track</label>
+                <label>{t('pf.env.media')}</label>
                 <div className="checkbox-group">
                   <label>
-                    <input type="checkbox" checked={formData.settings.advanced.dnt}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        settings: { ...prev.settings, advanced: { ...prev.settings.advanced, dnt: e.target.checked } },
-                      }))}
-                      disabled={(formData.settings.applyOverrides?.navigator) === false} />
-                    <span>Enable DNT</span>
+                    <input type="checkbox" checked={formData.settings.mediaDevices.audio} onChange={handleNestedSettingsChange('mediaDevices', 'audio', Boolean)} />
+                    <span>Microphone</span>
+                  </label>
+                  <label>
+                    <input type="checkbox" checked={formData.settings.mediaDevices.video} onChange={handleNestedSettingsChange('mediaDevices', 'video', Boolean)} />
+                    <span>Camera</span>
                   </label>
                 </div>
-                <div className="form-hint">navigator.doNotTrack = '1' khi bật.</div>
+                <div className="form-hint">{t('pf.env.media.hint')}</div>
               </div>
             </div>
-          )}
-          {/* Navigator & WebGL blocks now handled above */}
-        </section>
-        {/* Actions moved to bottom instead of header */}
+
+            <RegionBlock flag="geolocation" label={t('pf.env.geo')} hint={t('pf.env.geo.hint')}>
+              <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                <div className="form-row">
+                  <input type="number" step="0.0001" placeholder="Latitude" value={formData.settings.geolocation.latitude} onChange={handleNestedSettingsChange('geolocation', 'latitude', Number)} />
+                  <input type="number" step="0.0001" placeholder="Longitude" value={formData.settings.geolocation.longitude} onChange={handleNestedSettingsChange('geolocation', 'longitude', Number)} />
+                  <input type="number" step="1" placeholder="Accuracy (m)" value={formData.settings.geolocation.accuracy} onChange={handleNestedSettingsChange('geolocation', 'accuracy', Number)} />
+                </div>
+                <div className="form-hint">{t('pf.env.geo.coordHint')}</div>
+              </div>
+            </RegionBlock>
+          </section>
+        )}
+
+        {/* ===== TAB: ADVANCED ===== */}
+        {activeTab === 'advanced' && (
+          <section className="form-section">
+            <RegionBlock flag="navigator" label={t('pf.adv.nav')} hint={t('pf.adv.nav.hint')}>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="adv_platform">Platform (navigator.platform)</label>
+                  <input
+                    id="adv_platform"
+                    type="text"
+                    value={formData.settings.advanced.platform}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      settings: { ...prev.settings, advanced: { ...prev.settings.advanced, platform: e.target.value } },
+                    }))}
+                    disabled={(formData.settings.applyOverrides?.navigator) === false}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="adv_mtp">Max Touch Points</label>
+                  <input
+                    id="adv_mtp"
+                    type="number"
+                    min="0"
+                    max="10"
+                    value={formData.settings.advanced.maxTouchPoints}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      settings: { ...prev.settings, advanced: { ...prev.settings.advanced, maxTouchPoints: Number(e.target.value) } },
+                    }))}
+                    disabled={(formData.settings.applyOverrides?.navigator) === false}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Do Not Track</label>
+                  <div className="checkbox-group">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={formData.settings.advanced.dnt}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          settings: { ...prev.settings, advanced: { ...prev.settings.advanced, dnt: e.target.checked } },
+                        }))}
+                        disabled={(formData.settings.applyOverrides?.navigator) === false}
+                      />
+                      <span>Enable DNT</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="adv_plugins">Plugins Count</label>
+                  <input
+                    id="adv_plugins"
+                    type="number"
+                    min="0"
+                    max="10"
+                    value={formData.settings.advanced.plugins}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      settings: { ...prev.settings, advanced: { ...prev.settings.advanced, plugins: Number(e.target.value) } },
+                    }))}
+                    disabled={(formData.settings.applyOverrides?.navigator) === false}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="adv_langs">Navigator Languages</label>
+                  <input
+                    id="adv_langs"
+                    type="text"
+                    placeholder="e.g. vi-VN,en-US"
+                    value={formData.settings.advanced.languages}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      settings: { ...prev.settings, advanced: { ...prev.settings.advanced, languages: e.target.value } },
+                    }))}
+                    disabled={(formData.settings.applyOverrides?.language) === false && (formData.settings.applyOverrides?.navigator) === false}
+                  />
+                  <div className="form-hint">navigator.languages list</div>
+                </div>
+              </div>
+            </RegionBlock>
+
+            <RegionBlock flag="viewport" label={t('pf.adv.dpr')} hint={t('pf.adv.dpr.hint')}>
+              <div className="form-group">
+                <label htmlFor="adv_dpr">Device Pixel Ratio</label>
+                <input
+                  id="adv_dpr"
+                  type="number"
+                  step="0.1"
+                  min="0.5"
+                  max="4"
+                  value={formData.settings.advanced.devicePixelRatio}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    settings: { ...prev.settings, advanced: { ...prev.settings.advanced, devicePixelRatio: Number(e.target.value) } },
+                  }))}
+                  disabled={(formData.settings.applyOverrides?.viewport) === false}
+                />
+                <div className="form-hint">window.devicePixelRatio</div>
+              </div>
+            </RegionBlock>
+
+            <RegionBlock flag="webgl" label={t('pf.adv.webgl')} hint={t('pf.adv.webgl.hint')}>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="adv_wgl_vendor">WebGL Vendor</label>
+                  <input
+                    id="adv_wgl_vendor"
+                    type="text"
+                    value={formData.settings.advanced.webglVendor}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      settings: { ...prev.settings, advanced: { ...prev.settings.advanced, webglVendor: e.target.value } },
+                    }))}
+                    disabled={(formData.settings.applyOverrides?.webgl) === false}
+                  />
+                  <div className="form-hint">UNMASKED_VENDOR_WEBGL</div>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="adv_wgl_renderer">WebGL Renderer</label>
+                  <input
+                    id="adv_wgl_renderer"
+                    type="text"
+                    value={formData.settings.advanced.webglRenderer}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      settings: { ...prev.settings, advanced: { ...prev.settings.advanced, webglRenderer: e.target.value } },
+                    }))}
+                    disabled={(formData.settings.applyOverrides?.webgl) === false}
+                  />
+                  <div className="form-hint">UNMASKED_RENDERER_WEBGL</div>
+                </div>
+              </div>
+            </RegionBlock>
+          </section>
+        )}
+
       </form>
     </div>
   );
 }
 
 export default ProfileForm;
+

@@ -1,21 +1,141 @@
-.modal-root{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:9999}
-.modal-card{width:min(1000px,92vw);max-height:90vh;overflow:auto;background:#1e1e1e;color:#fff;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.6);padding:16px}
-.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.toolbar{display:flex;gap:8px;margin:8px 0}
-.toolbar input,.toolbar select{padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.08);color:#fff}
-.scripts-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-top:8px}
-.script-card{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:10px}
-.script-title{font-weight:600}
-.script-desc{opacity:0.8;font-size:0.9rem;margin:6px 0 10px}
-.script-actions{display:flex;gap:6px}
-.editor{margin-top:12px;border-top:1px solid rgba(255,255,255,0.15);padding-top:12px}
-.editor .row{display:flex;gap:8px;align-items:center;margin:8px 0}
-.editor .row label{width:120px;opacity:0.9}
-.editor .row input{flex:1;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.08);color:#fff}
-.editor .row textarea{flex:1;min-height:220px;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.08);color:#fff;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-.editor .row.actions{justify-content:flex-end}
-.btn{padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.35);background:rgba(255,255,255,0.12);color:#fff;cursor:pointer}
-.btn:hover{background:rgba(255,255,255,0.2)}
-.btn-primary{background:#2d6cdf;border-color:#2d6cdf}
-.btn-success{background:#2e8b57;border-color:#2e8b57}
-.btn-danger{background:#b22222;border-color:#b22222}
+/* ===== ScriptsManager Dark Theme ===== */
+
+/* Full page mode */
+.scripts-page {
+    width: 100%;
+}
+
+/* Modal mode fallback */
+.modal-root {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-card {
+    width: min(90vw, 750px);
+    max-height: 85vh;
+    background: var(--card);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, .6);
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.modal-header h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+/* Toolbar */
+.toolbar {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.toolbar input,
+.toolbar select {
+    flex: 1;
+    min-width: 120px;
+}
+
+/* Scripts grid */
+.scripts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 0.75rem;
+    overflow-y: auto;
+    flex: 1;
+    padding-right: 4px;
+}
+
+.script-card {
+    background: rgba(255, 255, 255, .04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    transition: all var(--transition);
+}
+
+.script-card:hover {
+    border-color: var(--border2);
+    background: rgba(255, 255, 255, .06);
+}
+
+.script-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.script-desc {
+    font-size: 0.78rem;
+    color: var(--muted);
+    line-height: 1.4;
+}
+
+.script-actions {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: auto;
+    padding-top: 0.4rem;
+}
+
+/* Editor */
+.editor {
+    margin-top: 0.75rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, .03);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.editor .row {
+    margin-bottom: 0.6rem;
+}
+
+.editor label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 0.25rem;
+}
+
+.editor input,
+.editor textarea {
+    width: 100%;
+}
+
+.editor textarea {
+    min-height: 200px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.82rem;
+    resize: vertical;
+}
+
+.editor .row.actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}

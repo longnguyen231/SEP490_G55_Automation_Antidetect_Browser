@@ -1,95 +1,286 @@
+/* ===== App Layout: Sidebar + Main ===== */
 .app {
   width: 100%;
-  min-height: 100vh; /* allow natural growth for forms */
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ===== Sidebar ===== */
+.app-sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow-x: hidden; /* only hide horizontal to avoid cutting inputs */
-  overflow-y: hidden; /* prevent page-level scroll; inner areas handle their own */
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  padding: 1.25rem 0.75rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  z-index: 50;
 }
 
-.app-header {
-  background: linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%);
-  color: white;
-  padding: 2rem 2rem 1rem;
-  text-align: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  position: fixed; /* fully fixed */
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-}
-.api-status-right {
+/* Brand */
+.sidebar-brand {
   display: flex;
-  width: 100%;
-  justify-content: flex-end;
   align-items: center;
-  gap: .5rem;
-  margin-top: .25rem;
-}
-.api-status-pill {
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(0,0,0,0.25);
-  border: 1px solid rgba(255,255,255,0.35);
+  gap: 0.65rem;
+  padding: 0 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.75rem;
 }
 
-.app-header h1 {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
+.sidebar-logo {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: #fff;
+  flex-shrink: 0;
 }
 
-.app-header p {
+.sidebar-brand-text h2 {
   font-size: 1rem;
-  opacity: 0.9;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.2;
 }
 
-.app-header-bar {
-  margin-top: 1rem;
+.sidebar-brand-text span {
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+
+/* Nav Section */
+.sidebar-nav {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.sidebar-section-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  padding: 0.75rem 0.75rem 0.35rem;
+  font-weight: 600;
+}
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted);
+  transition: all var(--transition);
+  border: 1px solid transparent;
+  user-select: none;
+}
+
+.sidebar-nav-item:hover {
+  background: rgba(255, 255, 255, .06);
+  color: var(--fg);
+}
+
+.sidebar-nav-item.active {
+  background: linear-gradient(135deg, rgba(108, 92, 231, .18), rgba(0, 210, 211, .10));
+  color: var(--fg);
+  border-color: rgba(108, 92, 231, .25);
+  font-weight: 600;
+}
+
+.sidebar-nav-item .nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  flex-shrink: 0;
+}
+
+/* Sidebar CTA */
+.sidebar-cta {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Sidebar API Status */
+.sidebar-api-status {
+  font-size: 0.7rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.sidebar-api-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 0.35rem;
+}
+
+/* Language toggle button in sidebar */
+.sidebar-lang-btn {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  transition: all var(--transition);
+}
+
+.sidebar-lang-btn:hover {
+  background: rgba(108, 92, 231, .15);
+  border-color: var(--primary);
+}
+
+/* ===== Main Content ===== */
+.app-main {
+  flex: 1;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1.5rem 2rem;
+}
+
+/* Page header (toolbar above content) */
+.page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
+  margin-bottom: 1.25rem;
   flex-wrap: wrap;
-}
-.app-header-bar h2 { margin: 0; font-size: 1.25rem; }
-.app-header-bar .header-actions {
-  display: flex;
-  gap: .5rem;
-  flex-wrap: wrap;
-  background: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.35);
-  border-radius: 10px;
-  padding: 0.5rem;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.12);
-  backdrop-filter: saturate(140%) blur(2px);
 }
 
-.app-main {
-  flex: 1;
-  padding: calc(var(--app-header-offset, 140px) + 0rem) 2rem 2rem; /* push below fixed header */
-  max-width: none;
-  width: 100%;
+.page-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
   margin: 0;
-  position: relative; /* ensure sticky children anchor correctly */
-  overflow-x: hidden;
-  overflow-y: auto;
 }
 
-/* When form is open, delegate vertical scroll to the form container to keep its header sticky */
-.app-main.form-open {
-  /* Remove outer scroll entirely; delegate vertical scroll to inner form container */
-  overflow-y: hidden;
-  padding: 0.5rem 0 0.75rem; /* minimal breathing space */
-  height: 100vh; /* lock to viewport */
+.page-header-actions {
   display: flex;
-  justify-content: center; /* center the form horizontally */
-  align-items: flex-start; /* top-align the form */
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* API Settings View */
+.settings-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  max-width: 500px;
+}
+
+.settings-card h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0 0 1rem;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+.settings-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* Mobile toggle */
+.mobile-menu-btn {
+  display: none;
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 200;
+  background: var(--card);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem;
+  color: var(--fg);
+  cursor: pointer;
 }
 
 @media (max-width: 768px) {
-  .app-header h1 { font-size: 1.5rem; }
-  .app-header p { font-size: 0.9rem; }
-  .app-main { padding: 1rem; }
+  .app-sidebar {
+    display: none;
+  }
+
+  .mobile-menu-btn {
+    display: flex;
+  }
+
+  .app-main {
+    padding: 3.5rem 1rem 1rem;
+  }
+}
+
+/* Password modal (inline) */
+.pwd-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.pwd-modal-card {
+  width: 380px;
+  background: var(--card);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .6);
+}
+
+.pwd-modal-card h3 {
+  margin-top: 0;
+  font-size: 1.1rem;
 }

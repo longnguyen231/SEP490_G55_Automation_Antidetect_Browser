@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { X } from 'lucide-react';
+import { useI18n } from '../i18n/index';
 import './CookieManager.css';
 
 function CookieManager({ profile, onClose }) {
+  const { t } = useI18n();
   const [cookies, setCookies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [importText, setImportText] = useState('');
@@ -38,40 +41,38 @@ function CookieManager({ profile, onClose }) {
       const res = await window.electronAPI.importCookies(profile.id, parsed);
       if (!res.success) throw new Error(res.error || 'Import failed');
       await loadCookies();
-      alert('Cookies imported successfully');
     } catch (e) {
       setError('Import error: ' + e.message);
     }
   };
 
   const copyExport = async () => {
-    try {
-      await navigator.clipboard.writeText(exportText);
-      alert('Copied to clipboard');
-    } catch {}
+    try { await navigator.clipboard.writeText(exportText); } catch { }
   };
 
   return (
     <div className="cookie-modal-backdrop">
       <div className="cookie-modal">
         <div className="cookie-modal-header">
-          <h3>Cookies for: {profile.name}</h3>
-          <button className="btn-close" onClick={onClose}>✕</button>
+          <h3>{t('cookies.title')} {profile.name}</h3>
+          <button className="btn btn-icon" onClick={onClose}>
+            <X size={18} />
+          </button>
         </div>
         {error && <div className="error">{error}</div>}
         {loading ? (
-          <div className="loading">Loading cookies...</div>
+          <div className="loading">{t('cookies.loading')}</div>
         ) : (
           <div className="cookie-modal-body">
             <div className="cookie-sections">
               <section>
-                <h4>Saved Cookies ({cookies.length})</h4>
+                <h4>{t('cookies.saved')} ({cookies.length})</h4>
                 <div className="cookie-table">
                   <div className="cookie-table-header">
-                    <div>Name</div>
-                    <div>Domain</div>
-                    <div>Path</div>
-                    <div>Expires</div>
+                    <div>{t('cookies.name')}</div>
+                    <div>{t('cookies.domain')}</div>
+                    <div>{t('cookies.path')}</div>
+                    <div>{t('cookies.expires')}</div>
                   </div>
                   <div className="cookie-table-body">
                     {cookies.map((c, idx) => (
@@ -82,24 +83,24 @@ function CookieManager({ profile, onClose }) {
                         <div>{c.expires ? new Date(c.expires * 1000).toLocaleString() : '-'}</div>
                       </div>
                     ))}
-                    {cookies.length === 0 && <div className="empty">No cookies saved</div>}
+                    {cookies.length === 0 && <div className="empty">{t('cookies.empty')}</div>}
                   </div>
                 </div>
               </section>
 
               <section>
-                <h4>Export</h4>
+                <h4>{t('cookies.export')}</h4>
                 <textarea className="cookie-textarea" value={exportText} readOnly />
                 <div className="actions">
-                  <button className="btn" onClick={copyExport}>Copy JSON</button>
+                  <button className="btn" onClick={copyExport}>{t('cookies.copyJson')}</button>
                 </div>
               </section>
 
               <section>
-                <h4>Import</h4>
-                <textarea className="cookie-textarea" placeholder="Paste cookies JSON array here" value={importText} onChange={(e)=>setImportText(e.target.value)} />
+                <h4>{t('cookies.import')}</h4>
+                <textarea className="cookie-textarea" placeholder={t('cookies.placeholder')} value={importText} onChange={(e) => setImportText(e.target.value)} />
                 <div className="actions">
-                  <button className="btn btn-primary" onClick={handleImport}>Import Cookies</button>
+                  <button className="btn btn-primary" onClick={handleImport}>{t('cookies.importBtn')}</button>
                 </div>
               </section>
             </div>

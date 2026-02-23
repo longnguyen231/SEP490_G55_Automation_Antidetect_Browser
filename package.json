@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently -k -n \"VITE,ELECTRON\" -c \"cyan,magenta\" \"npm run dev:vite\" \"npm run dev:electron\"",
     "dev:vite": "vite",
-  "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development electronmon --watch src/main --watch src/preload --ignore dist --ignore release --ignore node_modules --ignore vendor --ignore data --ignore data/** --ignore logs --ignore src/data --ignore src/data/** --ignore src/data/logs --ignore src/data/logs/** --ignore **/*.json .",
+    "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development electronmon --watch src/main --watch src/preload --ignore dist --ignore release --ignore node_modules --ignore vendor --ignore data --ignore data/** --ignore logs --ignore src/data --ignore src/data/** --ignore src/data/logs --ignore src/data/logs/** --ignore **/*.json .",
     "prebuild": "node scripts/ensure-fsevents.js",
     "icons": "node scripts/make-icons.js",
     "build": "npm run icons && vite build && electron-builder",
@@ -105,6 +105,7 @@
     "afterPack": "./scripts/afterPack-obfuscate.js"
   },
   "devDependencies": {
+    "@electron/asar": "^3.2.10",
     "@vitejs/plugin-react": "^5.1.0",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
@@ -113,19 +114,21 @@
     "electron-vite": "^4.0.1",
     "electronmon": "^2.0.4",
     "javascript-obfuscator": "^4.1.0",
-    "@electron/asar": "^3.2.10",
+    "png-to-ico": "^2.1.8",
     "vite": "^7.2.1",
-    "wait-on": "^9.0.1",
-    "png-to-ico": "^2.1.8"
+    "wait-on": "^9.0.1"
   },
   "dependencies": {
-    "playwright": "^1.48.2",
+    "bootstrap": "^5.3.8",
     "cors": "^2.8.5",
     "express": "^4.19.2",
+    "lucide-react": "^0.564.0",
+    "node-cron": "^3.0.3",
+    "playwright": "^1.48.2",
     "proxy-chain": "^2.5.0",
-    "swagger-ui-express": "^5.0.1",
     "react": "^19.2.0",
+    "react-bootstrap": "^2.10.10",
     "react-dom": "^19.2.0",
-    "node-cron": "^3.0.3"
+    "swagger-ui-express": "^5.0.1"
   }
 }
