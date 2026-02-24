@@ -1,68 +1,873 @@
 {
   "openapi": "3.0.3",
-  "info": { "title": "OBT Antidetect Browser API", "version": "1.0.0" },
-  "servers": [ { "url": "http://127.0.0.1:5478" } ],
+  "info": {
+    "title": "OBT Antidetect Browser API",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:5478"
+    }
+  ],
   "tags": [
-    { "name": "Profiles" },
-    { "name": "Browser" },
-    { "name": "Actions" },
-    { "name": "Scripts" }
+    {
+      "name": "Profiles"
+    },
+    {
+      "name": "Browser"
+    },
+    {
+      "name": "Actions"
+    },
+    {
+      "name": "Scripts"
+    }
   ],
   "components": {
     "schemas": {
-      "Profile": { "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "startUrl": { "type": "string" }, "settings": { "type": "object" } } },
-      "LaunchOptions": { "type": "object", "properties": { "headless": { "type": "boolean" }, "engine": { "type": "string" } } },
-      "Cookies": { "type": "array", "items": { "type": "object" } },
-      "NavigateRequest": { "type": "object", "properties": { "url": { "type": "string" } }, "required": ["url"] },
-      "NewPageRequest": { "type": "object", "properties": { "url": { "type": "string" } } },
-      "ClosePageRequest": { "type": "object", "properties": { "index": { "type": "integer" } } },
-      "ScreenshotRequest": { "type": "object", "properties": { "index": { "type": "integer" }, "path": { "type": "string" }, "fullPage": { "type": "boolean" } } },
-      "EvalRequest": { "type": "object", "properties": { "index": { "type": "integer" }, "expression": { "type": "string" } }, "required": ["expression"] },
-      "PagesResponse": { "type": "object", "properties": { "success": { "type": "boolean" }, "pages": { "type": "array", "items": { "type": "object" } } } },
-      "ActionParams": { "type": "object", "additionalProperties": true },
-      "ActionResponse": { "type": "object", "properties": { "success": { "type": "boolean" }, "error": { "type": "string" } }, "additionalProperties": true },
-      "Script": { "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "description": { "type": "string" }, "language": { "type": "string" }, "code": { "type": "string" } } }
+      "Profile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "startUrl": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "object"
+          }
+        }
+      },
+      "LaunchOptions": {
+        "type": "object",
+        "properties": {
+          "headless": {
+            "type": "boolean"
+          },
+          "engine": {
+            "type": "string"
+          }
+        }
+      },
+      "Cookies": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "NavigateRequest": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "NewPageRequest": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "ClosePageRequest": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer"
+          }
+        }
+      },
+      "ScreenshotRequest": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          },
+          "fullPage": {
+            "type": "boolean"
+          }
+        }
+      },
+      "EvalRequest": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "expression": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expression"
+        ]
+      },
+      "PagesResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "ActionParams": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "ActionResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "Script": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          }
+        }
+      }
     }
   },
   "paths": {
-    "/api/health": { "get": { "summary": "Health", "responses": { "200": { "description": "OK" } } } },
+    "/api/health": {
+      "get": {
+        "summary": "Health",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/profiles": {
-      "get": { "summary": "List profiles", "tags": ["Profiles"], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Profile" } } } } } } },
-      "post": { "summary": "Create profile", "tags": ["Profiles"], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Profile" } } } }, "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "summary": "List profiles",
+        "tags": [
+          "Profiles"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Profile"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create profile",
+        "tags": [
+          "Profiles"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Profile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/profiles/{id}": {
-      "put": { "summary": "Update profile", "tags": ["Profiles"], "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Profile" } } } }, "responses": { "200": { "description": "OK" } } },
-      "delete": { "summary": "Delete profile", "tags": ["Profiles"], "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" } } }
+      "put": {
+        "summary": "Update profile",
+        "tags": [
+          "Profiles"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Profile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete profile",
+        "tags": [
+          "Profiles"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
-    "/api/profiles/{id}/launch": { "post": { "summary": "Launch", "tags": ["Profiles"], "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LaunchOptions" } } } }, "responses": { "200": { "description": "OK" } } } },
-    "/api/profiles/{id}/stop": { "post": { "summary": "Stop", "tags": ["Profiles"], "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" } } } },
-    "/api/stop-all": { "post": { "summary": "Stop all", "tags": ["Profiles"], "responses": { "200": { "description": "OK" } } } },
-    "/api/running-map": { "get": { "summary": "Running map", "responses": { "200": { "description": "OK" } } } },
-    "/api/profiles/{id}/ws": { "get": { "summary": "WS endpoint", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" } } } },
+    "/api/profiles/{id}/launch": {
+      "post": {
+        "summary": "Launch",
+        "tags": [
+          "Profiles"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LaunchOptions"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/stop": {
+      "post": {
+        "summary": "Stop",
+        "tags": [
+          "Profiles"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/stop-all": {
+      "post": {
+        "summary": "Stop all",
+        "tags": [
+          "Profiles"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/running-map": {
+      "get": {
+        "summary": "Running map",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/ws": {
+      "get": {
+        "summary": "WS endpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/profiles/{id}/cookies": {
-      "get": { "summary": "Get cookies", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" } } },
-      "post": { "summary": "Import cookies", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Cookies" } } } }, "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "summary": "Get cookies",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "summary": "Import cookies",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Cookies"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
-    "/api/profiles/{id}/log": { "get": { "summary": "Get log", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" } } } },
-    "/api/profiles/{id}/clone": { "post": { "summary": "Clone", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" } } } },
-    "/api/locales-timezones": { "get": { "summary": "Locales/timezones", "responses": { "200": { "description": "OK" } } } },
-    "/api/profiles/{id}/pages": { "get": { "summary": "List pages", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PagesResponse" } } } } } } },
-    "/api/profiles/{id}/navigate": { "post": { "summary": "Navigate", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NavigateRequest" } } } }, "responses": { "200": { "description": "OK" } } } },
-    "/api/profiles/{id}/new-page": { "post": { "summary": "New page", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NewPageRequest" } } } }, "responses": { "200": { "description": "OK" } } } },
-    "/api/profiles/{id}/close-page": { "post": { "summary": "Close page", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ClosePageRequest" } } } }, "responses": { "200": { "description": "OK" } } } },
-    "/api/profiles/{id}/screenshot": { "post": { "summary": "Screenshot", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScreenshotRequest" } } } }, "responses": { "200": { "description": "OK" } } } },
-    "/api/profiles/{id}/eval": { "post": { "summary": "Eval JS", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EvalRequest" } } } }, "responses": { "200": { "description": "OK" } } } },
-    "/api/actions": { "get": { "summary": "List actions", "tags": ["Actions"], "responses": { "200": { "description": "OK" } } } },
-    "/api/profiles/{id}/action/{name}": { "post": { "summary": "Perform action", "tags": ["Actions"], "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } } ], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ActionParams" } } } }, "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ActionResponse" } } } } } } },
+    "/api/profiles/{id}/log": {
+      "get": {
+        "summary": "Get log",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/clone": {
+      "post": {
+        "summary": "Clone",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/locales-timezones": {
+      "get": {
+        "summary": "Locales/timezones",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/pages": {
+      "get": {
+        "summary": "List pages",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/navigate": {
+      "post": {
+        "summary": "Navigate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NavigateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/new-page": {
+      "post": {
+        "summary": "New page",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewPageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/close-page": {
+      "post": {
+        "summary": "Close page",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClosePageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/screenshot": {
+      "post": {
+        "summary": "Screenshot",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScreenshotRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/eval": {
+      "post": {
+        "summary": "Eval JS",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/actions": {
+      "get": {
+        "summary": "List actions",
+        "tags": [
+          "Actions"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/action/{name}": {
+      "post": {
+        "summary": "Perform action",
+        "tags": [
+          "Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/scripts": {
-      "get": { "summary": "List scripts", "tags": ["Scripts"], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Script" } } } } } } },
-      "post": { "summary": "Create script", "tags": ["Scripts"], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Script" } } } }, "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "summary": "List scripts",
+        "tags": [
+          "Scripts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Script"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create script",
+        "tags": [
+          "Scripts"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Script"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/scripts/{sid}": {
-      "get": { "summary": "Get script", "tags": ["Scripts"], "parameters": [ { "name": "sid", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" } } },
-      "put": { "summary": "Update script", "tags": ["Scripts"], "parameters": [ { "name": "sid", "in": "path", "required": true, "schema": { "type": "string" } } ], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Script" } } } }, "responses": { "200": { "description": "OK" } } },
-      "delete": { "summary": "Delete script", "tags": ["Scripts"], "parameters": [ { "name": "sid", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "summary": "Get script",
+        "tags": [
+          "Scripts"
+        ],
+        "parameters": [
+          {
+            "name": "sid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update script",
+        "tags": [
+          "Scripts"
+        ],
+        "parameters": [
+          {
+            "name": "sid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Script"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete script",
+        "tags": [
+          "Scripts"
+        ],
+        "parameters": [
+          {
+            "name": "sid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
-    "/api/profiles/{id}/scripts/{sid}/execute": { "post": { "summary": "Execute script", "tags": ["Scripts"], "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "sid", "in": "path", "required": true, "schema": { "type": "string" } } ], "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "timeoutMs": { "type": "integer" } } } } } }, "responses": { "200": { "description": "OK" } } } }
+    "/api/profiles/{id}/scripts/{sid}/execute": {
+      "post": {
+        "summary": "Execute script",
+        "tags": [
+          "Scripts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "timeoutMs": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
   }
 }

@@ -42,8 +42,8 @@
 }
 
 .toast-info {
-  background: rgba(108, 92, 231, .15);
-  border: 1px solid rgba(108, 92, 231, .3);
+  background: rgba(0, 210, 211, .15);
+  border: 1px solid rgba(0, 210, 211, .3);
   color: var(--primary);
 }
 

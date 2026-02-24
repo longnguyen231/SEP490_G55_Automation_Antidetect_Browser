@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 
 const messages = {
   vi: {
-    'app.title': 'OBT Automation Antidetect Browser',
+    'app.title': 'HL-MCK Automation Antidetect Browser',
     'app.subtitle': 'Quản lý hồ sơ trình duyệt với chống nhận diện',
 
     // Sidebar
@@ -10,6 +10,8 @@ const messages = {
     'nav.profiles': 'Hồ sơ',
     'nav.scripts': 'Kịch bản',
     'nav.settings': 'Cài đặt',
+    'nav.language': 'Ngôn ngữ',
+    'nav.theme': 'Giao diện',
 
     // Language
     'lang.vi': '🇻🇳 Tiếng Việt',
@@ -53,6 +55,25 @@ const messages = {
     'profile.language': 'Ngôn ngữ:',
     'profile.created': 'Tạo lúc:',
 
+    // ProfileList table columns
+    'pl.col.noId': 'Số/ID',
+    'pl.col.group': 'Nhóm',
+    'pl.col.name': 'Tên',
+    'pl.col.ip': 'IP',
+    'pl.col.lastOp': 'Thao tác cuối',
+    'pl.col.platform': 'Nền tảng',
+    'pl.col.action': 'Hành động',
+
+    // ProfileList search & filter
+    'pl.search.placeholder': 'Tìm theo tên hoặc ID...',
+    'pl.filter.allStatus': 'Mọi trạng thái',
+    'pl.filter.running': 'Đang chạy',
+    'pl.filter.stopped': 'Đã dừng',
+    'pl.filter.allProxy': 'Mọi Proxy',
+    'pl.filter.hasProxy': 'Có Proxy',
+    'pl.filter.noProxy': 'Không Proxy',
+    'pl.filter.clear': 'Xóa',
+
     // Profile Form
     'profileForm.header.create': 'Tạo Profile Mới',
     'profileForm.header.edit': 'Sửa Profile',
@@ -62,28 +83,32 @@ const messages = {
     'profileForm.cancel': 'Đóng',
 
     // ProfileForm tabs
-    'pf.tab.basic': 'Cơ bản',
+    'pf.tab.general': 'Tổng quát',
+    'pf.tab.proxy': 'Proxy',
+    'pf.tab.platform': 'Nền tảng',
     'pf.tab.fingerprint': 'Fingerprint',
-    'pf.tab.environment': 'Môi trường',
     'pf.tab.advanced': 'Nâng cao',
 
-    // Basic section
-    'pf.name': 'Tên Profile *',
-    'pf.name.ph': 'Nhập tên profile',
-    'pf.name.hint': 'Tên dùng để phân biệt các profile.',
-    'pf.startUrl': 'URL Khởi động',
-    'pf.startUrl.hint': 'URL sẽ mở khi khởi chạy profile.',
-    'pf.description': 'Mô tả',
-    'pf.description.ph': 'Nhập mô tả profile',
-    'pf.engine': 'Engine',
-    'pf.engine.hint': 'Chọn engine chạy profile.',
-    'pf.cdpInit': 'CDP Init Script',
-    'pf.cdpInit.enable': 'Bật fingerprint InitScript',
-    'pf.cdpInit.hint': 'Tắt để chỉ dùng Emulation.',
-    'pf.headless': 'Headless (Playwright)',
-    'pf.headless.show': 'Hiển thị UI',
-    'pf.headless.hide': 'Headless (không UI)',
-    'pf.headless.hint': 'Chỉ áp dụng cho Playwright.',
+    // General section
+    'pf.name': 'Name',
+    'pf.name.ph': 'Optional: tên profile',
+    'pf.browser': 'Browser',
+    'pf.ua': 'User-Agent',
+    'pf.group': 'Group',
+    'pf.cookie': 'Cookie',
+    'pf.remark': 'Remark',
+    'pf.remark.ph': 'Nhập ghi chú',
+
+    // Proxy section
+    'pf.proxy.type': 'Proxy type',
+    'pf.proxy.ipChecker': 'IP checker',
+
+    // Platform section
+    'pf.platform': 'Platform',
+    'pf.tabs': 'Tabs',
+
+    // Advanced section
+    'pf.adv.extension': 'Extension',
 
     // Fingerprint section
     'pf.fp.title': 'Browser Fingerprint (Antidetect)',
@@ -215,6 +240,8 @@ const messages = {
     'nav.profiles': 'Profiles',
     'nav.scripts': 'Scripts',
     'nav.settings': 'Settings',
+    'nav.language': 'Language',
+    'nav.theme': 'Theme',
 
     // Language
     'lang.vi': '🇻🇳 Tiếng Việt',
@@ -258,6 +285,25 @@ const messages = {
     'profile.language': 'Language:',
     'profile.created': 'Created:',
 
+    // ProfileList table columns
+    'pl.col.noId': 'No./ID',
+    'pl.col.group': 'Group',
+    'pl.col.name': 'Name',
+    'pl.col.ip': 'IP',
+    'pl.col.lastOp': 'Last op.',
+    'pl.col.platform': 'Platform',
+    'pl.col.action': 'Action',
+
+    // ProfileList search & filter
+    'pl.search.placeholder': 'Search by name or ID...',
+    'pl.filter.allStatus': 'All Status',
+    'pl.filter.running': 'Running',
+    'pl.filter.stopped': 'Stopped',
+    'pl.filter.allProxy': 'All Proxy',
+    'pl.filter.hasProxy': 'Has Proxy',
+    'pl.filter.noProxy': 'No Proxy',
+    'pl.filter.clear': 'Clear',
+
     // Profile Form
     'profileForm.header.create': 'Create New Profile',
     'profileForm.header.edit': 'Edit Profile',
@@ -267,28 +313,32 @@ const messages = {
     'profileForm.cancel': 'Close',
 
     // ProfileForm tabs
-    'pf.tab.basic': 'Basic',
+    'pf.tab.general': 'General',
+    'pf.tab.proxy': 'Proxy',
+    'pf.tab.platform': 'Platform',
     'pf.tab.fingerprint': 'Fingerprint',
-    'pf.tab.environment': 'Environment',
     'pf.tab.advanced': 'Advanced',
 
-    // Basic section
-    'pf.name': 'Profile Name *',
-    'pf.name.ph': 'Enter profile name',
-    'pf.name.hint': 'Name to distinguish profiles.',
-    'pf.startUrl': 'Start URL',
-    'pf.startUrl.hint': 'URL to open when the profile launches.',
-    'pf.description': 'Description',
-    'pf.description.ph': 'Enter profile description',
-    'pf.engine': 'Engine',
-    'pf.engine.hint': 'Select engine to run profile.',
-    'pf.cdpInit': 'CDP Init Script',
-    'pf.cdpInit.enable': 'Enable fingerprint InitScript',
-    'pf.cdpInit.hint': 'Disable to use Emulation only.',
-    'pf.headless': 'Headless (Playwright)',
-    'pf.headless.show': 'Show UI',
-    'pf.headless.hide': 'Headless (no UI)',
-    'pf.headless.hint': 'Only applies to Playwright.',
+    // General section
+    'pf.name': 'Name',
+    'pf.name.ph': 'Optional: profile name',
+    'pf.browser': 'Browser',
+    'pf.ua': 'User-Agent',
+    'pf.group': 'Group',
+    'pf.cookie': 'Cookie',
+    'pf.remark': 'Remark',
+    'pf.remark.ph': 'Enter remark',
+
+    // Proxy section
+    'pf.proxy.type': 'Proxy type',
+    'pf.proxy.ipChecker': 'IP checker',
+
+    // Platform section
+    'pf.platform': 'Platform',
+    'pf.tabs': 'Tabs',
+
+    // Advanced section
+    'pf.adv.extension': 'Extension',
 
     // Fingerprint section
     'pf.fp.title': 'Browser Fingerprint (Antidetect)',

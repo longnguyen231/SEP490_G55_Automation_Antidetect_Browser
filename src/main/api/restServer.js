@@ -185,7 +185,7 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
     try {
       const spec = require('fs').existsSync(openapiPath) ? JSON.parse(require('fs').readFileSync(openapiPath, 'utf8')) : { openapi: '3.0.0', info: { title: 'OBT API', version: '1.0.0' } };
       appx.use('/api-docs', swaggerUi.serve, swaggerUi.setup(spec));
-    } catch {}
+    } catch { }
   }
 
   return appx;
@@ -266,12 +266,12 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
       // Persist if this was a freshly provided password (not already stored)
       try {
         if ((opts && opts.passwordPlain) && !loadStoredPassword()) persistPassword(opts.passwordPlain);
-      } catch {}
+      } catch { }
     }
 
     if (restHttpServer) {
-      try { const addr = restHttpServer.address(); if (addr && Number(addr.port) === port) { restServerState.running = true; restServerState.error = null; broadcast(); return { ok: true }; } } catch {}
-      try { restHttpServer.close(); } catch {}
+      try { const addr = restHttpServer.address(); if (addr && Number(addr.port) === port) { restServerState.running = true; restServerState.error = null; broadcast(); return { ok: true }; } } catch { }
+      try { restHttpServer.close(); } catch { }
       restHttpServer = null; restServerState.running = false;
     }
 
@@ -283,7 +283,7 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
       restHttpServer.on('error', (err) => {
         restServerState.running = false;
         restServerState.error = err?.code === 'EADDRINUSE' ? `Port ${port} is already in use` : (err?.message || String(err));
-        try { restHttpServer.close(); } catch {}
+        try { restHttpServer.close(); } catch { }
         restHttpServer = null; broadcast(); resolve({ ok: false, error: restServerState.error });
       });
     });

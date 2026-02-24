@@ -48,7 +48,7 @@
 
 .btn-close-custom:hover {
     color: var(--fg);
-    background: rgba(255, 255, 255, .08);
+    background: var(--glass-strong);
 }
 
 .cookie-modal-body {
@@ -124,7 +124,7 @@
 .cookie-textarea {
     width: 100%;
     min-height: 100px;
-    background: rgba(255, 255, 255, .04);
+    background: var(--glass-input);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     color: var(--fg);

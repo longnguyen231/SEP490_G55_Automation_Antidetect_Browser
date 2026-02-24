@@ -68,7 +68,7 @@
 }
 
 .script-card {
-    background: rgba(255, 255, 255, .04);
+    background: var(--glass-input);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     padding: 0.85rem;
@@ -80,7 +80,7 @@
 
 .script-card:hover {
     border-color: var(--border2);
-    background: rgba(255, 255, 255, .06);
+    background: var(--glass);
 }
 
 .script-title {
@@ -105,7 +105,7 @@
 .editor {
     margin-top: 0.75rem;
     padding: 1rem;
-    background: rgba(255, 255, 255, .03);
+    background: var(--glass-input);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
 }
