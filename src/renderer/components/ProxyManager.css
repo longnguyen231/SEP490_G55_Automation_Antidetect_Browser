@@ -1,0 +1,248 @@
+.proxy-manager-container {
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  height: 100%;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.proxy-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.proxy-manager-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.proxy-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.proxy-search {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  min-width: 250px;
+}
+
+.proxy-list-card {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
+.proxy-table-wrapper {
+  overflow-x: auto;
+}
+
+.proxy-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.proxy-table th {
+  text-align: left;
+  padding: 1rem;
+  color: var(--fg-muted);
+  border-bottom: 2px solid var(--border);
+  font-weight: 500;
+}
+
+.proxy-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg);
+}
+
+.proxy-table tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Status Badges */
+.proxy-status {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.status-active {
+  background: rgba(40, 199, 111, 0.15);
+  color: #28c76f;
+}
+
+.status-inactive {
+  background: rgba(255, 159, 67, 0.15);
+  color: #ff9f43;
+}
+
+.status-error {
+  background: rgba(234, 84, 85, 0.15);
+  color: #ea5455;
+}
+
+.status-untested {
+  background: rgba(130, 134, 139, 0.15);
+  color: #82868b;
+}
+
+.proxy-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  color: var(--fg-muted);
+  text-align: center;
+}
+
+.proxy-empty-icon {
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+/* Modals */
+.proxy-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.proxy-modal-content {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  animation: slideUpFade 0.3s ease-out;
+}
+
+.proxy-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.proxy-modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.proxy-form-group {
+  margin-bottom: 1rem;
+}
+
+.proxy-form-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+}
+
+.proxy-form-control {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.proxy-form-control:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(115, 103, 240, 0.2);
+}
+
+.proxy-form-row {
+  display: flex;
+  gap: 1rem;
+}
+
+textarea.proxy-form-control {
+  min-height: 150px;
+  resize: vertical;
+}
+
+.proxy-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.proxy-hint {
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+  margin-top: 0.5rem;
+}
+
+.btn-icon-danger {
+  background: transparent;
+  border: none;
+  color: #ea5455;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.btn-icon-danger:hover {
+  background: rgba(234, 84, 85, 0.1);
+}
+
+.btn-icon-primary {
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.btn-icon-primary:hover {
+  background: rgba(115, 103, 240, 0.1);
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
