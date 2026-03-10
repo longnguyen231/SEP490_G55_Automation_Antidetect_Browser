@@ -14,60 +14,95 @@ export default function ProxyManager() {
     const [showImport, setShowImport] = useState(false);
     const [editingProxy, setEditingProxy] = useState(null);
 
-    // Mock initial load
+    // Load proxies from backend on mount
     useEffect(() => {
-        // In actual implementation, fetch from API / IPC:
-        // window.electronAPI.getProxies().then(setProxies)
-        setProxies([
-            { id: '1', name: 'US Datacenter 1', protocol: 'http', host: '192.168.1.1', port: '8080', status: 'active' },
-            { id: '2', name: 'EU Residential', protocol: 'socks5', host: '10.0.0.1', port: '3128', status: 'error' },
-            { id: '3', name: 'Testing node', protocol: 'https', host: '172.16.0.1', port: '443', status: 'untested' }
-        ]);
+        loadProxies();
     }, []);
 
-    const handleAddSubmit = (formData) => {
-        // Implementation for IPC save proxy
-        const newProxy = {
-            id: Date.now().toString(),
-            status: 'untested',
-            ...formData
-        };
-        setProxies([...proxies, newProxy]);
-        setShowForm(false);
-    };
-
-    const handleUpdateSubmit = (formData) => {
-        // Implementation for IPC update proxy
-        setProxies(proxies.map(p => p.id === formData.id ? { ...p, ...formData } : p));
-        setShowForm(false);
-        setEditingProxy(null);
-    };
-
-    const handleDelete = (id) => {
-        if (window.confirm(t('proxies.delete.confirm'))) {
-            // Implementation for IPC delete proxy
-            setProxies(proxies.filter(p => p.id !== id));
+    const loadProxies = async () => {
+        try {
+            const list = await window.electronAPI.getProxies();
+            // Map backend 'type' field to UI 'protocol' for display
+            setProxies((Array.isArray(list) ? list : []).map(p => ({
+                ...p,
+                protocol: p.type || p.protocol || 'http',
+            })));
+        } catch (e) {
+            console.error('Failed to load proxies:', e);
         }
     };
 
-    const handleImportSubmit = (textData) => {
-        // Basic parser for import (host:port:user:pass)
-        const lines = textData.split('\n').map(l => l.trim()).filter(Boolean);
-        const newProxies = lines.map((line, idx) => {
-            const parts = line.split(':');
-            let p = { id: `imp_${Date.now()}_${idx}`, status: 'untested', protocol: 'http', name: `Imported ${idx + 1}` };
-            if (parts.length >= 2) {
-                p.host = parts[0];
-                p.port = parts[1];
+    const handleAddSubmit = async (formData) => {
+        try {
+            const res = await window.electronAPI.createProxy({
+                name: formData.name,
+                type: formData.protocol || 'http',
+                host: formData.host,
+                port: Number(formData.port),
+                username: formData.username || '',
+                password: formData.password || '',
+            });
+            if (res?.success) {
+                await loadProxies();
+                setShowForm(false);
+            } else {
+                alert(res?.error || 'Create proxy failed');
             }
-            if (parts.length >= 4) {
-                p.username = parts[2];
-                p.password = parts[3];
+        } catch (e) {
+            alert('Error creating proxy: ' + e.message);
+        }
+    };
+
+    const handleUpdateSubmit = async (formData) => {
+        try {
+            const res = await window.electronAPI.updateProxy(formData.id, {
+                name: formData.name,
+                type: formData.protocol || formData.type,
+                host: formData.host,
+                port: Number(formData.port),
+                username: formData.username || '',
+                password: formData.password || '',
+            });
+            if (res?.success) {
+                await loadProxies();
+                setShowForm(false);
+                setEditingProxy(null);
+            } else {
+                alert(res?.error || 'Update proxy failed');
             }
-            return p;
-        });
-        setProxies([...proxies, ...newProxies]);
-        setShowImport(false);
+        } catch (e) {
+            alert('Error updating proxy: ' + e.message);
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (window.confirm(t('proxies.delete.confirm') || 'Delete this proxy?')) {
+            try {
+                const res = await window.electronAPI.deleteProxy(id);
+                if (res?.success) {
+                    await loadProxies();
+                } else {
+                    alert(res?.error || 'Delete failed');
+                }
+            } catch (e) {
+                alert('Error deleting proxy: ' + e.message);
+            }
+        }
+    };
+
+    const handleImportSubmit = async (textData) => {
+        try {
+            const res = await window.electronAPI.importProxies(textData, 'auto');
+            if (res?.success) {
+                await loadProxies();
+                setShowImport(false);
+                alert(`Imported ${res.imported} proxies` + (res.skipped ? ` (${res.skipped} skipped)` : ''));
+            } else {
+                alert(res?.error || 'Import failed');
+            }
+        } catch (e) {
+            alert('Error importing proxies: ' + e.message);
+        }
     };
 
     const filteredProxies = proxies.filter(p => {
@@ -144,10 +179,19 @@ export default function ProxyManager() {
 function ProxyTable({ proxies, onEdit, onDelete, t }) {
     const getStatusIcon = (status) => {
         switch (status) {
-            case 'active': return <CheckCircle2 size={14} />;
-            case 'error': return <XCircle size={14} />;
-            case 'inactive': return <AlertCircle size={14} />;
+            case 'alive': return <CheckCircle2 size={14} />;
+            case 'dead': return <XCircle size={14} />;
+            case 'unchecked':
             default: return <HelpCircle size={14} />;
+        }
+    };
+
+    const getStatusClass = (status) => {
+        switch (status) {
+            case 'alive': return 'status-active';
+            case 'dead': return 'status-error';
+            case 'unchecked':
+            default: return 'status-untested';
         }
     };
 
@@ -174,8 +218,8 @@ function ProxyTable({ proxies, onEdit, onDelete, t }) {
                                 </span>
                             </td>
                             <td>
-                                <span className={`proxy-status status-${p.status || 'untested'}`}>
-                                    {getStatusIcon(p.status)} {t(`proxies.status.${p.status || 'untested'}`)}
+                                <span className={`proxy-status ${getStatusClass(p.status)}`}>
+                                    {getStatusIcon(p.status)} {p.status || 'unchecked'}
                                 </span>
                             </td>
                             <td style={{ textAlign: 'right' }}>
