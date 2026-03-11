@@ -29,6 +29,7 @@ const {
   deleteProxyInternal, deleteProxiesBulkInternal,
   importProxiesInternal, exportProxiesInternal,
 } = require('../storage/proxies');
+const { checkProxy, checkProxiesBatch } = require('../services/ProxyChecker');
 
 function registerIpcHandlers(extra = {}) {
   ipcMain.handle('get-profiles', async () => await getProfilesInternal());
@@ -84,6 +85,31 @@ function registerIpcHandlers(extra = {}) {
   ipcMain.handle('proxy-delete-bulk', async (_e, ids) => await deleteProxiesBulkInternal(ids));
   ipcMain.handle('proxy-import', async (_e, text, format) => await importProxiesInternal(text, format));
   ipcMain.handle('proxy-export', async (_e, ids) => await exportProxiesInternal(ids));
+
+  // Proxy checker
+  ipcMain.handle('proxy-check', async (_e, cfg) => {
+    try { return await checkProxy(cfg); }
+    catch (e) { return { success: false, alive: false, error: e?.message || String(e) }; }
+  });
+  ipcMain.handle('proxy-check-all', async () => {
+    try {
+      const proxies = await getProxiesInternal();
+      const results = {};
+      await checkProxiesBatch(proxies, (id, result) => {
+        results[id] = result;
+        // Update proxy status in storage
+        try {
+          updateProxyInternal(id, {
+            status: result.alive ? 'alive' : 'dead',
+            latency: result.latency || null,
+            lastChecked: new Date().toISOString(),
+            country: result.countryCode || '',
+          }).catch(() => {});
+        } catch {}
+      });
+      return { success: true, results };
+    } catch (e) { return { success: false, error: e?.message || String(e) }; }
+  });
 
   // Settings direct save (optional future use)
   ipcMain.handle('load-settings', async () => {

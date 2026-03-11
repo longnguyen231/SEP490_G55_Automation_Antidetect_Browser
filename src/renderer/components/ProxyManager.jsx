@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Network, Plus, Upload, Search, Trash2, Edit2, CheckCircle2,
-    XCircle, AlertCircle, HelpCircle, X
+    XCircle, AlertCircle, HelpCircle, X, Zap, Loader2
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import './ProxyManager.css';
@@ -13,6 +13,47 @@ export default function ProxyManager() {
     const [showForm, setShowForm] = useState(false);
     const [showImport, setShowImport] = useState(false);
     const [editingProxy, setEditingProxy] = useState(null);
+    const [checkingIds, setCheckingIds] = useState(new Set()); // proxy IDs currently being checked
+    const [checkingAll, setCheckingAll] = useState(false);
+
+    const handleCheckOne = async (proxy) => {
+        setCheckingIds(prev => new Set([...prev, proxy.id]));
+        try {
+            const result = await window.electronAPI.checkProxy({
+                type: proxy.type || proxy.protocol || 'http',
+                host: proxy.host,
+                port: Number(proxy.port),
+                username: proxy.username || '',
+                password: proxy.password || '',
+            });
+            // Update proxy in backend
+            if (result) {
+                await window.electronAPI.updateProxy(proxy.id, {
+                    status: result.alive ? 'alive' : 'dead',
+                    latency: result.latency || null,
+                    lastChecked: new Date().toISOString(),
+                    country: result.countryCode || '',
+                });
+            }
+            await loadProxies();
+        } catch (e) {
+            console.error('Check proxy failed:', e);
+        } finally {
+            setCheckingIds(prev => { const s = new Set(prev); s.delete(proxy.id); return s; });
+        }
+    };
+
+    const handleCheckAll = async () => {
+        setCheckingAll(true);
+        try {
+            await window.electronAPI.checkAllProxies();
+            await loadProxies();
+        } catch (e) {
+            alert('Check all failed: ' + e.message);
+        } finally {
+            setCheckingAll(false);
+        }
+    };
 
     // Load proxies from backend on mount
     useEffect(() => {
@@ -126,6 +167,15 @@ export default function ProxyManager() {
                     <button className="btn btn-secondary" onClick={() => setShowImport(true)}>
                         <Upload size={16} /> {t('proxies.import')}
                     </button>
+                    <button
+                        className="btn btn-secondary"
+                        onClick={handleCheckAll}
+                        disabled={checkingAll || proxies.length === 0}
+                        title="Check all proxies"
+                    >
+                        {checkingAll ? <Loader2 size={16} className="spin" /> : <Zap size={16} />}
+                        {checkingAll ? 'Checking...' : 'Check All'}
+                    </button>
                     <button className="btn btn-primary" onClick={() => { setEditingProxy(null); setShowForm(true); }}>
                         <Plus size={16} /> {t('proxies.add')}
                     </button>
@@ -151,6 +201,8 @@ export default function ProxyManager() {
                         proxies={filteredProxies}
                         onEdit={(p) => { setEditingProxy(p); setShowForm(true); }}
                         onDelete={handleDelete}
+                        onCheck={handleCheckOne}
+                        checkingIds={checkingIds}
                         t={t}
                     />
                 )}
@@ -176,7 +228,7 @@ export default function ProxyManager() {
     );
 }
 
-function ProxyTable({ proxies, onEdit, onDelete, t }) {
+function ProxyTable({ proxies, onEdit, onDelete, onCheck, checkingIds, t }) {
     const getStatusIcon = (status) => {
         switch (status) {
             case 'alive': return <CheckCircle2 size={14} />;
@@ -204,34 +256,53 @@ function ProxyTable({ proxies, onEdit, onDelete, t }) {
                         <th>{t('proxies.col.protocol')}</th>
                         <th>{t('proxies.col.host')}</th>
                         <th>{t('proxies.col.status')}</th>
+                        <th>Latency</th>
+                        <th>Country</th>
                         <th style={{ textAlign: 'right' }}>{t('proxies.col.actions')}</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {proxies.map(p => (
-                        <tr key={p.id}>
-                            <td><strong>{p.name}</strong></td>
-                            <td><span style={{ textTransform: 'uppercase', fontSize: '0.85rem' }}>{p.protocol || 'http'}</span></td>
-                            <td>
-                                <span style={{ fontFamily: 'monospace' }}>
-                                    {p.username ? `${p.username}:***@` : ''}{p.host}:{p.port}
-                                </span>
-                            </td>
-                            <td>
-                                <span className={`proxy-status ${getStatusClass(p.status)}`}>
-                                    {getStatusIcon(p.status)} {p.status || 'unchecked'}
-                                </span>
-                            </td>
-                            <td style={{ textAlign: 'right' }}>
-                                <button className="btn-icon-primary" onClick={() => onEdit(p)} title={t('proxies.form.title.edit')}>
-                                    <Edit2 size={16} />
-                                </button>
-                                <button className="btn-icon-danger" onClick={() => onDelete(p.id)} title={t('proxies.delete.confirm')}>
-                                    <Trash2 size={16} />
-                                </button>
-                            </td>
-                        </tr>
-                    ))}
+                    {proxies.map(p => {
+                        const isChecking = checkingIds?.has(p.id);
+                        return (
+                            <tr key={p.id}>
+                                <td><strong>{p.name}</strong></td>
+                                <td><span style={{ textTransform: 'uppercase', fontSize: '0.85rem' }}>{p.protocol || 'http'}</span></td>
+                                <td>
+                                    <span style={{ fontFamily: 'monospace' }}>
+                                        {p.username ? `${p.username}:***@` : ''}{p.host}:{p.port}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span className={`proxy-status ${getStatusClass(p.status)}`}>
+                                        {getStatusIcon(p.status)} {p.status || 'unchecked'}
+                                    </span>
+                                </td>
+                                <td>
+                                    {p.latency != null ? (
+                                        <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{p.latency}ms</span>
+                                    ) : '—'}
+                                </td>
+                                <td>{p.country || '—'}</td>
+                                <td style={{ textAlign: 'right' }}>
+                                    <button
+                                        className="btn-icon-primary"
+                                        onClick={() => onCheck(p)}
+                                        disabled={isChecking}
+                                        title="Check proxy"
+                                    >
+                                        {isChecking ? <Loader2 size={16} className="spin" /> : <Zap size={16} />}
+                                    </button>
+                                    <button className="btn-icon-primary" onClick={() => onEdit(p)} title={t('proxies.form.title.edit')}>
+                                        <Edit2 size={16} />
+                                    </button>
+                                    <button className="btn-icon-danger" onClick={() => onDelete(p.id)} title={t('proxies.delete.confirm')}>
+                                        <Trash2 size={16} />
+                                    </button>
+                                </td>
+                            </tr>
+                        );
+                    })}
                 </tbody>
             </table>
         </div>
@@ -239,15 +310,28 @@ function ProxyTable({ proxies, onEdit, onDelete, t }) {
 }
 
 function ProxyFormModal({ proxy, onSave, onClose, t }) {
-    const [formData, setFormData] = useState(proxy || {
+    const [formData, setFormData] = useState(proxy ? {
+        ...proxy,
+        protocol: proxy.protocol || proxy.type || 'http',
+        port: proxy.port || '',
+    } : {
         name: '', protocol: 'http', host: '', port: '', username: '', password: ''
     });
+    const [saving, setSaving] = useState(false);
 
     const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-    const submit = (e) => {
+    const submit = async (e) => {
         e.preventDefault();
-        onSave(formData);
+        if (saving) return;
+        setSaving(true);
+        try {
+            await onSave(formData);
+        } catch (err) {
+            alert('Error: ' + (err?.message || err));
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
@@ -288,17 +372,19 @@ function ProxyFormModal({ proxy, onSave, onClose, t }) {
                     <div className="proxy-form-row">
                         <div className="proxy-form-group" style={{ flex: 1 }}>
                             <label className="proxy-form-label">{t('proxies.form.username')} (Optional)</label>
-                            <input type="text" name="username" className="proxy-form-control" value={formData.username} onChange={handleChange} />
+                            <input type="text" name="username" className="proxy-form-control" value={formData.username || ''} onChange={handleChange} />
                         </div>
                         <div className="proxy-form-group" style={{ flex: 1 }}>
                             <label className="proxy-form-label">{t('proxies.form.password')} (Optional)</label>
-                            <input type="password" name="password" className="proxy-form-control" value={formData.password} onChange={handleChange} />
+                            <input type="password" name="password" className="proxy-form-control" value={formData.password || ''} onChange={handleChange} />
                         </div>
                     </div>
 
                     <div className="proxy-modal-footer">
                         <button type="button" className="btn btn-secondary" onClick={onClose}>{t('proxies.form.cancel')}</button>
-                        <button type="submit" className="btn btn-primary">{t('proxies.form.save')}</button>
+                        <button type="submit" className="btn btn-primary" disabled={saving}>
+                            {saving ? 'Đang lưu...' : t('proxies.form.save')}
+                        </button>
                     </div>
                 </form>
             </div>

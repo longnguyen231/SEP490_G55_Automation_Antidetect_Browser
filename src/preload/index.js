@@ -65,4 +65,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteProxiesBulk: (ids) => ipcRenderer.invoke('proxy-delete-bulk', ids),
   importProxies: (text, format) => ipcRenderer.invoke('proxy-import', text, format),
   exportProxies: (ids) => ipcRenderer.invoke('proxy-export', ids),
+  checkProxy: (cfg) => ipcRenderer.invoke('proxy-check', cfg),
+  checkAllProxies: () => ipcRenderer.invoke('proxy-check-all'),
 });
