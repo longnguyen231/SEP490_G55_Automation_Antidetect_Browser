@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Offcanvas } from 'react-bootstrap';
 import {
-    Menu, X, Globe, Settings, Plus, FileCode, Sun, Moon
+    Menu, X, Globe, Settings, Plus, FileCode, Sun, Moon, Network
 } from 'lucide-react';
 import { useI18n } from '../i18n/index';
 
@@ -35,6 +35,7 @@ export default function DashboardSidebar({
 
     const NAVIGATION_ITEMS = [
         { id: 'profiles', labelKey: 'nav.profiles', icon: <Globe size={18} /> },
+        { id: 'proxies', labelKey: 'nav.proxies', icon: <Network size={18} /> },
         { id: 'scripts', labelKey: 'nav.scripts', icon: <FileCode size={18} /> },
         { id: 'settings', labelKey: 'nav.settings', icon: <Settings size={18} /> },
     ];

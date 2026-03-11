@@ -4,13 +4,13 @@ import {
     Play, Square, Edit2, Copy, Trash2, MoreVertical,
     Cookie, FileText, Plus, CheckSquare, XSquare,
     Database, Bot, Globe, User, Fingerprint,
-    Search, Filter, X
+    Search, Filter, X, Network
 } from 'lucide-react';
 import { useI18n } from '../i18n/index';
 import './ProfileList.css';
 
 /* ═══════ Context Menu (three-dot) ═══════ */
-function ContextMenu({ profile, position, onClose, onEditProfile, onCloneProfile, onDeleteProfile, onManageCookies, onViewLogs, onCopyWs, isRunning }) {
+function ContextMenu({ profile, position, onClose, onEditProfile, onCloneProfile, onDeleteProfile, onManageCookies, onViewLogs, onCopyWs, isRunning, onQuickEditProxy }) {
     const ref = useRef(null);
 
     useEffect(() => {
@@ -50,7 +50,7 @@ function ContextMenu({ profile, position, onClose, onEditProfile, onCloneProfile
 
             <div className="pl-ctx-divider" />
 
-            <button className="pl-ctx-item" onClick={() => { onEditProfile(profile); onClose(); }}>
+            <button className="pl-ctx-item" onClick={() => { onQuickEditProxy?.(profile); onClose(); }}>
                 <span className="ctx-icon"><Globe size={14} /></span> Edit proxy
             </button>
             <button className="pl-ctx-item" onClick={() => { onEditProfile(profile); onClose(); }}>
@@ -59,6 +59,213 @@ function ContextMenu({ profile, position, onClose, onEditProfile, onCloneProfile
             <button className="pl-ctx-item" onClick={() => { onEditProfile(profile); onClose(); }}>
                 <span className="ctx-icon"><Fingerprint size={14} /></span> Edit fingerprint
             </button>
+        </div>,
+        document.body
+    );
+}
+
+/* ═══════ Quick Edit: Name ═══════ */
+function QuickEditName({ profile, onSave, onClose }) {
+    const [name, setName] = useState(profile?.name || '');
+    const [saving, setSaving] = useState(false);
+    const inputRef = useRef(null);
+    useEffect(() => { inputRef.current?.focus(); inputRef.current?.select(); }, []);
+
+    const handleSave = async () => {
+        if (!name.trim()) return;
+        setSaving(true);
+        try {
+            const updated = { ...profile, name: name.trim() };
+            await onSave(updated);
+            onClose();
+        } catch (e) {
+            alert('Save failed: ' + e.message);
+        } finally { setSaving(false); }
+    };
+
+    return ReactDOM.createPortal(
+        <div className="qe-backdrop" onClick={onClose}>
+            <div className="qe-modal" onClick={e => e.stopPropagation()}>
+                <div className="qe-header">
+                    <h3>Edit Name</h3>
+                    <button className="qe-close" onClick={onClose}><X size={16} /></button>
+                </div>
+                <div className="qe-body">
+                    <input
+                        ref={inputRef}
+                        className="qe-input"
+                        type="text"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSave()}
+                        maxLength={100}
+                        placeholder="Profile name"
+                    />
+                </div>
+                <div className="qe-footer">
+                    <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+                    <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                        {saving ? 'Saving...' : 'Save'}
+                    </button>
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+}
+
+/* ═══════ Quick Edit: Proxy ═══════ */
+function QuickEditProxy({ profile, onSave, onClose }) {
+    const [proxyPool, setProxyPool] = useState([]);
+    const [proxyData, setProxyData] = useState({
+        type: profile?.settings?.proxy?.type || 'none',
+        server: profile?.settings?.proxy?.server || '',
+        username: profile?.settings?.proxy?.username || '',
+        password: profile?.settings?.proxy?.password || '',
+    });
+    const [saving, setSaving] = useState(false);
+    const [tab, setTab] = useState('saved'); // 'saved' | 'custom'
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const list = await window.electronAPI.getProxies();
+                setProxyPool(Array.isArray(list) ? list : []);
+            } catch { }
+        })();
+    }, []);
+
+    const selectProxy = (p) => {
+        setProxyData({
+            type: p.type || 'http',
+            server: `${p.host}:${p.port}`,
+            username: p.username || '',
+            password: p.password || '',
+        });
+    };
+
+    const clearProxy = () => {
+        setProxyData({ type: 'none', server: '', username: '', password: '' });
+    };
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const updated = {
+                ...profile,
+                settings: { ...profile.settings, proxy: { ...proxyData } }
+            };
+            await onSave(updated);
+            onClose();
+        } catch (e) {
+            alert('Save failed: ' + e.message);
+        } finally { setSaving(false); }
+    };
+
+    return ReactDOM.createPortal(
+        <div className="qe-backdrop" onClick={onClose}>
+            <div className="qe-modal qe-modal-wide" onClick={e => e.stopPropagation()}>
+                <div className="qe-header">
+                    <h3><Network size={16} /> Edit Proxy</h3>
+                    <button className="qe-close" onClick={onClose}><X size={16} /></button>
+                </div>
+
+                <div className="qe-tabs">
+                    <button className={`qe-tab${tab === 'saved' ? ' active' : ''}`} onClick={() => setTab('saved')}>Saved Proxies</button>
+                    <button className={`qe-tab${tab === 'custom' ? ' active' : ''}`} onClick={() => setTab('custom')}>Custom</button>
+                </div>
+
+                <div className="qe-body">
+                    {tab === 'saved' && (
+                        <div className="qe-proxy-list">
+                            {/* No proxy option */}
+                            <div
+                                className={`qe-proxy-item${proxyData.type === 'none' ? ' selected' : ''}`}
+                                onClick={clearProxy}
+                            >
+                                <span style={{ fontWeight: 600 }}>No Proxy (Local network)</span>
+                                {proxyData.type === 'none' && <span className="qe-check">✓</span>}
+                            </div>
+                            {proxyPool.length === 0 ? (
+                                <div className="qe-empty">No saved proxies. Add proxies in Proxy Manager.</div>
+                            ) : proxyPool.map(p => {
+                                const isSelected = proxyData.server === `${p.host}:${p.port}` && proxyData.type === (p.type || 'http');
+                                return (
+                                    <div
+                                        key={p.id}
+                                        className={`qe-proxy-item${isSelected ? ' selected' : ''}`}
+                                        onClick={() => selectProxy(p)}
+                                    >
+                                        <div>
+                                            <div style={{ fontWeight: 600, fontSize: '0.84rem' }}>{p.name || `${p.host}:${p.port}`}</div>
+                                            <div style={{ fontSize: '0.73rem', color: 'var(--muted)', fontFamily: 'monospace' }}>
+                                                {(p.type || 'http').toUpperCase()} · {p.host}:{p.port}
+                                                {p.username ? ` · ${p.username}:***` : ''}
+                                            </div>
+                                        </div>
+                                        {isSelected && <span className="qe-check">✓</span>}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {tab === 'custom' && (
+                        <div className="qe-custom-form">
+                            <label className="qe-label">Type</label>
+                            <select
+                                className="qe-input"
+                                value={proxyData.type}
+                                onChange={e => setProxyData(d => ({ ...d, type: e.target.value }))}
+                            >
+                                <option value="none">No Proxy</option>
+                                <option value="http">HTTP</option>
+                                <option value="https">HTTPS</option>
+                                <option value="socks5">SOCKS5</option>
+                            </select>
+                            {proxyData.type !== 'none' && (
+                                <>
+                                    <label className="qe-label">Host:Port</label>
+                                    <input
+                                        className="qe-input"
+                                        placeholder="host:port"
+                                        value={proxyData.server}
+                                        onChange={e => setProxyData(d => ({ ...d, server: e.target.value }))}
+                                    />
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <div style={{ flex: 1 }}>
+                                            <label className="qe-label">Username</label>
+                                            <input
+                                                className="qe-input"
+                                                placeholder="(optional)"
+                                                value={proxyData.username}
+                                                onChange={e => setProxyData(d => ({ ...d, username: e.target.value }))}
+                                            />
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            <label className="qe-label">Password</label>
+                                            <input
+                                                className="qe-input"
+                                                type="password"
+                                                placeholder="(optional)"
+                                                value={proxyData.password}
+                                                onChange={e => setProxyData(d => ({ ...d, password: e.target.value }))}
+                                            />
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                <div className="qe-footer">
+                    <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+                    <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                        {saving ? 'Saving...' : 'Save'}
+                    </button>
+                </div>
+            </div>
         </div>,
         document.body
     );
@@ -76,6 +283,26 @@ function ProfileList({
     const selectedCount = Object.values(selectedIds || {}).filter(Boolean).length;
     const [openMenuId, setOpenMenuId] = useState(null);
     const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+
+    /* ── Quick edit modals ── */
+    const [quickEditName, setQuickEditName] = useState(null);   // profile object or null
+    const [quickEditProxy, setQuickEditProxy] = useState(null); // profile object or null
+
+    const handleQuickSave = useCallback(async (updatedProfile) => {
+        const res = await window.electronAPI.saveProfile(updatedProfile);
+        if (!res?.success) throw new Error(res?.error || 'Save failed');
+        // Trigger parent reload by calling onEditProfile-like mechanism
+        // We'll just re-fetch profiles by simulating a page-level reload
+        setQuickEditName(null);
+        setQuickEditProxy(null);
+        // Ideally the parent passes a reload function; for now fetch and let parent handle
+        try {
+            const data = await window.electronAPI.getProfiles();
+            // Can't set parent state directly, so we need a workaround
+            // The simplest approach: just reload the page
+            window.location.reload();
+        } catch { window.location.reload(); }
+    }, []);
 
     /* ── Search & Filter state ── */
     const [searchQuery, setSearchQuery] = useState('');
@@ -310,7 +537,7 @@ function ProfileList({
                                                 <Edit2
                                                     size={13}
                                                     className="pl-edit-icon"
-                                                    onClick={(e) => { e.stopPropagation(); onEditProfile(profile); }}
+                                                    onClick={(e) => { e.stopPropagation(); setQuickEditName(profile); }}
                                                 />
                                             </div>
                                         </td>
@@ -386,6 +613,7 @@ function ProfileList({
                                                             onManageCookies={onManageCookies}
                                                             onViewLogs={onViewLogs}
                                                             onCopyWs={onCopyWs}
+                                                            onQuickEditProxy={setQuickEditProxy}
                                                         />
                                                     )}
                                                 </div>
@@ -398,6 +626,22 @@ function ProfileList({
                     </table>
                 )}
             </div>
+
+            {/* Quick edit modals */}
+            {quickEditName && (
+                <QuickEditName
+                    profile={quickEditName}
+                    onSave={handleQuickSave}
+                    onClose={() => setQuickEditName(null)}
+                />
+            )}
+            {quickEditProxy && (
+                <QuickEditProxy
+                    profile={quickEditProxy}
+                    onSave={handleQuickSave}
+                    onClose={() => setQuickEditProxy(null)}
+                />
+            )}
         </div>
     );
 }

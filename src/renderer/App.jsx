@@ -6,6 +6,7 @@ import CookieManager from './components/CookieManager';
 import LogViewer from './components/LogViewer';
 import Toasts from './components/Toasts';
 import ScriptsManager from './components/ScriptsManager';
+import ProxyManager from './components/ProxyManager';
 import './App.css';
 import { useI18n } from './i18n/index';
 
@@ -217,6 +218,11 @@ function App() {
             onRunScript={(pid, sid) => { /* optional hook */ }}
             fullPage={true}
           />
+        );
+
+      case 'proxies':
+        return (
+          <ProxyManager />
         );
 
       case 'settings':
