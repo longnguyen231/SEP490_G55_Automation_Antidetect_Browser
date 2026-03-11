@@ -130,6 +130,15 @@ function registerIpcHandlers(extra = {}) {
     }
   });
 
+  ipcMain.handle('proxy-test-connection', async (_e, proxy) => {
+    try {
+      const checkRes = await checkProxy(proxy);
+      return checkRes;
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
   // Settings direct save (optional future use)
   ipcMain.handle('load-settings', async () => {
     try { const s = loadSettings(); return { success: true, settings: s || {} }; }
