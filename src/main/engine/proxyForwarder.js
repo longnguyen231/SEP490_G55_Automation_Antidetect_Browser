@@ -4,9 +4,13 @@ function buildUpstreamUrl(proxy) {
   try {
     if (!proxy || !proxy.server) return null;
     let server = String(proxy.server).trim();
-    if (!/^https?:\/\//i.test(server) && !/^socks\d?:\/\//i.test(server)) {
-      // Default to http if no scheme provided
-      server = `http://${server}`;
+    if (!/^(https?|socks\d?):\/\//i.test(server)) {
+      // Use proxy.type to determine scheme instead of blindly defaulting to http
+      const type = (proxy.type || '').toLowerCase();
+      let scheme = 'http';
+      if (type === 'socks5' || type === 'socks4') scheme = type;
+      else if (type === 'https') scheme = 'http'; // proxy-chain needs http scheme for HTTPS proxies
+      server = `${scheme}://${server}`;
     }
     const u = new URL(server);
     // Inject credentials if provided in proxy object and not already in URL

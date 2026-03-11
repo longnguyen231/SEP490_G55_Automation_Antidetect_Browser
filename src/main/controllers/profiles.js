@@ -87,7 +87,8 @@ async function launchProfileInternal(profileId, options = {}) {
       try {
         const serverStr = (settings.proxy && settings.proxy.server) ? String(settings.proxy.server) : '';
         const hasAuth = !!(settings.proxy && (settings.proxy.username || settings.proxy.password));
-        const isSocks = /^socks\d?:\/\//i.test(serverStr);
+        const proxyType = (settings.proxy?.type || '').toLowerCase();
+        const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(serverStr);
         if (settings.proxy && (hasAuth || isSocks)) {
           const { startProxyForwarder } = require('../engine/proxyForwarder');
           forwarder = await startProxyForwarder(settings.proxy, { appendLog, profileId });
@@ -193,10 +194,39 @@ async function launchProfileInternal(profileId, options = {}) {
       if (applyGeo && wantGeo) permissions.push('geolocation');
     } catch {}
     let proxy;
+    let forwarder = null;
     if (settings.proxy?.server) {
-      proxy = { server: settings.proxy.server.startsWith('http') ? settings.proxy.server : `http://${settings.proxy.server}` };
-      if (settings.proxy.username) proxy.username = settings.proxy.username;
-      if (settings.proxy.password) proxy.password = settings.proxy.password;
+      // Determine proxy type from settings
+      const proxyType = (settings.proxy.type || '').toLowerCase();
+      const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(settings.proxy.server);
+      const hasAuth = !!(settings.proxy.username || settings.proxy.password);
+
+      if (hasAuth || isSocks) {
+        // Use local forwarder for SOCKS or authenticated proxies
+        try {
+          const { startProxyForwarder } = require('../engine/proxyForwarder');
+          forwarder = await startProxyForwarder(settings.proxy, { appendLog, profileId });
+          proxy = { server: forwarder.url };
+          appendLog(profileId, `Playwright using proxy forwarder: ${forwarder.url}`);
+        } catch (e) {
+          appendLog(profileId, `Proxy forwarder failed, falling back to direct: ${e?.message || e}`);
+          // Fallback: build proxy URL with correct scheme
+          let serverUrl = settings.proxy.server;
+          if (!/^(https?|socks\d?):\/\//i.test(serverUrl)) {
+            serverUrl = `${isSocks ? 'socks5' : 'http'}://${serverUrl}`;
+          }
+          proxy = { server: serverUrl };
+          if (settings.proxy.username) proxy.username = settings.proxy.username;
+          if (settings.proxy.password) proxy.password = settings.proxy.password;
+        }
+      } else {
+        // Simple HTTP/HTTPS proxy without auth
+        let serverUrl = settings.proxy.server;
+        if (!/^(https?|socks\d?):\/\//i.test(serverUrl)) {
+          serverUrl = `http://${serverUrl}`;
+        }
+        proxy = { server: serverUrl };
+      }
     }
     let server;
     try { server = await chromium.launchServer({ headless, args, proxy }); }
@@ -206,9 +236,9 @@ async function launchProfileInternal(profileId, options = {}) {
       if (/playwright\s+install|executable|not\s+found|Please run/i.test(msg)) {
         appendLog(profileId, 'Attempting auto-install playwright browsers (chromium)...');
         const ok = await runPlaywrightInstall('chromium');
-        if (!ok) return { success: false, error: 'Playwright browsers not installed.' };
+        if (!ok) { try { await forwarder?.stop?.(); } catch {} return { success: false, error: 'Playwright browsers not installed.' }; }
         server = await chromium.launchServer({ headless, args, proxy });
-      } else throw e;
+      } else { try { await forwarder?.stop?.(); } catch {} throw e; }
     }
     const wsEndpoint = server.wsEndpoint();
     const browser = await chromium.connect(wsEndpoint);
@@ -250,7 +280,19 @@ async function launchProfileInternal(profileId, options = {}) {
       await applyFingerprintInitScripts(context, profile, settings);
     } catch {}
     const page = await context.newPage();
-    await page.goto(startUrl, { waitUntil: 'domcontentloaded' });
+    // Navigate with timeout and retry for slow proxy connections
+    try {
+      await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    } catch (navErr) {
+      appendLog(profileId, `First navigation attempt failed: ${navErr?.message || navErr}. Retrying...`);
+      try {
+        await new Promise(r => setTimeout(r, 2000)); // brief pause before retry
+        await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      } catch (retryErr) {
+        appendLog(profileId, `Second navigation attempt failed: ${retryErr?.message || retryErr}. Browser is open but page not loaded.`);
+        // Don't throw — keep the browser open so user can interact with it
+      }
+    }
     appendLog(profileId, `Opened page: ${startUrl}`);
 
     const saveState = async () => {
@@ -264,10 +306,10 @@ async function launchProfileInternal(profileId, options = {}) {
       }
     };
     page.on('close', async () => { await saveState(); try { await context.close(); } catch { } });
-    context.on('close', async () => { await saveState(); runningProfiles.delete(profileId); appendLog(profileId, 'Context closed'); try { await server.close(); } catch { }; broadcastRunningMap(); });
-    try { browser.on?.('disconnected', () => { if (runningProfiles.has(profileId)) { runningProfiles.delete(profileId); appendLog(profileId, 'Browser disconnected'); try { server.close(); } catch { }; broadcastRunningMap(); } }); } catch { }
-    try { const proc = server.process?.(); proc && proc.once && proc.once('exit', (code, signal) => { if (runningProfiles.has(profileId)) { runningProfiles.delete(profileId); appendLog(profileId, `Browser server exited (${code || ''} ${signal || ''})`); broadcastRunningMap(); } }); } catch { }
-    runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint });
+    context.on('close', async () => { await saveState(); try { await forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Context closed'); try { await server.close(); } catch { }; broadcastRunningMap(); });
+    try { browser.on?.('disconnected', () => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Browser disconnected'); try { server.close(); } catch { }; broadcastRunningMap(); } }); } catch { }
+    try { const proc = server.process?.(); proc && proc.once && proc.once('exit', (code, signal) => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, `Browser server exited (${code || ''} ${signal || ''})`); broadcastRunningMap(); } }); } catch { }
+    runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder });
     broadcastRunningMap();
     // Post-launch automation script (if configured)
     try { await runAutomationPostLaunch(profile, { engine: 'playwright', wsEndpoint, context, browser }); } catch (e) { appendLog(profileId, `Automation post-launch error: ${e?.message || e}`); }

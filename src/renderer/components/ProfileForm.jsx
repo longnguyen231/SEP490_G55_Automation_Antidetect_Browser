@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Shuffle, Save, X, RefreshCw, Lock, Unlock, Copy, Plus } from 'lucide-react';
 import { useI18n } from '../i18n/index';
 import './ProfileForm.css';
@@ -109,6 +109,9 @@ function ProfileForm({ profile, onSave, onCancel }) {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState('general');
   const [proxySubTab, setProxySubTab] = useState('custom');
+  const [proxyPool, setProxyPool] = useState([]);
+  const [proxyChecking, setProxyChecking] = useState(false);
+  const [proxyCheckResult, setProxyCheckResult] = useState(null); // { alive, ip, country, city, timezone, latency }
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -251,6 +254,52 @@ function ProfileForm({ profile, onSave, onCancel }) {
     regeneratePresets(presetCount);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options.locales.length, options.timezones.length, presetCount]);
+
+  // Auto‑load proxy pool when switching to 'saved' sub-tab
+  useEffect(() => {
+    if (proxySubTab === 'saved') {
+      (async () => {
+        try {
+          const list = await window.electronAPI.getProxies();
+          setProxyPool(Array.isArray(list) ? list : []);
+        } catch { }
+      })();
+    }
+  }, [proxySubTab]);
+
+  // Check proxy handler
+  const handleCheckProxy = async () => {
+    const proxy = formData.settings.proxy;
+    if (!proxy || proxy.type === 'none' || !proxy.server) {
+      setProxyCheckResult({ alive: false, error: 'Enter proxy details first' });
+      return;
+    }
+    setProxyChecking(true);
+    setProxyCheckResult(null);
+    try {
+      // Parse host:port from server string
+      let host = proxy.server;
+      let port = 80;
+      const serverStr = String(proxy.server).replace(/^https?:\/\//, '').replace(/^socks\d?:\/\//, '');
+      if (serverStr.includes(':')) {
+        const parts = serverStr.split(':');
+        host = parts[0];
+        port = parseInt(parts[1], 10) || 80;
+      }
+      const result = await window.electronAPI.checkProxy({
+        type: proxy.type,
+        host,
+        port,
+        username: proxy.username || '',
+        password: proxy.password || '',
+      });
+      setProxyCheckResult(result);
+    } catch (e) {
+      setProxyCheckResult({ alive: false, error: e?.message || 'Check failed' });
+    } finally {
+      setProxyChecking(false);
+    }
+  };
 
   useEffect(() => {
     const engine = formData.settings.engine;
@@ -443,8 +492,8 @@ function ProfileForm({ profile, onSave, onCancel }) {
                   value={formData.settings.engine}
                   onChange={(v) => setSettingsField('engine', v)}
                   options={[
-                    { value: 'playwright', label: 'SunBrowser', icon: '☀️' },
-                    { value: 'cdp', label: 'FlowerBrowser', icon: '🌸' },
+                    { value: 'playwright', label: 'Playwright' },
+                    { value: 'cdp', label: 'CDP Chromium' },
                   ]}
                 />
               </FormRow>
@@ -583,9 +632,17 @@ function ProfileForm({ profile, onSave, onCancel }) {
                           <option value="none">No Proxy (Local network)</option>
                           <option value="http">HTTP Proxy</option>
                           <option value="https">HTTPS Proxy</option>
+                          <option value="socks4">SOCKS4 Proxy</option>
                           <option value="socks5">SOCKS5 Proxy</option>
                         </select>
-                        <button type="button" className="pf-check-btn">Check the network</button>
+                        <button
+                          type="button"
+                          className="pf-check-btn"
+                          onClick={handleCheckProxy}
+                          disabled={proxyChecking || formData.settings.proxy?.type === 'none'}
+                        >
+                          {proxyChecking ? '⏳ Checking...' : '🔍 Check Proxy'}
+                        </button>
                       </div>
                     </FormRow>
 
@@ -632,12 +689,109 @@ function ProfileForm({ profile, onSave, onCancel }) {
                         <option value="ipapi">ip-api.com</option>
                       </select>
                     </FormRow>
+
+                    {/* Change IP URL */}
+                    {formData.settings.proxy?.type !== 'none' && (
+                      <FormRow label="Change IP URL" hint="API URL to rotate/change proxy IP (for rotating proxies)">
+                        <input
+                          className="pf-input"
+                          type="text"
+                          placeholder="https://provider.com/api/change-ip?key=xxx"
+                          value={formData.settings.proxy?.changeIpUrl || ''}
+                          onChange={handleNestedSettingsChange('proxy', 'changeIpUrl')}
+                        />
+                      </FormRow>
+                    )}
+
+                    {/* Proxy check result card */}
+                    {proxyCheckResult && (
+                      <div className={`pf-proxy-result ${proxyCheckResult.alive ? 'alive' : 'dead'}`}>
+                        <div className="pf-proxy-result-header">
+                          <span className="pf-proxy-status-dot" />
+                          <strong>{proxyCheckResult.alive ? '✅ Proxy is alive' : '❌ Proxy is dead'}</strong>
+                          {proxyCheckResult.latency != null && (
+                            <span className="pf-proxy-latency">{proxyCheckResult.latency}ms</span>
+                          )}
+                        </div>
+                        {proxyCheckResult.alive && proxyCheckResult.ip && (
+                          <div className="pf-proxy-result-body">
+                            <div><strong>IP:</strong> {proxyCheckResult.ip}</div>
+                            <div><strong>Country:</strong> {proxyCheckResult.country || '—'} ({proxyCheckResult.countryCode || ''})</div>
+                            <div><strong>City:</strong> {proxyCheckResult.city || '—'}</div>
+                            <div><strong>Timezone:</strong> {proxyCheckResult.timezone || '—'}</div>
+                          </div>
+                        )}
+                        {proxyCheckResult.error && (
+                          <div className="pf-proxy-result-error">{proxyCheckResult.error}</div>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
 
                 {proxySubTab === 'saved' && (
-                  <div style={{ padding: '1rem 0', color: 'var(--muted)', fontSize: '0.82rem' }}>
-                    No saved proxies yet. Configure a proxy in Custom tab first.
+                  <div style={{ padding: '0.5rem 0' }}>
+                    {proxyPool.length === 0 ? (
+                      <div style={{ padding: '1rem 0', color: 'var(--muted)', fontSize: '0.82rem', textAlign: 'center' }}>
+                        No proxies in pool. Add proxies in <strong>Proxy Manager</strong> first.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '300px', overflowY: 'auto' }}>
+                        {proxyPool.map(p => {
+                          const isSelected = formData.settings.proxy?.server === `${p.host}:${p.port}` && formData.settings.proxy?.type === (p.type || 'http');
+                          return (
+                            <div
+                              key={p.id}
+                              style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                padding: '0.6rem 0.8rem', borderRadius: '8px', cursor: 'pointer',
+                                border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border)',
+                                background: isSelected ? 'rgba(115,103,240,0.08)' : 'var(--bg)',
+                                transition: 'all 0.15s',
+                              }}
+                              onClick={() => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  settings: {
+                                    ...prev.settings,
+                                    proxy: {
+                                      type: p.type || 'http',
+                                      server: `${p.host}:${p.port}`,
+                                      username: p.username || '',
+                                      password: p.password || '',
+                                    }
+                                  }
+                                }));
+                              }}
+                            >
+                              <div>
+                                <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{p.name || `${p.host}:${p.port}`}</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'monospace' }}>
+                                  {(p.type || 'http').toUpperCase()} · {p.host}:{p.port}
+                                  {p.username ? ` · ${p.username}:***` : ''}
+                                </div>
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: isSelected ? 'var(--primary)' : 'var(--muted)' }}>
+                                {isSelected ? '✓ Selected' : ''}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      className="pf-check-btn"
+                      style={{ marginTop: '0.75rem', width: '100%' }}
+                      onClick={async () => {
+                        try {
+                          const list = await window.electronAPI.getProxies();
+                          setProxyPool(Array.isArray(list) ? list : []);
+                        } catch { }
+                      }}
+                    >
+                      ↻ Refresh proxy list
+                    </button>
                   </div>
                 )}
 
