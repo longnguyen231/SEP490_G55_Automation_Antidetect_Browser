@@ -55,6 +55,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveScript: (script) => ipcRenderer.invoke('scripts-save', script),
   deleteScript: (id) => ipcRenderer.invoke('scripts-delete', id),
   executeScript: (profileId, scriptId, opts) => ipcRenderer.invoke('scripts-execute', profileId, scriptId, opts || {}),
+  getTaskLogs: () => ipcRenderer.invoke('task-logs-list'),
+  getTaskLog: (id) => ipcRenderer.invoke('task-logs-get', id),
+  clearTaskLogs: () => ipcRenderer.invoke('task-logs-clear'),
 
   // Proxy management
   getProxies: () => ipcRenderer.invoke('proxy-get-all'),
