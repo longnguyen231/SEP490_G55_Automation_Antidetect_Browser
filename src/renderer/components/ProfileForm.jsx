@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { Shuffle, Save, X, RefreshCw, Lock, Unlock, Copy, Plus } from 'lucide-react';
 import { useI18n } from '../i18n/index';
 import './ProfileForm.css';
@@ -110,8 +110,6 @@ function ProfileForm({ profile, onSave, onCancel }) {
   const [activeTab, setActiveTab] = useState('general');
   const [proxySubTab, setProxySubTab] = useState('custom');
   const [proxyPool, setProxyPool] = useState([]);
-  const [proxyChecking, setProxyChecking] = useState(false);
-  const [proxyCheckResult, setProxyCheckResult] = useState(null); // { alive, ip, country, city, timezone, latency }
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -266,40 +264,6 @@ function ProfileForm({ profile, onSave, onCancel }) {
       })();
     }
   }, [proxySubTab]);
-
-  // Check proxy handler
-  const handleCheckProxy = async () => {
-    const proxy = formData.settings.proxy;
-    if (!proxy || proxy.type === 'none' || !proxy.server) {
-      setProxyCheckResult({ alive: false, error: 'Enter proxy details first' });
-      return;
-    }
-    setProxyChecking(true);
-    setProxyCheckResult(null);
-    try {
-      // Parse host:port from server string
-      let host = proxy.server;
-      let port = 80;
-      const serverStr = String(proxy.server).replace(/^https?:\/\//, '').replace(/^socks\d?:\/\//, '');
-      if (serverStr.includes(':')) {
-        const parts = serverStr.split(':');
-        host = parts[0];
-        port = parseInt(parts[1], 10) || 80;
-      }
-      const result = await window.electronAPI.checkProxy({
-        type: proxy.type,
-        host,
-        port,
-        username: proxy.username || '',
-        password: proxy.password || '',
-      });
-      setProxyCheckResult(result);
-    } catch (e) {
-      setProxyCheckResult({ alive: false, error: e?.message || 'Check failed' });
-    } finally {
-      setProxyChecking(false);
-    }
-  };
 
   useEffect(() => {
     const engine = formData.settings.engine;
@@ -492,8 +456,8 @@ function ProfileForm({ profile, onSave, onCancel }) {
                   value={formData.settings.engine}
                   onChange={(v) => setSettingsField('engine', v)}
                   options={[
-                    { value: 'playwright', label: 'Playwright' },
-                    { value: 'cdp', label: 'CDP Chromium' },
+                    { value: 'playwright', label: 'SunBrowser', icon: '☀️' },
+                    { value: 'cdp', label: 'FlowerBrowser', icon: '🌸' },
                   ]}
                 />
               </FormRow>
@@ -632,17 +596,9 @@ function ProfileForm({ profile, onSave, onCancel }) {
                           <option value="none">No Proxy (Local network)</option>
                           <option value="http">HTTP Proxy</option>
                           <option value="https">HTTPS Proxy</option>
-                          <option value="socks4">SOCKS4 Proxy</option>
                           <option value="socks5">SOCKS5 Proxy</option>
                         </select>
-                        <button
-                          type="button"
-                          className="pf-check-btn"
-                          onClick={handleCheckProxy}
-                          disabled={proxyChecking || formData.settings.proxy?.type === 'none'}
-                        >
-                          {proxyChecking ? '⏳ Checking...' : '🔍 Check Proxy'}
-                        </button>
+                        <button type="button" className="pf-check-btn">Check the network</button>
                       </div>
                     </FormRow>
 
@@ -689,43 +645,6 @@ function ProfileForm({ profile, onSave, onCancel }) {
                         <option value="ipapi">ip-api.com</option>
                       </select>
                     </FormRow>
-
-                    {/* Change IP URL */}
-                    {formData.settings.proxy?.type !== 'none' && (
-                      <FormRow label="Change IP URL" hint="API URL to rotate/change proxy IP (for rotating proxies)">
-                        <input
-                          className="pf-input"
-                          type="text"
-                          placeholder="https://provider.com/api/change-ip?key=xxx"
-                          value={formData.settings.proxy?.changeIpUrl || ''}
-                          onChange={handleNestedSettingsChange('proxy', 'changeIpUrl')}
-                        />
-                      </FormRow>
-                    )}
-
-                    {/* Proxy check result card */}
-                    {proxyCheckResult && (
-                      <div className={`pf-proxy-result ${proxyCheckResult.alive ? 'alive' : 'dead'}`}>
-                        <div className="pf-proxy-result-header">
-                          <span className="pf-proxy-status-dot" />
-                          <strong>{proxyCheckResult.alive ? '✅ Proxy is alive' : '❌ Proxy is dead'}</strong>
-                          {proxyCheckResult.latency != null && (
-                            <span className="pf-proxy-latency">{proxyCheckResult.latency}ms</span>
-                          )}
-                        </div>
-                        {proxyCheckResult.alive && proxyCheckResult.ip && (
-                          <div className="pf-proxy-result-body">
-                            <div><strong>IP:</strong> {proxyCheckResult.ip}</div>
-                            <div><strong>Country:</strong> {proxyCheckResult.country || '—'} ({proxyCheckResult.countryCode || ''})</div>
-                            <div><strong>City:</strong> {proxyCheckResult.city || '—'}</div>
-                            <div><strong>Timezone:</strong> {proxyCheckResult.timezone || '—'}</div>
-                          </div>
-                        )}
-                        {proxyCheckResult.error && (
-                          <div className="pf-proxy-result-error">{proxyCheckResult.error}</div>
-                        )}
-                      </div>
-                    )}
                   </>
                 )}
 
