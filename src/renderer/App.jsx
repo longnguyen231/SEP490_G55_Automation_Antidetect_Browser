@@ -5,7 +5,7 @@ import ProfileForm from './components/ProfileForm';
 import CookieManager from './components/CookieManager';
 import LogViewer from './components/LogViewer';
 import Toasts from './components/Toasts';
-import ScriptsManager from './components/ScriptsManager';
+import ScriptsTasksPage from './components/ScriptsTasksPage';
 import ProxyManager from './components/ProxyManager';
 import './App.css';
 import { useI18n } from './i18n/index';
@@ -211,13 +211,7 @@ function App() {
 
       case 'scripts':
         return (
-          <ScriptsManager
-            open={true}
-            onClose={() => setActiveNav('profiles')}
-            profiles={profiles}
-            onRunScript={(pid, sid) => { /* optional hook */ }}
-            fullPage={true}
-          />
+          <ScriptsTasksPage profiles={profiles} />
         );
 
       case 'proxies':
