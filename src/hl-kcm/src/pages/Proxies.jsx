@@ -32,147 +32,59 @@ import {
 } from "lucide-react";
 
 /* =========================
-   AXIOS CLIENT + FAKE API
+   IPC API (Main Process)
 ========================= */
-const api = axios.create({
-  baseURL: "/api",
-  timeout: 10000,
-});
+const electronAPI = window.electronAPI;
 
-/** Fake DB */
-let FAKE_DB = [
-  {
-    id: "proxy-001",
-    name: "US Proxy 1",
-    type: "SOCKS5",
-    host: "192.168.1.100",
-    port: 1080,
-    username: "user1",
-    outboundIP: "45.33.32.156",
-    country: "US",
-    status: "active",
-    latency: 45,
-    tags: ["premium", "fast"],
-    profileCount: 3,
-    lastChecked: "2 mins ago",
-  },
-  {
-    id: "proxy-002",
-    name: "EU Proxy 1",
-    type: "HTTP",
-    host: "10.0.0.50",
-    port: 8080,
-    outboundIP: "185.199.108.153",
-    country: "DE",
-    status: "active",
-    latency: 120,
-    tags: ["europe"],
-    profileCount: 5,
-    lastChecked: "5 mins ago",
-  },
-  {
-    id: "proxy-003",
-    name: "Asia Proxy 1",
-    type: "SOCKS5",
-    host: "172.16.0.25",
-    port: 1080,
-    username: "asia_user",
-    outboundIP: "103.21.244.0",
-    country: "SG",
-    status: "error",
-    tags: ["asia"],
-    profileCount: 0,
-    lastChecked: "1 hour ago",
-  },
-  {
-    id: "proxy-004",
-    name: "VN Proxy 1",
-    type: "HTTPS",
-    host: "192.168.2.200",
-    port: 443,
-    outboundIP: "14.225.254.100",
-    country: "VN",
-    status: "inactive",
-    latency: 85,
-    tags: ["vietnam", "local"],
-    profileCount: 2,
-    lastChecked: "30 mins ago",
-  },
-];
-
-/** Fake endpoints (đổi sang api thật rất dễ) */
+/** Real IPC endpoints */
 async function apiFetchProxies() {
-  // return api.get("/proxies");
-  await new Promise((r) => setTimeout(r, 250));
-  return { data: { items: FAKE_DB } };
+  if (!electronAPI?.proxyGetAll) return { data: { items: [] } };
+  const items = await electronAPI.proxyGetAll();
+  return { data: { items: items || [] } };
 }
 
 async function apiCreateProxy(payload) {
-  // return api.post("/proxies", payload);
-  await new Promise((r) => setTimeout(r, 250));
-  const newItem = {
-    id: `proxy-${Date.now()}`,
-    status: "inactive",
-    latency: undefined,
-    outboundIP: payload.outboundIP || undefined,
-    country: payload.country || "??",
-    profileCount: 0,
-    lastChecked: undefined,
-    ...payload,
-  };
-  FAKE_DB = [newItem, ...FAKE_DB];
-  return { data: { item: newItem } };
+  if (!electronAPI?.proxyCreate) return { data: { item: null } };
+  const res = await electronAPI.proxyCreate(payload);
+  if (res.success) return { data: { item: res.proxy } };
+  throw new Error(res.error || "Failed to create proxy");
 }
 
 async function apiDeleteProxy(id) {
-  // return api.delete(`/proxies/${id}`);
-  await new Promise((r) => setTimeout(r, 200));
-  FAKE_DB = FAKE_DB.filter((p) => p.id !== id);
-  return { data: { ok: true } };
+  if (!electronAPI?.proxyDelete) return { data: { ok: false } };
+  const res = await electronAPI.proxyDelete(id);
+  if (res.success) return { data: { ok: true } };
+  throw new Error(res.error || "Failed to delete proxy");
 }
 
 async function apiBulkDelete(ids) {
-  // return api.post(`/proxies/bulk-delete`, { ids });
-  await new Promise((r) => setTimeout(r, 250));
-  FAKE_DB = FAKE_DB.filter((p) => !ids.includes(p.id));
-  return { data: { ok: true } };
+  if (!electronAPI?.proxyDeleteBulk) return { data: { ok: false } };
+  const res = await electronAPI.proxyDeleteBulk(ids);
+  if (res.success) return { data: { ok: true } };
+  throw new Error(res.error || "Failed to delete proxies");
 }
 
 async function apiCheckProxy(id) {
-  // return api.post(`/proxies/${id}/check`);
-  await new Promise((r) => setTimeout(r, 800));
-  const ok = Math.random() > 0.3;
-  const latency = Math.floor(Math.random() * 200) + 20;
-
-  FAKE_DB = FAKE_DB.map((p) =>
-    p.id === id
-      ? {
-          ...p,
-          status: ok ? "active" : "error",
-          latency: ok ? latency : undefined,
-          lastChecked: "Just now",
-        }
-      : p
-  );
-
-  const item = FAKE_DB.find((p) => p.id === id);
-  return { data: { item } };
+  if (!electronAPI || !electronAPI.proxyCheck) {
+    alert("Hệ thống chưa nhận diện được bản cập nhật Proxy Checker. Bạn hãy tắt Terminal (Ctrl+C) và gõ lại lệnh 'npm run dev' để khởi động lại Electron hoàn toàn nhé!");
+    return { data: { item: { id, status: 'error' } } };
+  }
+  try {
+    const res = await electronAPI.proxyCheck(id);
+    if (res.success) return { data: { item: res.proxy } };
+    return { data: { item: { id, status: 'error' } } };
+  } catch (e) {
+    console.error(e);
+    alert("Lỗi gọi IPC: " + e.message);
+    return { data: { item: { id, status: 'error' } } };
+  }
 }
 
 async function apiCheckAll() {
-  // return api.post(`/proxies/check-all`);
-  await new Promise((r) => setTimeout(r, 800));
-  FAKE_DB = FAKE_DB.map((p) => {
-    const ok = Math.random() > 0.25;
-    const latency = Math.floor(Math.random() * 220) + 25;
-    return {
-      ...p,
-      status: ok ? "active" : "error",
-      latency: ok ? latency : undefined,
-      lastChecked: "Just now",
-    };
-  });
-  return { data: { items: FAKE_DB } };
+  if (!electronAPI?.proxyCheckAll) return { data: { items: [] } };
+  await electronAPI.proxyCheckAll();
+  const items = await electronAPI.proxyGetAll();
+  return { data: { items: items || [] } };
 }
 
 /* =========================
@@ -181,13 +93,15 @@ async function apiCheckAll() {
 const MAX_PROXIES = 2000;
 
 function TypeBadge({ type }) {
+  const norm = String(type || 'http').toLowerCase();
+  const display = norm.toUpperCase();
   const map = {
-    HTTP: "proxy-badge proxy-http",
-    HTTPS: "proxy-badge proxy-https",
-    SOCKS4: "proxy-badge proxy-socks4",
-    SOCKS5: "proxy-badge proxy-socks5",
+    http: "proxy-badge proxy-http",
+    https: "proxy-badge proxy-https",
+    socks4: "proxy-badge proxy-socks4",
+    socks5: "proxy-badge proxy-socks5",
   };
-  return <span className={map[type] || "proxy-badge"}>{type}</span>;
+  return <span className={map[norm] || "proxy-badge"}>{display}</span>;
 }
 
 function StatusBadge({ status, latency }) {
@@ -253,6 +167,8 @@ export default function Proxies() {
   // add modal
   const [showAdd, setShowAdd] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [addMode, setAddMode] = useState("form"); // "form" | "raw"
+  const [rawProxy, setRawProxy] = useState("");
   const [newProxy, setNewProxy] = useState({
     name: "",
     type: "HTTP",
@@ -326,7 +242,9 @@ export default function Proxies() {
     const res = await apiCheckProxy(id);
     const updated = res?.data?.item;
     if (updated) {
-      setProxies((prev) => prev.map((p) => (p.id === id ? updated : p)));
+      setProxies((prev) => prev.map((p) => (p.id === id ? { ...p, ...updated } : p)));
+    } else {
+      setProxies((prev) => prev.map((p) => (p.id === id ? { ...p, status: "error" } : p)));
     }
   };
 
@@ -346,6 +264,8 @@ export default function Proxies() {
       password: "",
       tags: "",
     });
+    setRawProxy("");
+    setAddMode("form");
     setShowAdd(true);
   };
 
@@ -355,26 +275,55 @@ export default function Proxies() {
 
   const testConnection = async () => {
     setIsTesting(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setIsTesting(false);
+    try {
+      if (!electronAPI?.proxyTestConnection) {
+         alert("Please restart Electron to use Test Connection.");
+         return;
+      }
+      const payload = {
+        type: newProxy.type.toLowerCase(),
+        host: newProxy.host,
+        port: Number(newProxy.port) || 80,
+        username: newProxy.username || undefined,
+        password: newProxy.password || undefined,
+      };
+      const res = await electronAPI.proxyTestConnection(payload);
+      if (res.success) {
+        alert(`Kết nối Proxy thành công!\nIP gốc hiện tại: ${res.ip}\nĐộ trễ (Ping): ${res.latency}ms`);
+      } else {
+        alert(`Kết nối Proxy thất bại:\nLỗi: ${res.error}`);
+      }
+    } finally {
+      setIsTesting(false);
+    }
   };
 
   const addProxy = async () => {
-    if (!newProxy.name || !newProxy.host || !newProxy.port) return;
+    if (addMode === "form") {
+      if (!newProxy.name || !newProxy.host || !newProxy.port) return;
+      const payload = {
+        name: newProxy.name,
+        type: newProxy.type.toLowerCase(),
+        host: newProxy.host,
+        port: Number(newProxy.port),
+        username: newProxy.username || undefined,
+        password: newProxy.password || undefined,
+        note: newProxy.tags,
+      };
+      await apiCreateProxy(payload);
+    } else {
+      if (!rawProxy.trim()) return;
+      if (!electronAPI?.importProxies) {
+        alert("Import function not available");
+        return;
+      }
+      const res = await electronAPI.importProxies(rawProxy, "auto");
+      if (!res.success) {
+        alert("Failed to import: " + (res.error || "Unknown error"));
+        return;
+      }
+    }
 
-    const payload = {
-      name: newProxy.name,
-      type: newProxy.type,
-      host: newProxy.host,
-      port: Number(newProxy.port),
-      username: newProxy.username || undefined,
-      tags: newProxy.tags
-        ? newProxy.tags.split(",").map((t) => t.trim()).filter(Boolean)
-        : [],
-      // outboundIP/country/profileCount/status để backend set
-    };
-
-    await apiCreateProxy(payload);
     setShowAdd(false);
     fetchData();
   };
@@ -580,19 +529,17 @@ export default function Proxies() {
 
                         <td>
                           <div className="d-flex flex-wrap gap-2">
-                            {p.tags?.length ? (
-                              p.tags.map((t) => (
-                                <span key={t} className="proxy-tag">
-                                  {t}
+                            {p.note ? (
+                                <span className="proxy-tag">
+                                  {p.note}
                                 </span>
-                              ))
                             ) : (
                               <span className="k-muted">-</span>
                             )}
                           </div>
                         </td>
 
-                        <td>{p.profileCount}</td>
+                        <td>-</td>
 
                         <td className="text-end">
                           <div className="d-inline-flex align-items-center gap-2">
@@ -618,7 +565,7 @@ export default function Proxies() {
                                 <Dropdown.Item className="d-flex align-items-center gap-2">
                                   <Copy size={16} /> Duplicate
                                 </Dropdown.Item>
-                                <Dropdown.Item className="d-flex align-items-center gap-2">
+                                <Dropdown.Item className="d-flex align-items-center gap-2" onClick={() => checkOne(p.id)}>
                                   <ExternalLink size={16} /> Test Connection
                                 </Dropdown.Item>
                                 <Dropdown.Divider />
@@ -690,99 +637,131 @@ export default function Proxies() {
           <Modal.Title>Add New Proxy</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <div className="k-muted mb-3">Configure your proxy connection settings</div>
+          <div className="d-flex align-items-center mb-4 gap-3">
+            <Button
+              className={addMode === "form" ? "k-btn-accent" : "k-btn-ghost"}
+              onClick={() => setAddMode("form")}
+              size="sm"
+            >
+              Manual Form
+            </Button>
+            <Button
+              className={addMode === "raw" ? "k-btn-accent" : "k-btn-ghost"}
+              onClick={() => setAddMode("raw")}
+              size="sm"
+            >
+              Raw Input
+            </Button>
+          </div>
 
-          <Row className="g-3">
-            <Col xs={12}>
-              <Form.Label className="fw-semibold">Proxy Name</Form.Label>
-              <Form.Control
-                value={newProxy.name}
-                onChange={(e) => onChangeNew("name", e.target.value)}
-                placeholder="Enter a name for this proxy"
-              />
-            </Col>
+          {addMode === "form" ? (
+            <Row className="g-3">
+              <Col xs={12}>
+                <Form.Label className="fw-semibold">Proxy Name</Form.Label>
+                <Form.Control
+                  value={newProxy.name}
+                  onChange={(e) => onChangeNew("name", e.target.value)}
+                  placeholder="Enter a name for this proxy"
+                />
+              </Col>
+  
+              <Col md={4}>
+                <Form.Label className="fw-semibold">Proxy Type</Form.Label>
+                <Form.Select value={newProxy.type} onChange={(e) => onChangeNew("type", e.target.value)}>
+                  <option value="HTTP">HTTP</option>
+                  <option value="HTTPS">HTTPS</option>
+                  <option value="SOCKS4">SOCKS4</option>
+                  <option value="SOCKS5">SOCKS5</option>
+                </Form.Select>
+              </Col>
+  
+              <Col md={5}>
+                <Form.Label className="fw-semibold">Host</Form.Label>
+                <Form.Control
+                  value={newProxy.host}
+                  onChange={(e) => onChangeNew("host", e.target.value)}
+                  placeholder="192.168.1.100"
+                  className="font-mono"
+                />
+              </Col>
+  
+              <Col md={3}>
+                <Form.Label className="fw-semibold">Port</Form.Label>
+                <Form.Control
+                  value={newProxy.port}
+                  onChange={(e) => onChangeNew("port", e.target.value)}
+                  placeholder="8080"
+                  type="number"
+                  className="font-mono"
+                />
+              </Col>
+  
+              <Col md={6}>
+                <Form.Label className="fw-semibold">
+                  Username <span className="k-muted" style={{ fontWeight: 500 }}>(optional)</span>
+                </Form.Label>
+                <Form.Control value={newProxy.username} onChange={(e) => onChangeNew("username", e.target.value)} placeholder="Enter username" />
+              </Col>
+  
+              <Col md={6}>
+                <Form.Label className="fw-semibold">
+                  Password <span className="k-muted" style={{ fontWeight: 500 }}>(optional)</span>
+                </Form.Label>
+                <Form.Control value={newProxy.password} onChange={(e) => onChangeNew("password", e.target.value)} placeholder="Enter password" type="password" />
+              </Col>
+  
+              <Col xs={12}>
+                <Form.Label className="fw-semibold">
+                  Tags <span className="k-muted" style={{ fontWeight: 500 }}>(comma separated)</span>
+                </Form.Label>
+                <Form.Control value={newProxy.tags} onChange={(e) => onChangeNew("tags", e.target.value)} placeholder="premium, fast, us-west" />
+              </Col>
 
-            <Col md={4}>
-              <Form.Label className="fw-semibold">Proxy Type</Form.Label>
-              <Form.Select value={newProxy.type} onChange={(e) => onChangeNew("type", e.target.value)}>
-                <option value="HTTP">HTTP</option>
-                <option value="HTTPS">HTTPS</option>
-                <option value="SOCKS4">SOCKS4</option>
-                <option value="SOCKS5">SOCKS5</option>
-              </Form.Select>
-            </Col>
+              <Col xs={12}>
+                <div className="proxy-preview">
+                  <div className="d-flex align-items-center justify-content-between mb-2">
+                    <div className="fw-semibold">Connection Preview</div>
+                    <Button
+                      className="k-btn-ghost d-flex align-items-center gap-2"
+                      onClick={testConnection}
+                      disabled={!newProxy.host || !newProxy.port || isTesting}
+                    >
+                      {isTesting ? (
+                        <>
+                          <RefreshCw size={14} className="spin" /> Testing...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw size={14} /> Test Connection
+                        </>
+                      )}
+                    </Button>
+                  </div>
 
-            <Col md={5}>
-              <Form.Label className="fw-semibold">Host</Form.Label>
-              <Form.Control
-                value={newProxy.host}
-                onChange={(e) => onChangeNew("host", e.target.value)}
-                placeholder="192.168.1.100"
-                className="font-mono"
-              />
-            </Col>
-
-            <Col md={3}>
-              <Form.Label className="fw-semibold">Port</Form.Label>
-              <Form.Control
-                value={newProxy.port}
-                onChange={(e) => onChangeNew("port", e.target.value)}
-                placeholder="8080"
-                type="number"
-                className="font-mono"
-              />
-            </Col>
-
-            <Col md={6}>
-              <Form.Label className="fw-semibold">
-                Username <span className="k-muted" style={{ fontWeight: 500 }}>(optional)</span>
-              </Form.Label>
-              <Form.Control value={newProxy.username} onChange={(e) => onChangeNew("username", e.target.value)} placeholder="Enter username" />
-            </Col>
-
-            <Col md={6}>
-              <Form.Label className="fw-semibold">
-                Password <span className="k-muted" style={{ fontWeight: 500 }}>(optional)</span>
-              </Form.Label>
-              <Form.Control value={newProxy.password} onChange={(e) => onChangeNew("password", e.target.value)} placeholder="Enter password" type="password" />
-            </Col>
-
-            <Col xs={12}>
-              <Form.Label className="fw-semibold">
-                Tags <span className="k-muted" style={{ fontWeight: 500 }}>(comma separated)</span>
-              </Form.Label>
-              <Form.Control value={newProxy.tags} onChange={(e) => onChangeNew("tags", e.target.value)} placeholder="premium, fast, us-west" />
-            </Col>
-
-            <Col xs={12}>
-              <div className="proxy-preview">
-                <div className="d-flex align-items-center justify-content-between mb-2">
-                  <div className="fw-semibold">Connection Preview</div>
-                  <Button
-                    className="k-btn-ghost d-flex align-items-center gap-2"
-                    onClick={testConnection}
-                    disabled={!newProxy.host || !newProxy.port || isTesting}
-                  >
-                    {isTesting ? (
-                      <>
-                        <RefreshCw size={14} className="spin" /> Testing...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw size={14} /> Test Connection
-                      </>
-                    )}
-                  </Button>
+                  <div className="font-mono k-muted">
+                    {newProxy.type.toLowerCase()}://
+                    {newProxy.username ? `${newProxy.username}:***@` : ""}
+                    {newProxy.host || "host"}:{newProxy.port || "port"}
+                  </div>
                 </div>
-
-                <div className="font-mono k-muted">
-                  {newProxy.type.toLowerCase()}://
-                  {newProxy.username ? `${newProxy.username}:***@` : ""}
-                  {newProxy.host || "host"}:{newProxy.port || "port"}
-                </div>
+              </Col>
+            </Row>
+          ) : (
+            <div>
+              <Form.Label className="fw-semibold">Paste Proxies List</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={8}
+                className="font-mono"
+                placeholder="type://user:pass@host:port&#10;type://host:port&#10;host:port:user:pass&#10;host:port"
+                value={rawProxy}
+                onChange={(e) => setRawProxy(e.target.value)}
+              />
+              <div className="k-muted mt-2" style={{ fontSize: 13 }}>
+                Support multiple lines. Supported formats: host:port, host:port:user:pass, or valid URLs.
               </div>
-            </Col>
-          </Row>
+            </div>
+          )}
         </Modal.Body>
 
         <Modal.Footer className="border-top">
@@ -792,7 +771,7 @@ export default function Proxies() {
           <Button
             className="k-btn-accent"
             onClick={addProxy}
-            disabled={!newProxy.name || !newProxy.host || !newProxy.port}
+            disabled={(addMode === "form" && (!newProxy.name || !newProxy.host || !newProxy.port)) || (addMode === "raw" && !rawProxy.trim())}
           >
             Add Proxy
           </Button>

@@ -81,18 +81,26 @@ async function launchProfileInternal(profileId, options = {}) {
       }
       const fp = profile.fingerprint || {};
       if (settings.webgl === false || fp.webgl === false) { extraArgs.push('--disable-3d-apis'); }
-      // Proxy handling: start local forwarder when auth is present or using SOCKS
       let proxyForChrome = settings.proxy;
       let forwarder = null;
       try {
-        const serverStr = (settings.proxy && settings.proxy.server) ? String(settings.proxy.server) : '';
+        let serverStr = '';
+        if (settings.proxy) {
+          if (settings.proxy.server) serverStr = String(settings.proxy.server);
+          else if (settings.proxy.host && settings.proxy.port) {
+            serverStr = `${settings.proxy.type || 'http'}://${settings.proxy.host}:${settings.proxy.port}`;
+          }
+        }
+        
         const hasAuth = !!(settings.proxy && (settings.proxy.username || settings.proxy.password));
         const proxyType = (settings.proxy?.type || '').toLowerCase();
         const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(serverStr);
         if (settings.proxy && (hasAuth || isSocks)) {
           const { startProxyForwarder } = require('../engine/proxyForwarder');
-          forwarder = await startProxyForwarder(settings.proxy, { appendLog, profileId });
+          forwarder = await startProxyForwarder(proxyConfig, { appendLog, profileId });
           proxyForChrome = { server: forwarder.url };
+        } else if (settings.proxy && serverStr) {
+          proxyForChrome = { server: serverStr };
         }
       } catch (e) {
         appendLog(profileId, `Proxy forwarder failed, falling back to direct proxy: ${e?.message || e}`);
