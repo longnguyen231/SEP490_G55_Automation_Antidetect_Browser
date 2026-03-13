@@ -246,18 +246,3 @@ textarea.proxy-form-control {
     transform: translateY(0);
   }
 }
-
-/* Spin animation for loading icons */
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.btn:disabled, .btn-icon-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
