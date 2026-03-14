@@ -1,6 +1,6 @@
 import React from 'react';
 import StatCard from '../../components/StatCard';
-import ProxyTable from './components/ProxyTable';
+import ProxyTable from '../../components/ProxyTable';
 import PageHeader from '../../components/PageHeader';
 import InfoBanner from '../../components/InfoBanner';
 import { Button, ConfigProvider, theme } from 'antd';

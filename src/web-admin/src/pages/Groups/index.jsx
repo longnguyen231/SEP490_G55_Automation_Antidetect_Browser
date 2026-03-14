@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { Tabs, Button, ConfigProvider, theme } from 'antd';
 import { PlusCircle } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
-import GroupCard from './components/GroupCard';
-import ActivityList from './components/ActivityList';
+import StatCard from '../../components/StatCard';
+import GroupCard from '../../components/GroupCard';
+import ActivityList from '../../components/ActivityList';
 import { mockGroupsData, recentActivities } from '../../data/mockGroups';
 import toast from 'react-hot-toast';
 
@@ -30,6 +31,13 @@ const Groups = () => {
         description="Manage and organize your browser profile groups"
         extra={headerExtra}
       />
+
+      <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <StatCard title="Total Groups" value={mockGroupsData.length.toLocaleString()} />
+        <StatCard title="Active Groups" value="8" titleClass="text-emerald-500" />
+        <StatCard title="Archived" value="4" titleClass="text-slate-500" />
+        <StatCard title="Most Frequent" value="Social Media" titleClass="text-primary" />
+      </section>
 
       <div className="border-b border-slate-200 dark:border-slate-800">
         <ConfigProvider theme={{ 
