@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import StatCard from '../../components/StatCard';
-import ProfileTable from './components/ProfileTable';
+import ProfileTable from '../../components/ProfileTable';
 import CreateProfileModal from './components/CreateProfileModal';
 import PageHeader from '../../components/PageHeader';
 import { mockProfilesData } from '../../data/mockProfiles';

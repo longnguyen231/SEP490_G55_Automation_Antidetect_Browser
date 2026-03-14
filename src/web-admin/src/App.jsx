@@ -9,6 +9,7 @@ import Proxies from './pages/Proxies';
 import Groups from './pages/Groups';
 import Team from './pages/Team';
 import Settings from './pages/Settings';
+import EditProfile from './pages/Profiles/EditProfile';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="profiles" element={<Profiles />} />
+            <Route path="profiles/edit/:id" element={<EditProfile />} />
             <Route path="proxies" element={<Proxies />} />
             <Route path="groups" element={<Groups />} />
             <Route path="team" element={<Team />} />

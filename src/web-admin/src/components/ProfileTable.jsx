@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -6,9 +7,9 @@ import {
   getPaginationRowModel,
 } from '@tanstack/react-table';
 import { ConfigProvider, Switch, Button } from 'antd';
-import { mockProfilesData } from '../../../data/mockProfiles';
+import { mockProfilesData } from '../data/mockProfiles';
 import toast from 'react-hot-toast';
-import DataTable from '../../../components/DataTable';
+import DataTable from './DataTable';
 
 const columnHelper = createColumnHelper();
 
@@ -77,33 +78,38 @@ const columns = [
   columnHelper.display({
     id: 'actions',
     header: () => <div className="text-right">Actions</div>,
-    cell: () => (
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          type="text"
-          icon={<span className="material-symbols-outlined text-xl pt-[2px]">settings</span>}
-          className="p-1.5 rounded hover:!bg-primary/10 !text-slate-400 hover:!text-primary transition-colors flex items-center justify-center h-auto min-w-0"
-        />
-        <Button
-          type="text"
-          icon={<span className="material-symbols-outlined text-xl pt-[2px]">content_copy</span>}
-          className="p-1.5 rounded hover:!bg-primary/10 !text-slate-400 hover:!text-primary transition-colors flex items-center justify-center h-auto min-w-0"
-        />
-        <Button
-          type="text"
-          icon={<span className="material-symbols-outlined text-xl pt-[2px]">delete</span>}
-          className="p-1.5 rounded hover:!bg-rose-500/10 !text-slate-400 hover:!text-rose-500 transition-colors flex items-center justify-center h-auto min-w-0 border-none"
-        />
-      </div>
-    ),
+    cell: (info) => {
+      const navigate = info.table.options.meta.navigate;
+      const profile = info.row.original;
+      return (
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            type="text"
+            icon={<span className="material-symbols-outlined text-xl pt-[2px]">settings</span>}
+            onClick={() => navigate(`/profiles/edit/${profile.id}`)}
+            className="p-1.5 rounded hover:!bg-primary/10 !text-slate-400 hover:!text-primary transition-colors flex items-center justify-center h-auto min-w-0"
+          />
+          <Button
+            type="text"
+            icon={<span className="material-symbols-outlined text-xl pt-[2px]">content_copy</span>}
+            className="p-1.5 rounded hover:!bg-primary/10 !text-slate-400 hover:!text-primary transition-colors flex items-center justify-center h-auto min-w-0"
+          />
+          <Button
+            type="text"
+            icon={<span className="material-symbols-outlined text-xl pt-[2px]">delete</span>}
+            className="p-1.5 rounded hover:!bg-rose-500/10 !text-slate-400 hover:!text-rose-500 transition-colors flex items-center justify-center h-auto min-w-0 border-none"
+          />
+        </div>
+      );
+    },
   }),
 ];
 
 const ProfileTable = () => {
   const [data, setData] = useState(() => mockProfilesData);
+  const navigate = useNavigate();
 
   const updateStatus = (rowIndex, newStatus) => {
-    // Gọi toast ngoài setState để không bị React Strict Mode kích hoạt 2 lần
     const profileName = data[rowIndex]?.name;
     if (profileName) {
       toast.success(`Profile ${profileName} is now ${newStatus}`);
@@ -134,6 +140,7 @@ const ProfileTable = () => {
     },
     meta: {
       updateStatus,
+      navigate,
     },
   });
 

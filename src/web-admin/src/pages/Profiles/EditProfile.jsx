@@ -1,9 +1,10 @@
 import React from 'react';
-import { Button, ConfigProvider, theme, Input, Select, Switch, Checkbox } from 'antd';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Button, ConfigProvider, theme, Input, Select, Switch, Checkbox, Space } from 'antd';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { Save, Monitor, Laptop, Smartphone, ShieldCheck, Cpu, Network, Type, Palette } from 'lucide-react';
+import { Settings, Save, X, RotateCcw, Monitor, Laptop, Smartphone, ShieldCheck, Cpu, Database, Network, Type, Palette } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import SectionCard from '../../components/SectionCard';
 import toast from 'react-hot-toast';
@@ -12,9 +13,21 @@ const schema = yup.object().shape({
   name: yup.string().required('Profile name is required'),
   group: yup.string().required('Group is required'),
   os: yup.string().required('OS is required'),
+  proxyType: yup.string().required(),
+  proxyHost: yup.string().when('proxyType', {
+    is: (val) => val !== 'Direct',
+    then: () => yup.string().required('Proxy host is required'),
+  }),
+  proxyPort: yup.string().when('proxyType', {
+    is: (val) => val !== 'Direct',
+    then: () => yup.string().required('Port is required'),
+  }),
 });
 
-const Profiles = () => {
+const EditProfile = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  
   const { control, handleSubmit, formState: { errors } } = useForm({
     resolver: yupResolver(schema),
     defaultValues: {
@@ -34,20 +47,22 @@ const Profiles = () => {
   });
 
   const onSubmit = (data) => {
-    console.log('Saving profile config:', data);
-    toast.success('Profile fingerprint updated successfully!');
+    console.log('Saving profile:', data);
+    toast.success('Changes saved successfully!');
+    navigate('/profiles');
   };
 
   const headerExtra = (
     <div className="flex gap-3">
-      <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorBgContainer: '#1e293b', colorBorder: 'transparent', colorText: '#cbd5e1', borderRadius: 8, controlHeight: 40 } }}>
+      <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorBgContainer: '#334155', colorBorder: 'transparent', colorText: '#f1f5f9' } }}>
         <Button 
-          className="font-bold border-none h-10 px-6 bg-slate-800 hover:!bg-slate-700"
+          onClick={() => navigate('/profiles')}
+          className="font-bold border-none h-10 px-6"
         >
           Discard
         </Button>
       </ConfigProvider>
-      <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: '#00bcd4', borderRadius: 8, controlHeight: 40 } }}>
+      <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: '#00bcd4' } }}>
         <Button 
           type="primary" 
           icon={<Save size={18} />} 
@@ -64,7 +79,7 @@ const Profiles = () => {
     <div className="max-w-5xl mx-auto space-y-8 pb-12">
       <PageHeader 
         title="Edit Profile Fingerprint"
-        description="ID: prof_88291 • Last synced 2 minutes ago • Chrome 122.0.x"
+        description={`ID: prof_${id || '88291'} • Last synced 2 minutes ago • Chrome 122.0.x`}
         extra={headerExtra}
       />
 
@@ -78,7 +93,7 @@ const Profiles = () => {
                 name="name"
                 control={control}
                 render={({ field }) => (
-                  <Input {...field} className="h-11 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900" status={errors.name ? 'error' : ''} />
+                  <Input {...field} className="h-11" status={errors.name ? 'error' : ''} />
                 )}
               />
               {errors.name && <p className="text-rose-500 text-xs">{errors.name.message}</p>}
@@ -189,7 +204,7 @@ const Profiles = () => {
                 name="proxyHost"
                 control={control}
                 render={({ field }) => (
-                  <Input {...field} className="h-11 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900" placeholder="proxy.example.com" />
+                  <Input {...field} className="h-11" placeholder="proxy.example.com" />
                 )}
               />
             </div>
@@ -199,7 +214,7 @@ const Profiles = () => {
                 name="proxyPort"
                 control={control}
                 render={({ field }) => (
-                  <Input {...field} className="h-11 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900" placeholder="8080" />
+                  <Input {...field} className="h-11" placeholder="8080" />
                 )}
               />
             </div>
@@ -211,7 +226,7 @@ const Profiles = () => {
                 name="proxyUser"
                 control={control}
                 render={({ field }) => (
-                  <Input {...field} className="h-11 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900" placeholder="Optional" />
+                  <Input {...field} className="h-11" placeholder="Optional" />
                 )}
               />
             </div>
@@ -221,13 +236,13 @@ const Profiles = () => {
                 name="proxyPass"
                 control={control}
                 render={({ field }) => (
-                  <Input.Password {...field} className="h-11 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900" placeholder="Optional" />
+                  <Input.Password {...field} className="h-11" placeholder="Optional" />
                 )}
               />
             </div>
           </div>
         </SectionCard>
-
+        
         {/* Section 3: Fingerprint Customization */}
         <SectionCard 
           title="3. Fingerprint Customization" 
@@ -267,7 +282,7 @@ const Profiles = () => {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-500 uppercase">Device Memory Hint</label>
-                  <Input type="number" defaultValue={8} className="w-full border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900" />
+                  <Input type="number" defaultValue={8} className="w-full" />
                 </div>
               </div>
             </div>
@@ -281,27 +296,21 @@ const Profiles = () => {
                   <Network size={14} /> WebRTC
                 </h3>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30 hover:border-primary/30 transition-colors group">
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-primary transition-colors">WebRTC Masking</span>
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">WebRTC Masking</span>
                     <Controller
                       name="webrtcMasking"
                       control={control}
-                      render={({ field }) => (
-                        <ConfigProvider theme={{ components: { Switch: { colorPrimary: '#00bcd4', colorTextQuaternary: '#334155' } } }}>
-                          <Switch {...field} checked={field.value} size="small" className="shadow-sm" />
-                        </ConfigProvider>
-                      )}
+                      render={({ field }) => <Switch {...field} checked={field.value} size="small" />}
                     />
                   </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30 hover:border-primary/30 transition-colors group">
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-primary transition-colors">Local IP Leak Protection</span>
-                    <ConfigProvider theme={{ components: { Switch: { colorPrimary: '#00bcd4', colorTextQuaternary: '#334155' } } }}>
-                      <Switch defaultChecked size="small" className="shadow-sm" />
-                    </ConfigProvider>
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Local IP Leak Protection</span>
+                    <Switch defaultChecked size="small" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-slate-400 uppercase">Public IP Address</label>
-                    <Input value="103.14.5.122" readOnly className="bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs text-slate-500" />
+                    <Input value="103.14.5.122" readOnly className="bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs" />
                   </div>
                 </div>
               </div>
@@ -313,11 +322,11 @@ const Profiles = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-500 uppercase">Width (px)</label>
-                    <Input defaultValue="1920" className="border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-sm" />
+                    <Input defaultValue="1920" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-500 uppercase">Height (px)</label>
-                    <Input defaultValue="1080" className="border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-sm" />
+                    <Input defaultValue="1080" />
                   </div>
                   <div className="col-span-2 space-y-1.5">
                     <label className="text-xs font-semibold text-slate-500 uppercase">Color Depth</label>
@@ -336,31 +345,27 @@ const Profiles = () => {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30 hover:border-primary/30 transition-all group">
-                    <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 group-hover:text-primary transition-colors">
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30">
+                    <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
                       <span className="material-symbols-outlined text-base">texture</span>
                       <span className="text-sm font-medium">Canvas Noise</span>
                     </div>
-                    <ConfigProvider theme={{ components: { Checkbox: { colorPrimary: '#00bcd4', borderRadiusSM: 4 } } }}>
-                      <Controller
-                        name="canvasNoise"
-                        control={control}
-                        render={({ field }) => <Checkbox {...field} checked={field.value} />}
-                      />
-                    </ConfigProvider>
+                    <Controller
+                      name="canvasNoise"
+                      control={control}
+                      render={({ field }) => <Checkbox {...field} checked={field.value} />}
+                    />
                   </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30 hover:border-primary/30 transition-all group">
-                    <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 group-hover:text-primary transition-colors">
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30">
+                    <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
                       <span className="material-symbols-outlined text-base">audiotrack</span>
                       <span className="text-sm font-medium">Audio Fingerprint Noise</span>
                     </div>
-                    <ConfigProvider theme={{ components: { Checkbox: { colorPrimary: '#00bcd4', borderRadiusSM: 4 } } }}>
-                      <Controller
-                        name="audioNoise"
-                        control={control}
-                        render={({ field }) => <Checkbox {...field} checked={field.value} />}
-                      />
-                    </ConfigProvider>
+                    <Controller
+                      name="audioNoise"
+                      control={control}
+                      render={({ field }) => <Checkbox {...field} checked={field.value} />}
+                    />
                   </div>
                 </div>
 
@@ -369,11 +374,11 @@ const Profiles = () => {
                   <div className="space-y-3">
                     <div className="space-y-1">
                       <label className="text-[10px] uppercase font-bold text-slate-500">WebGL Vendor</label>
-                      <Input value="Google Inc. (NVIDIA)" size="small" className="text-xs bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-800" />
+                      <Input value="Google Inc. (NVIDIA)" size="small" className="text-xs bg-white dark:bg-slate-800" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] uppercase font-bold text-slate-500">WebGL Renderer</label>
-                      <Input value="ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Direct3D11)" size="small" className="text-xs bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-800" />
+                      <Input value="ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Direct3D11)" size="small" className="text-xs bg-white dark:bg-slate-800" />
                     </div>
                   </div>
                 </div>
@@ -394,21 +399,19 @@ const Profiles = () => {
                     <Button type="link" size="small" className="text-xs font-bold p-0 h-auto">Select All</Button>
                   </div>
                   <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
-                    <ConfigProvider theme={{ components: { Checkbox: { colorPrimary: '#00bcd4', borderRadiusSM: 4 } } }}>
-                      {['Arial', 'Calibri', 'Cambria', 'Consolas', 'Georgia', 'Impact', 'Segoe UI', 'Verdana'].map(f => (
-                        <Checkbox key={f} defaultChecked><span className="text-[11px] text-slate-600 dark:text-slate-400">{f}</span></Checkbox>
-                      ))}
-                    </ConfigProvider>
+                    {['Arial', 'Calibri', 'Cambria', 'Consolas', 'Georgia', 'Impact', 'Segoe UI', 'Verdana'].map(f => (
+                      <Checkbox key={f} defaultChecked><span className="text-[11px] text-slate-600 dark:text-slate-400">{f}</span></Checkbox>
+                    ))}
                   </div>
                 </div>
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-500 uppercase">Navigator Language</label>
-                    <Input defaultValue="en-US,en;q=0.9" className="border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-sm" />
+                    <Input defaultValue="en-US,en;q=0.9" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-500 uppercase">Platform Hint</label>
-                    <Input defaultValue="Win32" className="border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-sm" />
+                    <Input defaultValue="Win32" />
                   </div>
                 </div>
               </div>
@@ -432,4 +435,4 @@ const Profiles = () => {
   );
 };
 
-export default Profiles;
+export default EditProfile;
