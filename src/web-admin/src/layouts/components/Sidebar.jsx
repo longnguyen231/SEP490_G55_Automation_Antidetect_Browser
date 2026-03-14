@@ -1,4 +1,6 @@
 import React from 'react';
+import { NavLink } from 'react-router-dom';
+import { Progress, ConfigProvider, theme } from 'antd';
 
 const Sidebar = () => {
   return (
@@ -14,41 +16,107 @@ const Sidebar = () => {
       </div>
       
       <nav className="flex-1 px-4 space-y-1 py-4 overflow-y-auto">
-        <a className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary text-white font-medium group" href="#">
+        <NavLink 
+          to="/dashboard" 
+          className={({ isActive }) => 
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
+              isActive 
+                ? 'bg-primary text-white font-medium' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
+            }`
+          }
+        >
           <span className="material-symbols-outlined">dashboard</span>
           <span>Dashboard</span>
-        </a>
-        <a className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-all group" href="#">
+        </NavLink>
+        
+        <NavLink 
+          to="/profiles" 
+          className={({ isActive }) => 
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
+              isActive 
+                ? 'bg-primary text-white font-medium' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
+            }`
+          }
+        >
           <span className="material-symbols-outlined">group_work</span>
           <span>Profiles</span>
-        </a>
-        <a className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-all group" href="#">
+        </NavLink>
+        
+        <NavLink 
+          to="/proxies" 
+          className={({ isActive }) => 
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
+              isActive 
+                ? 'bg-primary text-white font-medium' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
+            }`
+          }
+        >
           <span className="material-symbols-outlined">vpn_lock</span>
           <span>Proxies</span>
-        </a>
-        <a className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-all group" href="#">
+        </NavLink>
+        
+        <NavLink 
+          to="/groups" 
+          className={({ isActive }) => 
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
+              isActive 
+                ? 'bg-primary text-white font-medium' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
+            }`
+          }
+        >
           <span className="material-symbols-outlined">folder_shared</span>
           <span>Groups</span>
-        </a>
-        <a className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-all group" href="#">
+        </NavLink>
+        
+        <NavLink 
+          to="/team" 
+          className={({ isActive }) => 
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
+              isActive 
+                ? 'bg-primary text-white font-medium' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
+            }`
+          }
+        >
           <span className="material-symbols-outlined">groups</span>
           <span>Team</span>
-        </a>
+        </NavLink>
+        
         <div className="pt-4 mt-4 border-t border-primary/10">
-          <a className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-all group" href="#">
+          <NavLink 
+            to="/settings" 
+            className={({ isActive }) => 
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
+                isActive 
+                  ? 'bg-primary text-white font-medium' 
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
+              }`
+            }
+          >
             <span className="material-symbols-outlined">settings</span>
             <span>Settings</span>
-          </a>
+          </NavLink>
         </div>
       </nav>
       
       <div className="p-4 bg-primary/5 m-4 rounded-xl border border-primary/10">
-        <p className="text-[10px] uppercase font-bold text-primary/60 mb-2">Active Plan</p>
-        <p className="text-sm font-semibold dark:text-slate-200">Enterprise Pro</p>
-        <div className="w-full bg-slate-700 h-1.5 rounded-full mt-3 overflow-hidden">
-          <div className="bg-primary h-full w-3/4"></div>
-        </div>
-        <p className="text-[11px] text-slate-400 mt-2">750 / 1000 Profiles</p>
+        <p className="text-[10px] uppercase font-bold text-primary/60 mb-1">Active Plan</p>
+        <p className="text-sm font-semibold dark:text-slate-200 mb-2">Enterprise Pro</p>
+        <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: '#00bcd4', colorText: '#94a3b8' } }}>
+          <Progress 
+            percent={75} 
+            showInfo={false} 
+            strokeColor="#00bcd4" 
+            trailColor="rgba(30,41,59,0.5)" 
+            size="small" 
+            className="mb-1"
+          />
+        </ConfigProvider>
+        <p className="text-[11px] text-slate-400">750 / 1000 Profiles</p>
       </div>
     </aside>
   );

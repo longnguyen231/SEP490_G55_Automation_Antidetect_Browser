@@ -1,6 +1,9 @@
 import React from 'react';
 import StatCard from './components/StatCard';
 import ProfileTable from './components/ProfileTable';
+import { Button, ConfigProvider, theme } from 'antd';
+import { PlusCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const Dashboard = () => {
   return (
@@ -18,10 +21,16 @@ const Dashboard = () => {
             <h2 className="text-2xl font-bold">Browser Profiles</h2>
             <p className="text-sm text-slate-500 mt-1">Manage and launch your isolated browsing sessions</p>
           </div>
-          <button className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg font-semibold transition-all shadow-lg shadow-primary/20">
-            <span className="material-symbols-outlined text-lg">add_circle</span>
-            <span>Create New Profile</span>
-          </button>
+          <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: '#00bcd4', borderRadius: 8, controlHeight: 40 } }}>
+            <Button 
+              type="primary" 
+              onClick={() => toast.success('Mở modal thêm Profile mới...')}
+              className="flex items-center justify-center gap-2 font-semibold shadow-lg shadow-primary/20"
+            >
+              <PlusCircle size={18} />
+              <span>Create New Profile</span>
+            </Button>
+          </ConfigProvider>
         </div>
         
         <ProfileTable />
