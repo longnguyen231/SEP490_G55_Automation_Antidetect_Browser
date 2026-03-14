@@ -109,34 +109,50 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
       // eslint-disable-next-line no-await-in-loop
       await applyToPage(p);
     }
-    // Navigate to startUrl if provided; otherwise optionally reload the first page
-    const normalizedStart = (typeof startUrl === 'string' && startUrl.trim()) ? startUrl.trim() : '';
-    const isHttpUrl = (u) => {
-      try { const url = new URL(u); return url.protocol === 'http:' || url.protocol === 'https:'; } catch { return false; }
-    };
-    if (normalizedStart && isHttpUrl(normalizedStart)) {
-      const target = pages[0];
-      if (target) {
+    // Restore session tabs or navigate to startUrl
+    const isHttpUrl = (u) => { try { const url = new URL(u); return url.protocol === 'http:' || url.protocol === 'https:'; } catch { return false; } };
+    const savedTabs = arguments[5]?.savedTabs || [];
+    
+    if (savedTabs && savedTabs.length > 0) {
+      appendLog && appendLog(profileId, `CDP: Restoring ${savedTabs.length} saved tabs...`);
+      let first = true;
+      for (const url of savedTabs) {
+        if (!isHttpUrl(url)) continue;
         try {
-          const cur = target.url?.() || '';
-          const looksBlank = !cur || cur === 'about:blank' || cur.startsWith('chrome://') || cur.startsWith('edge://') || cur.startsWith('chrome-error://');
-          if (looksBlank || cur !== normalizedStart) {
-            await target.goto(normalizedStart, { waitUntil: 'domcontentloaded' });
-          }
+          const target = first ? (pages[0] || await context.newPage()) : await context.newPage();
+          first = false;
+          if (target !== pages[0]) await applyToPage(target);
+          await target.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         } catch (e) {
-          appendLog && appendLog(profileId, `CDP: navigate startUrl failed: ${e?.message || e}`);
-        }
-      } else {
-        try {
-          const newPage = await context.newPage();
-          await applyToPage(newPage);
-          await newPage.goto(normalizedStart, { waitUntil: 'domcontentloaded' });
-        } catch (e) {
-          appendLog && appendLog(profileId, `CDP: open startUrl failed: ${e?.message || e}`);
+          appendLog && appendLog(profileId, `CDP: Failed to restore tab ${url}: ${e?.message || e}`);
         }
       }
-    } else if (reloadAfter && pages[0]) {
-      try { await pages[0].reload({ waitUntil: 'domcontentloaded' }); } catch {}
+    } else {
+      const normalizedStart = (typeof startUrl === 'string' && startUrl.trim()) ? startUrl.trim() : '';
+      if (normalizedStart && isHttpUrl(normalizedStart)) {
+        const target = pages[0];
+        if (target) {
+          try {
+            const cur = target.url?.() || '';
+            const looksBlank = !cur || cur === 'about:blank' || cur.startsWith('chrome://') || cur.startsWith('edge://') || cur.startsWith('chrome-error://');
+            if (looksBlank || cur !== normalizedStart) {
+              await target.goto(normalizedStart, { waitUntil: 'domcontentloaded' });
+            }
+          } catch (e) {
+            appendLog && appendLog(profileId, `CDP: navigate startUrl failed: ${e?.message || e}`);
+          }
+        } else {
+          try {
+            const newPage = await context.newPage();
+            await applyToPage(newPage);
+            await newPage.goto(normalizedStart, { waitUntil: 'domcontentloaded' });
+          } catch (e) {
+            appendLog && appendLog(profileId, `CDP: open startUrl failed: ${e?.message || e}`);
+          }
+        }
+      } else if (reloadAfter && pages[0]) {
+        try { await pages[0].reload({ waitUntil: 'domcontentloaded' }); } catch {}
+      }
     }
   } catch {}
 
