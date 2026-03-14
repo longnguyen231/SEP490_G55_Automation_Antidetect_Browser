@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import {
   createColumnHelper,
-  flexRender,
   getCoreRowModel,
   useReactTable,
   getPaginationRowModel,
 } from '@tanstack/react-table';
-import { Pagination, ConfigProvider, theme } from 'antd';
+import { ConfigProvider, Switch, Button } from 'antd';
 import { mockProfilesData } from '../../../data/mockProfiles';
+import toast from 'react-hot-toast';
+import DataTable from '../../../components/DataTable';
 
 const columnHelper = createColumnHelper();
 
@@ -36,10 +37,14 @@ const columns = [
       const isRunning = status === 'Running';
       return (
         <div className="flex items-center gap-3">
-          <div className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${isRunning ? 'bg-primary' : 'bg-slate-700'}`}>
-            <span className={`${isRunning ? 'translate-x-5' : 'translate-x-0'} pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}></span>
-          </div>
-          <span className={`text-xs font-bold uppercase tracking-wide ${isRunning ? 'text-primary' : 'text-slate-500'}`}>{status}</span>
+          <ConfigProvider theme={{ components: { Switch: { colorPrimary: '#00bcd4', colorTextQuaternary: '#334155' } } }}>
+            <Switch
+              checked={isRunning}
+              onChange={(checked) => info.table.options.meta.updateStatus(info.row.index, checked ? 'Running' : 'Stopped')}
+              className="shadow-sm"
+            />
+          </ConfigProvider>
+          <span className={`text-xs font-bold uppercase tracking-wide w-16 ${isRunning ? 'text-primary' : 'text-slate-500'}`}>{status}</span>
         </div>
       );
     },
@@ -74,15 +79,21 @@ const columns = [
     header: () => <div className="text-right">Actions</div>,
     cell: () => (
       <div className="flex items-center justify-end gap-2">
-        <button className="p-1.5 rounded hover:bg-primary/10 text-slate-400 hover:text-primary transition-colors">
-          <span className="material-symbols-outlined text-xl">settings</span>
-        </button>
-        <button className="p-1.5 rounded hover:bg-primary/10 text-slate-400 hover:text-primary transition-colors">
-          <span className="material-symbols-outlined text-xl">content_copy</span>
-        </button>
-        <button className="p-1.5 rounded hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 transition-colors">
-          <span className="material-symbols-outlined text-xl">delete</span>
-        </button>
+        <Button
+          type="text"
+          icon={<span className="material-symbols-outlined text-xl pt-[2px]">settings</span>}
+          className="p-1.5 rounded hover:!bg-primary/10 !text-slate-400 hover:!text-primary transition-colors flex items-center justify-center h-auto min-w-0"
+        />
+        <Button
+          type="text"
+          icon={<span className="material-symbols-outlined text-xl pt-[2px]">content_copy</span>}
+          className="p-1.5 rounded hover:!bg-primary/10 !text-slate-400 hover:!text-primary transition-colors flex items-center justify-center h-auto min-w-0"
+        />
+        <Button
+          type="text"
+          icon={<span className="material-symbols-outlined text-xl pt-[2px]">delete</span>}
+          className="p-1.5 rounded hover:!bg-rose-500/10 !text-slate-400 hover:!text-rose-500 transition-colors flex items-center justify-center h-auto min-w-0 border-none"
+        />
       </div>
     ),
   }),
@@ -90,6 +101,26 @@ const columns = [
 
 const ProfileTable = () => {
   const [data, setData] = useState(() => mockProfilesData);
+
+  const updateStatus = (rowIndex, newStatus) => {
+    // Gọi toast ngoài setState để không bị React Strict Mode kích hoạt 2 lần
+    const profileName = data[rowIndex]?.name;
+    if (profileName) {
+      toast.success(`Profile ${profileName} is now ${newStatus}`);
+    }
+
+    setData((old) =>
+      old.map((row, index) => {
+        if (index === rowIndex) {
+          return {
+            ...row,
+            status: newStatus,
+          };
+        }
+        return row;
+      })
+    );
+  };
 
   const table = useReactTable({
     data,
@@ -101,60 +132,12 @@ const ProfileTable = () => {
         pageSize: 10,
       },
     },
+    meta: {
+      updateStatus,
+    },
   });
 
-  return (
-    <div className="bg-white dark:bg-slate-800/40 rounded-xl border border-primary/10 overflow-hidden shadow-sm flex flex-col h-full">
-      <div className="overflow-x-auto flex-1">
-        <table className="w-full text-left">
-          <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider font-bold">
-            {table.getHeaderGroups().map(headerGroup => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map(header => (
-                  <th key={header.id} className="px-6 py-4">
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody className="divide-y divide-primary/5">
-            {table.getRowModel().rows.map(row => (
-              <tr key={row.id} className="hover:bg-primary/5 transition-colors">
-                {row.getVisibleCells().map(cell => (
-                  <td key={cell.id} className="px-6 py-4">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      
-      <div className="bg-slate-50 dark:bg-slate-900/50 px-6 py-4 border-t border-primary/10 flex items-center justify-end">
-        <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorBgContainer: 'transparent', colorPrimary: '#00bcd4', colorBorder: 'rgba(0,188,212,0.1)' } }}>
-          <Pagination
-            current={table.getState().pagination.pageIndex + 1}
-            pageSize={table.getState().pagination.pageSize}
-            total={table.getPrePaginationRowModel().rows.length}
-            showSizeChanger
-            pageSizeOptions={['10', '20', '50', '100']}
-            showTotal={(total, range) => <span className="text-slate-400 mr-4">Showing {range[0]}-{range[1]} of {total} profiles</span>}
-            onChange={(page, pageSize) => {
-              table.setPageIndex(page - 1);
-              table.setPageSize(pageSize);
-            }}
-          />
-        </ConfigProvider>
-      </div>
-    </div>
-  );
+  return <DataTable table={table} />;
 };
 
 export default ProfileTable;
