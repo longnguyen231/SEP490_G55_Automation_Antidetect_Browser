@@ -5,7 +5,7 @@ import ProfileForm from './components/ProfileForm';
 import CookieManager from './components/CookieManager';
 import LogViewer from './components/LogViewer';
 import Toasts from './components/Toasts';
-import ScriptsTasksPage from './components/ScriptsTasksPage';
+import ScriptsManager from './components/ScriptsManager';
 import ProxyManager from './components/ProxyManager';
 import './App.css';
 import { useI18n } from './i18n/index';
@@ -128,6 +128,15 @@ function App() {
   const handleSetHeadless = async (profileId, value) => { if (runningWs[profileId]) return; setHeadlessPrefs(prev => ({ ...prev, [profileId]: !!value })); try { const p = profiles.find(x => x.id === profileId); if (p) { const updated = { ...p, settings: { ...(p.settings || {}), headless: !!value } }; const res = await window.electronAPI.saveProfile(updated); if (res?.success && res.profile) setProfiles(prev => prev.map(pp => pp.id === profileId ? res.profile : pp)); } } catch { } };
   const handleSetEngine = async (profileId, value) => { if (runningWs[profileId]) return; const normalized = value === 'cdp' ? 'cdp' : 'playwright'; setEnginePrefs(prev => ({ ...prev, [profileId]: normalized })); try { const p = profiles.find(x => x.id === profileId); if (p) { const updated = { ...p, settings: { ...(p.settings || {}), engine: normalized } }; const res = await window.electronAPI.saveProfile(updated); if (res?.success && res.profile) setProfiles(prev => prev.map(pp => pp.id === profileId ? res.profile : pp)); } } catch { } };
   const handleToggleProfile = async (profileId) => runningWs[profileId] ? handleStopProfile(profileId) : handleLaunchProfile(profileId);
+  const handleLaunchHeadless = async (profileId) => {
+    try {
+      const engine = enginePrefs[profileId] || 'playwright';
+      const options = { headless: true, engine: engine === 'cdp' ? 'cdp' : 'playwright' };
+      const result = await window.electronAPI.launchProfile(profileId, options);
+      if (!result.success) alert('Error launching headless: ' + result.error);
+      await refreshRunningStatus();
+    } catch (e) { alert('Error launching headless: ' + e.message); }
+  };
   const handleSaveProfile = async (profile) => { try { const result = await api.saveProfile(profile); if (result.success) { setShowForm(false); setSelectedProfile(null); await loadProfiles(); } else alert('Error saving profile: ' + result.error); } catch (e) { alert('Error saving profile: ' + e.message); } };
   const handleCancel = () => { setShowForm(false); setSelectedProfile(null); };
   const handleManageCookies = (profile) => setCookieProfile(profile);
@@ -189,6 +198,7 @@ function App() {
             onEditProfile={handleEditProfile}
             onDeleteProfile={handleDeleteProfile}
             onToggleProfile={handleToggleProfile}
+            onLaunchHeadless={handleLaunchHeadless}
             onManageCookies={handleManageCookies}
             runningWs={runningWs}
             onCopyWs={handleCopyWs}
@@ -211,7 +221,13 @@ function App() {
 
       case 'scripts':
         return (
-          <ScriptsTasksPage profiles={profiles} />
+          <ScriptsManager
+            open={true}
+            onClose={() => setActiveNav('profiles')}
+            profiles={profiles}
+            onRunScript={(pid, sid) => { }}
+            fullPage={true}
+          />
         );
 
       case 'proxies':
