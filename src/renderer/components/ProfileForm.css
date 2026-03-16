@@ -1,6 +1,201 @@
-/* ProfileForm styles - empty, ready to build */
-.npf-container {
+/* ===== Profile Form ===== */
+.np-container {
   display: flex;
   flex-direction: column;
   height: 100%;
+  color: #e0e0e0;
 }
+
+.np-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 1.5rem 0;
+  color: #fff;
+}
+
+.np-form {
+  display: flex;
+  flex-direction: column;
+  max-width: 750px;
+}
+
+/* Form fields */
+.np-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.np-label {
+  font-size: 0.85rem;
+  color: #a0aab5;
+}
+
+.np-input {
+  background: #1b213b;
+  border: 1px solid #2e3553;
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  color: #fff;
+  font-size: 0.9rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.np-input:focus {
+  border-color: #3b82f6;
+}
+
+.np-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* Layout helpers */
+.np-row-2 { display: flex; gap: 1rem; }
+.np-row-2 > * { flex: 1; min-width: 0; }
+.np-row-3 { display: flex; gap: 1rem; }
+.np-row-3 > * { flex: 1; min-width: 0; }
+
+.np-flex-1 { flex: 1; }
+.np-w-small { flex: 0 0 120px; }
+
+.np-mb { margin-bottom: 1rem; }
+.np-mb-large { margin-bottom: 2rem; }
+.np-mt-large { margin-top: 1.5rem; }
+
+/* Fieldsets */
+.np-fieldset {
+  border: 1px solid #1a3272;
+  border-radius: 8px;
+  padding: 1.2rem;
+  margin: 0 0 1.5rem 0;
+  background: transparent;
+}
+
+.np-legend {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #60a5fa;
+  padding: 0 0.5rem;
+}
+
+/* Buttons */
+.np-btn-blue {
+  width: 100%;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.7rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-top: 0.5rem;
+}
+
+.np-btn-blue:hover { background: #1d4ed8; }
+
+.np-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.np-checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+/* Deep fingerprint divider */
+.np-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 1.5rem 0 1rem;
+}
+
+.np-divider::before, .np-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.np-divider span {
+  padding: 0 1rem;
+  color: #64748b;
+  font-size: 0.85rem;
+  border-bottom: none;
+}
+
+/* Collapsibles */
+.np-collapse {
+  margin-bottom: 0.5rem;
+}
+
+.np-collapse-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+  border: none;
+  color: #e2e8f0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.5rem 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.np-collapse-icon {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  width: 12px;
+}
+
+.np-collapse-body {
+  padding: 0.5rem 0 0.5rem 1.25rem;
+}
+
+/* Actions footer */
+.np-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.8rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+}
+
+.np-btn-cancel {
+  background: #334155;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.6rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.np-btn-create {
+  background: #10b981;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.6rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.np-btn-cancel:hover, .np-btn-create:hover { filter: brightness(1.15); }
