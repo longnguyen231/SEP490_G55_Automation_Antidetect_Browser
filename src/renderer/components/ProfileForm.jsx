@@ -424,6 +424,40 @@ function ProfileForm({ profile, onSave, onCancel }) {
           </div>
         </CollapsibleSection>
 
+        <CollapsibleSection title="Battery">
+          <div className="np-mb-large">
+            <label className="np-checkbox"><input type="checkbox" checked={formData.fingerprint.battery !== false} onChange={e => setFp('battery', e.target.checked)} /> Spoof Battery API</label>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection title="WebRTC">
+          <div className="np-field np-mb-large">
+            <label className="np-label">Behavior</label>
+            <select className="np-input" value={formData.settings.webrtc || 'disabled'} onChange={e => setS('webrtc', e.target.value)}>
+              <option value="disabled">Disabled</option>
+              <option value="altered">Altered</option>
+              <option value="real">Real</option>
+            </select>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Fonts">
+          <div className="np-mb-large">
+            <label className="np-checkbox"><input type="checkbox" checked={formData.fingerprint.fontMasking !== false} onChange={e => setFp('fontMasking', e.target.checked)} /> Enable Font Masking</label>
+          </div>
+        </CollapsibleSection>
+
+        {/* Proxy Section */}
+        <div className="np-proxy-container">
+          <fieldset className="np-fieldset" style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+            <legend className="np-legend">Proxy</legend>
+            <label className="np-checkbox">
+              <input type="checkbox" checked={formData.settings.proxy?.type !== 'none' && formData.settings.proxy?.type !== undefined} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...p.settings.proxy, type: e.target.checked ? 'http' : 'none' } }}))} />
+              <span style={{ fontSize: '1rem', marginLeft: '0.2rem' }}>Enable proxy for this profile</span>
+            </label>
+          </fieldset>
+        </div>
+
         </div> {/* End scrollable content */}
 
         {/* Actions footer */}
