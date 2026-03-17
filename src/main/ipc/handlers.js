@@ -117,49 +117,7 @@ function registerIpcHandlers(extra = {}) {
   ipcMain.handle('proxy-import', async (_e, text, format) => await importProxiesInternal(text, format));
   ipcMain.handle('proxy-export', async (_e, ids) => await exportProxiesInternal(ids));
   
-  // Proxy checking
-  ipcMain.handle('proxy-check', async (_e, id) => {
-    try {
-      const getRes = await getProxyByIdInternal(id);
-      if (!getRes.success) return getRes;
-      
-      const proxy = getRes.proxy;
-      const checkRes = await checkProxy(proxy);
-      
-      const updateData = {
-        status: checkRes.success ? 'active' : 'error',
-        lastChecked: new Date().toISOString(),
-        latency: checkRes.success ? checkRes.latency : null,
-      };
-      
-      return await updateProxyInternal(id, updateData);
-    } catch (e) {
-      return { success: false, error: e.message };
-    }
-  });
 
-  ipcMain.handle('proxy-check-all', async () => {
-    try {
-      const proxiesList = await getProxiesInternal();
-      const results = [];
-      // Kiểm tra song song hoặc tuần tự. Ở đây dùng Promise.all để test song song. 
-      // Nhưng nếu lượng lớn cần chunk/queue. Tạm thời dùng chạy song song toàn bộ.
-      const checks = proxiesList.map(async (proxy) => {
-        const checkRes = await checkProxy(proxy);
-        const updateData = {
-          status: checkRes.success ? 'active' : 'error',
-          lastChecked: new Date().toISOString(),
-          latency: checkRes.success ? checkRes.latency : null,
-        };
-        const updated = await updateProxyInternal(proxy.id, updateData);
-        if (updated.success) results.push(updated.proxy);
-      });
-      await Promise.allSettled(checks);
-      return { success: true, count: results.length };
-    } catch (e) {
-      return { success: false, error: e.message };
-    }
-  });
 
   // Proxy checker
   ipcMain.handle('proxy-check', async (_e, cfg) => {

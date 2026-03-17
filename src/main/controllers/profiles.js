@@ -356,7 +356,12 @@ async function launchProfileInternal(profileId, options = {}) {
         }
       } catch (e) {}
     };
-    page.on('close', async () => { await saveState(); try { await context.close(); } catch { } });
+    try {
+      const firstPage = context.pages()[0];
+      if (firstPage) {
+        firstPage.on('close', async () => { await saveState(); try { await context.close(); } catch { } });
+      }
+    } catch { }
     context.on('close', async () => { await saveState(); try { await forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Context closed'); try { await server.close(); } catch { }; broadcastRunningMap(); });
     try { browser.on?.('disconnected', () => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Browser disconnected'); try { server.close(); } catch { }; broadcastRunningMap(); } }); } catch { }
     try { const proc = server.process?.(); proc && proc.once && proc.once('exit', (code, signal) => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, `Browser server exited (${code || ''} ${signal || ''})`); broadcastRunningMap(); } }); } catch { }
