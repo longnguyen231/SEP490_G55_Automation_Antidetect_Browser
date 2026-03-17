@@ -20,7 +20,7 @@ const defaultFingerprint = {
 const defaultSettings = {
   cpuCores: 4,
   memoryGB: 8,
-  proxy: { type: 'none', server: '', username: '', password: '' },
+  proxy: { type: 'none', server: '', username: '', password: '', rotateUrl: '' },
   ipChecker: 'ip2location',
   language: 'vi-VN',
   timezone: 'Asia/Ho_Chi_Minh',
@@ -111,7 +111,9 @@ function ProfileForm({ profile, onSave, onCancel }) {
   const [proxySubTab, setProxySubTab] = useState('custom');
   const [proxyPool, setProxyPool] = useState([]);
   const [proxyChecking, setProxyChecking] = useState(false);
+  const [proxyRotating, setProxyRotating] = useState(false);
   const [proxyCheckResult, setProxyCheckResult] = useState(null); // { alive, ip, country, city, timezone, latency }
+  const [proxyRotateResult, setProxyRotateResult] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -298,6 +300,30 @@ function ProfileForm({ profile, onSave, onCancel }) {
       setProxyCheckResult({ alive: false, error: e?.message || 'Check failed' });
     } finally {
       setProxyChecking(false);
+    }
+  };
+
+  const handleRotateProxy = async () => {
+    const proxy = formData.settings.proxy;
+    if (!proxy || proxy.type === 'none' || !proxy.rotateUrl) {
+      setProxyRotateResult({ success: false, error: 'Enter rotate URL first' });
+      return;
+    }
+    setProxyRotating(true);
+    setProxyRotateResult(null);
+    try {
+      const axios = require('axios');
+      const startTime = Date.now();
+      const response = await axios.get(proxy.rotateUrl, { timeout: 15000 });
+      const latency = Date.now() - startTime;
+      
+      setProxyRotateResult({ success: true, latency });
+      // Clear checking result so user checks again
+      setProxyCheckResult(null); 
+    } catch (e) {
+      setProxyRotateResult({ success: false, error: e?.message || e });
+    } finally {
+      setProxyRotating(false);
     }
   };
 
@@ -692,15 +718,41 @@ function ProfileForm({ profile, onSave, onCancel }) {
 
                     {/* Change IP URL */}
                     {formData.settings.proxy?.type !== 'none' && (
-                      <FormRow label="Change IP URL" hint="API URL to rotate/change proxy IP (for rotating proxies)">
-                        <input
-                          className="pf-input"
-                          type="text"
-                          placeholder="https://provider.com/api/change-ip?key=xxx"
-                          value={formData.settings.proxy?.changeIpUrl || ''}
-                          onChange={handleNestedSettingsChange('proxy', 'changeIpUrl')}
-                        />
+                      <FormRow label="Rotate URL / API Link (Optional)" hint="Providing a URL allows you to rotate the proxy IP with one click.">
+                        <div className="pf-inline-row">
+                          <input
+                            className="pf-input"
+                            style={{ flex: 1 }}
+                            type="text"
+                            placeholder="https://api.proxynetwork.com/rotate?id=123"
+                            value={formData.settings.proxy?.rotateUrl || ''}
+                            onChange={handleNestedSettingsChange('proxy', 'rotateUrl')}
+                          />
+                          <button
+                            type="button"
+                            className="pf-check-btn"
+                            onClick={handleRotateProxy}
+                            disabled={proxyRotating || !formData.settings.proxy?.rotateUrl}
+                          >
+                            {proxyRotating ? '⏳ Rotating...' : '🔄 Rotate IP'}
+                          </button>
+                        </div>
                       </FormRow>
+                    )}
+
+                    {proxyRotateResult && (
+                      <div className={`pf-proxy-result ${proxyRotateResult.success ? 'alive' : 'dead'}`} style={{ marginBottom: '10px' }}>
+                        <div className="pf-proxy-result-header">
+                            <span className="pf-proxy-status-dot" />
+                            <strong>{proxyRotateResult.success ? '✅ Rotate IP request successful' : '❌ Rotate request failed'}</strong>
+                            {proxyRotateResult.latency != null && (
+                                <span className="pf-proxy-latency">{proxyRotateResult.latency}ms</span>
+                            )}
+                        </div>
+                        {proxyRotateResult.error && (
+                            <div className="pf-proxy-result-error">{proxyRotateResult.error}</div>
+                        )}
+                      </div>
                     )}
 
                     {/* Proxy check result card */}
@@ -759,6 +811,7 @@ function ProfileForm({ profile, onSave, onCancel }) {
                                       server: `${p.host}:${p.port}`,
                                       username: p.username || '',
                                       password: p.password || '',
+                                      rotateUrl: p.rotateUrl || '',
                                     }
                                   }
                                 }));

@@ -224,7 +224,7 @@
 /* ===== Horizontal form rows ===== */
 .pf-row {
   display: grid;
-  grid-template-columns: 110px 1fr;
+  grid-template-columns: 155px 1fr;
   align-items: start;
   gap: 0.75rem;
   margin-bottom: 1rem;
@@ -239,7 +239,7 @@
   padding-top: 0.45rem;
   line-height: 1.4;
   text-align: right;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .pf-row>label .required {
