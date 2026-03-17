@@ -11,7 +11,7 @@ function parseResolution(res) {
   } catch { return null; }
 }
 
-async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, startUrl, { appendLog, runningProfiles, broadcastRunningMap } = {}) {
+async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, startUrl, { appendLog, runningProfiles, broadcastRunningMap, savedTabs } = {}) {
   const fp = profile?.fingerprint || {};
   const adv = (settings && settings.advanced) || {};
   const locale = fp.language || settings?.language || 'en-US';
@@ -111,12 +111,12 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
     }
     // Restore session tabs or navigate to startUrl
     const isHttpUrl = (u) => { try { const url = new URL(u); return url.protocol === 'http:' || url.protocol === 'https:'; } catch { return false; } };
-    const savedTabs = arguments[5]?.savedTabs || [];
+    const restoredTabs = Array.isArray(savedTabs) ? savedTabs : [];
     
-    if (savedTabs && savedTabs.length > 0) {
-      appendLog && appendLog(profileId, `CDP: Restoring ${savedTabs.length} saved tabs...`);
+    if (restoredTabs.length > 0) {
+      appendLog && appendLog(profileId, `CDP: Restoring ${restoredTabs.length} saved tabs...`);
       let first = true;
-      for (const url of savedTabs) {
+      for (const url of restoredTabs) {
         if (!isHttpUrl(url)) continue;
         try {
           const target = first ? (pages[0] || await context.newPage()) : await context.newPage();

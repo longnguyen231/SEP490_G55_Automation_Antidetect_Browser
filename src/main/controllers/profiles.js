@@ -300,6 +300,9 @@ async function launchProfileInternal(profileId, options = {}) {
     const { loadSessionTabs, saveSessionTabs } = require('../storage/sessionTabs');
     const savedTabs = loadSessionTabs(profileId);
     
+    // Declare page in shared scope so event handlers below can reference it
+    let page;
+    
     if (savedTabs && savedTabs.length > 0) {
       appendLog(profileId, `Restoring ${savedTabs.length} saved tabs...`);
       let first = true;
@@ -315,7 +318,7 @@ async function launchProfileInternal(profileId, options = {}) {
         }
       }
     } else {
-      const page = await context.newPage();
+      page = await context.newPage();
       // Navigate with timeout and retry for slow proxy connections
       try {
         await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -348,7 +351,7 @@ async function launchProfileInternal(profileId, options = {}) {
         }
       } catch (e) {}
     };
-    page.on('close', async () => { await saveState(); try { await context.close(); } catch { } });
+    // Context-level close handles state saving (works regardless of which page triggered it)
     context.on('close', async () => { await saveState(); try { await forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Context closed'); try { await server.close(); } catch { }; broadcastRunningMap(); });
     try { browser.on?.('disconnected', () => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Browser disconnected'); try { server.close(); } catch { }; broadcastRunningMap(); } }); } catch { }
     try { const proc = server.process?.(); proc && proc.once && proc.once('exit', (code, signal) => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, `Browser server exited (${code || ''} ${signal || ''})`); broadcastRunningMap(); } }); } catch { }
