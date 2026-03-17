@@ -11,7 +11,7 @@
   font-size: 1.4rem;
   font-weight: 700;
   margin: 0 0 1.5rem 0;
-  color: #fff;
+  color: var(--fg);
   flex-shrink: 0;
 }
 
@@ -57,15 +57,15 @@
 
 .np-label {
   font-size: 0.85rem;
-  color: #a0aab5;
+  color: var(--muted);
 }
 
 .np-input {
-  background: #1b213b;
-  border: 1px solid #2e3553;
+  background: var(--glass-input);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.6rem 0.8rem;
-  color: #fff;
+  color: var(--fg);
   font-size: 0.9rem;
   font-family: inherit;
   outline: none;
@@ -96,7 +96,7 @@
 
 /* Fieldsets */
 .np-fieldset {
-  border: 1px solid #1a3272;
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1.2rem;
   margin: 0 0 1.5rem 0;
@@ -106,14 +106,14 @@
 .np-legend {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #60a5fa;
+  color: var(--primary);
   padding: 0 0.5rem;
 }
 
 /* Buttons */
 .np-btn-blue {
   width: 100%;
-  background: #2563eb;
+  background: var(--primary);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -125,7 +125,7 @@
   margin-top: 0.5rem;
 }
 
-.np-btn-blue:hover { background: #1d4ed8; }
+.np-btn-blue:hover { background: var(--primary-hover); }
 
 .np-checkbox {
   display: inline-flex;
@@ -139,7 +139,7 @@
 .np-checkbox input {
   width: 16px;
   height: 16px;
-  accent-color: #3b82f6;
+  accent-color: var(--primary);
   cursor: pointer;
 }
 
@@ -154,12 +154,12 @@
 .np-divider::before, .np-divider::after {
   content: '';
   flex: 1;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+  border-bottom: 1px solid var(--border);
 }
 
 .np-divider span {
   padding: 0 1rem;
-  color: #64748b;
+  color: var(--muted);
   font-size: 0.85rem;
   border-bottom: none;
 }
@@ -176,7 +176,7 @@
   gap: 0.5rem;
   background: transparent;
   border: none;
-  color: #e2e8f0;
+  color: var(--fg);
   font-size: 0.95rem;
   font-weight: 500;
   padding: 0.5rem 0;
@@ -201,26 +201,28 @@
   gap: 0.8rem;
   margin-top: 1rem;
   padding-top: 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
 
 .np-btn-cancel {
-  background: #334155;
-  color: #fff;
-  border: none;
+  background: var(--glass-strong);
+  color: var(--muted);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.6rem 1.5rem;
   font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
-  transition: filter 0.15s;
+  transition: all 0.15s;
 }
+
+.np-btn-cancel:hover { background: var(--glass-hover); color: var(--fg); }
 
 .np-btn-create {
-  background: #10b981;
+  background: var(--success);
   color: #fff;
-  border: none;
+  border: 1px solid var(--success);
   border-radius: 6px;
   padding: 0.6rem 1.5rem;
   font-size: 0.95rem;
@@ -229,4 +231,4 @@
   transition: filter 0.15s;
 }
 
-.np-btn-cancel:hover, .np-btn-create:hover { filter: brightness(1.15); }
+.np-btn-create:hover { filter: brightness(1.15); }

@@ -200,15 +200,22 @@ function ProfileForm({ profile, onSave, onCancel }) {
 
           <label className="np-checkbox np-mb">
             <input type="checkbox" checked={formData.settings.injectFingerprint !== false} onChange={e => setS('injectFingerprint', e.target.checked)} />
-            Inject fingerprint on launch
+            <span style={{ color: 'var(--fg)' }}>
+              Inject fingerprint on launch
+              {formData.settings.injectFingerprint === false && (
+                <span style={{ color: 'var(--warning, #ff9f43)', marginLeft: '0.4rem', fontSize: '0.85rem' }}>
+                  (browser runs with default fingerprint)
+                </span>
+              )}
+            </span>
           </label>
 
           <div className="np-field np-mb">
             <label className="np-label">Visible Engine</label>
             <select className="np-input" value={formData.settings.engine || 'auto'} onChange={e => setS('engine', e.target.value)}>
               <option value="auto">Auto (prefer CDP, fallback to Playwright)</option>
-              <option value="cdp">CDP only</option>
-              <option value="playwright">Playwright only</option>
+              <option value="cdp">CDP (system Chrome only)</option>
+              <option value="playwright">Playwright Chromium</option>
             </select>
           </div>
 
@@ -453,7 +460,7 @@ function ProfileForm({ profile, onSave, onCancel }) {
             <legend className="np-legend">Proxy</legend>
             <label className="np-checkbox">
               <input type="checkbox" checked={formData.settings.proxy?.type !== 'none' && formData.settings.proxy?.type !== undefined} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...p.settings.proxy, type: e.target.checked ? 'http' : 'none' } }}))} />
-              <span style={{ fontSize: '1rem', marginLeft: '0.2rem' }}>Enable proxy for this profile</span>
+              <span style={{ fontSize: '1rem', marginLeft: '0.2rem', color: 'var(--fg)' }}>Enable proxy for this profile</span>
             </label>
           </fieldset>
         </div>
