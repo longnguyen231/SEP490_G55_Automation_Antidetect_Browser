@@ -162,14 +162,32 @@ async function launchProfileInternal(profileId, options = {}) {
               }
             }
             // Periodically prune other dead CDP sessions as well
-            else { await pruneDeadCdp(runningProfiles, appendLog, broadcastRunningMap); }
+            else { 
+              await pruneDeadCdp(runningProfiles, appendLog, broadcastRunningMap); 
+              
+              // Periodically save open tabs for session restore
+              try {
+                const info = runningProfiles.get(profileId);
+                if (info && info.cdpControl && info.cdpControl.context) {
+                  const pages = info.cdpControl.context.pages();
+                  if (pages && pages.length > 0) {
+                    const { saveSessionTabs } = require('../storage/sessionTabs');
+                    saveSessionTabs(profileId, pages.map(p => p.url()));
+                  }
+                }
+              } catch {}
+            }
           } catch { }
         }, 2500);
       } catch { }
   runningProfiles.set(profileId, { engine: 'cdp', childProc: child, wsEndpoint, host, port, forwarder, heartbeat });
       broadcastRunningMap();
+      // Load saved tabs
+      const { loadSessionTabs } = require('../storage/sessionTabs');
+      const savedTabs = loadSessionTabs(profileId);
+
       // Always apply CDP overrides; InitScript can be toggled inside cdpOverrides based on settings.cdpApplyInitScript
-      try { await applyCdpOverrides(profileId, wsEndpoint, profile, settings, startUrl, { appendLog, runningProfiles, broadcastRunningMap }); } catch (e) { appendLog(profileId, `CDP overrides failed: ${e?.message || e}`); }
+      try { await applyCdpOverrides(profileId, wsEndpoint, profile, settings, startUrl, { appendLog, runningProfiles, broadcastRunningMap, savedTabs }); } catch (e) { appendLog(profileId, `CDP overrides failed: ${e?.message || e}`); }
       // Post-launch automation script (if configured)
       try { await runAutomationPostLaunch(profile, { engine: 'cdp', wsEndpoint }); } catch (e) { appendLog(profileId, `Automation post-launch error (CDP): ${e?.message || e}`); }
       return { success: true, wsEndpoint };
@@ -279,21 +297,40 @@ async function launchProfileInternal(profileId, options = {}) {
       const { applyFingerprintInitScripts } = require('../engine/fingerprintInit');
       await applyFingerprintInitScripts(context, profile, settings);
     } catch {}
-    const page = await context.newPage();
-    // Navigate with timeout and retry for slow proxy connections
-    try {
-      await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    } catch (navErr) {
-      appendLog(profileId, `First navigation attempt failed: ${navErr?.message || navErr}. Retrying...`);
-      try {
-        await new Promise(r => setTimeout(r, 2000)); // brief pause before retry
-        await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      } catch (retryErr) {
-        appendLog(profileId, `Second navigation attempt failed: ${retryErr?.message || retryErr}. Browser is open but page not loaded.`);
-        // Don't throw — keep the browser open so user can interact with it
+    const { loadSessionTabs, saveSessionTabs } = require('../storage/sessionTabs');
+    const savedTabs = loadSessionTabs(profileId);
+    
+    if (savedTabs && savedTabs.length > 0) {
+      appendLog(profileId, `Restoring ${savedTabs.length} saved tabs...`);
+      let first = true;
+      for (const url of savedTabs) {
+        try {
+          const p = first ? ((context.pages() || [])[0] || await context.newPage()) : await context.newPage();
+          first = false;
+          p.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(err => {
+            appendLog(profileId, `Failed to load restored tab ${url}: ${err?.message || err}`);
+          });
+        } catch (e) {
+          appendLog(profileId, `Failed to create tab for ${url}: ${e?.message || e}`);
+        }
       }
+    } else {
+      const page = await context.newPage();
+      // Navigate with timeout and retry for slow proxy connections
+      try {
+        await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      } catch (navErr) {
+        appendLog(profileId, `First navigation attempt failed: ${navErr?.message || navErr}. Retrying...`);
+        try {
+          await new Promise(r => setTimeout(r, 2000)); // brief pause before retry
+          await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        } catch (retryErr) {
+          appendLog(profileId, `Second navigation attempt failed: ${retryErr?.message || retryErr}. Browser is open but page not loaded.`);
+          // Don't throw — keep the browser open so user can interact with it
+        }
+      }
+      appendLog(profileId, `Opened page: ${startUrl}`);
     }
-    appendLog(profileId, `Opened page: ${startUrl}`);
 
     const saveState = async () => {
       try {
@@ -304,6 +341,12 @@ async function launchProfileInternal(profileId, options = {}) {
         const msg = e?.message || String(e);
         if (/has been closed/i.test(msg)) appendLog(profileId, 'Storage save skipped: context closed'); else appendLog(profileId, `Error saving storage state: ${msg}`);
       }
+      try {
+        const pages = context.pages();
+        if (pages && pages.length > 0) {
+          saveSessionTabs(profileId, pages.map(p => p.url()));
+        }
+      } catch (e) {}
     };
     page.on('close', async () => { await saveState(); try { await context.close(); } catch { } });
     context.on('close', async () => { await saveState(); try { await forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Context closed'); try { await server.close(); } catch { }; broadcastRunningMap(); });

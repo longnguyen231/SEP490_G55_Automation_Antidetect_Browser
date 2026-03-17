@@ -1,28 +1,29 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Plus, Edit2, Trash2, Search, FileCode, Clock, ChevronRight, Terminal, Book, X, Trash, RefreshCw } from 'lucide-react';
 import Editor from '@monaco-editor/react';
+import { useI18n } from '../i18n/index';
 import './ScriptsTasksPage.css';
 
-/* ━━━ API Reference Data ━━━ */
-const API_REFERENCE = [
-  { cat: 'Navigation', methods: [
+/* ━━━ API Reference Data (keys use i18n for category names) ━━━ */
+const API_REF_RAW = [
+  { catKey: 'stp.api.navigation', methods: [
     { name: 'page.goto(url)', desc: 'Navigate to a URL' },
     { name: 'page.reload()', desc: 'Reload the current page' },
     { name: 'page.goBack()', desc: 'Navigate back in history' },
     { name: 'page.goForward()', desc: 'Navigate forward in history' },
   ]},
-  { cat: 'Page Info', methods: [
+  { catKey: 'stp.api.pageInfo', methods: [
     { name: 'page.title()', desc: 'Get the page title' },
     { name: 'page.url()', desc: 'Get the current URL' },
     { name: 'page.content()', desc: 'Get full HTML content' },
   ]},
-  { cat: 'Click & Interact', methods: [
+  { catKey: 'stp.api.click', methods: [
     { name: 'page.click(selector)', desc: 'Click an element' },
     { name: 'page.dblclick(selector)', desc: 'Double-click an element' },
     { name: 'page.hover(selector)', desc: 'Hover over an element' },
     { name: 'page.focus(selector)', desc: 'Focus an element' },
   ]},
-  { cat: 'Input', methods: [
+  { catKey: 'stp.api.input', methods: [
     { name: 'page.fill(selector, value)', desc: 'Fill an input field' },
     { name: 'page.type(selector, text)', desc: 'Type text into an element' },
     { name: 'page.press(selector, key)', desc: 'Press a keyboard key' },
@@ -30,21 +31,21 @@ const API_REFERENCE = [
     { name: 'page.uncheck(selector)', desc: 'Uncheck a checkbox' },
     { name: 'page.selectOption(selector, value)', desc: 'Select a dropdown option' },
   ]},
-  { cat: 'Wait', methods: [
+  { catKey: 'stp.api.wait', methods: [
     { name: 'page.waitForSelector(sel)', desc: 'Wait for element to appear' },
     { name: 'page.waitForTimeout(ms)', desc: 'Wait for specified milliseconds' },
     { name: 'page.waitForLoadState()', desc: 'Wait for page load state' },
   ]},
-  { cat: 'Evaluate', methods: [
+  { catKey: 'stp.api.evaluate', methods: [
     { name: 'page.evaluate(fn)', desc: 'Run JS in the browser context' },
     { name: 'page.$(selector)', desc: 'Query a single element' },
     { name: 'page.$$(selector)', desc: 'Query all matching elements' },
   ]},
-  { cat: 'Screenshot & PDF', methods: [
+  { catKey: 'stp.api.screenshot', methods: [
     { name: 'page.screenshot()', desc: 'Take a screenshot' },
     { name: 'page.pdf()', desc: 'Export page as PDF' },
   ]},
-  { cat: 'Globals', methods: [
+  { catKey: 'stp.api.globals', methods: [
     { name: 'log(...args)', desc: 'Log a message to task output' },
     { name: 'sleep(ms)', desc: 'Pause execution for ms' },
     { name: 'profileId', desc: 'Current profile ID string' },
@@ -69,18 +70,18 @@ log("Page title:", title);
 
 /* ━━━ Main Component ━━━ */
 export default function ScriptsTasksPage({ profiles = [] }) {
-  const [activeTab, setActiveTab] = useState('scripts'); // 'scripts' | 'logs'
+  const { t } = useI18n();
+  const [activeTab, setActiveTab] = useState('scripts');
 
   return (
     <div className="stp-container">
-      {/* Top tabs */}
       <div className="stp-header">
         <div className="stp-tabs">
           <button className={`stp-tab ${activeTab === 'scripts' ? 'active' : ''}`} onClick={() => setActiveTab('scripts')}>
-            <FileCode size={16} /> Scripts
+            <FileCode size={16} /> {t('stp.tab.scripts')}
           </button>
           <button className={`stp-tab ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => setActiveTab('logs')}>
-            <Clock size={16} /> Task Logs
+            <Clock size={16} /> {t('stp.tab.logs')}
           </button>
         </div>
       </div>
@@ -93,9 +94,10 @@ export default function ScriptsTasksPage({ profiles = [] }) {
 
 /* ━━━ Scripts Tab ━━━ */
 function ScriptsTab({ profiles }) {
+  const { t } = useI18n();
   const [scripts, setScripts] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
-  const [editing, setEditing] = useState(null); // { id, name, description, code }
+  const [editing, setEditing] = useState(null);
   const [filter, setFilter] = useState('');
   const [runProfileId, setRunProfileId] = useState('');
   const [running, setRunning] = useState(false);
@@ -141,7 +143,7 @@ function ScriptsTab({ profiles }) {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this script?')) return;
+    if (!window.confirm(t('stp.deleteConfirm'))) return;
     try {
       await window.electronAPI.deleteScript(id);
       await load();
@@ -151,9 +153,9 @@ function ScriptsTab({ profiles }) {
 
   const handleRun = async (scriptId) => {
     const pid = runProfileId || (profiles[0]?.id || '');
-    if (!pid) { alert('Select a profile first'); return; }
+    if (!pid) { alert(t('stp.selectProfileFirst')); return; }
     const sid = scriptId || editing?.id;
-    if (!sid) { alert('Save the script first'); return; }
+    if (!sid) { alert(t('stp.saveFirst')); return; }
     setRunning(true);
     setRunResult(null);
     try {
@@ -172,7 +174,7 @@ function ScriptsTab({ profiles }) {
       <div className="stp-sidebar">
         <div className="stp-sidebar-search">
           <Search size={14} />
-          <input placeholder="Search scripts..." value={filter} onChange={e => setFilter(e.target.value)} />
+          <input placeholder={t('stp.search')} value={filter} onChange={e => setFilter(e.target.value)} />
         </div>
 
         <div className="stp-script-list">
@@ -184,20 +186,20 @@ function ScriptsTab({ profiles }) {
             >
               <div className="stp-script-item-name">{s.name || '(untitled)'}</div>
               <div className="stp-script-item-actions">
-                <button title="Run" onClick={e => { e.stopPropagation(); handleSelect(s); handleRun(s.id); }}>
+                <button title={t('stp.run')} onClick={e => { e.stopPropagation(); handleSelect(s); handleRun(s.id); }}>
                   <Play size={13} />
                 </button>
-                <button title="Delete" onClick={e => { e.stopPropagation(); handleDelete(s.id); }}>
+                <button title={t('scripts.cancel')} onClick={e => { e.stopPropagation(); handleDelete(s.id); }}>
                   <Trash2 size={13} />
                 </button>
               </div>
             </div>
           ))}
-          {!filtered.length && <div className="stp-empty">No scripts yet</div>}
+          {!filtered.length && <div className="stp-empty">{t('stp.noScripts')}</div>}
         </div>
 
         <button className="stp-new-btn" onClick={handleNew}>
-          <Plus size={16} /> New Script
+          <Plus size={16} /> {t('stp.newScript')}
         </button>
       </div>
 
@@ -205,26 +207,24 @@ function ScriptsTab({ profiles }) {
       <div className="stp-editor-area">
         {editing ? (
           <>
-            {/* Script info */}
             <div className="stp-editor-info">
               <div className="stp-field">
-                <label>Name</label>
-                <input value={editing.name} onChange={e => setEditing(p => ({ ...p, name: e.target.value }))} placeholder="Script name" />
+                <label>{t('stp.name')}</label>
+                <input value={editing.name} onChange={e => setEditing(p => ({ ...p, name: e.target.value }))} placeholder={t('stp.namePh')} />
               </div>
               <div className="stp-field">
-                <label>Description</label>
-                <input value={editing.description} onChange={e => setEditing(p => ({ ...p, description: e.target.value }))} placeholder="Optional description" />
+                <label>{t('stp.desc')}</label>
+                <input value={editing.description} onChange={e => setEditing(p => ({ ...p, description: e.target.value }))} placeholder={t('stp.descPh')} />
               </div>
               <div className="stp-field stp-field-profile">
-                <label>Profile</label>
+                <label>{t('stp.profile')}</label>
                 <select value={runProfileId} onChange={e => setRunProfileId(e.target.value)}>
-                  <option value="">Select profile...</option>
+                  <option value="">{t('stp.selectProfile')}</option>
                   {profiles.map(p => <option key={p.id} value={p.id}>{p.name || p.id}</option>)}
                 </select>
               </div>
             </div>
 
-            {/* Monaco Editor */}
             <div className="stp-monaco-wrap">
               <Editor
                 height="100%"
@@ -245,19 +245,17 @@ function ScriptsTab({ profiles }) {
               />
             </div>
 
-            {/* Action bar */}
             <div className="stp-editor-actions">
-              <button className="stp-btn stp-btn-save" onClick={handleSave}>Save</button>
+              <button className="stp-btn stp-btn-save" onClick={handleSave}>{t('stp.save')}</button>
               <button className="stp-btn stp-btn-run" onClick={() => handleRun()} disabled={running}>
-                {running ? <><RefreshCw size={14} className="stp-spin" /> Running...</> : <><Play size={14} /> Run Script</>}
+                {running ? <><RefreshCw size={14} className="stp-spin" /> {t('stp.running')}</> : <><Play size={14} /> {t('stp.run')}</>}
               </button>
             </div>
 
-            {/* Run result */}
             {runResult && (
               <div className={`stp-run-result ${runResult.success ? 'success' : 'error'}`}>
                 <div className="stp-run-result-header">
-                  {runResult.success ? '✅ Completed' : '❌ Error'}
+                  {runResult.success ? `✅ ${t('stp.completed')}` : `❌ ${t('stp.error')}`}
                   {runResult.error && <span className="stp-run-error-msg">{runResult.error}</span>}
                 </div>
                 {runResult.logs?.length > 0 && (
@@ -276,17 +274,17 @@ function ScriptsTab({ profiles }) {
         ) : (
           <div className="stp-editor-empty">
             <FileCode size={48} strokeWidth={1} />
-            <p>Select a script or create a new one</p>
+            <p>{t('stp.selectScript')}</p>
           </div>
         )}
       </div>
 
       {/* Right: API Reference */}
       <div className="stp-api-ref">
-        <div className="stp-api-ref-title"><Book size={14} /> API Reference</div>
+        <div className="stp-api-ref-title"><Book size={14} /> {t('stp.apiRef')}</div>
         <div className="stp-api-ref-list">
-          {API_REFERENCE.map(cat => (
-            <ApiCategory key={cat.cat} cat={cat} />
+          {API_REF_RAW.map(cat => (
+            <ApiCategory key={cat.catKey} cat={cat} />
           ))}
         </div>
       </div>
@@ -296,12 +294,13 @@ function ScriptsTab({ profiles }) {
 
 /* ━━━ API Category (collapsible) ━━━ */
 function ApiCategory({ cat }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(true);
   return (
     <div className="stp-api-cat">
       <button className="stp-api-cat-header" onClick={() => setOpen(!open)}>
         <ChevronRight size={14} className={open ? 'stp-chevron-open' : ''} />
-        {cat.cat}
+        {t(cat.catKey)}
       </button>
       {open && (
         <div className="stp-api-cat-methods">
@@ -319,6 +318,7 @@ function ApiCategory({ cat }) {
 
 /* ━━━ Task Logs Tab ━━━ */
 function TaskLogsTab() {
+  const { t } = useI18n();
   const [logs, setLogs] = useState([]);
   const [selectedLog, setSelectedLog] = useState(null);
   const [detailLogs, setDetailLogs] = useState([]);
@@ -342,7 +342,7 @@ function TaskLogsTab() {
   };
 
   const handleClear = async () => {
-    if (!window.confirm('Clear all task logs?')) return;
+    if (!window.confirm(t('stp.clearConfirm'))) return;
     try {
       await window.electronAPI.clearTaskLogs();
       setLogs([]);
@@ -353,13 +353,12 @@ function TaskLogsTab() {
 
   return (
     <div className="stp-logs-layout">
-      {/* Left: Task list */}
       <div className="stp-logs-list">
         <div className="stp-logs-list-header">
-          <span>Task History</span>
+          <span>{t('stp.taskHistory')}</span>
           <div style={{ display: 'flex', gap: '0.3rem' }}>
             <button title="Refresh" onClick={loadLogs}><RefreshCw size={14} /></button>
-            <button title="Clear all" onClick={handleClear}><Trash size={14} /></button>
+            <button title={t('actions.clear')} onClick={handleClear}><Trash size={14} /></button>
           </div>
         </div>
         <div className="stp-logs-items">
@@ -372,7 +371,7 @@ function TaskLogsTab() {
               <div className="stp-log-item-top">
                 <span className="stp-log-item-name">{l.scriptName}</span>
                 <span className={`stp-log-item-status ${l.status}`}>
-                  {l.status === 'completed' ? '✅' : l.status === 'error' ? '❌' : '⏳'} {l.status}
+                  {l.status === 'completed' ? '✅' : l.status === 'error' ? '❌' : '⏳'} {l.status === 'completed' ? t('stp.completed') : l.status === 'error' ? t('stp.error') : l.status}
                 </span>
               </div>
               <div className="stp-log-item-bottom">
@@ -381,24 +380,23 @@ function TaskLogsTab() {
               </div>
             </div>
           ))}
-          {!logs.length && <div className="stp-empty">No task logs yet</div>}
+          {!logs.length && <div className="stp-empty">{t('stp.noLogs')}</div>}
         </div>
       </div>
 
-      {/* Right: Log output */}
       <div className="stp-logs-output">
         {selectedLog ? (
           <>
             <div className="stp-logs-output-header">
               <Terminal size={14} />
               <strong>{selectedLog.scriptName}</strong>
-              <span className={`stp-log-item-status ${selectedLog.status}`}>{selectedLog.status}</span>
+              <span className={`stp-log-item-status ${selectedLog.status}`}>{selectedLog.status === 'completed' ? t('stp.completed') : t('stp.error')}</span>
               <span className="stp-logs-output-time">
                 {new Date(selectedLog.startedAt).toLocaleString()} → {new Date(selectedLog.finishedAt).toLocaleString()}
               </span>
             </div>
             {selectedLog.error && (
-              <div className="stp-logs-output-error">Error: {selectedLog.error}</div>
+              <div className="stp-logs-output-error">{t('stp.error')}: {selectedLog.error}</div>
             )}
             <div className="stp-logs-output-body">
               {detailLogs.map((l, i) => (
@@ -407,13 +405,13 @@ function TaskLogsTab() {
                   <span className="stp-log-msg">{l.message}</span>
                 </div>
               ))}
-              {!detailLogs.length && <div className="stp-empty">No logs for this task</div>}
+              {!detailLogs.length && <div className="stp-empty">{t('stp.noLogEntries')}</div>}
             </div>
           </>
         ) : (
           <div className="stp-editor-empty">
             <Terminal size={48} strokeWidth={1} />
-            <p>Select a task to view logs</p>
+            <p>{t('stp.selectTask')}</p>
           </div>
         )}
       </div>
