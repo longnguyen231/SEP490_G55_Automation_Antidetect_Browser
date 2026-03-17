@@ -85,14 +85,24 @@ async function launchProfileInternal(profileId, options = {}) {
       let proxyForChrome = settings.proxy;
       let forwarder = null;
       try {
-        const serverStr = (settings.proxy && settings.proxy.server) ? String(settings.proxy.server) : '';
+        let serverStr = '';
+        if (settings.proxy) {
+          if (settings.proxy.server) serverStr = String(settings.proxy.server);
+          else if (settings.proxy.host && settings.proxy.port) {
+            serverStr = `${settings.proxy.type || 'http'}://${settings.proxy.host}:${settings.proxy.port}`;
+          }
+        }
+        
         const hasAuth = !!(settings.proxy && (settings.proxy.username || settings.proxy.password));
         const proxyType = (settings.proxy?.type || '').toLowerCase();
         const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(serverStr);
-        if (settings.proxy && (hasAuth || isSocks)) {
+        if (settings.proxy && serverStr && (hasAuth || isSocks)) {
+          const proxyConfig = { ...settings.proxy, server: serverStr };
           const { startProxyForwarder } = require('../engine/proxyForwarder');
-          forwarder = await startProxyForwarder(settings.proxy, { appendLog, profileId });
+          forwarder = await startProxyForwarder(proxyConfig, { appendLog, profileId });
           proxyForChrome = { server: forwarder.url };
+        } else if (settings.proxy && serverStr) {
+          proxyForChrome = { server: serverStr };
         }
       } catch (e) {
         appendLog(profileId, `Proxy forwarder failed, falling back to direct proxy: ${e?.message || e}`);
@@ -213,37 +223,35 @@ async function launchProfileInternal(profileId, options = {}) {
     } catch {}
     let proxy;
     let forwarder = null;
-    if (settings.proxy?.server) {
-      // Determine proxy type from settings
+    
+    let serverStr = '';
+    if (settings.proxy) {
+      if (settings.proxy.server) serverStr = String(settings.proxy.server);
+      else if (settings.proxy.host && settings.proxy.port) {
+        serverStr = `${settings.proxy.type || 'http'}://${settings.proxy.host}:${settings.proxy.port}`;
+      }
+    }
+    
+    if (serverStr) {
       const proxyType = (settings.proxy.type || '').toLowerCase();
-      const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(settings.proxy.server);
+      const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(serverStr);
       const hasAuth = !!(settings.proxy.username || settings.proxy.password);
 
       if (hasAuth || isSocks) {
-        // Use local forwarder for SOCKS or authenticated proxies
         try {
+          const proxyConfig = { ...settings.proxy, server: serverStr };
           const { startProxyForwarder } = require('../engine/proxyForwarder');
-          forwarder = await startProxyForwarder(settings.proxy, { appendLog, profileId });
+          forwarder = await startProxyForwarder(proxyConfig, { appendLog, profileId });
           proxy = { server: forwarder.url };
           appendLog(profileId, `Playwright using proxy forwarder: ${forwarder.url}`);
         } catch (e) {
           appendLog(profileId, `Proxy forwarder failed, falling back to direct: ${e?.message || e}`);
-          // Fallback: build proxy URL with correct scheme
-          let serverUrl = settings.proxy.server;
-          if (!/^(https?|socks\d?):\/\//i.test(serverUrl)) {
-            serverUrl = `${isSocks ? 'socks5' : 'http'}://${serverUrl}`;
-          }
-          proxy = { server: serverUrl };
+          proxy = { server: serverStr };
           if (settings.proxy.username) proxy.username = settings.proxy.username;
           if (settings.proxy.password) proxy.password = settings.proxy.password;
         }
       } else {
-        // Simple HTTP/HTTPS proxy without auth
-        let serverUrl = settings.proxy.server;
-        if (!/^(https?|socks\d?):\/\//i.test(serverUrl)) {
-          serverUrl = `http://${serverUrl}`;
-        }
-        proxy = { server: serverUrl };
+        proxy = { server: serverStr };
       }
     }
     let server;
@@ -467,6 +475,7 @@ async function stopProfileInternal(profileId) {
     try { await context.close(); } catch { }
     try { await browser?.close?.(); } catch { }
     try { await server.close(); } catch { }
+    try { await running.forwarder?.stop?.(); } catch { }
     runningProfiles.delete(profileId);
     appendLog(profileId, 'Stopped profile');
     broadcastRunningMap();
@@ -496,6 +505,7 @@ async function stopAllProfilesInternal() {
         try { await context.close(); } catch { }
         try { await browser?.close?.(); } catch { }
         try { await server.close(); } catch { }
+        try { await running.forwarder?.stop?.(); } catch { }
         runningProfiles.delete(id); appendLog(id, 'Stopped by stop-all');
       }
       stopped++;
