@@ -32,147 +32,50 @@ import {
 } from "lucide-react";
 
 /* =========================
-   AXIOS CLIENT + FAKE API
+   IPC API (Main Process)
 ========================= */
-const api = axios.create({
-  baseURL: "/api",
-  timeout: 10000,
-});
+const electronAPI = window.electronAPI;
 
-/** Fake DB */
-let FAKE_DB = [
-  {
-    id: "proxy-001",
-    name: "US Proxy 1",
-    type: "SOCKS5",
-    host: "192.168.1.100",
-    port: 1080,
-    username: "user1",
-    outboundIP: "45.33.32.156",
-    country: "US",
-    status: "active",
-    latency: 45,
-    tags: ["premium", "fast"],
-    profileCount: 3,
-    lastChecked: "2 mins ago",
-  },
-  {
-    id: "proxy-002",
-    name: "EU Proxy 1",
-    type: "HTTP",
-    host: "10.0.0.50",
-    port: 8080,
-    outboundIP: "185.199.108.153",
-    country: "DE",
-    status: "active",
-    latency: 120,
-    tags: ["europe"],
-    profileCount: 5,
-    lastChecked: "5 mins ago",
-  },
-  {
-    id: "proxy-003",
-    name: "Asia Proxy 1",
-    type: "SOCKS5",
-    host: "172.16.0.25",
-    port: 1080,
-    username: "asia_user",
-    outboundIP: "103.21.244.0",
-    country: "SG",
-    status: "error",
-    tags: ["asia"],
-    profileCount: 0,
-    lastChecked: "1 hour ago",
-  },
-  {
-    id: "proxy-004",
-    name: "VN Proxy 1",
-    type: "HTTPS",
-    host: "192.168.2.200",
-    port: 443,
-    outboundIP: "14.225.254.100",
-    country: "VN",
-    status: "inactive",
-    latency: 85,
-    tags: ["vietnam", "local"],
-    profileCount: 2,
-    lastChecked: "30 mins ago",
-  },
-];
-
-/** Fake endpoints (đổi sang api thật rất dễ) */
+/** Real IPC endpoints */
 async function apiFetchProxies() {
-  // return api.get("/proxies");
-  await new Promise((r) => setTimeout(r, 250));
-  return { data: { items: FAKE_DB } };
+  if (!electronAPI?.proxyGetAll) return { data: { items: [] } };
+  const items = await electronAPI.proxyGetAll();
+  return { data: { items: items || [] } };
 }
 
 async function apiCreateProxy(payload) {
-  // return api.post("/proxies", payload);
-  await new Promise((r) => setTimeout(r, 250));
-  const newItem = {
-    id: `proxy-${Date.now()}`,
-    status: "inactive",
-    latency: undefined,
-    outboundIP: payload.outboundIP || undefined,
-    country: payload.country || "??",
-    profileCount: 0,
-    lastChecked: undefined,
-    ...payload,
-  };
-  FAKE_DB = [newItem, ...FAKE_DB];
-  return { data: { item: newItem } };
+  if (!electronAPI?.proxyCreate) return { data: { item: null } };
+  const res = await electronAPI.proxyCreate(payload);
+  if (res.success) return { data: { item: res.proxy } };
+  throw new Error(res.error || "Failed to create proxy");
 }
 
 async function apiDeleteProxy(id) {
-  // return api.delete(`/proxies/${id}`);
-  await new Promise((r) => setTimeout(r, 200));
-  FAKE_DB = FAKE_DB.filter((p) => p.id !== id);
-  return { data: { ok: true } };
+  if (!electronAPI?.proxyDelete) return { data: { ok: false } };
+  const res = await electronAPI.proxyDelete(id);
+  if (res.success) return { data: { ok: true } };
+  throw new Error(res.error || "Failed to delete proxy");
 }
 
 async function apiBulkDelete(ids) {
-  // return api.post(`/proxies/bulk-delete`, { ids });
-  await new Promise((r) => setTimeout(r, 250));
-  FAKE_DB = FAKE_DB.filter((p) => !ids.includes(p.id));
-  return { data: { ok: true } };
+  if (!electronAPI?.proxyDeleteBulk) return { data: { ok: false } };
+  const res = await electronAPI.proxyDeleteBulk(ids);
+  if (res.success) return { data: { ok: true } };
+  throw new Error(res.error || "Failed to delete proxies");
 }
 
 async function apiCheckProxy(id) {
-  // return api.post(`/proxies/${id}/check`);
-  await new Promise((r) => setTimeout(r, 800));
-  const ok = Math.random() > 0.3;
-  const latency = Math.floor(Math.random() * 200) + 20;
-
-  FAKE_DB = FAKE_DB.map((p) =>
-    p.id === id
-      ? {
-          ...p,
-          status: ok ? "active" : "error",
-          latency: ok ? latency : undefined,
-          lastChecked: "Just now",
-        }
-      : p
-  );
-
-  const item = FAKE_DB.find((p) => p.id === id);
-  return { data: { item } };
+  if (!electronAPI?.proxyCheck) return { data: { item: null } };
+  const res = await electronAPI.proxyCheck(id);
+  if (res.success) return { data: { item: res.proxy } };
+  return { data: { item: { id, status: 'error' } } };
 }
 
 async function apiCheckAll() {
-  // return api.post(`/proxies/check-all`);
-  await new Promise((r) => setTimeout(r, 800));
-  FAKE_DB = FAKE_DB.map((p) => {
-    const ok = Math.random() > 0.25;
-    const latency = Math.floor(Math.random() * 220) + 25;
-    return {
-      ...p,
-      status: ok ? "active" : "error",
-      latency: ok ? latency : undefined,
-      lastChecked: "Just now",
-    };
-  });
-  return { data: { items: FAKE_DB } };
+  if (!electronAPI?.proxyCheckAll) return { data: { items: [] } };
+  await electronAPI.proxyCheckAll();
+  const items = await electronAPI.proxyGetAll();
+  return { data: { items: items || [] } };
 }
 
 /* =========================
@@ -181,13 +84,15 @@ async function apiCheckAll() {
 const MAX_PROXIES = 2000;
 
 function TypeBadge({ type }) {
+  const norm = String(type || 'http').toLowerCase();
+  const display = norm.toUpperCase();
   const map = {
-    HTTP: "proxy-badge proxy-http",
-    HTTPS: "proxy-badge proxy-https",
-    SOCKS4: "proxy-badge proxy-socks4",
-    SOCKS5: "proxy-badge proxy-socks5",
+    http: "proxy-badge proxy-http",
+    https: "proxy-badge proxy-https",
+    socks4: "proxy-badge proxy-socks4",
+    socks5: "proxy-badge proxy-socks5",
   };
-  return <span className={map[type] || "proxy-badge"}>{type}</span>;
+  return <span className={map[norm] || "proxy-badge"}>{display}</span>;
 }
 
 function StatusBadge({ status, latency }) {
@@ -364,13 +269,12 @@ export default function Proxies() {
 
     const payload = {
       name: newProxy.name,
-      type: newProxy.type,
+      type: newProxy.type.toLowerCase(),
       host: newProxy.host,
       port: Number(newProxy.port),
       username: newProxy.username || undefined,
-      tags: newProxy.tags
-        ? newProxy.tags.split(",").map((t) => t.trim()).filter(Boolean)
-        : [],
+      password: newProxy.password || undefined,
+      note: newProxy.tags,
       // outboundIP/country/profileCount/status để backend set
     };
 
@@ -580,19 +484,17 @@ export default function Proxies() {
 
                         <td>
                           <div className="d-flex flex-wrap gap-2">
-                            {p.tags?.length ? (
-                              p.tags.map((t) => (
-                                <span key={t} className="proxy-tag">
-                                  {t}
+                            {p.note ? (
+                                <span className="proxy-tag">
+                                  {p.note}
                                 </span>
-                              ))
                             ) : (
                               <span className="k-muted">-</span>
                             )}
                           </div>
                         </td>
 
-                        <td>{p.profileCount}</td>
+                        <td>-</td>
 
                         <td className="text-end">
                           <div className="d-inline-flex align-items-center gap-2">

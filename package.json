@@ -109,7 +109,7 @@
     "@vitejs/plugin-react": "^5.1.0",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
-    "electron": "^39.1.0",
+    "electron": "^39.8.0",
     "electron-builder": "^26.0.12",
     "electron-vite": "^4.0.1",
     "electronmon": "^2.0.4",
@@ -123,13 +123,16 @@
     "bootstrap": "^5.3.8",
     "cors": "^2.8.5",
     "express": "^4.19.2",
+    "http-proxy-agent": "^7.0.2",
+    "https-proxy-agent": "^7.0.6",
     "lucide-react": "^0.564.0",
     "node-cron": "^3.0.3",
-    "playwright": "^1.48.2",
+    "playwright": "^1.58.2",
     "proxy-chain": "^2.5.0",
     "react": "^19.2.0",
     "react-bootstrap": "^2.10.10",
     "react-dom": "^19.2.0",
+    "socks-proxy-agent": "^8.0.5",
     "swagger-ui-express": "^5.0.1"
   }
 }
