@@ -98,29 +98,29 @@ async function createProxyInternal(data) {
         const existingIds = new Set(proxies.map(p => p.id));
         while (existingIds.has(newId)) newId = generateShortId();
 
-        const nowIso = new Date().toISOString();
-        const proxy = {
+        const newProxy = {
             id: newId,
-            name: (data.name || '').trim() || `Proxy ${proxies.length + 1}`,
-            type: VALID_TYPES.includes(data.type) ? data.type : 'http',
+            name: String(data.name || '').trim() || `Proxy ${newId}`,
+            type: String(data.type).toLowerCase(),
             host: String(data.host).trim(),
             port: Number(data.port),
-            username: (data.username || '').trim(),
-            password: (data.password || '').trim(),
+            username: data.username ? String(data.username) : '',
+            password: data.password ? String(data.password) : '',
+            rotateUrl: data.rotateUrl ? String(data.rotateUrl).trim() : '',
             status: 'unchecked',
             lastChecked: null,
             latency: null,
             country: (data.country || '').trim(),
             note: (data.note || '').trim(),
-            createdAt: nowIso,
-            updatedAt: nowIso,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
         };
 
-        proxies.push(proxy);
+        proxies.push(newProxy);
         const ok = writeProxies(proxies);
         if (!ok) return { success: false, error: 'Failed to persist proxies file' };
-        appendLog('system', `Created proxy ${proxy.id} (${proxy.name})`);
-        return { success: true, proxy };
+        appendLog('system', `Created proxy ${newProxy.id} (${newProxy.name})`);
+        return { success: true, proxy: newProxy };
     } catch (e) {
         appendLog('system', `createProxyInternal error: ${e.message}`);
         return { success: false, error: e.message };
@@ -131,7 +131,6 @@ async function updateProxyInternal(id, data) {
     try {
         if (!id) return { success: false, error: 'Proxy id is required' };
         if (!data || typeof data !== 'object') return { success: false, error: 'Invalid payload' };
-
         const proxies = readProxies();
         const idx = proxies.findIndex(p => p.id === id);
         if (idx === -1) return { success: false, error: 'Proxy not found' };
@@ -157,12 +156,18 @@ async function updateProxyInternal(id, data) {
         }
         if (data.username != null) merged.username = String(data.username).trim();
         if (data.password != null) merged.password = String(data.password).trim();
+        if (data.rotateUrl != null) merged.rotateUrl = String(data.rotateUrl).trim();
         if (data.country != null) merged.country = String(data.country).trim();
         if (data.note != null) merged.note = String(data.note).trim();
-        // Allow checker module to update status/latency
-        if (data.status != null) merged.status = data.status;
-        if (data.lastChecked != null) merged.lastChecked = data.lastChecked;
-        if (data.latency != null) merged.latency = data.latency;
+        if (data.status != null) merged.status = String(data.status);
+        if (data.lastChecked != null) merged.lastChecked = String(data.lastChecked);
+        if (data.latency !== undefined) merged.latency = data.latency;
+        if (data.lastRotated != null) merged.lastRotated = String(data.lastRotated);
+
+        // Reset status if host/port/type/auth changed
+        if (data.host !== undefined || data.port !== undefined || data.type !== undefined || data.username !== undefined || data.password !== undefined) {
+            if (data.status === undefined) merged.status = 'unchecked'; // Chỉ reset khi ko đi kèm check
+        }
 
         merged.updatedAt = new Date().toISOString();
         proxies[idx] = merged;

@@ -70,4 +70,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportProxies: (ids) => ipcRenderer.invoke('proxy-export', ids),
   checkProxy: (cfg) => ipcRenderer.invoke('proxy-check', cfg),
   checkAllProxies: () => ipcRenderer.invoke('proxy-check-all'),
+  rotateProxy: (id) => ipcRenderer.invoke('proxy-rotate', id),
 });
