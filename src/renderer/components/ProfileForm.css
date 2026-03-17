@@ -4,6 +4,7 @@
   flex-direction: column;
   height: 100%;
   color: #e0e0e0;
+  overflow: hidden;
 }
 
 .np-title {
@@ -11,12 +12,40 @@
   font-weight: 700;
   margin: 0 0 1.5rem 0;
   color: #fff;
+  flex-shrink: 0;
 }
 
 .np-form {
   display: flex;
   flex-direction: column;
   max-width: 750px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.np-top-fixed {
+  flex-shrink: 0;
+}
+
+.np-scrollable-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 8px;
+  margin-right: -8px;
+}
+
+.np-scrollable-content::-webkit-scrollbar {
+  width: 8px;
+}
+.np-scrollable-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.np-scrollable-content::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+.np-scrollable-content::-webkit-scrollbar-thumb:hover {
+  background: #475569;
 }
 
 /* Form fields */
@@ -170,8 +199,10 @@
   display: flex;
   justify-content: flex-end;
   gap: 0.8rem;
-  margin-top: 2rem;
+  margin-top: 1rem;
   padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
 }
 
 .np-btn-cancel {

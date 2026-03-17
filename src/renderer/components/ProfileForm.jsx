@@ -182,8 +182,9 @@ function ProfileForm({ profile, onSave, onCancel }) {
 
       <form onSubmit={handleSubmit} className="np-form">
         
-        {/* Profile & Quick Generate - Fieldset with border */}
-        <fieldset className="np-fieldset">
+        <div className="np-top-fixed">
+          {/* Profile & Quick Generate - Fieldset with border */}
+          <fieldset className="np-fieldset">
           <legend className="np-legend">Profile & Quick Generate</legend>
           
           <div className="np-row-2 np-mb">
@@ -240,7 +241,11 @@ function ProfileForm({ profile, onSave, onCancel }) {
           <button type="button" className="np-btn-blue" onClick={generateFingerprint}>
             Generate Fingerprint
           </button>
-        </fieldset>
+          </fieldset>
+        </div>
+
+        {/* Scrollable area */}
+        <div className="np-scrollable-content">
 
         {/* Flat fields */}
         <div className="np-field np-mb">
@@ -341,39 +346,85 @@ function ProfileForm({ profile, onSave, onCancel }) {
         </div>
 
         <CollapsibleSection title="WebGL">
-          <div className="np-field np-mb">
-            <label className="np-checkbox"><input type="checkbox" checked={formData.fingerprint.webgl !== false} onChange={e => setFp('webgl', e.target.checked)} /> Spoof WebGL fingerprint</label>
+          <div className="np-row-2 np-mb">
+            <div className="np-field">
+              <label className="np-label">Noise seed</label>
+              <input type="number" className="np-input" value={formData.fingerprint.webglNoise || 709233842} onChange={e => setFp('webglNoise', e.target.value)} />
+            </div>
+            <div className="np-field">
+              <label className="np-label">MAX_TEXTURE_SIZE</label>
+              <input type="number" className="np-input" value={formData.fingerprint.maxTextureSize || 8192} onChange={e => setFp('maxTextureSize', e.target.value)} />
+            </div>
+          </div>
+          <div className="np-field np-mb-large">
+            <label className="np-label">Extensions (comma-separated)</label>
+            <input type="text" className="np-input" value={formData.fingerprint.webglExtensions || 'EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float'} onChange={e => setFp('webglExtensions', e.target.value)} />
           </div>
         </CollapsibleSection>
 
         <CollapsibleSection title="Canvas">
-          <div className="np-field np-mb">
-            <label className="np-checkbox"><input type="checkbox" checked={formData.fingerprint.canvas !== false} onChange={e => setFp('canvas', e.target.checked)} /> Add noise to Canvas</label>
+          <div className="np-row-2 np-mb-large">
+            <div className="np-field">
+              <label className="np-label">Noise mode</label>
+              <select className="np-input" value={formData.fingerprint.canvasMode || 'noise'} onChange={e => setFp('canvasMode', e.target.value)}>
+                <option value="noise">Noise</option>
+                <option value="block">Block</option>
+                <option value="off">Off</option>
+              </select>
+            </div>
+            <div className="np-field">
+              <label className="np-label">Noise seed</label>
+              <input type="number" className="np-input" value={formData.fingerprint.canvasNoise || 34892419} onChange={e => setFp('canvasNoise', e.target.value)} />
+            </div>
           </div>
         </CollapsibleSection>
 
         <CollapsibleSection title="Audio">
-          <div className="np-field np-mb">
-            <label className="np-checkbox"><input type="checkbox" checked={formData.fingerprint.audio !== false} onChange={e => setFp('audio', e.target.checked)} /> Add noise to AudioContext</label>
+          <div className="np-row-2 np-mb-large">
+            <div className="np-field">
+              <label className="np-label">Noise mode</label>
+              <select className="np-input" value={formData.fingerprint.audioMode || 'noise'} onChange={e => setFp('audioMode', e.target.value)}>
+                <option value="noise">Noise</option>
+                <option value="off">Off</option>
+              </select>
+            </div>
+            <div className="np-field">
+              <label className="np-label">Noise seed</label>
+              <input type="number" className="np-input" value={formData.fingerprint.audioNoise || 8540321} onChange={e => setFp('audioNoise', e.target.value)} />
+            </div>
           </div>
         </CollapsibleSection>
 
         <CollapsibleSection title="Media Devices">
-          <div className="np-row-2 np-mb">
+          <div className="np-row-2 np-mb-large">
             <div className="np-field">
-              <label className="np-checkbox"><input type="checkbox" checked={formData.settings.mediaDevices?.audio !== false} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, mediaDevices: { ...p.settings.mediaDevices, audio: e.target.checked } }}))} /> Audio input</label>
+              <label className="np-label">Audio inputs</label>
+              <input type="number" className="np-input" value={formData.settings.mediaDevices?.audioCount || 1} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, mediaDevices: { ...p.settings.mediaDevices, audioCount: Number(e.target.value) } }}))} />
             </div>
             <div className="np-field">
-              <label className="np-checkbox"><input type="checkbox" checked={formData.settings.mediaDevices?.video !== false} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, mediaDevices: { ...p.settings.mediaDevices, video: e.target.checked } }}))} /> Video input</label>
+              <label className="np-label">Video inputs</label>
+              <input type="number" className="np-input" value={formData.settings.mediaDevices?.videoCount || 1} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, mediaDevices: { ...p.settings.mediaDevices, videoCount: Number(e.target.value) } }}))} />
             </div>
           </div>
         </CollapsibleSection>
 
         <CollapsibleSection title="Navigator">
-          <div className="np-mb">
+          <div className="np-row-2 np-mb-large">
+            <div className="np-field">
+              <label className="np-label">Hardware Concurrency</label>
+              <input type="number" className="np-input" value={formData.settings.cpuCores || 4} onChange={e => setS('cpuCores', Number(e.target.value))} />
+            </div>
+            <div className="np-field">
+              <label className="np-label">Device Memory</label>
+              <input type="number" className="np-input" value={formData.settings.memoryGB || 8} onChange={e => setS('memoryGB', Number(e.target.value))} />
+            </div>
+          </div>
+          <div className="np-mb-large">
             <label className="np-checkbox"><input type="checkbox" checked={!!formData.settings.advanced?.dnt} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, advanced: { ...p.settings.advanced, dnt: e.target.checked } }}))} /> Do Not Track (DNT)</label>
           </div>
         </CollapsibleSection>
+
+        </div> {/* End scrollable content */}
 
         {/* Actions footer */}
         <div className="np-actions">
