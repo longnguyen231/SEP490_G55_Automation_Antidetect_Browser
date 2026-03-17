@@ -1,6 +1,14 @@
-// High-level browser actions by profileId using Playwright API (works for both Playwright and CDP engines)
-// Exposes helpers like click, scroll, keyboard, capture, wait, etc.
-// Each function returns a structured { success, ... } result and logs via appendLog when possible.
+// High-level browser actions by profileId using Playwright API.
+// 
+// IMPORTANT: This file abstracts the differences between two browser engines:
+// 1. Playwright Engine: Natively uses Playwright`s Browser and Context objects.
+// 2. CDP Engine (Chrome Launcher): Connects to the raw Chrome debug port using
+//    `chromium.connectOverCDP()`, allowing us to use Playwright's convenient 
+//    API (like `page.click`) even though the browser was launched outside Playwright.
+//
+// Every action function here takes a `profileId` and a set of parameters.
+// They all return a structured result: { success: boolean, [data fields], error?: string }
+// and log their execution to the profile's dedicated log file.
 
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -8,14 +16,28 @@ const path = require('path');
 const { runningProfiles } = require('../state/runtime');
 const { appendLog } = require('../logging/logger');
 
+// Helper to return a successful action result
 function ok(v = {}) { return { success: true, ...v }; }
+
+// Helper to return a failed action result with an error message
 function err(message, extra = {}) { return { success: false, error: String(message || 'unknown error'), ...extra }; }
 
+/**
+ * Core utility: Retrieves the active Playwright `Page` object for a running profile.
+ * 
+ * How it works:
+ * - Checks the `runningProfiles` map to verify the profile is currently active.
+ * - If engine is 'playwright': Returns the `page` directly from the cached Browser/Context.
+ * - If engine is 'cdp': Establishes a fresh WebSocket connection to the Chrome Debugger (`connectOverCDP`),
+ *   finds the first open tab, and returns that `page` object along with a `cleanup` function
+ *   to close the temporary CDP connection after the action completes.
+ */
 async function withPage(profileId, { index = 0, createIfMissing = true } = {}) {
   const running = runningProfiles.get(profileId);
   if (!running) return err('Profile not running');
   const engine = running.engine;
-  // When engine is playwright, reuse existing browser/context; otherwise connect over CDP
+  
+  // 1. Playwright Engine: Reuse existing browser/context memory
   if (engine === 'playwright') {
     const browser = running.browser; const context = running.context;
     if (!browser || !context || context.isClosed?.()) return err('Browser context not available');
@@ -24,7 +46,8 @@ async function withPage(profileId, { index = 0, createIfMissing = true } = {}) {
     if (!page) return err('No page available');
     return ok({ engine, browser, context, page, cleanup: async () => {} });
   }
-  // CDP: connect via playwright connectOverCDP for unified Page API
+  
+  // 2. CDP Engine: Connect via playwright connectOverCDP for unified Page API
   try {
     const ws = running.wsEndpoint;
     const browser = await chromium.connectOverCDP(ws);
@@ -33,12 +56,18 @@ async function withPage(profileId, { index = 0, createIfMissing = true } = {}) {
     let page = context.pages()[index] || context.pages()[0];
     if (!page && createIfMissing) page = await context.newPage();
     if (!page) { try { await browser.close(); } catch {} return err('No page available'); }
+    // Critical: Prevent memory leak by closing the temporary WebSocket after action completes
     const cleanup = async () => { try { await browser.close(); } catch {} };
     return ok({ engine: 'cdp', browser, context, page, cleanup });
   } catch (e) {
     return err(e?.message || e);
   }
 }
+
+// ==========================================
+// MOUSE & INTERACTION ACTIONS
+// ==========================================
+
 
 async function clickAt(profileId, { x, y, button = 'left', clickCount = 1, delay } = {}) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return err('x and y are required numbers');
@@ -256,7 +285,13 @@ async function selectOption(profileId, { selector, values, timeout = 10000 } = {
   try { await page.selectOption(selector, values); await cleanup(); appendLog(profileId, `Action: selectOption ${selector}`); return ok(); } catch (e) { await cleanup(); return err(e?.message || e); }
 }
 
-// Generic dispatcher
+// ==========================================
+// ACTION MAP & GENERIC DISPATCHER
+// ==========================================
+
+// Generic dispatcher mapping action string names to function references.
+// This is used by the frontend Workflow builder and the Script runner (scriptRuntime.js)
+// to dynamically invoke these functions.
 const ACTION_MAP = {
   'click.at': clickAt,
   'click.percent': clickByPercent,
