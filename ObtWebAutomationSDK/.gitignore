@@ -1,0 +1,3 @@
+# Ignore build artifacts for this SDK project
+bin/
+obj/
