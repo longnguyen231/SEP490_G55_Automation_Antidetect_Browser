@@ -6,8 +6,8 @@ const defaultFingerprint = {
   os: 'Windows',
   browser: 'Chrome',
   device: 'Desktop',
-  browserVersion: '120.0.0.0',
-  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  browserVersion: '145.0.0.0',
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36',
   language: 'vi-VN',
   screenResolution: '1920x1080',
   timezone: 'Asia/Ho_Chi_Minh',
@@ -111,7 +111,7 @@ function ProfileForm({ profile, onSave, onCancel }) {
     const locale = randomFrom(locales);
     const timezone = randomFrom(timezones);
     const resolution = randomFrom(SCREEN_PRESETS);
-    const bv = randomFrom(['119.0.6045.200', '120.0.0.0', '121.0.6167.85']);
+    const bv = randomFrom(['145.0.0.0', '145.0.6167.85']);
     
     let ua = '';
     const plat = pOs === 'Windows' ? 'Win32' : pOs === 'macOS' ? 'MacIntel' : 'Linux x86_64';
@@ -127,12 +127,21 @@ function ProfileForm({ profile, onSave, onCancel }) {
     const gpu = randomFrom(gpus);
     const extraLangs = locales.filter(l => l !== locale).slice(0, 2);
 
+    const webglNoise = Math.floor(Math.random() * 2000000000) + 100000000;
+    const maxTextureSize = randomFrom([4096, 8192, 16384]);
+    const webglExtensions = randomFrom([
+      'EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float',
+      'ANGLE_instanced_arrays, OES_texture_float, WEBGL_depth_texture, OES_vertex_array_object',
+      'EXT_texture_filter_anisotropic, WEBGL_compressed_texture_s3tc, OES_element_index_uint'
+    ]);
+
     setFormData(prev => ({
       ...prev,
       fingerprint: {
         ...prev.fingerprint,
         os: pOs, browserVersion: bv, userAgent: ua, language: locale, timezone,
-        screenResolution: resolution, colorDepth: randomFrom([24, 32]), pixelRatio: randomFrom([1, 1.25, 1.5, 2])
+        screenResolution: resolution, colorDepth: randomFrom([24, 32]), pixelRatio: randomFrom([1, 1.25, 1.5, 2]),
+        webglNoise, maxTextureSize, webglExtensions
       },
       settings: {
         ...prev.settings,
@@ -144,7 +153,7 @@ function ProfileForm({ profile, onSave, onCancel }) {
   };
 
   const handleOsChange = (os) => {
-    const bv = formData.fingerprint.browserVersion || '120.0.0.0';
+    const bv = formData.fingerprint.browserVersion || '145.0.0.0';
     let ua = formData.fingerprint.userAgent;
     const plat = os === 'Windows' ? 'Win32' : os === 'macOS' ? 'MacIntel' : 'Linux x86_64';
     if (os === 'Windows') ua = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
