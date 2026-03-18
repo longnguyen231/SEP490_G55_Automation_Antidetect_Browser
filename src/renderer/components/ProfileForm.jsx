@@ -46,6 +46,111 @@ const defaultSettings = {
   },
 };
 
+const generateConsistentFingerprint = () => {
+  const LOCALES = [
+    { code: 'vi-VN', timezone: 'Asia/Ho_Chi_Minh', languages: 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7' },
+    { code: 'en-US', timezone: 'America/New_York', languages: 'en-US,en;q=0.9' },
+    { code: 'en-GB', timezone: 'Europe/London', languages: 'en-GB,en;q=0.9,en-US;q=0.8' },
+    { code: 'fr-FR', timezone: 'Europe/Paris', languages: 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7' },
+    { code: 'de-DE', timezone: 'Europe/Berlin', languages: 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7' },
+    { code: 'es-ES', timezone: 'Europe/Madrid', languages: 'es-ES,es;q=0.9,en-US;q=0.8,en;q=0.7' },
+    { code: 'ja-JP', timezone: 'Asia/Tokyo', languages: 'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7' },
+    { code: 'ko-KR', timezone: 'Asia/Seoul', languages: 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7' },
+    { code: 'zh-CN', timezone: 'Asia/Shanghai', languages: 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7' },
+  ];
+  const BROWSERS = ['145.0.0.0', '144.0.0.0', '143.0.0.0', '142.0.0.0', '141.0.0.0', '140.0.0.0', '131.0.6778.205'];
+  const OS_LIST = ['Windows', 'macOS', 'Linux'];
+  const SCREENS = [
+    { res: '1366x768', w: 1366, h: 768, ratios: [1] },
+    { res: '1600x900', w: 1600, h: 900, ratios: [1] },
+    { res: '1920x1080', w: 1920, h: 1080, ratios: [1, 1.25, 1.5] },
+    { res: '2560x1440', w: 2560, h: 1440, ratios: [1, 1.25, 1.5, 2] },
+    { res: '3840x2160', w: 3840, h: 2160, ratios: [1.5, 2] },
+  ];
+  const GPUS = [
+    { v: 'Google Inc. (Intel)', r: 'ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0)' },
+    { v: 'Google Inc. (Intel)', r: 'ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0)' },
+    { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 Direct3D11 vs_5_0)' },
+    { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0)' },
+    { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Direct3D11 vs_5_0)' },
+    { v: 'Google Inc. (AMD)', r: 'ANGLE (AMD, AMD Radeon RX 580 Direct3D11 vs_5_0)' },
+    { v: 'Google Inc. (AMD)', r: 'ANGLE (AMD, AMD Radeon(TM) Graphics Direct3D11 vs_5_0)' }
+  ];
+
+  const randomFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+  const loc = randomFrom(LOCALES);
+  const bv = randomFrom(BROWSERS);
+  const os = randomFrom(OS_LIST);
+  const screen = randomFrom(SCREENS);
+  const pixelRatio = randomFrom(screen.ratios);
+  const gpu = randomFrom(GPUS);
+  const cpuCores = randomFrom([2, 4, 6, 8, 12, 16, 24, 32]);
+  const ramGB = randomFrom([2, 4, 8, 12, 16, 24, 32, 64]);
+
+  let ua = '';
+  const plat = os === 'Windows' ? 'Win32' : os === 'macOS' ? 'MacIntel' : 'Linux x86_64';
+  if (os === 'Windows') ua = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
+  else if (os === 'macOS') ua = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
+  else ua = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
+
+  return {
+    fingerprint: {
+      ...defaultFingerprint,
+      os: os,
+      browserVersion: bv,
+      userAgent: ua,
+      language: loc.code,
+      timezone: loc.timezone,
+      screenResolution: screen.res,
+      colorDepth: randomFrom([24, 32]),
+      pixelRatio: pixelRatio,
+      webglNoise: randomInt(100000000, 2100000000),
+      maxTextureSize: randomFrom([4096, 8192, 16384]),
+      webglExtensions: randomFrom([
+        'EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float',
+        'ANGLE_instanced_arrays, OES_texture_float, WEBGL_depth_texture, OES_vertex_array_object',
+        'EXT_texture_filter_anisotropic, WEBGL_compressed_texture_s3tc, OES_element_index_uint'
+      ]),
+      canvasNoise: randomInt(100000000, 2100000000),
+      canvasNoiseIntensity: randomFrom([1, 2, 3, 4, 5]),
+      audioNoise: randomInt(100000000, 2100000000),
+      audioSampleRate: randomFrom([44100, 48000, 96000]),
+      audioChannels: randomFrom(['Mono', 'Stereo', 'Surround']),
+      maxTouchPoints: randomFrom([0, 5, 10]),
+      connectionType: randomFrom(['Ethernet', 'Wi-Fi']),
+      pdfViewer: 'Enabled',
+      batteryCharging: 'No',
+      batteryLevel: Number((Math.random() * (1 - 0.1) + 0.1).toFixed(2)),
+      batteryChargingTime: 0,
+      batteryDischargingTime: randomInt(5000, 20000),
+      fonts: 'Cambria, Microsoft New Tai Lue, Constantia, Palatino Linotype, Corbel, SimSu, Arial, Arial Black, Comic Sans MS, Courier New, Georgia, Impact, Lucida Console, Lucida Sans Unicode, Tahoma, Times New Roman, Trebuchet MS, Verdana, Consolas, Segoe UI, Calibri, Candara, Franklin Gothic Medium, Garamond, MS Sans Serif, MS Serif, Symbol, Webdings, Wingdings, MS Gothic, MS Mincho, PMingLiU, MingLiU, SimSun, NSimSun'
+    },
+    settings: {
+      ...JSON.parse(JSON.stringify(defaultSettings)),
+      language: loc.code,
+      timezone: loc.timezone,
+      cpuCores: cpuCores,
+      memoryGB: ramGB,
+      gpuVendor: gpu.v,
+      gpuRenderer: gpu.r,
+      webrtc: randomFrom(['Public + private', 'Default', 'Disable non-proxied UDP', 'Public interface only']),
+      mediaDevices: { speakers: randomInt(1,3), microphones: randomInt(0,2), webcams: randomInt(0,1), audio: true, video: true },
+      advanced: {
+        platform: plat,
+        dnt: false,
+        devicePixelRatio: pixelRatio,
+        maxTouchPoints: 0,
+        webglVendor: gpu.v,
+        webglRenderer: gpu.r,
+        plugins: randomInt(2, 5),
+        languages: loc.languages
+      }
+    }
+  };
+};
+
 const SCREEN_PRESETS = [
   '1024x768', '1280x720', '1280x800', '1366x768', '1440x900',
   '1536x864', '1600x900', '1680x1050', '1920x1080', '1920x1200',
@@ -74,12 +179,24 @@ function ProfileForm({ profile, onSave, onCancel }) {
 
   useEffect(() => {
     if (profile) {
-      setFormData({
-        ...profile,
-        cookie: profile.cookie || '',
-        fingerprint: { ...defaultFingerprint, ...profile.fingerprint },
-        settings: { ...JSON.parse(JSON.stringify(defaultSettings)), ...(profile.settings || {}) },
-      });
+      if (!profile.id) {
+        // New Profile: Pre-fill random consistent fingerprint
+        const randomConfig = generateConsistentFingerprint();
+        setFormData({
+          ...profile,
+          cookie: '',
+          fingerprint: randomConfig.fingerprint,
+          settings: { ...randomConfig.settings, quantity: 1, injectFingerprint: true },
+        });
+      } else {
+        // Edit Profile
+        setFormData({
+          ...profile,
+          cookie: profile.cookie || '',
+          fingerprint: { ...defaultFingerprint, ...profile.fingerprint },
+          settings: { ...JSON.parse(JSON.stringify(defaultSettings)), ...(profile.settings || {}) },
+        });
+      }
     }
   }, [profile]);
 
@@ -103,66 +220,19 @@ function ProfileForm({ profile, onSave, onCancel }) {
   const setS = (field, val) => setFormData(prev => ({ ...prev, settings: { ...prev.settings, [field]: val } }));
 
   const generateFingerprint = () => {
-    const osList = ['Windows', 'macOS', 'Linux'];
-    const pOs = formData.fingerprint.os || randomFrom(osList);
-    const locales = options.locales?.length ? options.locales : fallbackLocales;
-    const timezones = options.timezones?.length ? options.timezones : fallbackTimezones;
-    
-    const locale = randomFrom(locales);
-    const timezone = randomFrom(timezones);
-    const resolution = randomFrom(SCREEN_PRESETS);
-    const bv = randomFrom(['145.0.0.0', '145.0.6167.85']);
-    
-    let ua = '';
-    const plat = pOs === 'Windows' ? 'Win32' : pOs === 'macOS' ? 'MacIntel' : 'Linux x86_64';
-    if (pOs === 'Windows') ua = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
-    else if (pOs === 'macOS') ua = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
-    else ua = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
-
-    const gpus = [
-      { v: 'Google Inc. (Intel)', r: 'ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0)' },
-      { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 Direct3D11 vs_5_0)' },
-      { v: 'Google Inc. (AMD)', r: 'ANGLE (AMD, AMD Radeon RX 580 Direct3D11 vs_5_0)' }
-    ];
-    const gpu = randomFrom(gpus);
-    const extraLangs = locales.filter(l => l !== locale).slice(0, 2);
-
-    const webglNoise = Math.floor(Math.random() * 2000000000) + 100000000;
-    const maxTextureSize = randomFrom([4096, 8192, 16384]);
-    const webglExtensions = randomFrom([
-      'EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float',
-      'ANGLE_instanced_arrays, OES_texture_float, WEBGL_depth_texture, OES_vertex_array_object',
-      'EXT_texture_filter_anisotropic, WEBGL_compressed_texture_s3tc, OES_element_index_uint'
-    ]);
-    const canvasNoise = Math.floor(Math.random() * 2000000000) + 100000000;
-    const canvasNoiseIntensity = randomFrom([1, 2, 3, 4, 5]);
-
-    const audioNoise = Math.floor(Math.random() * 2000000000) + 100000000;
-    const audioSampleRate = randomFrom([44100, 48000, 96000]);
-    const audioChannels = randomFrom(['Mono', 'Stereo', 'Surround']);
-    
-    const maxTouchPoints = randomFrom([0, 5, 10]);
-    const connectionType = randomFrom(['Ethernet', 'Wi-Fi', 'None']);
-    
-    const batteryLevel = Number((Math.random() * (0.9 - 0.1) + 0.1).toFixed(2));
-    const dischargingTime = Math.floor(Math.random() * 20000) + 5000;
-
+    const randomConfig = generateConsistentFingerprint();
     setFormData(prev => ({
       ...prev,
       fingerprint: {
         ...prev.fingerprint,
-        os: pOs, browserVersion: bv, userAgent: ua, language: locale, timezone,
-        screenResolution: resolution, colorDepth: randomFrom([24, 32]), pixelRatio: randomFrom([1, 1.25, 1.5, 2]),
-        webglNoise, maxTextureSize, webglExtensions, canvasNoise, canvasNoiseIntensity,
-        audioNoise, audioSampleRate, audioChannels,
-        maxTouchPoints, connectionType, pdfViewer: 'Enabled',
-        batteryCharging: 'No', batteryLevel, batteryChargingTime: 0, batteryDischargingTime: dischargingTime
+        ...randomConfig.fingerprint
       },
       settings: {
         ...prev.settings,
-        language: locale, timezone, cpuCores: randomFrom(CPU_OPTIONS), memoryGB: randomFrom(RAM_OPTIONS),
-        gpuVendor: gpu.v, gpuRenderer: gpu.r,
-        advanced: { ...prev.settings.advanced, platform: plat, languages: [locale, ...extraLangs].join(', ') }
+        ...randomConfig.settings,
+        injectFingerprint: prev.settings.injectFingerprint,
+        quantity: prev.settings.quantity,
+        engine: prev.settings.engine
       }
     }));
   };
@@ -184,8 +254,22 @@ function ProfileForm({ profile, onSave, onCancel }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Unchecking "Inject fingerprint" disables the backend applyOverrides:
+    const finalSettings = { ...formData.settings };
+    if (finalSettings.injectFingerprint === false) {
+      finalSettings.applyOverrides = { hardware: false, navigator: false, userAgent: false, webgl: false, language: false, viewport: false, geolocation: false };
+    } else {
+      delete finalSettings.applyOverrides; // Use default backend behavior (all true)
+    }
+
+    if (!finalSettings.engine) {
+      finalSettings.engine = 'auto'; // Resolve to auto and let backend handle it
+    }
+
     const payload = {
       ...formData,
+      settings: finalSettings,
       fingerprint: {
         ...formData.fingerprint,
         language: formData.settings.language || formData.fingerprint.language,
