@@ -29,7 +29,7 @@ const {
   deleteProxyInternal, deleteProxiesBulkInternal,
   importProxiesInternal, exportProxiesInternal,
 } = require('../storage/proxies');
-const { checkProxy } = require('../engine/proxyChecker');
+const { checkProxy, checkProxiesBatch } = require('../services/ProxyChecker');
 
 function registerIpcHandlers(extra = {}) {
   ipcMain.handle('get-profiles', async () => await getProfilesInternal());
@@ -86,49 +86,7 @@ function registerIpcHandlers(extra = {}) {
   ipcMain.handle('proxy-import', async (_e, text, format) => await importProxiesInternal(text, format));
   ipcMain.handle('proxy-export', async (_e, ids) => await exportProxiesInternal(ids));
   
-  // Proxy checking
-  ipcMain.handle('proxy-check', async (_e, id) => {
-    try {
-      const getRes = await getProxyByIdInternal(id);
-      if (!getRes.success) return getRes;
-      
-      const proxy = getRes.proxy;
-      const checkRes = await checkProxy(proxy);
-      
-      const updateData = {
-        status: checkRes.success ? 'active' : 'error',
-        lastChecked: new Date().toISOString(),
-        latency: checkRes.success ? checkRes.latency : null,
-      };
-      
-      return await updateProxyInternal(id, updateData);
-    } catch (e) {
-      return { success: false, error: e.message };
-    }
-  });
 
-  ipcMain.handle('proxy-check-all', async () => {
-    try {
-      const proxiesList = await getProxiesInternal();
-      const results = [];
-      // Kiểm tra song song hoặc tuần tự. Ở đây dùng Promise.all để test song song. 
-      // Nhưng nếu lượng lớn cần chunk/queue. Tạm thời dùng chạy song song toàn bộ.
-      const checks = proxiesList.map(async (proxy) => {
-        const checkRes = await checkProxy(proxy);
-        const updateData = {
-          status: checkRes.success ? 'active' : 'error',
-          lastChecked: new Date().toISOString(),
-          latency: checkRes.success ? checkRes.latency : null,
-        };
-        const updated = await updateProxyInternal(proxy.id, updateData);
-        if (updated.success) results.push(updated.proxy);
-      });
-      await Promise.allSettled(checks);
-      return { success: true, count: results.length };
-    } catch (e) {
-      return { success: false, error: e.message };
-    }
-  });
 
   ipcMain.handle('proxy-test-connection', async (_e, proxy) => {
     try {
@@ -136,6 +94,29 @@ function registerIpcHandlers(extra = {}) {
       return checkRes;
     } catch (e) {
       return { success: false, error: e.message };
+    }
+  });
+
+  // Proxy checker
+  ipcMain.handle('proxy-rotate', async (_e, id) => {
+    try {
+      const getRes = await getProxyByIdInternal(id);
+      if (!getRes.success) return getRes;
+      const proxy = getRes.proxy;
+      if (!proxy.rotateUrl) return { success: false, error: 'No rotate URL configured' };
+      
+      const axios = require('axios');
+      const startTime = Date.now();
+      const response = await axios.get(proxy.rotateUrl, { timeout: 15000 });
+      const latency = Date.now() - startTime;
+      
+      await updateProxyInternal(id, {
+        lastRotated: new Date().toISOString()
+      });
+      
+      return { success: true, latency, data: response.data };
+    } catch (e) {
+      return { success: false, error: e?.message || e };
     }
   });
 

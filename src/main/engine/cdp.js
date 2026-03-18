@@ -1,3 +1,12 @@
+/**
+ * cdp.js — Core Chromium / Chrome Launcher for the CDP Engine.
+ * 
+ * This file is responsible for spawning the raw Chrome/Edge browser process
+ * and managing its lifecycle (finding free ports, connecting to the debugger,
+ * and force-killing lingering processes). It operates entirely independently
+ * from Playwright's built-in browser launcher.
+ */
+
 const { spawn, execFile } = require('child_process');
 const http = require('http');
 const net = require('net');
@@ -7,6 +16,10 @@ const { getDataRoot } = require('../storage/paths');
 
 function ensureDir(p) { try { fs.mkdirSync(p, { recursive: true }); } catch {} }
 
+/**
+ * Returns the isolated User Data Directory path for a specific profile.
+ * This guarantees that cookies, cache, and history are kept strictly separate.
+ */
 function userDataDirFor(profileId) {
   const dir = path.join(getDataRoot(), 'cdp-user-data', String(profileId));
   ensureDir(dir);
@@ -15,6 +28,10 @@ function userDataDirFor(profileId) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+/**
+ * Finds an available TCP port on the host machine to use for the Chrome Debugger.
+ * It attempts up to `maxTries` times starting from `start` port.
+ */
 async function findFreePort(start = 9222, host = '127.0.0.1', maxTries = 50) {
   let port = start;
   for (let i = 0; i < maxTries; i++) {
@@ -29,6 +46,11 @@ async function findFreePort(start = 9222, host = '127.0.0.1', maxTries = 50) {
   throw new Error('No free port found for remote debugging');
 }
 
+/**
+ * Queries the `/json/version` HTTP endpoint of the running Chrome Debugger
+ * to securely obtain the actual WebSocket Debugger URL (webSocketDebuggerUrl).
+ * This is more reliable than parsing the stdout/stderr stream.
+ */
 async function fetchJsonVersion(host, port, timeoutMs = 20000) {
   const hostCandidates = Array.from(new Set([host, '127.0.0.1', 'localhost'].filter(Boolean)));
   const start = Date.now();
@@ -58,6 +80,11 @@ async function fetchJsonVersion(host, port, timeoutMs = 20000) {
   throw new Error(`Failed to fetch DevTools URL: ${msg}`);
 }
 
+/**
+ * Forcefully kills a process and all its children.
+ * Crucial for Windows where Chrome often leaves orphaned background processes
+ * (like crashpad handlers or GPU processes) running even after the main window is closed.
+ */
 function killProcessTreeWin(pid) {
   return new Promise((resolve) => {
     if (process.platform !== 'win32') {
@@ -71,6 +98,17 @@ function killProcessTreeWin(pid) {
   });
 }
 
+/**
+ * Main function to launch a raw Chrome/Edge process for the CDP Engine.
+ * 
+ * Flow:
+ * 1. Assembles CLI arguments (userDataDir, debug port, proxies, anti-detect flags).
+ * 2. Spawns the `chrome.exe` child process in totally detached/background mode.
+ * 3. Monitors the STDERR output until it sees the "DevTools listening on ws://..."
+ *    message, indicating the browser is ready to receive CDP commands.
+ * 
+ * @returns {Promise<{ child: ChildProcess, wsPromise: Promise<string> }>}
+ */
 async function launchChromeCdp({ profileId, chromePath, host, port, userDataDir, startUrl, proxy, appendLog, extraArgs = [] }) {
   const chromeArgs = [
     `--user-data-dir=${userDataDir}`,
@@ -92,7 +130,7 @@ async function launchChromeCdp({ profileId, chromePath, host, port, userDataDir,
       const u = new URL(proxyServer);
       if (proxy.username) u.username = encodeURIComponent(proxy.username);
       if (proxy.password) u.password = encodeURIComponent(proxy.password);
-      proxyServer = u.toString();
+      proxyServer = u.toString().replace(/\/$/, ''); // Remove trailing slash which Chromium rejects
     } catch {
       // leave as-is on parse failure
     }

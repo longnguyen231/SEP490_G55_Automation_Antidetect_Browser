@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Network, Plus, Upload, Search, Trash2, Edit2, CheckCircle2,
-    XCircle, AlertCircle, HelpCircle, X
+    XCircle, AlertCircle, HelpCircle, X, Zap, Loader2, RefreshCw
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import './ProxyManager.css';
@@ -13,6 +13,70 @@ export default function ProxyManager() {
     const [showForm, setShowForm] = useState(false);
     const [showImport, setShowImport] = useState(false);
     const [editingProxy, setEditingProxy] = useState(null);
+    const [checkingIds, setCheckingIds] = useState(new Set()); // proxy IDs currently being checked
+    const [rotatingIds, setRotatingIds] = useState(new Set()); // proxy IDs currently being rotated
+    const [checkingAll, setCheckingAll] = useState(false);
+
+    const handleRotateOne = async (proxy) => {
+        if (!proxy.rotateUrl) {
+            alert('This proxy does not have a rotation URL configured.');
+            return;
+        }
+        setRotatingIds(prev => new Set([...prev, proxy.id]));
+        try {
+            const result = await window.electronAPI.rotateProxy(proxy.id);
+            if (result && result.success) {
+                await loadProxies();
+                console.log(`Rotated IP successfully for ${proxy.name}, Latency: ${result.latency}ms`);
+            } else {
+                alert('Rotate failed: ' + (result?.error || 'Unknown error'));
+            }
+        } catch (e) {
+            console.error('Rotate proxy failed:', e);
+            alert('Error rotating IP: ' + e.message);
+        } finally {
+            setRotatingIds(prev => { const s = new Set(prev); s.delete(proxy.id); return s; });
+        }
+    };
+
+    const handleCheckOne = async (proxy) => {
+        setCheckingIds(prev => new Set([...prev, proxy.id]));
+        try {
+            const result = await window.electronAPI.checkProxy({
+                type: proxy.type || proxy.protocol || 'http',
+                host: proxy.host,
+                port: Number(proxy.port),
+                username: proxy.username || '',
+                password: proxy.password || '',
+            });
+            // Update proxy in backend
+            if (result) {
+                await window.electronAPI.updateProxy(proxy.id, {
+                    status: result.alive ? 'alive' : 'dead',
+                    latency: result.latency || null,
+                    lastChecked: new Date().toISOString(),
+                    country: result.countryCode || '',
+                });
+            }
+            await loadProxies();
+        } catch (e) {
+            console.error('Check proxy failed:', e);
+        } finally {
+            setCheckingIds(prev => { const s = new Set(prev); s.delete(proxy.id); return s; });
+        }
+    };
+
+    const handleCheckAll = async () => {
+        setCheckingAll(true);
+        try {
+            await window.electronAPI.checkAllProxies();
+            await loadProxies();
+        } catch (e) {
+            alert('Check all failed: ' + e.message);
+        } finally {
+            setCheckingAll(false);
+        }
+    };
 
     // Load proxies from backend on mount
     useEffect(() => {
@@ -41,6 +105,7 @@ export default function ProxyManager() {
                 port: Number(formData.port),
                 username: formData.username || '',
                 password: formData.password || '',
+                rotateUrl: formData.rotateUrl || '',
             });
             if (res?.success) {
                 await loadProxies();
@@ -62,6 +127,7 @@ export default function ProxyManager() {
                 port: Number(formData.port),
                 username: formData.username || '',
                 password: formData.password || '',
+                rotateUrl: formData.rotateUrl || '',
             });
             if (res?.success) {
                 await loadProxies();
@@ -151,6 +217,10 @@ export default function ProxyManager() {
                         proxies={filteredProxies}
                         onEdit={(p) => { setEditingProxy(p); setShowForm(true); }}
                         onDelete={handleDelete}
+                        onCheck={handleCheckOne}
+                        onRotate={handleRotateOne}
+                        checkingIds={checkingIds}
+                        rotatingIds={rotatingIds}
                         t={t}
                     />
                 )}
@@ -176,7 +246,7 @@ export default function ProxyManager() {
     );
 }
 
-function ProxyTable({ proxies, onEdit, onDelete, t }) {
+function ProxyTable({ proxies, onEdit, onDelete, onCheck, onRotate, checkingIds, rotatingIds, t }) {
     const getStatusIcon = (status) => {
         switch (status) {
             case 'alive': return <CheckCircle2 size={14} />;
@@ -208,30 +278,58 @@ function ProxyTable({ proxies, onEdit, onDelete, t }) {
                     </tr>
                 </thead>
                 <tbody>
-                    {proxies.map(p => (
-                        <tr key={p.id}>
-                            <td><strong>{p.name}</strong></td>
-                            <td><span style={{ textTransform: 'uppercase', fontSize: '0.85rem' }}>{p.protocol || 'http'}</span></td>
-                            <td>
-                                <span style={{ fontFamily: 'monospace' }}>
-                                    {p.username ? `${p.username}:***@` : ''}{p.host}:{p.port}
-                                </span>
-                            </td>
-                            <td>
-                                <span className={`proxy-status ${getStatusClass(p.status)}`}>
-                                    {getStatusIcon(p.status)} {p.status || 'unchecked'}
-                                </span>
-                            </td>
-                            <td style={{ textAlign: 'right' }}>
-                                <button className="btn-icon-primary" onClick={() => onEdit(p)} title={t('proxies.form.title.edit')}>
-                                    <Edit2 size={16} />
-                                </button>
-                                <button className="btn-icon-danger" onClick={() => onDelete(p.id)} title={t('proxies.delete.confirm')}>
-                                    <Trash2 size={16} />
-                                </button>
-                            </td>
-                        </tr>
-                    ))}
+                    {proxies.map(p => {
+                        const isChecking = checkingIds?.has(p.id);
+                        const isRotating = rotatingIds?.has(p.id);
+                        return (
+                            <tr key={p.id}>
+                                <td><strong>{p.name}</strong></td>
+                                <td><span style={{ textTransform: 'uppercase', fontSize: '0.85rem' }}>{p.protocol || 'http'}</span></td>
+                                <td>
+                                    <span style={{ fontFamily: 'monospace' }}>
+                                        {p.username ? `${p.username}:***@` : ''}{p.host}:{p.port}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span className={`proxy-status ${getStatusClass(p.status)}`}>
+                                        {getStatusIcon(p.status)} {p.status || 'unchecked'}
+                                    </span>
+                                </td>
+                                <td>
+                                    {p.latency != null ? (
+                                        <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{p.latency}ms</span>
+                                    ) : '—'}
+                                </td>
+                                <td>{p.country || '—'}</td>
+                                <td style={{ textAlign: 'right' }}>
+                                    <button
+                                        className="btn-icon-primary"
+                                        onClick={() => onCheck(p)}
+                                        disabled={isChecking}
+                                        title="Check proxy"
+                                    >
+                                        {isChecking ? <Loader2 size={16} className="spin" /> : <Zap size={16} />}
+                                    </button>
+                                    {p.rotateUrl && (
+                                        <button
+                                            className="btn-icon-secondary"
+                                            onClick={() => onRotate(p)}
+                                            disabled={isRotating}
+                                            title="Rotate IP"
+                                        >
+                                            {isRotating ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}
+                                        </button>
+                                    )}
+                                    <button className="btn-icon-primary" onClick={() => onEdit(p)} title={t('proxies.form.title.edit')}>
+                                        <Edit2 size={16} />
+                                    </button>
+                                    <button className="btn-icon-danger" onClick={() => onDelete(p.id)} title={t('proxies.delete.confirm')}>
+                                        <Trash2 size={16} />
+                                    </button>
+                                </td>
+                            </tr>
+                        );
+                    })}
                 </tbody>
             </table>
         </div>
@@ -239,8 +337,13 @@ function ProxyTable({ proxies, onEdit, onDelete, t }) {
 }
 
 function ProxyFormModal({ proxy, onSave, onClose, t }) {
-    const [formData, setFormData] = useState(proxy || {
-        name: '', protocol: 'http', host: '', port: '', username: '', password: ''
+    const [formData, setFormData] = useState(proxy ? {
+        ...proxy,
+        protocol: proxy.protocol || proxy.type || 'http',
+        port: proxy.port || '',
+        rotateUrl: proxy.rotateUrl || '',
+    } : {
+        name: '', protocol: 'http', host: '', port: '', username: '', password: '', rotateUrl: ''
     });
 
     const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -294,6 +397,14 @@ function ProxyFormModal({ proxy, onSave, onClose, t }) {
                             <label className="proxy-form-label">{t('proxies.form.password')} (Optional)</label>
                             <input type="password" name="password" className="proxy-form-control" value={formData.password} onChange={handleChange} />
                         </div>
+                    </div>
+
+                    <div className="proxy-form-group">
+                        <label className="proxy-form-label">Rotate URL / API Link (Optional)</label>
+                        <input type="url" name="rotateUrl" className="proxy-form-control" placeholder="https://api.proxynetwork.com/rotate?id=123" value={formData.rotateUrl || ''} onChange={handleChange} />
+                        <small className="form-help-text" style={{ fontSize: '0.8rem', color: '#888', marginTop: '4px', display: 'block' }}>
+                            Providing a URL allows you to rotate the proxy IP with one click.
+                        </small>
                     </div>
 
                     <div className="proxy-modal-footer">

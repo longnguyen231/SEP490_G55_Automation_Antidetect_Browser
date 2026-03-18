@@ -93,9 +93,9 @@ async function launchProfileInternal(profileId, options = {}) {
         }
         
         const hasAuth = !!(settings.proxy && (settings.proxy.username || settings.proxy.password));
-        const isSocks = /^socks\d?:\/\//i.test(serverStr);
+        const proxyType = (settings.proxy?.type || '').toLowerCase();
+        const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(serverStr);
         if (settings.proxy && serverStr && (hasAuth || isSocks)) {
-          // Pass the reconstructed serverStr back to the proxy forwarder so it knows what to dial
           const proxyConfig = { ...settings.proxy, server: serverStr };
           const { startProxyForwarder } = require('../engine/proxyForwarder');
           forwarder = await startProxyForwarder(proxyConfig, { appendLog, profileId });
@@ -171,14 +171,32 @@ async function launchProfileInternal(profileId, options = {}) {
               }
             }
             // Periodically prune other dead CDP sessions as well
-            else { await pruneDeadCdp(runningProfiles, appendLog, broadcastRunningMap); }
+            else { 
+              await pruneDeadCdp(runningProfiles, appendLog, broadcastRunningMap); 
+              
+              // Periodically save open tabs for session restore
+              try {
+                const info = runningProfiles.get(profileId);
+                if (info && info.cdpControl && info.cdpControl.context) {
+                  const pages = info.cdpControl.context.pages();
+                  if (pages && pages.length > 0) {
+                    const { saveSessionTabs } = require('../storage/sessionTabs');
+                    saveSessionTabs(profileId, pages.map(p => p.url()));
+                  }
+                }
+              } catch {}
+            }
           } catch { }
         }, 2500);
       } catch { }
   runningProfiles.set(profileId, { engine: 'cdp', childProc: child, wsEndpoint, host, port, forwarder, heartbeat });
       broadcastRunningMap();
+      // Load saved tabs
+      const { loadSessionTabs } = require('../storage/sessionTabs');
+      const savedTabs = loadSessionTabs(profileId);
+
       // Always apply CDP overrides; InitScript can be toggled inside cdpOverrides based on settings.cdpApplyInitScript
-      try { await applyCdpOverrides(profileId, wsEndpoint, profile, settings, startUrl, { appendLog, runningProfiles, broadcastRunningMap }); } catch (e) { appendLog(profileId, `CDP overrides failed: ${e?.message || e}`); }
+      try { await applyCdpOverrides(profileId, wsEndpoint, profile, settings, startUrl, { appendLog, runningProfiles, broadcastRunningMap, savedTabs }); } catch (e) { appendLog(profileId, `CDP overrides failed: ${e?.message || e}`); }
       // Post-launch automation script (if configured)
       try { await runAutomationPostLaunch(profile, { engine: 'cdp', wsEndpoint }); } catch (e) { appendLog(profileId, `Automation post-launch error (CDP): ${e?.message || e}`); }
       return { success: true, wsEndpoint };
@@ -203,15 +221,37 @@ async function launchProfileInternal(profileId, options = {}) {
       if (applyGeo && wantGeo) permissions.push('geolocation');
     } catch {}
     let proxy;
-    if (settings.proxy && settings.proxy.host && settings.proxy.port) {
-      const pType = String(settings.proxy.type || 'http').toLowerCase();
-      proxy = { server: `${pType}://${settings.proxy.host}:${settings.proxy.port}` };
-      if (settings.proxy.username) proxy.username = settings.proxy.username;
-      if (settings.proxy.password) proxy.password = settings.proxy.password;
-    } else if (settings.proxy?.server) {
-      proxy = { server: settings.proxy.server.startsWith('http') ? settings.proxy.server : `http://${settings.proxy.server}` };
-      if (settings.proxy.username) proxy.username = settings.proxy.username;
-      if (settings.proxy.password) proxy.password = settings.proxy.password;
+    let forwarder = null;
+    
+    let serverStr = '';
+    if (settings.proxy) {
+      if (settings.proxy.server) serverStr = String(settings.proxy.server);
+      else if (settings.proxy.host && settings.proxy.port) {
+        serverStr = `${settings.proxy.type || 'http'}://${settings.proxy.host}:${settings.proxy.port}`;
+      }
+    }
+    
+    if (serverStr) {
+      const proxyType = (settings.proxy.type || '').toLowerCase();
+      const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(serverStr);
+      const hasAuth = !!(settings.proxy.username || settings.proxy.password);
+
+      if (hasAuth || isSocks) {
+        try {
+          const proxyConfig = { ...settings.proxy, server: serverStr };
+          const { startProxyForwarder } = require('../engine/proxyForwarder');
+          forwarder = await startProxyForwarder(proxyConfig, { appendLog, profileId });
+          proxy = { server: forwarder.url };
+          appendLog(profileId, `Playwright using proxy forwarder: ${forwarder.url}`);
+        } catch (e) {
+          appendLog(profileId, `Proxy forwarder failed, falling back to direct: ${e?.message || e}`);
+          proxy = { server: serverStr };
+          if (settings.proxy.username) proxy.username = settings.proxy.username;
+          if (settings.proxy.password) proxy.password = settings.proxy.password;
+        }
+      } else {
+        proxy = { server: serverStr };
+      }
     }
     let server;
     try { server = await chromium.launchServer({ headless, args, proxy }); }
@@ -264,9 +304,40 @@ async function launchProfileInternal(profileId, options = {}) {
       const { applyFingerprintInitScripts } = require('../engine/fingerprintInit');
       await applyFingerprintInitScripts(context, profile, settings);
     } catch {}
-    const page = await context.newPage();
-    await page.goto(startUrl, { waitUntil: 'domcontentloaded' });
-    appendLog(profileId, `Opened page: ${startUrl}`);
+    const { loadSessionTabs, saveSessionTabs } = require('../storage/sessionTabs');
+    const savedTabs = loadSessionTabs(profileId);
+    
+    if (savedTabs && savedTabs.length > 0) {
+      appendLog(profileId, `Restoring ${savedTabs.length} saved tabs...`);
+      let first = true;
+      for (const url of savedTabs) {
+        try {
+          const p = first ? ((context.pages() || [])[0] || await context.newPage()) : await context.newPage();
+          first = false;
+          p.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(err => {
+            appendLog(profileId, `Failed to load restored tab ${url}: ${err?.message || err}`);
+          });
+        } catch (e) {
+          appendLog(profileId, `Failed to create tab for ${url}: ${e?.message || e}`);
+        }
+      }
+    } else {
+      const page = await context.newPage();
+      // Navigate with timeout and retry for slow proxy connections
+      try {
+        await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      } catch (navErr) {
+        appendLog(profileId, `First navigation attempt failed: ${navErr?.message || navErr}. Retrying...`);
+        try {
+          await new Promise(r => setTimeout(r, 2000)); // brief pause before retry
+          await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        } catch (retryErr) {
+          appendLog(profileId, `Second navigation attempt failed: ${retryErr?.message || retryErr}. Browser is open but page not loaded.`);
+          // Don't throw — keep the browser open so user can interact with it
+        }
+      }
+      appendLog(profileId, `Opened page: ${startUrl}`);
+    }
 
     const saveState = async () => {
       try {
@@ -277,12 +348,23 @@ async function launchProfileInternal(profileId, options = {}) {
         const msg = e?.message || String(e);
         if (/has been closed/i.test(msg)) appendLog(profileId, 'Storage save skipped: context closed'); else appendLog(profileId, `Error saving storage state: ${msg}`);
       }
+      try {
+        const pages = context.pages();
+        if (pages && pages.length > 0) {
+          saveSessionTabs(profileId, pages.map(p => p.url()));
+        }
+      } catch (e) {}
     };
-    page.on('close', async () => { await saveState(); try { await context.close(); } catch { } });
-    context.on('close', async () => { await saveState(); runningProfiles.delete(profileId); appendLog(profileId, 'Context closed'); try { await server.close(); } catch { }; broadcastRunningMap(); });
-    try { browser.on?.('disconnected', () => { if (runningProfiles.has(profileId)) { runningProfiles.delete(profileId); appendLog(profileId, 'Browser disconnected'); try { server.close(); } catch { }; broadcastRunningMap(); } }); } catch { }
-    try { const proc = server.process?.(); proc && proc.once && proc.once('exit', (code, signal) => { if (runningProfiles.has(profileId)) { runningProfiles.delete(profileId); appendLog(profileId, `Browser server exited (${code || ''} ${signal || ''})`); broadcastRunningMap(); } }); } catch { }
-    runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint });
+    try {
+      const firstPage = context.pages()[0];
+      if (firstPage) {
+        firstPage.on('close', async () => { await saveState(); try { await context.close(); } catch { } });
+      }
+    } catch { }
+    context.on('close', async () => { await saveState(); try { await forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Context closed'); try { await server.close(); } catch { }; broadcastRunningMap(); });
+    try { browser.on?.('disconnected', () => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Browser disconnected'); try { server.close(); } catch { }; broadcastRunningMap(); } }); } catch { }
+    try { const proc = server.process?.(); proc && proc.once && proc.once('exit', (code, signal) => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, `Browser server exited (${code || ''} ${signal || ''})`); broadcastRunningMap(); } }); } catch { }
+    runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder });
     broadcastRunningMap();
     // Post-launch automation script (if configured)
     try { await runAutomationPostLaunch(profile, { engine: 'playwright', wsEndpoint, context, browser }); } catch (e) { appendLog(profileId, `Automation post-launch error: ${e?.message || e}`); }
@@ -397,6 +479,7 @@ async function stopProfileInternal(profileId) {
     try { await context.close(); } catch { }
     try { await browser?.close?.(); } catch { }
     try { await server.close(); } catch { }
+    try { await running.forwarder?.stop?.(); } catch { }
     runningProfiles.delete(profileId);
     appendLog(profileId, 'Stopped profile');
     broadcastRunningMap();
@@ -426,6 +509,7 @@ async function stopAllProfilesInternal() {
         try { await context.close(); } catch { }
         try { await browser?.close?.(); } catch { }
         try { await server.close(); } catch { }
+        try { await running.forwarder?.stop?.(); } catch { }
         runningProfiles.delete(id); appendLog(id, 'Stopped by stop-all');
       }
       stopped++;

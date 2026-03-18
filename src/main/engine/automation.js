@@ -11,9 +11,16 @@ const { launchProfileInternal } = require('../controllers/profiles');
 
 function safeRequire(mod) { try { return require(mod); } catch { return null; } }
 
-const scheduledJobs = new Map(); // profileId -> cron job
-let watchInited = false;
+const scheduledJobs = new Map(); // Stores active cron jobs by profileId
+let watchInited = false;         // Flag to prevent multiple fs.watch instances
 
+/**
+ * Re-reads the profiles configuration and updates the cron jobs accordingly.
+ * It will:
+ * 1. Cancel jobs for profiles that no longer have a valid schedule or were deleted.
+ * 2. Create new cron jobs for profiles that have a newly enabled schedule.
+ * Note: Currently, updating an existing cron expression requires an app restart.
+ */
 function refreshSchedules() {
   const profiles = readProfiles();
   // Cancel removed or updated jobs
@@ -56,6 +63,12 @@ function refreshSchedules() {
   }
 }
 
+/**
+ * Initializes the automation scheduler.
+ * This runs on app startup to load existing schedules and sets up a filesystem
+ * watcher on `profiles.json` to dynamically reload schedules if the user
+ * updates profile automation settings via the UI.
+ */
 function startAutomationScheduler() {
   refreshSchedules();
   if (!watchInited) {
