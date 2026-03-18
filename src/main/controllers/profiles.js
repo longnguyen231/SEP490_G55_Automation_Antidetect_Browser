@@ -41,16 +41,15 @@ async function launchProfileInternal(profileId, options = {}) {
     const settings = profile.settings || {};
     const startUrl = profile.startUrl || 'https://www.google.com';
     const engine = (options && options.engine) ? String(options.engine).toLowerCase() : (settings.engine === 'cdp' ? 'cdp' : 'playwright');
-  // Headless only meaningful for Playwright engine; ignore for CDP
   const requestedHeadless = (options && typeof options.headless === 'boolean') ? options.headless : undefined;
-  const headless = engine === 'playwright' ? ((requestedHeadless !== undefined) ? requestedHeadless : !!settings.headless) : false;
+  const headless = (requestedHeadless !== undefined) ? requestedHeadless : !!settings.headless;
 
     // Persist engine/headless
     try {
       const idx = profiles.findIndex(p => p.id === profileId);
       if (idx !== -1) {
   const persist = { ...(profile.settings || {}), engine: (engine === 'cdp' ? 'cdp' : 'playwright') };
-  if (engine === 'playwright') persist.headless = !!headless; else delete persist.headless;
+  persist.headless = !!headless;
   profiles[idx] = { ...profile, settings: persist };
         writeProfiles(profiles);
       }
@@ -81,6 +80,7 @@ async function launchProfileInternal(profileId, options = {}) {
       }
       const fp = profile.fingerprint || {};
       if (settings.webgl === false || fp.webgl === false) { extraArgs.push('--disable-3d-apis'); }
+      if (headless) { extraArgs.push('--headless=new'); }
       // Proxy handling: start local forwarder when auth is present or using SOCKS
       let proxyForChrome = settings.proxy;
       let forwarder = null;
