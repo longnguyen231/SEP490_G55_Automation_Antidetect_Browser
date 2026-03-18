@@ -23,6 +23,7 @@ function App() {
   const [headlessPrefs, setHeadlessPrefs] = useState({});
   const [toasts, setToasts] = useState([]);
   const [enginePrefs, setEnginePrefs] = useState({});
+  const [errorProfiles, setErrorProfiles] = useState({});
   const [apiStatus, setApiStatus] = useState({ enabled: true, running: false, host: '127.0.0.1', port: 5478, error: null });
   const [apiDesiredPort, setApiDesiredPort] = useState(5478);
   const apiPortTimerRef = useRef(null);
@@ -122,20 +123,22 @@ function App() {
   const handleDeleteProfile = async (profileId) => { if (!window.confirm('Delete this profile?')) return; try { await api.deleteProfile(profileId); await loadProfiles(); } catch (e) { console.error('Delete error', e); } };
 
   const handleLaunchProfile = async (profileId) => {
-    try { const headless = !!headlessPrefs[profileId]; const engine = enginePrefs[profileId] || 'playwright'; const options = { headless, engine: engine === 'cdp' ? 'cdp' : 'playwright' }; const result = await window.electronAPI.launchProfile(profileId, options); if (!result.success) alert('Error launching profile: ' + result.error); await refreshRunningStatus(profiles.filter(p => p.id === profileId)); } catch (e) { alert('Error launching profile: ' + e.message); }
+    setErrorProfiles(prev => { const n = { ...prev }; delete n[profileId]; return n; });
+    try { const headless = !!headlessPrefs[profileId]; const engine = enginePrefs[profileId] || 'playwright'; const options = { headless, engine: engine === 'cdp' ? 'cdp' : 'playwright' }; const result = await window.electronAPI.launchProfile(profileId, options); if (!result.success) { setErrorProfiles(prev => ({ ...prev, [profileId]: true })); alert('Error launching profile: ' + result.error); } await refreshRunningStatus(profiles.filter(p => p.id === profileId)); } catch (e) { setErrorProfiles(prev => ({ ...prev, [profileId]: true })); alert('Error launching profile: ' + e.message); }
   };
   const handleStopProfile = async (profileId) => { try { const res = profileId === '__ALL__' ? await window.electronAPI.stopAllProfiles() : await window.electronAPI.stopProfile(profileId); if (!res.success) alert('Error stopping profile: ' + res.error); await refreshRunningStatus(); } catch (e) { alert('Error stopping profile: ' + e.message); } };
   const handleSetHeadless = async (profileId, value) => { if (runningWs[profileId]) return; setHeadlessPrefs(prev => ({ ...prev, [profileId]: !!value })); try { const p = profiles.find(x => x.id === profileId); if (p) { const updated = { ...p, settings: { ...(p.settings || {}), headless: !!value } }; const res = await window.electronAPI.saveProfile(updated); if (res?.success && res.profile) setProfiles(prev => prev.map(pp => pp.id === profileId ? res.profile : pp)); } } catch { } };
   const handleSetEngine = async (profileId, value) => { if (runningWs[profileId]) return; const normalized = value === 'cdp' ? 'cdp' : 'playwright'; setEnginePrefs(prev => ({ ...prev, [profileId]: normalized })); try { const p = profiles.find(x => x.id === profileId); if (p) { const updated = { ...p, settings: { ...(p.settings || {}), engine: normalized } }; const res = await window.electronAPI.saveProfile(updated); if (res?.success && res.profile) setProfiles(prev => prev.map(pp => pp.id === profileId ? res.profile : pp)); } } catch { } };
   const handleToggleProfile = async (profileId) => runningWs[profileId] ? handleStopProfile(profileId) : handleLaunchProfile(profileId);
   const handleLaunchHeadless = async (profileId) => {
+    setErrorProfiles(prev => { const n = { ...prev }; delete n[profileId]; return n; });
     try {
       const engine = enginePrefs[profileId] || 'playwright';
       const options = { headless: true, engine: engine === 'cdp' ? 'cdp' : 'playwright' };
       const result = await window.electronAPI.launchProfile(profileId, options);
-      if (!result.success) alert('Error launching headless: ' + result.error);
+      if (!result.success) { setErrorProfiles(prev => ({ ...prev, [profileId]: true })); alert('Error launching headless: ' + result.error); }
       await refreshRunningStatus();
-    } catch (e) { alert('Error launching headless: ' + e.message); }
+    } catch (e) { setErrorProfiles(prev => ({ ...prev, [profileId]: true })); alert('Error launching headless: ' + e.message); }
   };
   const handleSaveProfile = async (profile) => { try { const result = await api.saveProfile(profile); if (result.success) { setShowForm(false); setSelectedProfile(null); await loadProfiles(); } else alert('Error saving profile: ' + result.error); } catch (e) { alert('Error saving profile: ' + e.message); } };
   const handleCancel = () => { setShowForm(false); setSelectedProfile(null); };
@@ -216,6 +219,7 @@ function App() {
             enginePrefs={enginePrefs}
             onSetEngine={handleSetEngine}
             onDeleteSelected={handleDeleteSelected}
+            errorProfiles={errorProfiles}
           />
         );
 

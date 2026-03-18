@@ -71,6 +71,10 @@
   border-color: rgba(40,199,111,0.3);
 }
 
+.pl-card-error {
+  border-color: rgba(220,53,69,0.3);
+}
+
 /* Status dot */
 .pl-dot {
   width: 10px;
@@ -81,8 +85,13 @@
 }
 
 .pl-dot-active {
-  background: #e74c3c;
-  box-shadow: 0 0 6px rgba(231,76,60,0.6);
+  background: #28c76f;
+  box-shadow: 0 0 6px rgba(40,199,111,0.6);
+}
+
+.pl-dot-error {
+  background: #dc3545;
+  box-shadow: 0 0 6px rgba(220,53,69,0.6);
 }
 
 /* Info */
@@ -166,7 +175,7 @@
 }
 
 .pl-btn-launch  { background: #28a745; }
-.pl-btn-stop    { background: #dc3545; }
+.pl-btn-stop    { background: #c07e15; }
 .pl-btn-headless { background: #4a4e5a; }
 .pl-btn-proxy   { background: #6f42c1; }
 .pl-btn-clone   { background: #1a73e8; }

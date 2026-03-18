@@ -6,7 +6,8 @@ function ProfileList({
   onLaunchHeadless, onManageCookies, runningWs = {}, onCopyWs, onStopProfile, onViewLogs,
   selectedIds = {}, onToggleSelect, onSelectAll, onClearSelection,
   onStartSelected, onStopSelected, onCloneProfile,
-  headlessPrefs = {}, onSetHeadless, enginePrefs = {}, onSetEngine, onDeleteSelected
+  headlessPrefs = {}, onSetHeadless, enginePrefs = {}, onSetEngine, onDeleteSelected,
+  errorProfiles = {}
 }) {
   const shortId = (id) => (id || '').substring(0, 5);
 
@@ -38,10 +39,11 @@ function ProfileList({
             const browser = profile?.fingerprint?.browser || 'Chrome';
             const res = profile?.fingerprint?.screenResolution || '1920x1080';
 
+            const hasError = !!errorProfiles[profile.id] && !isRunning;
             return (
-              <div key={profile.id} className={`pl-card${isRunning ? ' pl-card-running' : ''}`}>
+              <div key={profile.id} className={`pl-card${isRunning ? ' pl-card-running' : ''}${hasError ? ' pl-card-error' : ''}`}>
                 {/* Status dot */}
-                <div className={`pl-dot${isRunning ? ' pl-dot-active' : ''}`} />
+                <div className={`pl-dot${isRunning ? ' pl-dot-active' : ''}${hasError ? ' pl-dot-error' : ''}`} />
 
                 {/* Info */}
                 <div className="pl-info">
@@ -61,9 +63,11 @@ function ProfileList({
                   {isRunning ? (
                     <button className="pl-btn pl-btn-stop" onClick={() => onStopProfile(profile.id)}>Stop</button>
                   ) : (
-                    <button className="pl-btn pl-btn-launch" onClick={() => onToggleProfile(profile.id)}>Launch</button>
+                    <>
+                      <button className="pl-btn pl-btn-launch" onClick={() => onToggleProfile(profile.id)}>Launch</button>
+                      <button className="pl-btn pl-btn-headless" onClick={() => onLaunchHeadless(profile.id)}>Headless</button>
+                    </>
                   )}
-                  <button className="pl-btn pl-btn-headless" onClick={() => onLaunchHeadless(profile.id)} disabled={isRunning}>Headless</button>
                   <button className="pl-btn pl-btn-proxy" onClick={() => onEditProfile(profile)}>Proxy</button>
                   <button className="pl-btn pl-btn-clone" onClick={() => onCloneProfile(profile.id)}>Clone</button>
                   <button className="pl-btn pl-btn-edit" onClick={() => onEditProfile(profile)}>Edit</button>
