@@ -26,7 +26,7 @@ const defaultSettings = {
   proxy: { type: 'none', server: '', username: '', password: '' },
   language: 'vi-VN',
   timezone: 'Asia/Ho_Chi_Minh',
-  webrtc: 'disabled',
+  webrtc: 'Public + private',
   geolocation: { mode: 'ip', latitude: 21.0278, longitude: 105.8342, accuracy: 100, permission: 'ask' },
   mediaDevices: { audio: true, video: true },
   webgl: true,
@@ -510,18 +510,27 @@ function ProfileForm({ profile, onSave, onCancel }) {
 
         <CollapsibleSection title="WebRTC">
           <div className="np-field np-mb-large">
-            <label className="np-label">Behavior</label>
-            <select className="np-input" value={formData.settings.webrtc || 'disabled'} onChange={e => setS('webrtc', e.target.value)}>
-              <option value="disabled">Disabled</option>
-              <option value="altered">Altered</option>
-              <option value="real">Real</option>
+            <label className="np-label">IP handling policy</label>
+            <select className="np-input" value={formData.settings.webrtc || 'Public + private'} onChange={e => setS('webrtc', e.target.value)}>
+              <option value="Public + private">Public + private</option>
+              <option value="Default">Default</option>
+              <option value="Disable non-proxied UDP">Disable non-proxied UDP</option>
+              <option value="Public interface only">Public interface only</option>
             </select>
           </div>
         </CollapsibleSection>
 
         <CollapsibleSection title="Fonts">
-          <div className="np-mb-large">
-            <label className="np-checkbox"><input type="checkbox" checked={formData.fingerprint.fontMasking !== false} onChange={e => setFp('fontMasking', e.target.checked)} /> Enable Font Masking</label>
+          <div className="np-field np-mb-large">
+            <label className="np-label">
+              Installed fonts ({(formData.fingerprint.fonts || 'Cambria, Microsoft New Tai Lue, Constantia, Palatino Linotype, Corbel, SimSu, Arial, Arial Black, Comic Sans MS, Courier New, Georgia, Impact, Lucida Console, Lucida Sans Unicode, Tahoma, Times New Roman, Trebuchet MS, Verdana, Consolas, Segoe UI, Calibri, Candara, Franklin Gothic Medium, Garamond, MS Sans Serif, MS Serif, Symbol, Webdings, Wingdings, MS Gothic, MS Mincho, PMingLiU, MingLiU, SimSun, NSimSun').split(',').filter(f => f.trim()).length})
+            </label>
+            <input 
+              type="text"
+              className="np-input" 
+              value={formData.fingerprint.fonts || 'Cambria, Microsoft New Tai Lue, Constantia, Palatino Linotype, Corbel, SimSu, Arial, Arial Black, Comic Sans MS, Courier New, Georgia, Impact, Lucida Console, Lucida Sans Unicode, Tahoma, Times New Roman, Trebuchet MS, Verdana, Consolas, Segoe UI, Calibri, Candara, Franklin Gothic Medium, Garamond, MS Sans Serif, MS Serif, Symbol, Webdings, Wingdings, MS Gothic, MS Mincho, PMingLiU, MingLiU, SimSun, NSimSun'} 
+              onChange={e => setFp('fonts', e.target.value)} 
+            />
           </div>
         </CollapsibleSection>
 
