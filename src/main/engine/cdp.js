@@ -130,7 +130,7 @@ async function launchChromeCdp({ profileId, chromePath, host, port, userDataDir,
       const u = new URL(proxyServer);
       if (proxy.username) u.username = encodeURIComponent(proxy.username);
       if (proxy.password) u.password = encodeURIComponent(proxy.password);
-      proxyServer = u.toString();
+      proxyServer = u.toString().replace(/\/$/, ''); // Remove trailing slash which Chromium rejects
     } catch {
       // leave as-is on parse failure
     }
