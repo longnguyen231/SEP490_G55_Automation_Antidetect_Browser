@@ -30,9 +30,9 @@ export default function ProxyManager() {
             if (result) {
                 await window.electronAPI.updateProxy(proxy.id, {
                     status: result.alive ? 'alive' : 'dead',
-                    latency: result.latency || null,
+                    latency: result.alive ? (result.latency || null) : null,
                     lastChecked: new Date().toISOString(),
-                    country: result.countryCode || '',
+                    country: result.alive ? (result.countryCode || '') : '',
                 });
             }
             await loadProxies();
@@ -256,8 +256,6 @@ function ProxyTable({ proxies, onEdit, onDelete, onCheck, checkingIds, t }) {
                         <th>{t('proxies.col.protocol')}</th>
                         <th>{t('proxies.col.host')}</th>
                         <th>{t('proxies.col.status')}</th>
-                        <th>Latency</th>
-                        <th>Country</th>
                         <th style={{ textAlign: 'right' }}>{t('proxies.col.actions')}</th>
                     </tr>
                 </thead>
@@ -275,15 +273,9 @@ function ProxyTable({ proxies, onEdit, onDelete, onCheck, checkingIds, t }) {
                                 </td>
                                 <td>
                                     <span className={`proxy-status ${getStatusClass(p.status)}`}>
-                                        {getStatusIcon(p.status)} {p.status || 'unchecked'}
+                                        {getStatusIcon(p.status)} {p.status === 'dead' ? 'Connection test failed !' : (p.status || 'unchecked')}
                                     </span>
                                 </td>
-                                <td>
-                                    {p.latency != null ? (
-                                        <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{p.latency}ms</span>
-                                    ) : '—'}
-                                </td>
-                                <td>{p.country || '—'}</td>
                                 <td style={{ textAlign: 'right' }}>
                                     <button
                                         className="btn-icon-primary"

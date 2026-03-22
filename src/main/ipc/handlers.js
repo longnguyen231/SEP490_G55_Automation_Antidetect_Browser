@@ -90,9 +90,9 @@ function registerIpcHandlers(extra = {}) {
         try {
           updateProxyInternal(id, {
             status: result.alive ? 'alive' : 'dead',
-            latency: result.latency || null,
+            latency: result.alive ? (result.latency || null) : null,
             lastChecked: new Date().toISOString(),
-            country: result.countryCode || '',
+            country: result.alive ? (result.countryCode || '') : '',
           }).catch(() => {});
         } catch {}
       });
