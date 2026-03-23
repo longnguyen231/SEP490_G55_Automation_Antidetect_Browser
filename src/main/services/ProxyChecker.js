@@ -177,7 +177,7 @@ async function checkProxy(cfg) {
     city: null,
     timezone: null,
     latency: null,
-    error: 'Connection test failed !',
+    error: 'Connection failed or timed out',
   };
 }
 
