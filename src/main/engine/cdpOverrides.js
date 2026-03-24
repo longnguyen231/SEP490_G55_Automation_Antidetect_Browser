@@ -76,6 +76,38 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
           const langs = (typeof adv.languages === 'string' && adv.languages.trim()) ? adv.languages : locale;
           params.acceptLanguage = String(langs || locale);
         }
+        // Build User-Agent Client Hints (Sec-CH-UA) — Cloudflare checks these
+        try {
+          const versionMatch = userAgent.match(/Chrome\/(\d+)\.(\d+)\.(\d+)\.(\d+)/);
+          if (versionMatch) {
+            const major = versionMatch[1];
+            const full = `${versionMatch[1]}.${versionMatch[2]}.${versionMatch[3]}.${versionMatch[4]}`;
+            const platform = (adv.platform || '').includes('Mac') ? 'macOS' :
+                             (adv.platform || '').includes('Linux') ? 'Linux' : 'Windows';
+            const platformVersion = platform === 'Windows' ? '15.0.0' :
+                                    platform === 'macOS' ? '14.0.0' : '6.5.0';
+            params.userAgentMetadata = {
+              brands: [
+                { brand: 'Not/A)Brand', version: '8' },
+                { brand: 'Chromium', version: major },
+                { brand: 'Google Chrome', version: major },
+              ],
+              fullVersionList: [
+                { brand: 'Not/A)Brand', version: '8.0.0.0' },
+                { brand: 'Chromium', version: full },
+                { brand: 'Google Chrome', version: full },
+              ],
+              fullVersion: full,
+              platform: platform,
+              platformVersion: platformVersion,
+              architecture: 'x86',
+              model: '',
+              mobile: false,
+              bitness: '64',
+              wow64: false,
+            };
+          }
+        } catch {}
         try { await session.send('Emulation.setUserAgentOverride', params); } catch {}
       }
       if (applyViewport && viewport) {

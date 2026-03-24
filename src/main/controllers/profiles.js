@@ -195,7 +195,26 @@ async function launchProfileInternal(profileId, options = {}) {
 
     // Playwright flow
     const fp = profile.fingerprint || {};
-    const args = [];
+    const args = [
+      // ── Stealth / anti-detection flags ──
+      '--disable-blink-features=AutomationControlled',
+      '--disable-features=AutomationControlled',
+      '--disable-infobars',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--disable-ipc-flooding-protection',
+      '--disable-hang-monitor',
+      '--disable-prompt-on-repost',
+      '--disable-domain-reliability',
+      '--disable-component-update',
+      '--metrics-recording-only',
+      '--no-service-autorun',
+      '--password-store=basic',
+      '--use-mock-keychain',
+      '--export-tagged-pdf',
+      '--disable-features=TranslateUI',
+    ];
     if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
       args.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
     }
@@ -270,7 +289,28 @@ async function launchProfileInternal(profileId, options = {}) {
     const contextOptions = { proxy };
     if (applyLang) contextOptions.locale = fp.language || settings.language || 'en-US';
     if (applyTz) contextOptions.timezoneId = fp.timezone || settings.timezone || 'UTC';
-    if (applyUA && fp.userAgent) contextOptions.userAgent = fp.userAgent;
+    if (applyUA && fp.userAgent) {
+      contextOptions.userAgent = fp.userAgent;
+      // Build User-Agent Client Hints for Playwright context (Cloudflare checks Sec-CH-UA)
+      try {
+        const vMatch = fp.userAgent.match(/Chrome\/(\d+)\.(\d+)\.(\d+)\.(\d+)/);
+        if (vMatch) {
+          const major = vMatch[1];
+          const full = `${vMatch[1]}.${vMatch[2]}.${vMatch[3]}.${vMatch[4]}`;
+          const advSettings = settings.advanced || {};
+          const plat = (advSettings.platform || '').includes('Mac') ? 'macOS' :
+                       (advSettings.platform || '').includes('Linux') ? 'Linux' : 'Windows';
+          const platVer = plat === 'Windows' ? '15.0.0' : plat === 'macOS' ? '14.0.0' : '6.5.0';
+          contextOptions.userAgent = fp.userAgent;
+          // Playwright supports extra HTTP headers for client hints
+          contextOptions.extraHTTPHeaders = Object.assign({}, contextOptions.extraHTTPHeaders || {}, {
+            'sec-ch-ua': `"Not/A)Brand";v="8", "Chromium";v="${major}", "Google Chrome";v="${major}"`,
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': `"${plat}"`,
+          });
+        }
+      } catch {}
+    }
     // Apply viewport and device scale like CDP DeviceMetricsOverride
     try {
       if (applyViewport) {

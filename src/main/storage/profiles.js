@@ -8,8 +8,8 @@ const { appendLog } = require('../logging/logger');
 const DEFAULT_FINGERPRINT = {
   os: 'Windows',
   browser: 'Chrome',
-  browserVersion: '120.0.0.0',
-  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  browserVersion: '136.0.7103.93',
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
   language: 'vi-VN',
   screenResolution: '1920x1080',
   timezone: 'Asia/Ho_Chi_Minh',

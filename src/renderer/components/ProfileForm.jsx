@@ -7,8 +7,8 @@ import './ProfileForm.css';
 const defaultFingerprint = {
   os: 'Windows',
   browser: 'Chrome',
-  browserVersion: '120.0.0.0',
-  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  browserVersion: '136.0.7103.93',
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
   language: 'vi-VN',
   screenResolution: '1920x1080',
   timezone: 'Asia/Ho_Chi_Minh',
@@ -182,12 +182,12 @@ function ProfileForm({ profile, onSave, onCancel }) {
     const language = randomFrom(locales);
     const timezone = randomFrom(timezones);
     const screenResolution = randomFrom(resolutions);
-    const chromeVers = ['119.0.6045.200', '120.0.0.0', '121.0.6167.85', '122.0.6261.70'];
-    const firefoxVers = ['118.0', '119.0', '120.0', '121.0'];
-    const edgeVers = ['119.0.2151.44', '120.0.2210.61', '121.0.2277.98'];
-    let browserVersion = '120.0.0.0';
+    const chromeVers = ['133.0.6943.127', '134.0.6998.89', '135.0.7049.85', '136.0.7103.93'];
+    const firefoxVers = ['131.0', '132.0', '133.0', '134.0'];
+    const edgeVers = ['133.0.3065.69', '134.0.3124.68', '135.0.3179.66', '136.0.3240.50'];
+    let browserVersion = '136.0.7103.93';
     let ua = '';
-    const macTokens = ['10_15_7', '11_6', '12_7_1', '13_6_1'];
+    const macTokens = ['10_15_7', '13_6_1', '14_5', '14_7_1', '15_2'];
     if (browser === 'Chrome') {
       browserVersion = randomFrom(chromeVers);
       if (os === 'Windows') ua = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${browserVersion} Safari/537.36`;
@@ -210,14 +210,15 @@ function ProfileForm({ profile, onSave, onCancel }) {
     const maxTouchPoints = randomFrom([0, 1, 2, 3]);
     const dnt = randomBool(0.2);
     const webglPairs = [
-      { vendor: 'Intel Inc.', renderer: 'Intel(R) UHD Graphics 620' },
-      { vendor: 'Intel Inc.', renderer: 'Intel(R) Iris(R) Xe Graphics' },
-      { vendor: 'NVIDIA Corporation', renderer: 'NVIDIA GeForce GTX 1650' },
-      { vendor: 'NVIDIA Corporation', renderer: 'NVIDIA GeForce RTX 3060' },
-      { vendor: 'AMD', renderer: 'Radeon RX 580' },
-      { vendor: 'AMD', renderer: 'Radeon RX 6600' },
-      { vendor: 'Apple', renderer: 'Apple M1' },
-      { vendor: '', renderer: '' },
+      { vendor: 'Google Inc. (Intel)', renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 630 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
+      { vendor: 'Google Inc. (Intel)', renderer: 'ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)' },
+      { vendor: 'Google Inc. (NVIDIA)', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
+      { vendor: 'Google Inc. (NVIDIA)', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
+      { vendor: 'Google Inc. (NVIDIA)', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
+      { vendor: 'Google Inc. (AMD)', renderer: 'ANGLE (AMD, AMD Radeon RX 580 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
+      { vendor: 'Google Inc. (AMD)', renderer: 'ANGLE (AMD, AMD Radeon RX 6600 XT Direct3D11 vs_5_0 ps_5_0, D3D11)' },
+      { vendor: 'Google Inc. (Apple)', renderer: 'ANGLE (Apple, Apple M1, OpenGL 4.1)' },
+      { vendor: 'Google Inc. (Apple)', renderer: 'ANGLE (Apple, Apple M2, OpenGL 4.1)' },
     ];
     const wgl = randomFrom(webglPairs);
     const plugins = randomFrom([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
@@ -339,7 +340,7 @@ function ProfileForm({ profile, onSave, onCancel }) {
 
   const handleOsChange = (os) => {
     let userAgent = formData.fingerprint.userAgent;
-    const bv = formData.fingerprint.browserVersion || '120.0.0.0';
+    const bv = formData.fingerprint.browserVersion || '136.0.7103.93';
     if (os === 'Windows') userAgent = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
     else if (os === 'macOS') userAgent = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
     else if (os === 'Linux') userAgent = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
