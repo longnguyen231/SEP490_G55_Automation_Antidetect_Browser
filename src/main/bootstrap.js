@@ -14,17 +14,30 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
 
 function startBackgroundHeartbeat(intervalMs = 30000) {
   setInterval(async () => {
+    let changed = false;
     for (const [id, info] of [...runningProfiles.entries()]) {
       try {
         const ws = info.wsEndpoint;
-        const alive = await isWsAlive(ws);
+        const alive = ws ? await isWsAlive(ws) : false;
         if (!alive) {
+          try { info?.heartbeat && clearInterval(info.heartbeat); } catch {}
+          try { await info?.forwarder?.stop?.(); } catch {}
           runningProfiles.delete(id);
           appendLog(id, 'Heartbeat: stale profile removed');
+          changed = true;
         }
       } catch (e) {
         appendLog(id, `Heartbeat check error: ${e?.message || e}`);
       }
+    }
+    if (changed) {
+      try {
+        const { BrowserWindow } = require('electron');
+        const payload = { map: Object.fromEntries([...runningProfiles.entries()].map(([id, info]) => [id, info.wsEndpoint || null])) };
+        for (const w of BrowserWindow.getAllWindows()) {
+          try { w.webContents.send('running-map-changed', payload); } catch {}
+        }
+      } catch {}
     }
   }, intervalMs).unref();
 }

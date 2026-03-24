@@ -61,5 +61,3 @@ async function pruneDeadCdp(runningProfiles, appendLog, broadcastRunningMap) {
 }
 
 module.exports = { isWsAlive, pruneDeadCdp };
-
-module.exports = { isWsAlive };

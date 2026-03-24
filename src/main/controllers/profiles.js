@@ -391,10 +391,42 @@ async function launchProfileInternal(profileId, options = {}) {
         }
       } catch (e) {}
     };
+    // Helper to cleanup Playwright profile when browser is no longer alive
+    let playwrightCleaned = false;
+    const cleanupPlaywright = async (reason) => {
+      if (playwrightCleaned) return;
+      playwrightCleaned = true;
+      await saveState();
+      try { await forwarder?.stop?.(); } catch {}
+      runningProfiles.delete(profileId);
+      appendLog(profileId, reason);
+      try { await context.close(); } catch {}
+      try { await browser?.close?.(); } catch {}
+      try { await server.close(); } catch {}
+      broadcastRunningMap();
+    };
+
     // Context-level close handles state saving (works regardless of which page triggered it)
-    context.on('close', async () => { await saveState(); try { await forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Context closed'); try { await server.close(); } catch { }; broadcastRunningMap(); });
-    try { browser.on?.('disconnected', () => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Browser disconnected'); try { server.close(); } catch { }; broadcastRunningMap(); } }); } catch { }
-    try { const proc = server.process?.(); proc && proc.once && proc.once('exit', (code, signal) => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, `Browser server exited (${code || ''} ${signal || ''})`); broadcastRunningMap(); } }); } catch { }
+    context.on('close', () => cleanupPlaywright('Context closed'));
+    try { browser.on?.('disconnected', () => cleanupPlaywright('Browser disconnected')); } catch { }
+    try { const proc = server.process?.(); proc && proc.once && proc.once('exit', (code, signal) => cleanupPlaywright(`Browser server exited (${code || ''} ${signal || ''})`)); } catch { }
+
+    // KEY FIX: Detect when user closes all browser tabs/windows via "X" button.
+    // In Playwright launchServer mode, closing all pages does NOT trigger context/browser/server events.
+    // We must listen to page close events and cleanup when no pages remain.
+    const onPageClose = () => {
+      try {
+        const pages = context.pages();
+        if (!pages || pages.length === 0) {
+          appendLog(profileId, 'All browser pages closed by user');
+          cleanupPlaywright('All pages closed — browser stopped');
+        }
+      } catch { cleanupPlaywright('Page close check failed — browser stopped'); }
+    };
+    // Listen on existing pages and any new pages
+    try { for (const p of context.pages()) { p.on('close', onPageClose); } } catch {}
+    context.on('page', (newPage) => { try { newPage.on('close', onPageClose); } catch {} });
+
     runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder });
     broadcastRunningMap();
     // Post-launch automation script (if configured)
