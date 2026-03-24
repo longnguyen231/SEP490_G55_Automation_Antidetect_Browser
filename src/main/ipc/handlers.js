@@ -29,7 +29,7 @@ const {
   deleteProxyInternal, deleteProxiesBulkInternal,
   importProxiesInternal, exportProxiesInternal,
 } = require('../storage/proxies');
-const { checkProxy, checkProxiesBatch } = require('../services/ProxyChecker');
+const { checkProxy, checkProxiesBatch } = require('../engine/proxyChecker');
 
 function registerIpcHandlers(extra = {}) {
   ipcMain.handle('get-profiles', async () => await getProfilesInternal());

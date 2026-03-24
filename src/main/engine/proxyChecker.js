@@ -73,4 +73,46 @@ async function checkProxy(proxy) {
     }
 }
 
-module.exports = { checkProxy };
+/**
+ * Kiểm tra danh sách proxy song song
+ */
+async function checkProxiesBatch(proxyList, onResultProgress = null) {
+    if (!Array.isArray(proxyList) || proxyList.length === 0) return;
+    
+    // Giới hạn số lượng check đồng thời để không bị quá tải
+    const CONCURRENCY_LIMIT = 5;
+    const items = [...proxyList];
+    
+    async function worker() {
+        while (items.length > 0) {
+            const proxy = items.shift();
+            // Lược bỏ data thừa để tránh validate lỗi
+            const pData = {
+                type: proxy.type,
+                host: proxy.host || proxy.server?.split(':')[0],
+                port: Number(proxy.port || proxy.server?.split(':')[1]),
+                username: proxy.username,
+                password: proxy.password
+            };
+            const result = await checkProxy(pData);
+            if (onResultProgress) {
+                // Return result format: { alive: true/false, latency, countryCode, error }
+                onResultProgress(proxy.id, {
+                    alive: result.success,
+                    latency: result.latency,
+                    countryCode: result.location?.countryCode || '',
+                    error: result.error
+                });
+            }
+        }
+    }
+
+    const workers = [];
+    for (let i = 0; i < Math.min(CONCURRENCY_LIMIT, proxyList.length); i++) {
+        workers.push(worker());
+    }
+
+    await Promise.all(workers);
+}
+
+module.exports = { checkProxy, checkProxiesBatch };

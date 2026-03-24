@@ -128,10 +128,11 @@
     "lucide-react": "^0.564.0",
     "node-cron": "^3.0.3",
     "playwright": "^1.58.2",
-    "proxy-chain": "^2.5.0",
+    "proxy-chain": "^2.7.1",
     "react": "^19.2.0",
     "react-bootstrap": "^2.10.10",
     "react-dom": "^19.2.0",
+    "socks": "^2.8.7",
     "socks-proxy-agent": "^8.0.5",
     "swagger-ui-express": "^5.0.1"
   }
