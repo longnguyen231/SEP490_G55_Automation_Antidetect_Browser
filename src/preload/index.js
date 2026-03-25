@@ -9,6 +9,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   launchProfile: (profileId, options) => ipcRenderer.invoke('launch-profile', profileId, options || {}),
   getCookies: (profileId) => ipcRenderer.invoke('get-cookies', profileId),
   importCookies: (profileId, cookies) => ipcRenderer.invoke('import-cookies', profileId, cookies),
+  deleteCookie: (profileId, cookie) => ipcRenderer.invoke('delete-cookie', profileId, cookie),
+  clearCookies: (profileId) => ipcRenderer.invoke('clear-cookies', profileId),
+  editCookie: (profileId, cookie) => ipcRenderer.invoke('edit-cookie', profileId, cookie),
   getLocalesTimezones: () => ipcRenderer.invoke('get-locales-timezones'),
   getProfileWs: (profileId) => ipcRenderer.invoke('get-profile-ws', profileId),
   getRunningMap: () => ipcRenderer.invoke('get-running-map'),
@@ -70,4 +73,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportProxies: (ids) => ipcRenderer.invoke('proxy-export', ids),
   checkProxy: (cfg) => ipcRenderer.invoke('proxy-check', cfg),
   checkAllProxies: () => ipcRenderer.invoke('proxy-check-all'),
+
+  // Fingerprint generator
+  generateFingerprint: (opts) => ipcRenderer.invoke('generate-fingerprint', opts || {}),
+  generateFingerprintBatch: (count, opts) => ipcRenderer.invoke('generate-fingerprint-batch', count, opts || {}),
+
+  // Behavior simulator
+  simulateBehavior: (profileId, action, opts) => ipcRenderer.invoke('simulate-behavior', profileId, action, opts || {}),
+
+  // Blocked page detection
+  detectBlockedPage: (profileId) => ipcRenderer.invoke('detect-blocked-page', profileId),
 });

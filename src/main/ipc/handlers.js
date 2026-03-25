@@ -12,6 +12,9 @@ const {
   getProfileLogInternal,
   getCookiesInternal,
   importCookiesInternal,
+  deleteCookieInternal,
+  clearCookiesInternal,
+  editCookieInternal,
   getProfileWsInternal,
   getRunningMapInternal,
   getLocalesTimezonesInternal,
@@ -45,6 +48,9 @@ function registerIpcHandlers(extra = {}) {
   ipcMain.handle('get-profile-log', async (_e, profileId) => await getProfileLogInternal(profileId));
   ipcMain.handle('get-cookies', async (_e, profileId) => await getCookiesInternal(profileId));
   ipcMain.handle('import-cookies', async (_e, profileId, cookies) => await importCookiesInternal(profileId, cookies));
+  ipcMain.handle('delete-cookie', async (_e, profileId, cookie) => await deleteCookieInternal(profileId, cookie));
+  ipcMain.handle('clear-cookies', async (_e, profileId) => await clearCookiesInternal(profileId));
+  ipcMain.handle('edit-cookie', async (_e, profileId, cookie) => await editCookieInternal(profileId, cookie));
   ipcMain.handle('get-profile-ws', async (_e, profileId) => await getProfileWsInternal(profileId));
   ipcMain.handle('get-running-map', async () => await getRunningMapInternal());
   ipcMain.handle('get-locales-timezones', async () => await getLocalesTimezonesInternal());
@@ -97,6 +103,70 @@ function registerIpcHandlers(extra = {}) {
         } catch {}
       });
       return { success: true, results };
+    } catch (e) { return { success: false, error: e?.message || String(e) }; }
+  });
+
+  // Fingerprint generator
+  ipcMain.handle('generate-fingerprint', async (_e, opts = {}) => {
+    try {
+      const { generateFingerprint } = require('../engine/fingerprintGenerator');
+      return { success: true, ...generateFingerprint(opts) };
+    } catch (e) { return { success: false, error: e?.message || String(e) }; }
+  });
+  ipcMain.handle('generate-fingerprint-batch', async (_e, count = 1, opts = {}) => {
+    try {
+      const { generateBatch } = require('../engine/fingerprintGenerator');
+      const results = generateBatch(Math.min(50, Math.max(1, count)), opts);
+      return { success: true, fingerprints: results };
+    } catch (e) { return { success: false, error: e?.message || String(e) }; }
+  });
+
+  // Behavior simulator (for running Playwright profiles)
+  ipcMain.handle('simulate-behavior', async (_e, profileId, action = 'browse', opts = {}) => {
+    try {
+      const { runningProfiles } = require('../state/runtime');
+      const running = runningProfiles.get(profileId);
+      if (!running) return { success: false, error: 'Profile not running' };
+      if (running.engine !== 'playwright' || !running.context) {
+        return { success: false, error: 'Behavior simulation requires Playwright engine' };
+      }
+      const pages = running.context.pages();
+      const page = pages[opts.pageIndex || 0] || pages[0];
+      if (!page) return { success: false, error: 'No page available' };
+
+      const behavior = require('../engine/behaviorSimulator');
+      const seed = (profileId || '').split('').reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0);
+      const rng = behavior.createRng(Math.abs(seed) + Date.now());
+
+      switch (action) {
+        case 'browse': await behavior.simulateBrowsing(page, rng, opts); break;
+        case 'scroll': await behavior.naturalScroll(page, rng, opts); break;
+        case 'click': await behavior.humanClick(page, rng, opts.selector, opts); break;
+        case 'type': await behavior.humanType(page, rng, opts.selector, opts.text, opts); break;
+        case 'idle': await behavior.simulateIdle(page, rng, opts); break;
+        case 'move': await behavior.moveMouseCurved(page, rng, opts.x || 500, opts.y || 300, opts); break;
+        default: return { success: false, error: `Unknown action: ${action}` };
+      }
+      return { success: true, action };
+    } catch (e) { return { success: false, error: e?.message || String(e) }; }
+  });
+
+  // Blocked page detection
+  ipcMain.handle('detect-blocked-page', async (_e, profileId) => {
+    try {
+      const { runningProfiles } = require('../state/runtime');
+      const running = runningProfiles.get(profileId);
+      if (!running) return { success: false, error: 'Profile not running' };
+      let page;
+      if (running.engine === 'playwright' && running.context) {
+        page = running.context.pages()[0];
+      } else if (running.cdpControl?.context) {
+        page = running.cdpControl.context.pages()[0];
+      }
+      if (!page) return { success: false, error: 'No page available' };
+      const { detectBlockedPage } = require('../engine/blockedPageDetector');
+      const result = await detectBlockedPage(page);
+      return { success: true, ...result };
     } catch (e) { return { success: false, error: e?.message || String(e) }; }
   });
 

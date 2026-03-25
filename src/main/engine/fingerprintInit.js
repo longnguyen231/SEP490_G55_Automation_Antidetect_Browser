@@ -920,6 +920,107 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
       } catch {}
     });
   } catch {}
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 16. FONT FINGERPRINT SPOOFING
+  //     Font enumeration is a major fingerprinting vector. Sites use
+  //     CSS fallback detection (measuring text width with/without a font)
+  //     to build a list of installed fonts.
+  //     We intercept measureText and element sizing to inject per-profile
+  //     noise, making each profile appear to have a slightly different
+  //     set of fonts — even on the same machine.
+  // ═══════════════════════════════════════════════════════════════════════
+  try {
+    // Get OS-appropriate font list from the generator (if available)
+    const os = fp.os || 'Windows';
+    let fontList;
+    try {
+      const { FONTS_BY_OS } = require('./fingerprintGenerator');
+      fontList = FONTS_BY_OS[os] || FONTS_BY_OS.Windows;
+    } catch {
+      // Fallback font list if generator not available
+      fontList = [
+        'Arial', 'Arial Black', 'Calibri', 'Cambria', 'Comic Sans MS',
+        'Consolas', 'Courier New', 'Georgia', 'Impact', 'Lucida Console',
+        'Palatino Linotype', 'Segoe UI', 'Tahoma', 'Times New Roman',
+        'Trebuchet MS', 'Verdana',
+      ];
+    }
+
+    await context.addInitScript(({ seed, fonts }) => {
+      try {
+        // Seeded PRNG for consistent per-profile font behavior
+        function mulberry32(a) {
+          return function () {
+            a |= 0; a = a + 0x6D2B79F5 | 0;
+            let t = Math.imul(a ^ a >>> 15, 1 | a);
+            t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+            return ((t ^ t >>> 14) >>> 0) / 4294967296;
+          };
+        }
+        const rng = mulberry32(seed + 6173);
+
+        // Build a deterministic set of "available" fonts for this profile.
+        // Remove 2-4 random fonts from the full list to create uniqueness.
+        const removedCount = 2 + Math.floor(rng() * 3);
+        const fontSet = new Set(fonts);
+        const fontArray = [...fontSet];
+        for (let i = 0; i < removedCount && fontArray.length > 5; i++) {
+          const idx = Math.floor(rng() * fontArray.length);
+          fontSet.delete(fontArray.splice(idx, 1)[0]);
+        }
+
+        // Patch CanvasRenderingContext2D.measureText to introduce tiny
+        // per-profile noise in text width measurements.
+        // This defeats CSS-based font detection without visually breaking layouts.
+        const origMeasure = CanvasRenderingContext2D.prototype.measureText;
+        Object.defineProperty(CanvasRenderingContext2D.prototype, 'measureText', {
+          value: function (text) {
+            const result = origMeasure.call(this, text);
+            // Only apply noise when testing with specific fallback fonts
+            // (the typical fingerprinting pattern)
+            const font = this.font || '';
+            const isProbing = font.includes('monospace') || font.includes('sans-serif') || font.includes('serif');
+            if (isProbing && text && text.length < 100) {
+              const noise = (rng() - 0.5) * 0.3; // ±0.15px — invisible but unique
+              const origWidth = result.width;
+              try {
+                Object.defineProperty(result, 'width', {
+                  get: () => origWidth + noise,
+                  configurable: true,
+                });
+              } catch {}
+            }
+            return result;
+          },
+          configurable: true,
+        });
+
+        // Override document.fonts.check() to reflect our spoofed font set.
+        // Some fingerprinters use this API directly.
+        try {
+          if (document.fonts && document.fonts.check) {
+            const origCheck = document.fonts.check.bind(document.fonts);
+            Object.defineProperty(document.fonts, 'check', {
+              value: function (fontSpec, text) {
+                // Extract font family name from CSS font shorthand
+                try {
+                  const parts = fontSpec.split(/\s+/);
+                  const familyPart = parts[parts.length - 1].replace(/['"]/g, '');
+                  // If it's in our "removed" list, report as not available
+                  if (!fontSet.has(familyPart) && fonts.includes(familyPart)) {
+                    return false;
+                  }
+                } catch {}
+                return origCheck(fontSpec, text || '');
+              },
+              configurable: true,
+            });
+          }
+        } catch {}
+      } catch {}
+    }, { seed: profileSeed, fonts: fontList });
+  } catch {}
 }
 
 module.exports = { applyFingerprintInitScripts, parseResolution };

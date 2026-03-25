@@ -337,12 +337,19 @@ async function launchProfileInternal(profileId, options = {}) {
       const { applyFingerprintInitScripts } = require('../engine/fingerprintInit');
       await applyFingerprintInitScripts(context, profile, settings);
     } catch {}
+
+    // Inject mouse position tracker for behavior simulator
+    try {
+      const { injectMouseTracker } = require('../engine/behaviorSimulator');
+      await injectMouseTracker(context);
+    } catch {}
+
     const { loadSessionTabs, saveSessionTabs } = require('../storage/sessionTabs');
     const savedTabs = loadSessionTabs(profileId);
-    
+
     // Declare page in shared scope so event handlers below can reference it
     let page;
-    
+
     if (savedTabs && savedTabs.length > 0) {
       appendLog(profileId, `Restoring ${savedTabs.length} saved tabs...`);
       let first = true;
@@ -359,21 +366,33 @@ async function launchProfileInternal(profileId, options = {}) {
       }
     } else {
       page = await context.newPage();
-      // Navigate with timeout and retry for slow proxy connections
+      // Navigate with blocked-page detection and auto-retry
       try {
-        await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      } catch (navErr) {
-        appendLog(profileId, `First navigation attempt failed: ${navErr?.message || navErr}. Retrying...`);
-        try {
-          await new Promise(r => setTimeout(r, 2000)); // brief pause before retry
-          await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        } catch (retryErr) {
-          appendLog(profileId, `Second navigation attempt failed: ${retryErr?.message || retryErr}. Browser is open but page not loaded.`);
-          // Don't throw — keep the browser open so user can interact with it
+        const { navigateWithRetry, installBlockDetector } = require('../engine/blockedPageDetector');
+        const navResult = await navigateWithRetry(page, startUrl, profileId, {
+          maxRetries: 2,
+          retryDelayMs: 5000,
+          waitUntil: 'domcontentloaded',
+          timeout: 30000,
+        });
+        if (navResult.blocked) {
+          appendLog(profileId, `Warning: page may be blocked (${navResult.pattern}). Browser is open for manual interaction.`);
         }
+        // Install ongoing block detection for future navigations
+        installBlockDetector(page, profileId);
+      } catch (navErr) {
+        appendLog(profileId, `Navigation failed: ${navErr?.message || navErr}. Browser is open but page not loaded.`);
       }
       appendLog(profileId, `Opened page: ${startUrl}`);
     }
+
+    // Install block detector on all new pages opened in this context
+    context.on('page', (newPage) => {
+      try {
+        const { installBlockDetector } = require('../engine/blockedPageDetector');
+        installBlockDetector(newPage, profileId);
+      } catch {}
+    });
 
     const saveState = async () => {
       try {
@@ -509,6 +528,41 @@ async function runAutomationPostLaunch(profile, launchCtx) {
           appendLog(profileId, 'Automation: screenshot step (not yet implemented)');
           break;
         }
+        case 'behavior': {
+          // Human-like behavior simulation step
+          // Supported types: browse, scroll, idle, click, type
+          try {
+            const behavior = require('../engine/behaviorSimulator');
+            const seed = (profileId || '').split('').reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0);
+            const rng = behavior.createRng(Math.abs(seed) + Date.now());
+            let page;
+            if (launchCtx.engine === 'playwright' && launchCtx.context) {
+              page = launchCtx.context.pages()[0];
+            } else if (launchCtx.engine === 'cdp') {
+              const { chromium } = require('playwright');
+              const browser = await chromium.connectOverCDP(launchCtx.wsEndpoint);
+              const ctx = browser.contexts()[0];
+              page = ctx?.pages()[0];
+            }
+            if (page) {
+              const behaviorType = step.behaviorType || 'browse';
+              switch (behaviorType) {
+                case 'browse': await behavior.simulateBrowsing(page, rng, step); break;
+                case 'scroll': await behavior.naturalScroll(page, rng, step); break;
+                case 'idle': await behavior.simulateIdle(page, rng, step); break;
+                case 'click': if (step.selector) await behavior.humanClick(page, rng, step.selector, step); break;
+                case 'type': if (step.selector && step.text) await behavior.humanType(page, rng, step.selector, step.text, step); break;
+                default: await behavior.simulateBrowsing(page, rng, step);
+              }
+              appendLog(profileId, `Automation: behavior simulation (${behaviorType})`);
+            } else {
+              appendLog(profileId, 'Automation: behavior step skipped — no page available');
+            }
+          } catch (e) {
+            appendLog(profileId, `Automation: behavior step failed: ${e?.message || e}`);
+          }
+          break;
+        }
         default:
           appendLog(profileId, `Automation: unknown step action '${step.action}'`);
       }
@@ -617,7 +671,13 @@ async function getProfileLogInternal(profileId) { try { const p = require('path'
 
 async function getCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const cookies = await running.context.cookies(); return { success: true, cookies }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, cookies: state.cookies || [] }; } return { success: true, cookies: [] }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function importCookiesInternal(profileId, cookies) { try { if (!Array.isArray(cookies)) throw new Error('Invalid cookies payload'); if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies(cookies); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } state.cookies = cookies; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
+async function importCookiesInternal(profileId, cookies) { try { if (!Array.isArray(cookies)) throw new Error('Invalid cookies payload'); const validated = cookies.map(c => { if (!c.name || !c.value || !c.domain) throw new Error('Each cookie must have name, value, and domain'); return { name: String(c.name), value: String(c.value), domain: String(c.domain), path: String(c.path || '/'), expires: c.expires ? Number(c.expires) : -1, httpOnly: !!c.httpOnly, secure: !!c.secure, sameSite: ['Strict','Lax','None'].includes(c.sameSite) ? c.sameSite : 'Lax' }; }); if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies(validated); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true, count: validated.length }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; for (const nc of validated) { const idx = existing.findIndex(e => e.name === nc.name && e.domain === nc.domain && e.path === nc.path); if (idx >= 0) existing[idx] = nc; else existing.push(nc); } state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true, count: validated.length }; } catch (error) { return { success: false, error: error.message }; } }
+
+async function deleteCookieInternal(profileId, { name, domain, path: cookiePath }) { try { if (!name || !domain) throw new Error('name and domain are required'); const targetPath = cookiePath || '/'; if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies([{ name, domain, path: targetPath, value: '', expires: 0 }]); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); if (!fs.existsSync(statePath)) return { success: true }; const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); state.cookies = (state.cookies || []).filter(c => !(c.name === name && c.domain === domain && (c.path || '/') === targetPath)); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
+
+async function clearCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.clearCookies(); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); state.cookies = []; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); } return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
+
+async function editCookieInternal(profileId, cookie) { try { if (!cookie || !cookie.name || !cookie.domain) throw new Error('cookie with name and domain is required'); const validated = { name: String(cookie.name), value: String(cookie.value || ''), domain: String(cookie.domain), path: String(cookie.path || '/'), expires: cookie.expires ? Number(cookie.expires) : -1, httpOnly: !!cookie.httpOnly, secure: !!cookie.secure, sameSite: ['Strict','Lax','None'].includes(cookie.sameSite) ? cookie.sameSite : 'Lax' }; if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies([validated]); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; const idx = existing.findIndex(e => e.name === validated.name && e.domain === validated.domain && (e.path || '/') === validated.path); if (idx >= 0) existing[idx] = validated; else existing.push(validated); state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function getProfileWsInternal(profileId) { try { const running = runningProfiles.get(profileId); if (!running) return { success: true, wsEndpoint: null }; const ws = running.wsEndpoint; if (running.engine === 'playwright' && (running.context?.isClosed?.() || running.browser?.isConnected?.() === false)) { runningProfiles.delete(profileId); appendLog(profileId, 'Heartbeat: context/browser disconnected'); broadcastRunningMap(); return { success: true, wsEndpoint: null }; } const alive = await require('../engine/health').isWsAlive(ws); if (!alive) { runningProfiles.delete(profileId); appendLog(profileId, 'Heartbeat failed; removed stale running state'); broadcastRunningMap(); return { success: true, wsEndpoint: null }; } return { success: true, wsEndpoint: ws }; } catch (error) { return { success: false, error: error.message }; } }
 
@@ -671,6 +731,9 @@ module.exports = {
   getProfileLogInternal,
   getCookiesInternal,
   importCookiesInternal,
+  deleteCookieInternal,
+  clearCookiesInternal,
+  editCookieInternal,
   getProfileWsInternal,
   getRunningMapInternal,
   getLocalesTimezonesInternal,

@@ -509,12 +509,7 @@ async function cookiesClear(profileId) {
   const { success, error, context, cleanup } = await withPage(profileId, {});
   if (!success) return err(error);
   try {
-    const all = await context.cookies();
-    if (all.length) {
-      // Clearing by setting expiry in the past not supported directly; recreate context storage state minimal approach
-      await Promise.all(all.map(c => context.clearCookies?.() || Promise.resolve()));
-      try { await context.clearCookies(); } catch {}
-    }
+    await context.clearCookies();
     await cleanup();
     return ok();
   } catch (e) { await cleanup(); return err(e?.message || e); }
