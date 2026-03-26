@@ -265,8 +265,16 @@ async function launchProfileInternal(profileId, options = {}) {
         proxy = { server: serverUrl };
       }
     }
+    args.push('--no-first-run', '--no-default-browser-check');
+    const launchOpts = {
+      headless,
+      args,
+      proxy,
+      // Remove Playwright's default --enable-automation flag which sets navigator.webdriver=true
+      ignoreDefaultArgs: ['--enable-automation'],
+    };
     let server;
-    try { server = await chromium.launchServer({ headless, args, proxy }); }
+    try { server = await chromium.launchServer(launchOpts); }
     catch (e) {
       const msg = e?.message || String(e);
       appendLog(profileId, `Playwright launch failed: ${msg}`);
@@ -274,7 +282,7 @@ async function launchProfileInternal(profileId, options = {}) {
         appendLog(profileId, 'Attempting auto-install playwright browsers (chromium)...');
         const ok = await runPlaywrightInstall('chromium');
         if (!ok) { try { await forwarder?.stop?.(); } catch {} return { success: false, error: 'Playwright browsers not installed.' }; }
-        server = await chromium.launchServer({ headless, args, proxy });
+        server = await chromium.launchServer(launchOpts);
       } else { try { await forwarder?.stop?.(); } catch {} throw e; }
     }
     const wsEndpoint = server.wsEndpoint();

@@ -1,105 +1,130 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Shuffle, Save, X, RefreshCw, Lock, Unlock, Copy, Plus } from 'lucide-react';
+import {
+  Sparkles, User, Monitor, Cpu, PenTool, Globe, Volume2,
+  MonitorPlay, Wifi, Battery, ArrowLeft, RefreshCw, X
+} from 'lucide-react';
 import { useI18n } from '../i18n/index';
 import './ProfileForm.css';
 
-/* ═══════════════ Default data ═══════════════ */
-const defaultFingerprint = {
-  os: 'Windows',
-  browser: 'Chrome',
-  browserVersion: '136.0.7103.93',
-  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
-  language: 'vi-VN',
-  screenResolution: '1920x1080',
-  timezone: 'Asia/Ho_Chi_Minh',
-  webgl: true,
-  canvas: true,
-  audio: true,
-};
-
-const defaultSettings = {
-  cpuCores: 4,
-  memoryGB: 8,
-  proxy: { type: 'none', server: '', username: '', password: '' },
-  ipChecker: 'ip2location',
-  language: 'vi-VN',
-  timezone: 'Asia/Ho_Chi_Minh',
-  webrtc: 'disabled',
-  geolocation: { mode: 'ip', latitude: 21.0278, longitude: 105.8342, accuracy: 100, permission: 'ask' },
-  mediaDevices: { audio: true, video: true },
-  webgl: true,
-  headless: false,
+/* ═══════════════ Default form data ═══════════════ */
+const defaultFormData = {
+  name: '',
+  quantity: 1,
   engine: 'playwright',
-  cdpApplyInitScript: true,
-  // Fingerprint controls
-  timezoneMode: 'ip', // ip | real | custom
-  languageMode: 'ip', // ip | custom
-  displayLangMode: 'language', // language | real | custom
-  screenResMode: 'predefined', // random | predefined | custom
-  fontsMode: 'default', // default | custom
-  canvasMode: 'real', // real (static in AdsPower)
-  // Platform
-  platform: 'none',
-  tabs: '',
-  // Advanced
-  extensionMode: 'team',
-  applyOverrides: {
-    hardware: true,
-    navigator: true,
-    userAgent: true,
-    webgl: true,
-    language: true,
-    timezone: true,
-    viewport: true,
-    geolocation: true,
-  },
-  advanced: {
+  startupPage: '',
+  windowWidth: 0,
+  windowHeight: 0,
+  quickGenerate: { os: 'Windows', browser: 'Chrome', device: 'Desktop' },
+  identity: {
+    enabled: false,
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.7103.93 Safari/537.36',
     platform: 'Win32',
-    dnt: false,
-    devicePixelRatio: 1,
-    maxTouchPoints: 0,
-    webglVendor: '',
-    webglRenderer: '',
-    plugins: 3,
-    languages: '',
+    locale: 'en-US',
+    timezone: 'America/New_York',
+    languages: 'en-US, en',
   },
+  display: {
+    enabled: false,
+    preset: 'Custom',
+    width: 1920,
+    height: 1080,
+    colorDepth: 24,
+    pixelRatio: 1,
+  },
+  hardware: {
+    enabled: false,
+    cpuCores: 4,
+    memoryGB: 8,
+    gpuVendor: 'Google Inc. (Intel)',
+    gpuRenderer: 'ANGLE (Intel, Intel(R) UHD Graphics 630 Direct3D11 vs_5_0 ps_5_0, D3D11)',
+  },
+  canvas: {
+    enabled: false,
+    noiseSeed: 0,
+    noiseIntensity: 2,
+  },
+  webgl: {
+    enabled: false,
+    noiseSeed: 0,
+    maxTextureSize: 16384,
+    extensions: '',
+  },
+  audio: {
+    enabled: false,
+    sampleRate: 48000,
+    channels: 'stereo',
+    noiseSeed: 0,
+  },
+  media: {
+    enabled: false,
+    speakers: 1,
+    microphones: 1,
+    webcams: 1,
+  },
+  network: {
+    enabled: false,
+    webrtcPolicy: 'default',
+    doNotTrack: 'unspecified',
+    maxTouchPoints: 0,
+    connectionType: '4g',
+    pdfViewer: 'enabled',
+  },
+  battery: {
+    enabled: false,
+    charging: 'charging',
+    level: 1,
+    chargingTime: 0,
+    dischargingTime: '',
+  },
+  // Legacy fields for backward compatibility
+  proxy: { type: 'none', server: '', username: '', password: '' },
+  cookie: '',
+  description: '',
 };
 
-/* ═══════════════ Sub-components ═══════════════ */
+/* ═══════════════ Tab definitions ═══════════════ */
+const TABS = [
+  { id: 'general', label: 'General', icon: Sparkles },
+  { id: 'identity', label: 'Identity', icon: User },
+  { id: 'display', label: 'Display', icon: Monitor },
+  { id: 'hardware', label: 'Hardware', icon: Cpu },
+  { id: 'canvas', label: 'Canvas', icon: PenTool },
+  { id: 'webgl', label: 'WebGL', icon: Globe },
+  { id: 'audio', label: 'Audio', icon: Volume2 },
+  { id: 'media', label: 'Media', icon: MonitorPlay },
+  { id: 'network', label: 'Network', icon: Wifi },
+  { id: 'battery', label: 'Battery', icon: Battery },
+];
 
-/** Segmented control – pill-button group */
-function SegmentedControl({ options, value, onChange, disabled }) {
+/* ═══════════════ Toggle switch ═══════════════ */
+function ToggleSwitch({ checked, onChange, label }) {
   return (
-    <div className="seg-ctrl">
-      {options.map(opt => (
-        <button
-          key={opt.value}
-          type="button"
-          className={`seg-btn${value === opt.value ? ' active' : ''}`}
-          onClick={() => !disabled && onChange(opt.value)}
-          disabled={disabled}
-          title={opt.title || opt.label}
-        >
-          {opt.icon && <span className="seg-icon">{opt.icon}</span>}
-          {opt.label}
-        </button>
-      ))}
+    <div className="npf-toggle-wrap">
+      {label && <span className="npf-toggle-label">{label}</span>}
+      <button
+        type="button"
+        className={`npf-toggle ${checked ? 'on' : 'off'}`}
+        onClick={() => onChange(!checked)}
+        role="switch"
+        aria-checked={checked}
+      >
+        <span className="npf-toggle-knob" />
+      </button>
     </div>
   );
 }
 
-/** Horizontal form row */
-function FormRow({ label, required, children, hint }) {
+/* ═══════════════ Section header ═══════════════ */
+function SectionHeader({ title, subtitle, enabled, onToggle }) {
   return (
-    <div className="pf-row">
-      <label>
-        {required && <span className="required">*</span>}
-        {label}
-      </label>
-      <div className="pf-control">
-        {children}
-        {hint && <div className="pf-hint">{hint}</div>}
+    <div className="npf-section-header">
+      <div>
+        <h3 className="npf-section-title">{title}</h3>
+        <p className="npf-section-subtitle">{subtitle}</p>
       </div>
+      {onToggle && (
+        <ToggleSwitch checked={enabled} onChange={onToggle} label={enabled ? 'Enabled' : 'Disabled'} />
+      )}
     </div>
   );
 }
@@ -108,1013 +133,1097 @@ function FormRow({ label, required, children, hint }) {
 function ProfileForm({ profile, onSave, onCancel }) {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState('general');
-  const [proxySubTab, setProxySubTab] = useState('custom');
-  const [proxyPool, setProxyPool] = useState([]);
-  const [proxyChecking, setProxyChecking] = useState(false);
-  const [proxyCheckResult, setProxyCheckResult] = useState(null); // { alive, ip, country, city, timezone, latency }
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    startUrl: 'https://www.google.com',
-    active: true,
-    cookie: '',
-    fingerprint: { ...defaultFingerprint },
-    settings: JSON.parse(JSON.stringify(defaultSettings)),
-  });
-  const [options, setOptions] = useState({ locales: [], timezones: [] });
-  const [presets, setPresets] = useState([]);
-  const [customPresets, setCustomPresets] = useState([]);
-  const [selectedPreset, setSelectedPreset] = useState('');
-  const [lockedPreset, setLockedPreset] = useState(false);
-  const [presetCount, setPresetCount] = useState(6);
-
-  const fallbackLocales = ['vi-VN', 'en-US', 'en-GB', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 'ja-JP', 'ko-KR', 'zh-CN'];
-  const fallbackTimezones = ['Asia/Ho_Chi_Minh', 'UTC', 'Asia/Tokyo', 'Asia/Seoul', 'Asia/Singapore', 'Europe/Paris', 'Europe/Berlin', 'Europe/London', 'America/New_York'];
+  const [formData, setFormData] = useState(JSON.parse(JSON.stringify(defaultFormData)));
 
   /* ── Load profile data ── */
   useEffect(() => {
     if (profile) {
-      setFormData({
-        ...profile,
+      setFormData(prev => ({
+        ...prev,
+        name: profile.name || '',
+        description: profile.description || '',
         cookie: profile.cookie || '',
-        fingerprint: { ...defaultFingerprint, ...profile.fingerprint },
-        settings: { ...JSON.parse(JSON.stringify(defaultSettings)), ...(profile.settings || {}) },
-      });
+        quantity: profile.quantity || 1,
+        engine: profile.settings?.engine || profile.engine || 'playwright',
+        startupPage: profile.startupPage || '',
+        windowWidth: profile.windowWidth || 0,
+        windowHeight: profile.windowHeight || 0,
+        identity: {
+          ...prev.identity,
+          ...(profile.identity || {}),
+          userAgent: profile.identity?.userAgent || profile.fingerprint?.userAgent || prev.identity.userAgent,
+          platform: profile.identity?.platform || profile.settings?.advanced?.platform || prev.identity.platform,
+          locale: profile.identity?.locale || profile.fingerprint?.language || prev.identity.locale,
+          timezone: profile.identity?.timezone || profile.fingerprint?.timezone || prev.identity.timezone,
+          languages: profile.identity?.languages || profile.settings?.advanced?.languages || prev.identity.languages,
+        },
+        display: {
+          ...prev.display,
+          ...(profile.display || {}),
+        },
+        hardware: {
+          ...prev.hardware,
+          ...(profile.hardware || {}),
+          cpuCores: profile.hardware?.cpuCores || profile.settings?.cpuCores || prev.hardware.cpuCores,
+          memoryGB: profile.hardware?.memoryGB || profile.settings?.memoryGB || prev.hardware.memoryGB,
+          gpuVendor: profile.hardware?.gpuVendor || profile.settings?.advanced?.webglVendor || prev.hardware.gpuVendor,
+          gpuRenderer: profile.hardware?.gpuRenderer || profile.settings?.advanced?.webglRenderer || prev.hardware.gpuRenderer,
+        },
+        canvas: { ...prev.canvas, ...(profile.canvas || {}) },
+        webgl: { ...prev.webgl, ...(profile.webgl || {}) },
+        audio: { ...prev.audio, ...(profile.audio || {}) },
+        media: { ...prev.media, ...(profile.media || {}) },
+        network: {
+          ...prev.network,
+          ...(profile.network || {}),
+          webrtcPolicy: profile.network?.webrtcPolicy || profile.settings?.webrtc || prev.network.webrtcPolicy,
+          doNotTrack: profile.network?.doNotTrack || (profile.settings?.advanced?.dnt ? 'true' : 'unspecified'),
+          maxTouchPoints: profile.network?.maxTouchPoints ?? profile.settings?.advanced?.maxTouchPoints ?? 0,
+        },
+        battery: { ...prev.battery, ...(profile.battery || {}) },
+        proxy: profile.settings?.proxy || prev.proxy,
+      }));
     }
   }, [profile]);
 
-  /* ── Load locale/timezone & custom presets ── */
-  useEffect(() => {
-    const loadOptions = async () => {
-      try {
-        if (window.electronAPI?.getLocalesTimezones) {
-          const res = await window.electronAPI.getLocalesTimezones();
-          if (res.success) {
-            const locales = (res.locales || []).slice().sort((a, b) => a.localeCompare(b));
-            setOptions({ locales, timezones: res.timezones || [] });
-          }
-        }
-        if (window.electronAPI?.listPresets) {
-          const list = await window.electronAPI.listPresets();
-          if (list?.success && Array.isArray(list.presets)) setCustomPresets(list.presets);
-        }
-      } catch (e) { /* ignore */ }
-    };
-    loadOptions();
-  }, []);
-
-  /* ── Preset generation helpers ── */
-  const randomFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
-  const randomBool = (p = 0.5) => Math.random() < p;
-
-  const buildFingerprintPreset = () => {
-    const osList = ['Windows', 'macOS', 'Linux'];
-    const browserList = ['Chrome', 'Edge', 'Firefox'];
-    const resolutions = [
-      '1024x768', '1280x720', '1280x800', '1360x768', '1366x768', '1440x900', '1536x864',
-      '1600x900', '1680x1050', '1920x1080', '1920x1200', '2560x1440', '2560x1600',
-      '2880x1800', '3000x2000', '3200x1800', '3440x1440', '3840x2160'
-    ];
-    const locales = (options.locales?.length ? options.locales : fallbackLocales);
-    const timezones = (options.timezones?.length ? options.timezones : fallbackTimezones);
-    const os = randomFrom(osList);
-    const browser = randomFrom(browserList);
-    const language = randomFrom(locales);
-    const timezone = randomFrom(timezones);
-    const screenResolution = randomFrom(resolutions);
-    const chromeVers = ['133.0.6943.127', '134.0.6998.89', '135.0.7049.85', '136.0.7103.93'];
-    const firefoxVers = ['131.0', '132.0', '133.0', '134.0'];
-    const edgeVers = ['133.0.3065.69', '134.0.3124.68', '135.0.3179.66', '136.0.3240.50'];
-    let browserVersion = '136.0.7103.93';
-    let ua = '';
-    const macTokens = ['10_15_7', '13_6_1', '14_5', '14_7_1', '15_2'];
-    if (browser === 'Chrome') {
-      browserVersion = randomFrom(chromeVers);
-      if (os === 'Windows') ua = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${browserVersion} Safari/537.36`;
-      else if (os === 'macOS') ua = `Mozilla/5.0 (Macintosh; Intel Mac OS X ${randomFrom(macTokens)}) AppleWebKit/605.1.15 (KHTML, like Gecko) Chrome/${browserVersion} Safari/537.36`;
-      else ua = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${browserVersion} Safari/537.36`;
-    } else if (browser === 'Edge') {
-      browserVersion = randomFrom(edgeVers);
-      if (os === 'Windows') ua = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${browserVersion} Safari/537.36 Edg/${browserVersion}`;
-      else if (os === 'macOS') ua = `Mozilla/5.0 (Macintosh; Intel Mac OS X ${randomFrom(macTokens)}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${browserVersion} Safari/537.36 Edg/${browserVersion}`;
-      else ua = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${browserVersion} Safari/537.36 Edg/${browserVersion}`;
-    } else {
-      const ver = randomFrom(firefoxVers);
-      browserVersion = ver;
-      if (os === 'Windows') ua = `Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:${ver}) Gecko/20100101 Firefox/${ver}`;
-      else if (os === 'macOS') ua = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:${ver}) Gecko/20100101 Firefox/${ver}`;
-      else ua = `Mozilla/5.0 (X11; Linux x86_64; rv:${ver}) Gecko/20100101 Firefox/${ver}`;
-    }
-    const plat = os === 'Windows' ? 'Win32' : (os === 'macOS' ? 'MacIntel' : 'Linux x86_64');
-    const devicePixelRatio = randomFrom([0.75, 1, 1.25, 1.5, 2, 2.5, 3]);
-    const maxTouchPoints = randomFrom([0, 1, 2, 3]);
-    const dnt = randomBool(0.2);
-    const webglPairs = [
-      { vendor: 'Google Inc. (Intel)', renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 630 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-      { vendor: 'Google Inc. (Intel)', renderer: 'ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-      { vendor: 'Google Inc. (NVIDIA)', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-      { vendor: 'Google Inc. (NVIDIA)', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-      { vendor: 'Google Inc. (NVIDIA)', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-      { vendor: 'Google Inc. (AMD)', renderer: 'ANGLE (AMD, AMD Radeon RX 580 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-      { vendor: 'Google Inc. (AMD)', renderer: 'ANGLE (AMD, AMD Radeon RX 6600 XT Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-      { vendor: 'Google Inc. (Apple)', renderer: 'ANGLE (Apple, Apple M1, OpenGL 4.1)' },
-      { vendor: 'Google Inc. (Apple)', renderer: 'ANGLE (Apple, Apple M2, OpenGL 4.1)' },
-    ];
-    const wgl = randomFrom(webglPairs);
-    const plugins = randomFrom([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-    const extraLangsPool = locales.filter(l => l !== language);
-    const extras = [randomFrom(extraLangsPool), randomBool(0.5) ? randomFrom(extraLangsPool) : null]
-      .filter(Boolean).slice(0, randomFrom([0, 1, 2]));
-    const languages = [language, ...extras].join(',');
-    const geoCities = [
-      { name: 'Hanoi', lat: 21.0278, lon: 105.8342 },
-      { name: 'Ho_Chi_Minh', lat: 10.8231, lon: 106.6297 },
-      { name: 'Bangkok', lat: 13.7563, lon: 100.5018 },
-      { name: 'Singapore', lat: 1.3521, lon: 103.8198 },
-      { name: 'Tokyo', lat: 35.6762, lon: 139.6503 },
-    ];
-    const city = randomFrom(geoCities);
-    return {
-      label: `${os} · ${browser} ${browserVersion} · ${language} · ${screenResolution}`,
-      fingerprint: { os, browser, browserVersion, userAgent: ua, language, screenResolution, timezone, webgl: true, canvas: randomBool(0.9), audio: randomBool(0.9) },
-      settingsPatch: {
-        language, timezone,
-        geolocation: { latitude: city.lat, longitude: city.lon, accuracy: randomFrom([30, 50, 75, 100]) },
-        advanced: { platform: plat, dnt, devicePixelRatio, maxTouchPoints, webglVendor: wgl.vendor, webglRenderer: wgl.renderer, plugins, languages },
-      },
-    };
-  };
-
-  const regeneratePresets = (count = presetCount) => {
-    const list = Array.from({ length: count }, () => buildFingerprintPreset());
-    setPresets(list);
-    setSelectedPreset('');
-  };
-
-  useEffect(() => {
-    regeneratePresets(presetCount);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [options.locales.length, options.timezones.length, presetCount]);
-
-  // Auto‑load proxy pool when switching to 'saved' sub-tab
-  useEffect(() => {
-    if (proxySubTab === 'saved') {
-      (async () => {
-        try {
-          const list = await window.electronAPI.getProxies();
-          setProxyPool(Array.isArray(list) ? list : []);
-        } catch { }
-      })();
-    }
-  }, [proxySubTab]);
-
-  // Check proxy handler
-  const handleCheckProxy = async () => {
-    const proxy = formData.settings.proxy;
-    if (!proxy || proxy.type === 'none' || !proxy.server) {
-      setProxyCheckResult({ alive: false, error: 'Enter proxy details first' });
-      return;
-    }
-    setProxyChecking(true);
-    setProxyCheckResult(null);
-    try {
-      // Parse host:port from server string
-      let host = proxy.server;
-      let port = 80;
-      const serverStr = String(proxy.server).replace(/^https?:\/\//, '').replace(/^socks\d?:\/\//, '');
-      if (serverStr.includes(':')) {
-        const parts = serverStr.split(':');
-        host = parts[0];
-        port = parseInt(parts[1], 10) || 80;
-      }
-      const result = await window.electronAPI.checkProxy({
-        type: proxy.type,
-        host,
-        port,
-        username: proxy.username || '',
-        password: proxy.password || '',
-      });
-      setProxyCheckResult(result);
-    } catch (e) {
-      setProxyCheckResult({ alive: false, error: e?.message || 'Check failed' });
-    } finally {
-      setProxyChecking(false);
-    }
-  };
-
-  useEffect(() => {
-    const engine = formData.settings.engine;
-    const allowed = engine === 'playwright' ? ['Chrome', 'Firefox'] : ['Chrome', 'Edge'];
-    if (!allowed.includes(formData.fingerprint.browser)) {
-      setFormData(prev => ({ ...prev, fingerprint: { ...prev.fingerprint, browser: allowed[0] } }));
-    }
-  }, [formData.settings.engine]);
-
-  /* ── Change handlers ── */
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
-  };
-
-  const handleFingerprintChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({ ...prev, fingerprint: { ...prev.fingerprint, [name]: type === 'checkbox' ? checked : value } }));
-  };
-
-  const handleSettingsChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({ ...prev, settings: { ...prev.settings, [name]: type === 'checkbox' ? checked : value } }));
-  };
-
-  const handleNestedSettingsChange = (section, field, parser = (v) => v) => (e) => {
-    const { value, type, checked } = e.target;
+  /* ── Update helpers ── */
+  const updateSection = (section, field, value) => {
     setFormData(prev => ({
       ...prev,
-      settings: { ...prev.settings, [section]: { ...prev.settings[section], [field]: type === 'checkbox' ? checked : parser(value) } }
+      [section]: { ...prev[section], [field]: value },
     }));
   };
 
-  const setSettingsField = (field, val) => {
-    setFormData(prev => ({ ...prev, settings: { ...prev.settings, [field]: val } }));
+  const updateField = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleOsChange = (os) => {
-    let userAgent = formData.fingerprint.userAgent;
-    const bv = formData.fingerprint.browserVersion || '136.0.7103.93';
-    if (os === 'Windows') userAgent = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
-    else if (os === 'macOS') userAgent = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
-    else if (os === 'Linux') userAgent = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
-    setFormData(prev => ({ ...prev, fingerprint: { ...prev.fingerprint, os, userAgent } }));
+  /* ── Generate per section ── */
+  const handleGenerate = async () => {
+    const section = activeTab;
+    try {
+      if (section === 'general') {
+        // Generate all sections
+        const res = await window.electronAPI?.generateFingerprint?.({
+          os: formData.quickGenerate.os,
+        });
+        if (res?.success) {
+          applyFullFingerprint(res);
+        }
+        return;
+      }
+
+      const generatorMap = {
+        identity: 'generateIdentity',
+        display: 'generateDisplay',
+        hardware: 'generateHardware',
+        canvas: 'generateCanvas',
+        webgl: 'generateWebGL',
+        audio: 'generateAudio',
+        media: 'generateMedia',
+        network: 'generateNetwork',
+        battery: 'generateBattery',
+      };
+
+      const method = generatorMap[section];
+      if (method && window.electronAPI?.[method]) {
+        const res = await window.electronAPI[method]({ os: formData.quickGenerate.os });
+        if (res?.success && res.data) {
+          setFormData(prev => ({
+            ...prev,
+            [section]: { ...prev[section], ...res.data },
+          }));
+        }
+      } else {
+        // Fallback: client-side generation
+        generateClientSide(section);
+      }
+    } catch (e) {
+      // Fallback to client-side generation
+      generateClientSide(section);
+    }
   };
 
+  const generateClientSide = (section) => {
+    const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+    switch (section) {
+      case 'identity': {
+        const os = formData.quickGenerate.os;
+        const chromeVer = rand(['133.0.6943.127', '134.0.6998.89', '135.0.7049.85', '136.0.7103.93']);
+        const ffVer = rand(['145.0', '146.0', '147.0']);
+        const browser = formData.quickGenerate.browser || 'Chrome';
+        let ua, platform;
+        if (browser === 'Firefox') {
+          if (os === 'Windows') { ua = `Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:${ffVer}) Gecko/20100101 Firefox/${ffVer}`; platform = 'Win32'; }
+          else if (os === 'macOS') { ua = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:${ffVer}) Gecko/20100101 Firefox/${ffVer}`; platform = 'MacIntel'; }
+          else { ua = `Mozilla/5.0 (X11; Linux x86_64; rv:${ffVer}) Gecko/20100101 Firefox/${ffVer}`; platform = 'Linux x86_64'; }
+        } else {
+          if (os === 'Windows') { ua = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVer} Safari/537.36`; platform = 'Win32'; }
+          else if (os === 'macOS') { ua = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVer} Safari/537.36`; platform = 'MacIntel'; }
+          else { ua = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVer} Safari/537.36`; platform = 'Linux x86_64'; }
+        }
+        const locales = ['en-US', 'en-GB', 'vi-VN', 'fr-FR', 'de-DE', 'ja-JP', 'ko-KR', 'zh-CN', 'th-TH', 'es-ES'];
+        const timezones = ['America/New_York', 'America/Los_Angeles', 'Europe/London', 'Europe/Berlin', 'Asia/Tokyo', 'Asia/Ho_Chi_Minh', 'Asia/Bangkok', 'Asia/Seoul'];
+        const locale = rand(locales);
+        const tz = rand(timezones);
+        const primaryLang = locale.split('-')[0];
+        setFormData(prev => ({
+          ...prev, identity: { ...prev.identity, userAgent: ua, platform, locale, timezone: tz, languages: `${locale}, ${primaryLang}` }
+        }));
+        break;
+      }
+      case 'display': {
+        const resolutions = [[1920, 1080], [2560, 1440], [1366, 768], [1536, 864], [1440, 900], [1680, 1050], [3840, 2160], [1280, 720]];
+        const res = rand(resolutions);
+        setFormData(prev => ({
+          ...prev, display: { ...prev.display, width: res[0], height: res[1], colorDepth: rand([24, 32]), pixelRatio: rand([1, 1.25, 1.5, 2]) }
+        }));
+        break;
+      }
+      case 'hardware': {
+        const gpuPairs = [
+          { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
+          { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
+          { v: 'Google Inc. (Intel)', r: 'ANGLE (Intel, Intel(R) UHD Graphics 630 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
+          { v: 'Google Inc. (AMD)', r: 'ANGLE (AMD, AMD Radeon RX 580 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
+          { v: 'Google Inc. (Apple)', r: 'ANGLE (Apple, Apple M1, OpenGL 4.1)' },
+        ];
+        const gpu = rand(gpuPairs);
+        setFormData(prev => ({
+          ...prev, hardware: { ...prev.hardware, cpuCores: rand([2, 4, 6, 8, 12, 16]), memoryGB: rand([4, 8, 16, 32]), gpuVendor: gpu.v, gpuRenderer: gpu.r }
+        }));
+        break;
+      }
+      case 'canvas':
+        setFormData(prev => ({
+          ...prev, canvas: { ...prev.canvas, noiseSeed: randInt(0, 999999), noiseIntensity: randInt(1, 10) }
+        }));
+        break;
+      case 'webgl':
+        setFormData(prev => ({
+          ...prev, webgl: { ...prev.webgl, noiseSeed: randInt(0, 999999), maxTextureSize: rand([8192, 16384, 32768]) }
+        }));
+        break;
+      case 'audio':
+        setFormData(prev => ({
+          ...prev, audio: { ...prev.audio, sampleRate: rand([44100, 48000, 96000]), channels: rand(['mono', 'stereo', '5.1']), noiseSeed: randInt(0, 999999) }
+        }));
+        break;
+      case 'media':
+        setFormData(prev => ({
+          ...prev, media: { ...prev.media, speakers: randInt(0, 3), microphones: randInt(0, 2), webcams: randInt(0, 2) }
+        }));
+        break;
+      case 'network':
+        setFormData(prev => ({
+          ...prev, network: {
+            ...prev.network,
+            webrtcPolicy: rand(['default', 'disable_non_proxied_udp', 'default_public_interface_only', 'default_public_and_private_interfaces']),
+            doNotTrack: rand(['unspecified', 'true', 'false']),
+            maxTouchPoints: rand([0, 1, 2, 5, 10]),
+            connectionType: rand(['4g', 'wifi', '3g', 'ethernet', 'bluetooth']),
+          }
+        }));
+        break;
+      case 'battery':
+        setFormData(prev => ({
+          ...prev, battery: {
+            ...prev.battery,
+            charging: rand(['charging', 'discharging']),
+            level: +(Math.random()).toFixed(2),
+            chargingTime: randInt(0, 7200),
+            dischargingTime: randInt(0, 36000),
+          }
+        }));
+        break;
+      default:
+        break;
+    }
+  };
+
+  const applyFullFingerprint = (res) => {
+    const fp = res.fingerprint || {};
+    const s = res.settings || {};
+    const adv = s.advanced || {};
+    setFormData(prev => ({
+      ...prev,
+      identity: {
+        ...prev.identity,
+        userAgent: fp.userAgent || prev.identity.userAgent,
+        platform: adv.platform || prev.identity.platform,
+        locale: fp.language || prev.identity.locale,
+        timezone: fp.timezone || prev.identity.timezone,
+        languages: adv.languages || prev.identity.languages,
+      },
+      display: {
+        ...prev.display,
+        width: parseInt((fp.screenResolution || '1920x1080').split('x')[0]) || 1920,
+        height: parseInt((fp.screenResolution || '1920x1080').split('x')[1]) || 1080,
+        pixelRatio: adv.devicePixelRatio || 1,
+      },
+      hardware: {
+        ...prev.hardware,
+        cpuCores: s.cpuCores || prev.hardware.cpuCores,
+        memoryGB: s.memoryGB || prev.hardware.memoryGB,
+        gpuVendor: adv.webglVendor || prev.hardware.gpuVendor,
+        gpuRenderer: adv.webglRenderer || prev.hardware.gpuRenderer,
+      },
+    }));
+  };
+
+  /* ── Submit handler ── */
   const handleSubmit = (e) => {
     e.preventDefault();
     const payload = {
-      ...formData,
+      ...(profile || {}),
+      name: formData.name,
+      description: formData.description || '',
+      cookie: formData.cookie || '',
+      startUrl: formData.startupPage || '',
+      quantity: formData.quantity || 1,
+      engine: formData.engine,
+      startupPage: formData.startupPage || '',
+      windowWidth: formData.windowWidth,
+      windowHeight: formData.windowHeight,
+      quickGenerate: formData.quickGenerate,
+      // New granular sections
+      identity: formData.identity,
+      display: formData.display,
+      hardware: formData.hardware,
+      canvas: formData.canvas,
+      webgl: formData.webgl,
+      audio: formData.audio,
+      media: formData.media,
+      network: formData.network,
+      battery: formData.battery,
+      proxy: formData.proxy,
+      // Legacy fingerprint/settings for backend compatibility
       fingerprint: {
-        ...formData.fingerprint,
-        language: formData.settings.language || formData.fingerprint.language,
-        timezone: formData.settings.timezone || formData.fingerprint.timezone,
+        os: formData.quickGenerate.os,
+        browser: formData.quickGenerate.browser || 'Chrome',
+        browserVersion: '136.0.7103.93',
+        userAgent: formData.identity.userAgent,
+        language: formData.identity.locale,
+        screenResolution: `${formData.display.width}x${formData.display.height}`,
+        timezone: formData.identity.timezone,
+        webgl: formData.webgl.enabled,
+        canvas: formData.canvas.enabled,
+        audio: formData.audio.enabled,
+      },
+      settings: {
+        engine: formData.engine,
+        cpuCores: formData.hardware.cpuCores,
+        memoryGB: formData.hardware.memoryGB,
+        language: formData.identity.locale,
+        timezone: formData.identity.timezone,
+        webrtc: formData.network.webrtcPolicy,
+        proxy: formData.proxy,
+        advanced: {
+          platform: formData.identity.platform,
+          dnt: formData.network.doNotTrack === 'true',
+          devicePixelRatio: formData.display.pixelRatio,
+          maxTouchPoints: formData.network.maxTouchPoints,
+          webglVendor: formData.hardware.gpuVendor,
+          webglRenderer: formData.hardware.gpuRenderer,
+          plugins: 5,
+          languages: formData.identity.languages,
+        },
       },
     };
     onSave(payload);
   };
 
-  const randomize = () => {
-    const p = buildFingerprintPreset();
-    setFormData(prev => ({
-      ...prev,
-      fingerprint: { ...prev.fingerprint, ...p.fingerprint },
-      settings: {
-        ...prev.settings,
-        ...p.settingsPatch,
-        cpuCores: randomFrom([4, 6, 8]),
-        memoryGB: randomFrom([8, 12, 16, 24, 32]),
-        webrtc: randomFrom(['disabled', 'real', 'forward', 'replace', 'disable_udp']),
-        advanced: { ...(prev.settings.advanced || {}), ...p.settingsPatch.advanced },
-      },
-    }));
-  };
-
-  /* ── Apply preset ── */
-  const applyPreset = (raw) => {
-    setSelectedPreset(raw);
-    let p = null;
-    if (raw && raw.startsWith('c:')) {
-      const id = raw.slice(2);
-      p = customPresets.find(x => x.id === id);
-    } else {
-      const idx = Number(raw);
-      if (!Number.isNaN(idx) && presets[idx]) p = presets[idx];
-    }
-    if (p) {
-      setFormData(prev => ({
-        ...prev,
-        fingerprint: { ...prev.fingerprint, ...p.fingerprint },
-        settings: {
-          ...prev.settings,
-          language: p.settingsPatch.language,
-          timezone: p.settingsPatch.timezone,
-          geolocation: { ...(prev.settings.geolocation || {}), ...(p.settingsPatch.geolocation || {}) },
-          advanced: { ...(prev.settings.advanced || {}), ...(p.settingsPatch.advanced || {}) },
-        }
-      }));
-    }
-  };
-
-  /* ── Overview data ── */
-  const overviewData = useMemo(() => {
-    const fp = formData.fingerprint;
-    const s = formData.settings;
-    const webrtcLabels = { disabled: 'Disabled', forward: 'Forward', replace: 'Replace', real: 'Real', disable_udp: 'Disable UDP', default: 'Disabled', proxy_only: 'Disable UDP' };
-    const tzModeLabels = { ip: 'Based on IP', real: 'Real', custom: s.timezone };
-    const locModeLabels = { ip: '[Ask] Based on IP', custom: 'Custom', block: 'Block' };
-    const langModeLabels = { ip: 'Based on IP', custom: s.language };
-    const dlLabels = { language: 'Based on Language', real: 'Real', custom: 'Custom' };
-    const srLabels = { random: 'Random', predefined: 'Based on User-Agent', custom: 'Custom' };
-    return [
-      ['Browser', `${fp.browser} [Auto]`],
-      ['User-Agent', fp.userAgent],
-      ['WebRTC', webrtcLabels[s.webrtc] || 'Disabled'],
-      ['Timezone', tzModeLabels[s.timezoneMode] || 'Based on IP'],
-      ['Location', locModeLabels[s.geolocation?.mode] || '[Ask] Based on IP'],
-      ['Language', langModeLabels[s.languageMode] || 'Based on IP'],
-      ['Display language', dlLabels[s.displayLangMode] || 'Based on Language'],
-      ['Screen Resolution', srLabels[s.screenResMode] || 'Based on User-Agent'],
-      ['Fonts', s.fontsMode === 'custom' ? 'Custom' : 'Default'],
-      ['Canvas', 'Real'],
-    ];
-  }, [formData]);
-
-  /* ── Tab definitions ── */
-  const TABS = [
-    { id: 'general', label: t('pf.tab.general', 'General') },
-    { id: 'proxy', label: t('pf.tab.proxy', 'Proxy') },
-    { id: 'platform', label: t('pf.tab.platform', 'Platform') },
-    { id: 'fingerprint', label: t('pf.tab.fingerprint', 'Fingerprint') },
-    { id: 'advanced', label: t('pf.tab.advanced', 'Advanced') },
-  ];
+  /* ── Tab button label for Generate ── */
+  const activeTabObj = TABS.find(t => t.id === activeTab);
+  const generateLabel = activeTab === 'general'
+    ? t('profileForm.randomize', '⟳ Generate')
+    : `⟳ Generate ${activeTabObj?.label || ''}`;
 
   /* ═══════════════ RENDER ═══════════════ */
   return (
-    <div className="profile-form-container">
-      {/* Header */}
-      <div className="profile-form-header">
-        <h2>{profile ? t('profileForm.header.edit') : t('profileForm.header.create')}</h2>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <button type="button" className="btn" onClick={randomize} disabled={lockedPreset}>
-            <Shuffle size={14} /> {t('profileForm.randomize')}
+    <div className="npf-container">
+      {/* ─── Header ─── */}
+      <div className="npf-header">
+        <div className="npf-header-left">
+          <button type="button" className="npf-back-btn" onClick={onCancel}>
+            <ArrowLeft size={18} />
           </button>
-          <button type="submit" form="profile-edit-form" className="btn btn-primary">
-            <Save size={14} /> {profile ? t('profileForm.save') : t('profileForm.create')}
+          <h2 className="npf-title">
+            {profile ? t('profileForm.header.edit', 'Edit Profile') : t('profileForm.header.create', 'New Profile')}
+          </h2>
+        </div>
+        <div className="npf-header-actions">
+          <button type="button" className="btn npf-generate-btn" onClick={handleGenerate}>
+            <RefreshCw size={14} /> {generateLabel}
           </button>
-          <button className="btn-close" onClick={onCancel}><X size={16} /></button>
+          <button type="button" className="btn" onClick={onCancel}>Cancel</button>
+          <button type="button" className="btn btn-success npf-create-btn" onClick={handleSubmit}>
+            {profile ? 'Save' : 'Create'}
+          </button>
         </div>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="pf-tabs">
-        {TABS.map(tab => (
-          <button
-            key={tab.id}
-            type="button"
-            className={`pf-tab${activeTab === tab.id ? ' active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <div className="npf-body">
+        {/* ─── Left Sidebar ─── */}
+        <nav className="npf-sidebar">
+          {TABS.map(tab => {
+            const IconComp = tab.icon;
+            const isActive = activeTab === tab.id;
+            const sectionEnabled = tab.id !== 'general' && formData[tab.id]?.enabled;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                className={`npf-nav-item ${isActive ? 'active' : ''} ${sectionEnabled ? 'section-enabled' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                <IconComp size={16} />
+                <span>{tab.label}</span>
+                {tab.id !== 'general' && (
+                  <span className={`npf-nav-dot ${sectionEnabled ? 'dot-enabled' : 'dot-disabled'}`} />
+                )}
+              </button>
+            );
+          })}
+        </nav>
 
-      {/* Body: form + overview sidebar */}
-      <div className="pf-body">
-        <form id="profile-edit-form" onSubmit={handleSubmit} className="profile-form">
+        {/* ─── Content Area ─── */}
+        <div className="npf-content">
+          <form id="profile-edit-form" onSubmit={handleSubmit}>
 
-          {/* ═══════ TAB: GENERAL ═══════ */}
-          {activeTab === 'general' && (
-            <>
-              <FormRow label={t('pf.name', 'Name')}>
-                <div className="pf-input-wrap">
-                  <input
-                    className="pf-input"
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    placeholder={t('pf.name.ph', 'Optional: profile name')}
-                    maxLength={100}
-                  />
-                  <span className="pf-char-count">{formData.name.length} / 100</span>
-                </div>
-              </FormRow>
-
-              <FormRow label={t('pf.browser', 'Browser')}>
-                <SegmentedControl
-                  value={formData.settings.engine}
-                  onChange={(v) => setSettingsField('engine', v)}
-                  options={[
-                    { value: 'playwright', label: 'Playwright' },
-                    { value: 'cdp', label: 'CDP Chromium' },
-                  ]}
+            {/* ═══════ GENERAL ═══════ */}
+            {activeTab === 'general' && (
+              <div className="npf-section">
+                <SectionHeader
+                  title="Profile Settings"
+                  subtitle="Configure the profile name and fingerprint generation options."
                 />
-              </FormRow>
+                <div className="npf-divider" />
 
-              <FormRow label={t('pf.fp.os', 'OS')}>
-                <SegmentedControl
-                  value={formData.fingerprint.os}
-                  onChange={handleOsChange}
-                  options={[
-                    { value: 'Windows', label: 'Windows', icon: '🪟' },
-                    { value: 'macOS', label: 'macOS', icon: '🍎' },
-                    { value: 'Linux', label: 'Linux', icon: '🐧' },
-                  ]}
-                />
-              </FormRow>
-
-              <FormRow label={t('pf.ua', 'User-Agent')}>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <select
-                    className="pf-select"
-                    style={{ width: '80px', flex: '0 0 auto' }}
-                    value="all"
-                    onChange={() => { }}
-                  >
-                    <option value="all">All</option>
-                  </select>
-                  <div className="pf-input-wrap" style={{ flex: 1 }}>
+                <div className="npf-field-row">
+                  <div className="npf-field" style={{ flex: 2 }}>
+                    <label>Profile Name</label>
                     <input
-                      className="pf-input"
                       type="text"
-                      name="userAgent"
-                      value={formData.fingerprint.userAgent}
-                      onChange={handleFingerprintChange}
-                      title={formData.fingerprint.userAgent}
+                      className="npf-input"
+                      value={formData.name}
+                      onChange={(e) => updateField('name', e.target.value)}
+                      placeholder={`Profile ${Math.floor(Math.random() * 9000 + 1000)}`}
                     />
                   </div>
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    title="Copy UA"
-                    onClick={async () => { try { await navigator.clipboard.writeText(formData.fingerprint.userAgent || ''); } catch { } }}
-                  >
-                    <Copy size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    title={t('profileForm.randomize')}
-                    onClick={() => {
-                      const p = buildFingerprintPreset();
-                      setFormData(prev => ({
-                        ...prev,
-                        fingerprint: { ...prev.fingerprint, userAgent: p.fingerprint.userAgent }
-                      }));
+                  <div className="npf-field" style={{ flex: 1 }}>
+                    <label>Quantity</label>
+                    <input
+                      type="number"
+                      className="npf-input"
+                      value={formData.quantity}
+                      min={1}
+                      max={100}
+                      onChange={(e) => updateField('quantity', parseInt(e.target.value) || 1)}
+                    />
+                  </div>
+                </div>
+
+                <fieldset className="npf-fieldset">
+                  <legend>Browser Engine</legend>
+                  <div className="npf-field">
+                    <label>Engine</label>
+                    <select
+                      className="npf-input"
+                      value={formData.engine}
+                      onChange={(e) => updateField('engine', e.target.value)}
+                    >
+                      <option value="playwright">Playwright Chromium</option>
+                      <option value="cdp">CDP Chromium</option>
+                    </select>
+                  </div>
+                  <p className="npf-hint-text">
+                    Chromium supports full fingerprint injection. Firefox has limited CDP support.
+                  </p>
+                </fieldset>
+
+                <fieldset className="npf-fieldset">
+                  <legend>Startup</legend>
+                  <div className="npf-field">
+                    <label>Startup Page</label>
+                    <input
+                      type="text"
+                      className="npf-input"
+                      value={formData.startupPage}
+                      onChange={(e) => updateField('startupPage', e.target.value)}
+                      placeholder="ex: https://browser.ongbantat.store"
+                    />
+                  </div>
+                  <div className="npf-field-row">
+                    <div className="npf-field">
+                      <label>Window Width (px)</label>
+                      <input
+                        type="number"
+                        className="npf-input"
+                        value={formData.windowWidth}
+                        onChange={(e) => updateField('windowWidth', parseInt(e.target.value) || 0)}
+                      />
+                    </div>
+                    <div className="npf-field">
+                      <label>Window Height (px)</label>
+                      <input
+                        type="number"
+                        className="npf-input"
+                        value={formData.windowHeight}
+                        onChange={(e) => updateField('windowHeight', parseInt(e.target.value) || 0)}
+                      />
+                    </div>
+                  </div>
+                  <p className="npf-hint-text">Leave width/height at 0 to use the OS default window size.</p>
+                </fieldset>
+
+                <fieldset className="npf-fieldset">
+                  <legend>Quick Generate</legend>
+                  <div className="npf-field-row npf-three-col">
+                    <div className="npf-field">
+                      <label>OS</label>
+                      <select
+                        className="npf-input"
+                        value={formData.quickGenerate.os}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev, quickGenerate: { ...prev.quickGenerate, os: e.target.value }
+                        }))}
+                      >
+                        <option value="Windows">Windows</option>
+                        <option value="macOS">macOS</option>
+                        <option value="Linux">Linux</option>
+                      </select>
+                    </div>
+                    <div className="npf-field">
+                      <label>Browser</label>
+                      <select
+                        className="npf-input"
+                        value={formData.quickGenerate.browser}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev, quickGenerate: { ...prev.quickGenerate, browser: e.target.value }
+                        }))}
+                      >
+                        <option value="Chrome">Chrome</option>
+                        <option value="Firefox">Firefox</option>
+                        <option value="Edge">Edge</option>
+                      </select>
+                    </div>
+                    <div className="npf-field">
+                      <label>Device</label>
+                      <select
+                        className="npf-input"
+                        value={formData.quickGenerate.device}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev, quickGenerate: { ...prev.quickGenerate, device: e.target.value }
+                        }))}
+                      >
+                        <option value="Desktop">Desktop</option>
+                        <option value="Mobile">Mobile</option>
+                        <option value="Tablet">Tablet</option>
+                      </select>
+                    </div>
+                  </div>
+                  <p className="npf-hint-text">Use "Generate" to auto-fill all sections based on these settings. You can then customize each section individually by changing these settings.</p>
+                </fieldset>
+              </div>
+            )}
+
+            {/* ═══════ IDENTITY ═══════ */}
+            {activeTab === 'identity' && (
+              <div className={`npf-section ${!formData.identity.enabled ? 'npf-section-disabled' : ''}`}>
+                <SectionHeader
+                  title="Browser Identity"
+                  subtitle="User Agent string, platform, locale, timezone, and language preferences"
+                  enabled={formData.identity.enabled}
+                  onToggle={(v) => updateSection('identity', 'enabled', v)}
+                />
+                <div className="npf-divider" />
+
+                <div className="npf-field">
+                  <label>User-Agent</label>
+                  <input
+                    type="text"
+                    className="npf-input"
+                    value={formData.identity.userAgent}
+                    onChange={(e) => updateSection('identity', 'userAgent', e.target.value)}
+                  />
+                </div>
+
+                <div className="npf-field-row">
+                  <div className="npf-field">
+                    <label>Platform</label>
+                    <input
+                      type="text"
+                      className="npf-input"
+                      value={formData.identity.platform}
+                      onChange={(e) => updateSection('identity', 'platform', e.target.value)}
+                    />
+                  </div>
+                  <div className="npf-field">
+                    <label>Locale</label>
+                    <input
+                      type="text"
+                      className="npf-input"
+                      value={formData.identity.locale}
+                      onChange={(e) => updateSection('identity', 'locale', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="npf-field-row">
+                  <div className="npf-field">
+                    <label>Timezone</label>
+                    <input
+                      type="text"
+                      className="npf-input"
+                      value={formData.identity.timezone}
+                      onChange={(e) => updateSection('identity', 'timezone', e.target.value)}
+                    />
+                  </div>
+                  <div className="npf-field">
+                    <label>Languages (comma-separated)</label>
+                    <input
+                      type="text"
+                      className="npf-input"
+                      value={formData.identity.languages}
+                      onChange={(e) => updateSection('identity', 'languages', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ═══════ DISPLAY ═══════ */}
+            {activeTab === 'display' && (
+              <div className={`npf-section ${!formData.display.enabled ? 'npf-section-disabled' : ''}`}>
+                <SectionHeader
+                  title="Display & Screen"
+                  subtitle="Screen resolution, color depth, and device pixel ratio"
+                  enabled={formData.display.enabled}
+                  onToggle={(v) => updateSection('display', 'enabled', v)}
+                />
+                <div className="npf-divider" />
+
+                {formData.display.enabled && (
+                  <div className="npf-warning-banner">
+                    <span className="npf-warning-icon">⚠</span>
+                    <span>Enabling Display &amp; Screen injection may trigger Cloudflare bot detection. Disable this category if you need to bypass Cloudflare challenges.</span>
+                  </div>
+                )}
+
+                <div className="npf-field">
+                  <label>Resolution Preset</label>
+                  <select
+                    className="npf-input"
+                    value={formData.display.preset}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      updateSection('display', 'preset', val);
+                      if (val !== 'Custom') {
+                        const [w, h] = val.split('x').map(Number);
+                        setFormData(prev => ({
+                          ...prev, display: { ...prev.display, preset: val, width: w, height: h }
+                        }));
+                      }
                     }}
                   >
-                    <Shuffle size={14} />
-                  </button>
-                </div>
-              </FormRow>
-
-              <FormRow label={t('pf.group', 'Group')} required>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <select className="pf-select" style={{ flex: 1 }} value="ungrouped" onChange={() => { }}>
-                    <option value="ungrouped">Ungrouped</option>
+                    <option value="Custom">Custom</option>
+                    <option value="1920x1080">1920 × 1080 (Full HD)</option>
+                    <option value="2560x1440">2560 × 1440 (2K)</option>
+                    <option value="3840x2160">3840 × 2160 (4K)</option>
+                    <option value="1366x768">1366 × 768</option>
+                    <option value="1536x864">1536 × 864</option>
+                    <option value="1440x900">1440 × 900</option>
+                    <option value="1680x1050">1680 × 1050</option>
+                    <option value="1280x720">1280 × 720 (HD)</option>
                   </select>
-                  <button type="button" className="pf-check-btn" style={{ gap: '0.25rem' }}>
-                    🏷️ Tags
-                  </button>
                 </div>
-              </FormRow>
 
-              <FormRow label={t('pf.cookie', 'Cookie')}>
-                <input
-                  className="pf-input"
-                  type="text"
-                  name="cookie"
-                  value={formData.cookie || ''}
-                  onChange={handleChange}
-                  placeholder="Formats: JSON, Netscape, Name=Value"
+                <div className="npf-field-row">
+                  <div className="npf-field">
+                    <label>Width (px)</label>
+                    <input
+                      type="number"
+                      className="npf-input"
+                      value={formData.display.width}
+                      onChange={(e) => updateSection('display', 'width', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="npf-field">
+                    <label>Height (px)</label>
+                    <input
+                      type="number"
+                      className="npf-input"
+                      value={formData.display.height}
+                      onChange={(e) => updateSection('display', 'height', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                </div>
+
+                <div className="npf-field-row">
+                  <div className="npf-field">
+                    <label>Color Depth (bits)</label>
+                    <input
+                      type="number"
+                      className="npf-input"
+                      value={formData.display.colorDepth}
+                      onChange={(e) => updateSection('display', 'colorDepth', parseInt(e.target.value) || 24)}
+                    />
+                  </div>
+                  <div className="npf-field">
+                    <label>Pixel Ratio</label>
+                    <input
+                      type="number"
+                      className="npf-input"
+                      step="0.01"
+                      value={formData.display.pixelRatio}
+                      onChange={(e) => updateSection('display', 'pixelRatio', parseFloat(e.target.value) || 1)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ═══════ HARDWARE ═══════ */}
+            {activeTab === 'hardware' && (
+              <div className={`npf-section ${!formData.hardware.enabled ? 'npf-section-disabled' : ''}`}>
+                <SectionHeader
+                  title="Hardware"
+                  subtitle="CPU cores, memory, and GPU configuration"
+                  enabled={formData.hardware.enabled}
+                  onToggle={(v) => updateSection('hardware', 'enabled', v)}
                 />
-                <button type="button" className="pf-merge-btn">
-                  <Plus size={13} /> Merge cookie
-                </button>
-              </FormRow>
+                <div className="npf-divider" />
 
-              <FormRow label={t('pf.remark', 'Remark')}>
-                <div className="pf-textarea-wrap">
+                <div className="npf-field-row">
+                  <div className="npf-field">
+                    <label>CPU Cores</label>
+                    <select
+                      className="npf-input"
+                      value={formData.hardware.cpuCores}
+                      onChange={(e) => updateSection('hardware', 'cpuCores', parseInt(e.target.value))}
+                    >
+                      {[2, 4, 6, 8, 10, 12, 16].map(c => (
+                        <option key={c} value={c}>{c} cores</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="npf-field">
+                    <label>Memory (GB)</label>
+                    <select
+                      className="npf-input"
+                      value={formData.hardware.memoryGB}
+                      onChange={(e) => updateSection('hardware', 'memoryGB', parseInt(e.target.value))}
+                    >
+                      {[2, 4, 8, 16, 32, 64].map(m => (
+                        <option key={m} value={m}>{m} GB</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="npf-field">
+                  <label>GPU Vendor</label>
                   <input
-                    className="pf-input"
                     type="text"
-                    name="description"
-                    value={formData.description}
-                    onChange={handleChange}
-                    placeholder={t('pf.remark.ph', 'Enter remark')}
-                    maxLength={1500}
+                    className="npf-input"
+                    value={formData.hardware.gpuVendor}
+                    onChange={(e) => updateSection('hardware', 'gpuVendor', e.target.value)}
                   />
-                  <span className="pf-char-count">{(formData.description || '').length} / 1500</span>
                 </div>
-              </FormRow>
-            </>
-          )}
+                <div className="npf-field">
+                  <label>GPU Renderer</label>
+                  <input
+                    type="text"
+                    className="npf-input"
+                    value={formData.hardware.gpuRenderer}
+                    onChange={(e) => updateSection('hardware', 'gpuRenderer', e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
 
-          {/* ═══════ TAB: PROXY ═══════ */}
-          {activeTab === 'proxy' && (
-            <>
-              <div className="pf-fieldset">
-                <div className="pf-fieldset-legend">Proxy</div>
+            {/* ═══════ CANVAS ═══════ */}
+            {activeTab === 'canvas' && (
+              <div className={`npf-section ${!formData.canvas.enabled ? 'npf-section-disabled' : ''}`}>
+                <SectionHeader
+                  title="Canvas Fingerprint"
+                  subtitle="Pixel-level noise injection to randomize canvas fingerprint"
+                  enabled={formData.canvas.enabled}
+                  onToggle={(v) => updateSection('canvas', 'enabled', v)}
+                />
+                <div className="npf-divider" />
 
-                {/* Sub-tabs */}
-                <div className="pf-subtabs">
-                  {['custom', 'saved', 'provider'].map(st => (
-                    <button
-                      key={st}
-                      type="button"
-                      className={`pf-subtab${proxySubTab === st ? ' active' : ''}`}
-                      onClick={() => setProxySubTab(st)}
+                <p className="npf-info-text">
+                  Canvas noise adds subtle pixel-level randomization to prevent fingerprint tracking via HTML5 canvas rendering.
+                </p>
+
+                <div className="npf-field-row">
+                  <div className="npf-field">
+                    <label>Noise Seed</label>
+                    <input
+                      type="number"
+                      className="npf-input"
+                      value={formData.canvas.noiseSeed}
+                      onChange={(e) => updateSection('canvas', 'noiseSeed', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="npf-field">
+                    <label>Noise Intensity (0-10)</label>
+                    <input
+                      type="number"
+                      className="npf-input"
+                      min={0}
+                      max={10}
+                      value={formData.canvas.noiseIntensity}
+                      onChange={(e) => updateSection('canvas', 'noiseIntensity', Math.min(10, Math.max(0, parseInt(e.target.value) || 0)))}
+                    />
+                  </div>
+                </div>
+
+                <div className="npf-summary-box">
+                  <div className="npf-summary-row">
+                    <span>Current seed:</span>
+                    <span>{formData.canvas.noiseSeed}</span>
+                  </div>
+                  <div className="npf-summary-row">
+                    <span>Intensity:</span>
+                    <span>{formData.canvas.noiseIntensity} / 10</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ═══════ WEBGL ═══════ */}
+            {activeTab === 'webgl' && (
+              <div className={`npf-section ${!formData.webgl.enabled ? 'npf-section-disabled' : ''}`}>
+                <SectionHeader
+                  title="WebGL Fingerprint"
+                  subtitle="WebGL noise, texture size parameters, and supported extensions"
+                  enabled={formData.webgl.enabled}
+                  onToggle={(v) => updateSection('webgl', 'enabled', v)}
+                />
+                <div className="npf-divider" />
+
+                <p className="npf-info-text">
+                  WebGL overrides spoof GPU capabilities and inject deterministic hash noise to prevent WebGL-based fingerprinting.
+                </p>
+
+                <div className="npf-field-row">
+                  <div className="npf-field">
+                    <label>Noise Seed</label>
+                    <input
+                      type="number"
+                      className="npf-input"
+                      value={formData.webgl.noiseSeed}
+                      onChange={(e) => updateSection('webgl', 'noiseSeed', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="npf-field">
+                    <label>MAX_TEXTURE_SIZE</label>
+                    <input
+                      type="number"
+                      className="npf-input"
+                      value={formData.webgl.maxTextureSize}
+                      onChange={(e) => updateSection('webgl', 'maxTextureSize', parseInt(e.target.value) || 16384)}
+                    />
+                  </div>
+                </div>
+
+                <div className="npf-field">
+                  <label>Extensions (comma-separated)</label>
+                  <input
+                    type="text"
+                    className="npf-input"
+                    value={formData.webgl.extensions}
+                    onChange={(e) => updateSection('webgl', 'extensions', e.target.value)}
+                    placeholder="WEBGL_debug_renderer_info, OES_texture_float..."
+                  />
+                </div>
+
+                <div className="npf-summary-box">
+                  <div className="npf-summary-row">
+                    <span>Extensions count:</span>
+                    <span>{formData.webgl.extensions ? formData.webgl.extensions.split(',').filter(x => x.trim()).length : 0}</span>
+                  </div>
+                  <div className="npf-summary-row">
+                    <span>Noise seed:</span>
+                    <span>{formData.webgl.noiseSeed}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ═══════ AUDIO ═══════ */}
+            {activeTab === 'audio' && (
+              <div className={`npf-section ${!formData.audio.enabled ? 'npf-section-disabled' : ''}`}>
+                <SectionHeader
+                  title="Audio Fingerprint"
+                  subtitle="AudioContext sample rate, channel count, and noise injection"
+                  enabled={formData.audio.enabled}
+                  onToggle={(v) => updateSection('audio', 'enabled', v)}
+                />
+                <div className="npf-divider" />
+
+                <div className="npf-field-row npf-three-col">
+                  <div className="npf-field">
+                    <label>Sample Rate (Hz)</label>
+                    <select
+                      className="npf-input"
+                      value={formData.audio.sampleRate}
+                      onChange={(e) => updateSection('audio', 'sampleRate', parseInt(e.target.value))}
                     >
-                      {st === 'custom' ? 'Custom' : st === 'saved' ? 'Saved Proxies' : 'Proxy Provider'}
-                    </button>
-                  ))}
+                      <option value={44100}>44,100 Hz</option>
+                      <option value={48000}>48,000 Hz</option>
+                      <option value={96000}>96,000 Hz</option>
+                    </select>
+                  </div>
+                  <div className="npf-field">
+                    <label>Channels</label>
+                    <select
+                      className="npf-input"
+                      value={formData.audio.channels}
+                      onChange={(e) => updateSection('audio', 'channels', e.target.value)}
+                    >
+                      <option value="mono">Mono (1ch)</option>
+                      <option value="stereo">Stereo (2ch)</option>
+                      <option value="5.1">5.1 Surround (6ch)</option>
+                    </select>
+                  </div>
+                  <div className="npf-field">
+                    <label>Noise Seed</label>
+                    <input
+                      type="number"
+                      className="npf-input"
+                      value={formData.audio.noiseSeed}
+                      onChange={(e) => updateSection('audio', 'noiseSeed', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
                 </div>
+              </div>
+            )}
 
-                {proxySubTab === 'custom' && (
-                  <>
-                    <FormRow label={t('pf.proxy.type', 'Proxy type')}>
-                      <div className="pf-inline-row">
-                        <select
-                          className="pf-select"
-                          value={formData.settings.proxy?.type || 'none'}
-                          onChange={(e) => setFormData(prev => ({
-                            ...prev,
-                            settings: { ...prev.settings, proxy: { ...prev.settings.proxy, type: e.target.value } }
-                          }))}
-                        >
-                          <option value="none">No Proxy (Local network)</option>
-                          <option value="http">HTTP Proxy</option>
-                          <option value="https">HTTPS Proxy</option>
-                          <option value="socks4">SOCKS4 Proxy</option>
-                          <option value="socks5">SOCKS5 Proxy</option>
-                        </select>
-                        <button
-                          type="button"
-                          className="pf-check-btn"
-                          onClick={handleCheckProxy}
-                          disabled={proxyChecking || formData.settings.proxy?.type === 'none'}
-                        >
-                          {proxyChecking ? '⏳ Checking...' : '🔍 Check Proxy'}
-                        </button>
-                      </div>
-                    </FormRow>
+            {/* ═══════ MEDIA ═══════ */}
+            {activeTab === 'media' && (
+              <div className={`npf-section ${!formData.media.enabled ? 'npf-section-disabled' : ''}`}>
+                <SectionHeader
+                  title="Media Devices"
+                  subtitle="Number of speakers, microphones, and webcams reported to the browser"
+                  enabled={formData.media.enabled}
+                  onToggle={(v) => updateSection('media', 'enabled', v)}
+                />
+                <div className="npf-divider" />
 
-                    {formData.settings.proxy?.type !== 'none' && (
-                      <>
-                        <FormRow label="Host:Port">
-                          <input
-                            className="pf-input"
-                            type="text"
-                            placeholder="host:port or http://host:port"
-                            value={formData.settings.proxy?.server || ''}
-                            onChange={handleNestedSettingsChange('proxy', 'server')}
-                          />
-                        </FormRow>
-                        <FormRow label="Auth">
-                          <div className="pf-two-col">
-                            <input
-                              className="pf-input"
-                              type="text"
-                              placeholder="username"
-                              value={formData.settings.proxy?.username || ''}
-                              onChange={handleNestedSettingsChange('proxy', 'username')}
-                            />
-                            <input
-                              className="pf-input"
-                              type="text"
-                              placeholder="password"
-                              value={formData.settings.proxy?.password || ''}
-                              onChange={handleNestedSettingsChange('proxy', 'password')}
-                            />
-                          </div>
-                        </FormRow>
-                      </>
-                    )}
+                <div className="npf-field-row npf-three-col">
+                  <div className="npf-field">
+                    <label>Speakers</label>
+                    <input
+                      type="number"
+                      className="npf-input"
+                      min={0}
+                      value={formData.media.speakers}
+                      onChange={(e) => updateSection('media', 'speakers', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="npf-field">
+                    <label>Microphones</label>
+                    <input
+                      type="number"
+                      className="npf-input"
+                      min={0}
+                      value={formData.media.microphones}
+                      onChange={(e) => updateSection('media', 'microphones', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="npf-field">
+                    <label>Webcams</label>
+                    <input
+                      type="number"
+                      className="npf-input"
+                      min={0}
+                      value={formData.media.webcams}
+                      onChange={(e) => updateSection('media', 'webcams', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
-                    <FormRow label={t('pf.proxy.ipChecker', 'IP checker')}>
+            {/* ═══════ NETWORK ═══════ */}
+            {activeTab === 'network' && (
+              <div className={`npf-section ${!formData.network.enabled ? 'npf-section-disabled' : ''}`}>
+                <SectionHeader
+                  title="Network & Navigator"
+                  subtitle="WebRTC IP handling policy and navigator network/privacy properties"
+                  enabled={formData.network.enabled}
+                  onToggle={(v) => updateSection('network', 'enabled', v)}
+                />
+                <div className="npf-divider" />
+
+                <fieldset className="npf-fieldset">
+                  <legend>WebRTC</legend>
+                  <div className="npf-field">
+                    <label>IP Handling Policy</label>
+                    <select
+                      className="npf-input"
+                      value={formData.network.webrtcPolicy}
+                      onChange={(e) => updateSection('network', 'webrtcPolicy', e.target.value)}
+                    >
+                      <option value="default">Default (allow all)</option>
+                      <option value="disable_non_proxied_udp">Disable non-proxied UDP</option>
+                      <option value="default_public_interface_only">Default public interface only</option>
+                      <option value="default_public_and_private_interfaces">Default public and private interfaces</option>
+                    </select>
+                  </div>
+                  <p className="npf-hint-text">
+                    Controls which IP addresses are exposed via WebRTC. Use "Disable non-proxied UDP" to prevent IP leaks when using a proxy.
+                  </p>
+                </fieldset>
+
+                <fieldset className="npf-fieldset">
+                  <legend>Navigator Properties</legend>
+                  <div className="npf-field-row">
+                    <div className="npf-field">
+                      <label>Do Not Track</label>
                       <select
-                        className="pf-select"
-                        value={formData.settings.ipChecker || 'ip2location'}
-                        onChange={(e) => setSettingsField('ipChecker', e.target.value)}
+                        className="npf-input"
+                        value={formData.network.doNotTrack}
+                        onChange={(e) => updateSection('network', 'doNotTrack', e.target.value)}
                       >
-                        <option value="ip2location">IP2Location</option>
-                        <option value="ipinfo">ipinfo.io</option>
-                        <option value="ipapi">ip-api.com</option>
+                        <option value="unspecified">Unspecified</option>
+                        <option value="true">Enabled (1)</option>
+                        <option value="false">Disabled (0)</option>
                       </select>
-                    </FormRow>
+                    </div>
+                    <div className="npf-field">
+                      <label>Max Touch Points</label>
+                      <input
+                        type="number"
+                        className="npf-input"
+                        min={0}
+                        value={formData.network.maxTouchPoints}
+                        onChange={(e) => updateSection('network', 'maxTouchPoints', parseInt(e.target.value) || 0)}
+                      />
+                    </div>
+                  </div>
+                  <div className="npf-field-row">
+                    <div className="npf-field">
+                      <label>Connection Type</label>
+                      <select
+                        className="npf-input"
+                        value={formData.network.connectionType}
+                        onChange={(e) => updateSection('network', 'connectionType', e.target.value)}
+                      >
+                        <option value="4g">4G LTE</option>
+                        <option value="3g">3G</option>
+                        <option value="wifi">Wi-Fi</option>
+                        <option value="ethernet">Ethernet</option>
+                        <option value="bluetooth">Bluetooth</option>
+                        <option value="cellular">Cellular</option>
+                      </select>
+                    </div>
+                    <div className="npf-field">
+                      <label>PDF Viewer</label>
+                      <select
+                        className="npf-input"
+                        value={formData.network.pdfViewer}
+                        onChange={(e) => updateSection('network', 'pdfViewer', e.target.value)}
+                      >
+                        <option value="enabled">Enabled</option>
+                        <option value="disabled">Disabled</option>
+                      </select>
+                    </div>
+                  </div>
+                </fieldset>
+              </div>
+            )}
 
-                    {/* Change IP URL */}
-                    {formData.settings.proxy?.type !== 'none' && (
-                      <FormRow label="Change IP URL" hint="API URL to rotate/change proxy IP (for rotating proxies)">
-                        <input
-                          className="pf-input"
-                          type="text"
-                          placeholder="https://provider.com/api/change-ip?key=xxx"
-                          value={formData.settings.proxy?.changeIpUrl || ''}
-                          onChange={handleNestedSettingsChange('proxy', 'changeIpUrl')}
-                        />
-                      </FormRow>
-                    )}
+            {/* ═══════ BATTERY ═══════ */}
+            {activeTab === 'battery' && (
+              <div className={`npf-section ${!formData.battery.enabled ? 'npf-section-disabled' : ''}`}>
+                <SectionHeader
+                  title="Battery API"
+                  subtitle="Spoof navigator.getBattery() to report custom charging state and level"
+                  enabled={formData.battery.enabled}
+                  onToggle={(v) => updateSection('battery', 'enabled', v)}
+                />
+                <div className="npf-divider" />
 
-                    {/* Proxy check result card */}
-                    {proxyCheckResult && (
-                      <div className={`pf-proxy-result ${proxyCheckResult.alive ? 'alive' : 'dead'}`}>
-                        <div className="pf-proxy-result-header">
-                          <span className="pf-proxy-status-dot" />
-                          <strong>{proxyCheckResult.alive ? '✅ Proxy is alive' : '❌ Proxy is dead'}</strong>
-                          {proxyCheckResult.latency != null && (
-                            <span className="pf-proxy-latency">{proxyCheckResult.latency}ms</span>
-                          )}
-                        </div>
-                        {proxyCheckResult.alive && proxyCheckResult.ip && (
-                          <div className="pf-proxy-result-body">
-                            <div><strong>IP:</strong> {proxyCheckResult.ip}</div>
-                            <div><strong>Country:</strong> {proxyCheckResult.country || '—'} ({proxyCheckResult.countryCode || ''})</div>
-                            <div><strong>City:</strong> {proxyCheckResult.city || '—'}</div>
-                            <div><strong>Timezone:</strong> {proxyCheckResult.timezone || '—'}</div>
-                          </div>
-                        )}
-                        {proxyCheckResult.error && (
-                          <div className="pf-proxy-result-error">{proxyCheckResult.error}</div>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
+                <p className="npf-info-text">
+                  Battery status can be used as a fingerprinting vector. Spoofing it prevents sites from using it to track you.
+                </p>
 
-                {proxySubTab === 'saved' && (
-                  <div style={{ padding: '0.5rem 0' }}>
-                    {proxyPool.length === 0 ? (
-                      <div style={{ padding: '1rem 0', color: 'var(--muted)', fontSize: '0.82rem', textAlign: 'center' }}>
-                        No proxies in pool. Add proxies in <strong>Proxy Manager</strong> first.
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '300px', overflowY: 'auto' }}>
-                        {proxyPool.map(p => {
-                          const isSelected = formData.settings.proxy?.server === `${p.host}:${p.port}` && formData.settings.proxy?.type === (p.type || 'http');
-                          return (
-                            <div
-                              key={p.id}
-                              style={{
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                padding: '0.6rem 0.8rem', borderRadius: '8px', cursor: 'pointer',
-                                border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border)',
-                                background: isSelected ? 'rgba(115,103,240,0.08)' : 'var(--bg)',
-                                transition: 'all 0.15s',
-                              }}
-                              onClick={() => {
-                                setFormData(prev => ({
-                                  ...prev,
-                                  settings: {
-                                    ...prev.settings,
-                                    proxy: {
-                                      type: p.type || 'http',
-                                      server: `${p.host}:${p.port}`,
-                                      username: p.username || '',
-                                      password: p.password || '',
-                                    }
-                                  }
-                                }));
-                              }}
-                            >
-                              <div>
-                                <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{p.name || `${p.host}:${p.port}`}</div>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'monospace' }}>
-                                  {(p.type || 'http').toUpperCase()} · {p.host}:{p.port}
-                                  {p.username ? ` · ${p.username}:***` : ''}
-                                </div>
-                              </div>
-                              <div style={{ fontSize: '0.72rem', color: isSelected ? 'var(--primary)' : 'var(--muted)' }}>
-                                {isSelected ? '✓ Selected' : ''}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      className="pf-check-btn"
-                      style={{ marginTop: '0.75rem', width: '100%' }}
-                      onClick={async () => {
-                        try {
-                          const list = await window.electronAPI.getProxies();
-                          setProxyPool(Array.isArray(list) ? list : []);
-                        } catch { }
-                      }}
+                <div className="npf-field-row">
+                  <div className="npf-field">
+                    <label>Charging</label>
+                    <select
+                      className="npf-input"
+                      value={formData.battery.charging}
+                      onChange={(e) => updateSection('battery', 'charging', e.target.value)}
                     >
-                      ↻ Refresh proxy list
-                    </button>
-                  </div>
-                )}
-
-                {proxySubTab === 'provider' && (
-                  <div style={{ padding: '1rem 0', color: 'var(--muted)', fontSize: '0.82rem' }}>
-                    Proxy provider integration coming soon.
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {/* ═══════ TAB: PLATFORM ═══════ */}
-          {activeTab === 'platform' && (
-            <>
-              <div className="pf-fieldset">
-                <div className="pf-fieldset-legend">Platform</div>
-
-                <FormRow label={t('pf.platform', 'Platform')}>
-                  <select
-                    className="pf-select"
-                    value={formData.settings.platform || 'none'}
-                    onChange={(e) => setSettingsField('platform', e.target.value)}
-                  >
-                    <option value="none">● None</option>
-                    <option value="facebook">Facebook</option>
-                    <option value="google">Google</option>
-                    <option value="tiktok">TikTok</option>
-                    <option value="amazon">Amazon</option>
-                    <option value="ebay">eBay</option>
-                    <option value="shopee">Shopee</option>
-                  </select>
-                </FormRow>
-
-                <FormRow label={t('pf.tabs', 'Tabs')}>
-                  <textarea
-                    className="pf-textarea"
-                    name="tabs"
-                    value={formData.settings.tabs || ''}
-                    onChange={(e) => setSettingsField('tabs', e.target.value)}
-                    placeholder={'Enter URLs (one URL per line)\nwww.google.com\nwww.facebook.com'}
-                    rows={5}
-                  />
-                </FormRow>
-              </div>
-            </>
-          )}
-
-          {/* ═══════ TAB: FINGERPRINT ═══════ */}
-          {activeTab === 'fingerprint' && (
-            <>
-              {/* Preset bar */}
-              <div className="preset-bar">
-                <div className="preset-select">
-                  <label htmlFor="fp_preset">{t('pf.fp.preset', 'Fingerprint Preset')}</label>
-                  <select id="fp_preset" className="pf-select" value={selectedPreset} disabled={lockedPreset} onChange={(e) => applyPreset(e.target.value)}>
-                    <option value="">{t('pf.fp.suggestions', 'Generated suggestions…')}</option>
-                    {presets.map((p, i) => <option key={i} value={i}>{p.label}</option>)}
-                    {customPresets.length > 0 && (
-                      <optgroup label={t('pf.fp.customPresets', 'Custom presets')}>
-                        {customPresets.map(p => {
-                          const fp = p.fingerprint || {};
-                          const sum = [fp.browser && (fp.browser + (fp.browserVersion ? ` ${fp.browserVersion}` : '')), fp.language, fp.screenResolution].filter(Boolean).join(' · ');
-                          return <option key={p.id} value={`c:${p.id}`}>{p.name || p.label || 'Custom'} {sum ? `(${sum})` : ''}</option>;
-                        })}
-                      </optgroup>
-                    )}
-                  </select>
-                </div>
-                <div className="preset-actions">
-                  <label className="preset-count" title="Count">
-                    <span>×</span>
-                    <select value={presetCount} onChange={(e) => setPresetCount(Number(e.target.value))}>
-                      <option value={3}>3</option><option value={6}>6</option><option value={9}>9</option>
+                      <option value="charging">Charging</option>
+                      <option value="discharging">Discharging</option>
                     </select>
-                  </label>
-                  <button type="button" className="icon-btn" onClick={() => !lockedPreset && regeneratePresets(presetCount)} disabled={lockedPreset} title={t('pf.fp.regenerate')}>
-                    <RefreshCw size={14} />
-                  </button>
-                  <button type="button" className="icon-btn" title={t('pf.fp.savePreset')} onClick={async () => {
-                    const name = prompt('Preset name:');
-                    if (!name) return;
-                    const preset = { name, label: name, fingerprint: { ...formData.fingerprint }, settingsPatch: { language: formData.settings.language, timezone: formData.settings.timezone, geolocation: { ...(formData.settings.geolocation || {}) }, advanced: { ...(formData.settings.advanced || {}) } } };
-                    try { const res = await window.electronAPI?.addPreset?.(preset); if (res?.success && res.preset) setCustomPresets(prev => [...prev, res.preset]); } catch { }
-                  }}>
-                    <Save size={14} />
-                  </button>
-                  <button type="button" className={`icon-btn${lockedPreset ? ' active' : ''}`} onClick={() => setLockedPreset(v => !v)} title={lockedPreset ? 'Unlock' : 'Lock'}>
-                    {lockedPreset ? <Lock size={14} /> : <Unlock size={14} />}
-                  </button>
+                  </div>
+                  <div className="npf-field">
+                    <label>Level (0.0 - 1.0)</label>
+                    <input
+                      type="number"
+                      className="npf-input"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={formData.battery.level}
+                      onChange={(e) => updateSection('battery', 'level', parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                </div>
+
+                <div className="npf-field-row">
+                  <div className="npf-field">
+                    <label>Charging Time (seconds)</label>
+                    <input
+                      type="number"
+                      className="npf-input"
+                      min={0}
+                      value={formData.battery.chargingTime}
+                      onChange={(e) => updateSection('battery', 'chargingTime', parseInt(e.target.value) || 0)}
+                      disabled={formData.battery.charging !== 'charging'}
+                    />
+                  </div>
+                  <div className="npf-field">
+                    <label>Discharging Time (seconds)</label>
+                    <input
+                      type="number"
+                      className="npf-input"
+                      min={0}
+                      value={formData.battery.dischargingTime || ''}
+                      onChange={(e) => updateSection('battery', 'dischargingTime', parseInt(e.target.value) || 0)}
+                      disabled={formData.battery.charging !== 'discharging'}
+                      placeholder={formData.battery.charging === 'charging' ? '' : ''}
+                    />
+                  </div>
+                </div>
+
+                <div className="npf-summary-box">
+                  <div className="npf-summary-row">
+                    <span>Status:</span>
+                    <span className={formData.battery.charging === 'charging' ? 'npf-status-charging' : 'npf-status-discharging'}>
+                      {formData.battery.charging === 'charging' ? 'Charging' : 'Discharging'}
+                    </span>
+                  </div>
+                  <div className="npf-summary-row">
+                    <span>Level:</span>
+                    <span>{Math.round(formData.battery.level * 100)}%</span>
+                  </div>
                 </div>
               </div>
+            )}
 
-              <div className="pf-fieldset">
-                <div className="pf-fieldset-legend">Fingerprint</div>
-
-                {/* WebRTC */}
-                <FormRow label="WebRTC">
-                  <SegmentedControl
-                    value={formData.settings.webrtc}
-                    onChange={(v) => setSettingsField('webrtc', v)}
-                    options={[
-                      { value: 'forward', label: 'Forward' },
-                      { value: 'replace', label: 'Replace' },
-                      { value: 'real', label: 'Real' },
-                      { value: 'disabled', label: 'Disabled' },
-                      { value: 'disable_udp', label: 'Disable UDP' },
-                    ]}
-                  />
-                </FormRow>
-
-                {/* Timezone */}
-                <FormRow label="Timezone">
-                  <SegmentedControl
-                    value={formData.settings.timezoneMode || 'ip'}
-                    onChange={(v) => setSettingsField('timezoneMode', v)}
-                    options={[
-                      { value: 'ip', label: 'Based on IP' },
-                      { value: 'real', label: 'Real' },
-                      { value: 'custom', label: 'Custom' },
-                    ]}
-                  />
-                  {formData.settings.timezoneMode === 'custom' && (
-                    <select
-                      className="pf-select"
-                      style={{ marginTop: '0.4rem' }}
-                      value={formData.settings.timezone}
-                      onChange={(e) => {
-                        setSettingsField('timezone', e.target.value);
-                        setFormData(prev => ({ ...prev, fingerprint: { ...prev.fingerprint, timezone: e.target.value } }));
-                      }}
-                    >
-                      {(options.timezones?.length ? options.timezones : fallbackTimezones).map(tz => (
-                        <option key={tz} value={tz}>{tz}</option>
-                      ))}
-                    </select>
-                  )}
-                </FormRow>
-
-                {/* Location */}
-                <FormRow label="Location">
-                  <SegmentedControl
-                    value={formData.settings.geolocation?.mode || 'ip'}
-                    onChange={(v) => setFormData(prev => ({
-                      ...prev,
-                      settings: { ...prev.settings, geolocation: { ...prev.settings.geolocation, mode: v } }
-                    }))}
-                    options={[
-                      { value: 'ip', label: 'Based on IP' },
-                      { value: 'custom', label: 'Custom' },
-                      { value: 'block', label: 'Block' },
-                    ]}
-                  />
-                  {formData.settings.geolocation?.mode === 'ip' && (
-                    <div className="pf-radio-group">
-                      <label>
-                        <input type="radio" name="geoPermission" value="ask" checked={(formData.settings.geolocation?.permission || 'ask') === 'ask'} onChange={() => setFormData(prev => ({ ...prev, settings: { ...prev.settings, geolocation: { ...prev.settings.geolocation, permission: 'ask' } } }))} />
-                        Ask each time
-                      </label>
-                      <label>
-                        <input type="radio" name="geoPermission" value="allow" checked={formData.settings.geolocation?.permission === 'allow'} onChange={() => setFormData(prev => ({ ...prev, settings: { ...prev.settings, geolocation: { ...prev.settings.geolocation, permission: 'allow' } } }))} />
-                        Always allow
-                      </label>
-                    </div>
-                  )}
-                  {formData.settings.geolocation?.mode === 'custom' && (
-                    <div className="pf-two-col" style={{ marginTop: '0.4rem' }}>
-                      <input className="pf-input" type="number" step="0.0001" placeholder="Latitude" value={formData.settings.geolocation?.latitude || ''} onChange={handleNestedSettingsChange('geolocation', 'latitude', Number)} />
-                      <input className="pf-input" type="number" step="0.0001" placeholder="Longitude" value={formData.settings.geolocation?.longitude || ''} onChange={handleNestedSettingsChange('geolocation', 'longitude', Number)} />
-                    </div>
-                  )}
-                </FormRow>
-
-                {/* Language */}
-                <FormRow label="Language">
-                  <SegmentedControl
-                    value={formData.settings.languageMode || 'ip'}
-                    onChange={(v) => setSettingsField('languageMode', v)}
-                    options={[
-                      { value: 'ip', label: 'Based on IP' },
-                      { value: 'custom', label: 'Custom' },
-                    ]}
-                  />
-                  {formData.settings.languageMode === 'custom' && (
-                    <select
-                      className="pf-select"
-                      style={{ marginTop: '0.4rem' }}
-                      value={formData.settings.language}
-                      onChange={(e) => {
-                        setSettingsField('language', e.target.value);
-                        setFormData(prev => ({ ...prev, fingerprint: { ...prev.fingerprint, language: e.target.value } }));
-                      }}
-                    >
-                      {(options.locales?.length ? options.locales : fallbackLocales).map(loc => (
-                        <option key={loc} value={loc}>{loc}</option>
-                      ))}
-                    </select>
-                  )}
-                </FormRow>
-
-                {/* Display language */}
-                <FormRow label="Display language">
-                  <SegmentedControl
-                    value={formData.settings.displayLangMode || 'language'}
-                    onChange={(v) => setSettingsField('displayLangMode', v)}
-                    options={[
-                      { value: 'language', label: 'Based on Language' },
-                      { value: 'real', label: 'Real' },
-                      { value: 'custom', label: 'Custom' },
-                    ]}
-                  />
-                </FormRow>
-
-                {/* Screen Resolution */}
-                <FormRow label="Screen Resolution">
-                  <SegmentedControl
-                    value={formData.settings.screenResMode || 'predefined'}
-                    onChange={(v) => setSettingsField('screenResMode', v)}
-                    options={[
-                      { value: 'random', label: 'Random' },
-                      { value: 'predefined', label: 'Predefined' },
-                      { value: 'custom', label: 'Custom' },
-                    ]}
-                  />
-                  {formData.settings.screenResMode === 'predefined' && (
-                    <select
-                      className="pf-select"
-                      style={{ marginTop: '0.4rem' }}
-                      value={formData.fingerprint.screenResolution}
-                      onChange={handleFingerprintChange}
-                      name="screenResolution"
-                    >
-                      <option value="">Based on User-Agent</option>
-                      {['1024x768', '1280x720', '1280x800', '1366x768', '1440x900', '1536x864', '1600x900', '1680x1050', '1920x1080', '1920x1200', '2560x1440', '3840x2160'].map(r => (
-                        <option key={r} value={r}>{r}</option>
-                      ))}
-                    </select>
-                  )}
-                  {formData.settings.screenResMode === 'custom' && (
-                    <div className="pf-two-col" style={{ marginTop: '0.4rem' }}>
-                      <input className="pf-input" type="number" placeholder="Width" value={formData.fingerprint.screenResolution?.split('x')?.[0] || ''} onChange={(e) => {
-                        const h = formData.fingerprint.screenResolution?.split('x')?.[1] || '1080';
-                        setFormData(prev => ({ ...prev, fingerprint: { ...prev.fingerprint, screenResolution: `${e.target.value}x${h}` } }));
-                      }} />
-                      <input className="pf-input" type="number" placeholder="Height" value={formData.fingerprint.screenResolution?.split('x')?.[1] || ''} onChange={(e) => {
-                        const w = formData.fingerprint.screenResolution?.split('x')?.[0] || '1920';
-                        setFormData(prev => ({ ...prev, fingerprint: { ...prev.fingerprint, screenResolution: `${w}x${e.target.value}` } }));
-                      }} />
-                    </div>
-                  )}
-                </FormRow>
-
-                {/* Fonts */}
-                <FormRow label="Fonts">
-                  <SegmentedControl
-                    value={formData.settings.fontsMode || 'default'}
-                    onChange={(v) => setSettingsField('fontsMode', v)}
-                    options={[
-                      { value: 'default', label: 'Default' },
-                      { value: 'custom', label: 'Custom' },
-                    ]}
-                  />
-                </FormRow>
-
-                {/* Canvas */}
-                <FormRow label="Canvas">
-                  <span style={{ fontSize: '0.84rem', color: 'var(--fg)', paddingTop: '0.4rem' }}>Real</span>
-                </FormRow>
-              </div>
-            </>
-          )}
-
-          {/* ═══════ TAB: ADVANCED ═══════ */}
-          {activeTab === 'advanced' && (
-            <>
-              <div className="pf-fieldset">
-                <div className="pf-fieldset-legend">Advanced</div>
-
-                <FormRow label={t('pf.adv.extension', 'Extension')}>
-                  <select
-                    className="pf-select"
-                    value={formData.settings.extensionMode || 'team'}
-                    onChange={(e) => setSettingsField('extensionMode', e.target.value)}
-                  >
-                    <option value="team">Use team's extensions</option>
-                    <option value="none">No extensions</option>
-                    <option value="custom">Custom extensions</option>
-                  </select>
-                  <div className="pf-hint">
-                    The enabled extensions from [Extensions - Team's Extensions] will be installed in the profile.
-                  </div>
-                </FormRow>
-              </div>
-            </>
-          )}
-
-        </form>
-
-        {/* ═══════ OVERVIEW SIDEBAR ═══════ */}
-        <aside className="pf-overview">
-          <div className="pf-overview-header">
-            <h3>Overview</h3>
-            <button type="button" className="btn-new-fp" onClick={randomize}>
-              <RefreshCw size={13} /> New fingerprint
-            </button>
-          </div>
-
-          <table>
-            <tbody>
-              {overviewData.map(([key, val]) => (
-                <tr key={key}>
-                  <td>{key}</td>
-                  <td>{val}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div className="pf-overview-footer">
-            Set default values in <a>Preferences</a>.
-          </div>
-        </aside>
+          </form>
+        </div>
       </div>
     </div>
   );

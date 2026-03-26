@@ -121,6 +121,24 @@ function registerIpcHandlers(extra = {}) {
     } catch (e) { return { success: false, error: e?.message || String(e) }; }
   });
 
+  // Section-specific fingerprint generators
+  const sectionGenerators = [
+    'generateIdentity', 'generateDisplay', 'generateHardware',
+    'generateCanvas', 'generateWebGL', 'generateAudio',
+    'generateMedia', 'generateNetwork', 'generateBattery',
+  ];
+  for (const fnName of sectionGenerators) {
+    const channel = 'generate-' + fnName.replace('generate', '').toLowerCase();
+    ipcMain.handle(channel, async (_e, opts = {}) => {
+      try {
+        const gen = require('../engine/fingerprintGenerator');
+        if (typeof gen[fnName] !== 'function') return { success: false, error: `${fnName} not found` };
+        const result = gen[fnName](opts);
+        return { success: true, ...result };
+      } catch (e) { return { success: false, error: e?.message || String(e) }; }
+    });
+  }
+
   // Behavior simulator (for running Playwright profiles)
   ipcMain.handle('simulate-behavior', async (_e, profileId, action = 'browse', opts = {}) => {
     try {

@@ -78,6 +78,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   generateFingerprint: (opts) => ipcRenderer.invoke('generate-fingerprint', opts || {}),
   generateFingerprintBatch: (count, opts) => ipcRenderer.invoke('generate-fingerprint-batch', count, opts || {}),
 
+  // Section-specific fingerprint generators
+  generateIdentity: (opts) => ipcRenderer.invoke('generate-identity', opts || {}),
+  generateDisplay: (opts) => ipcRenderer.invoke('generate-display', opts || {}),
+  generateHardware: (opts) => ipcRenderer.invoke('generate-hardware', opts || {}),
+  generateCanvas: (opts) => ipcRenderer.invoke('generate-canvas', opts || {}),
+  generateWebGL: (opts) => ipcRenderer.invoke('generate-webgl', opts || {}),
+  generateAudio: (opts) => ipcRenderer.invoke('generate-audio', opts || {}),
+  generateMedia: (opts) => ipcRenderer.invoke('generate-media', opts || {}),
+  generateNetwork: (opts) => ipcRenderer.invoke('generate-network', opts || {}),
+  generateBattery: (opts) => ipcRenderer.invoke('generate-battery', opts || {}),
+
   // Behavior simulator
   simulateBehavior: (profileId, action, opts) => ipcRenderer.invoke('simulate-behavior', profileId, action, opts || {}),
 

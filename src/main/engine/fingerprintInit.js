@@ -29,21 +29,33 @@ function hashCode(str) {
 }
 
 async function applyFingerprintInitScripts(context, profile, settings, { overrideUserAgent } = {}) {
+  // Support both new structure (profile.identity, profile.display, etc.)
+  // and old structure (profile.fingerprint, profile.settings) for stored profiles.
   const fp = (profile && profile.fingerprint) || {};
   const adv = (settings && settings.advanced) || {};
-  const locale = fp.language || settings?.language || 'en-US';
-  const userAgent = overrideUserAgent || fp.userAgent || undefined;
-  const cpuCores = Number(settings?.cpuCores || 4);
-  const deviceMemory = Number(settings?.memoryGB || 8);
+  const identity = profile.identity || settings.identity || {};
+  const display = profile.display || settings.display || {};
+  const hardware = profile.hardware || settings.hardware || {};
+  const canvas = profile.canvas || settings.canvas || {};
+  const webgl = profile.webgl || settings.webgl || {};
+  const audio = profile.audio || settings.audio || {};
+  const media = profile.media || settings.media || {};
+  const network = profile.network || settings.network || {};
+  const battery = profile.battery || settings.battery || {};
+
+  const locale = identity.locale || fp.language || settings?.language || 'en-US';
+  const userAgent = overrideUserAgent || identity.userAgent || fp.userAgent || undefined;
+  const cpuCores = Number(hardware.cpuCores || settings?.cpuCores || 4);
+  const deviceMemory = Number(hardware.memoryGB || settings?.memoryGB || 8);
   const apply = (settings && settings.applyOverrides) || {};
-  const applyHardware = apply.hardware !== false;
-  const applyNavigator = apply.navigator !== false;
-  const applyUA = apply.userAgent !== false;
-  const applyWebgl = apply.webgl !== false;
-  const applyLang = apply.language !== false;
-  const applyViewport = apply.viewport !== false;
-  const applyCanvas = fp.canvas !== false;
-  const applyAudio = fp.audio !== false;
+  const applyHardware = hardware.enabled !== false && apply.hardware !== false;
+  const applyNavigator = identity.enabled !== false && apply.navigator !== false;
+  const applyUA = identity.enabled !== false && apply.userAgent !== false;
+  const applyWebgl = webgl.enabled !== false && apply.webgl !== false;
+  const applyLang = identity.enabled !== false && apply.language !== false;
+  const applyViewport = display.enabled !== false && apply.viewport !== false;
+  const applyCanvas = canvas.enabled !== false && (fp.canvas !== false);
+  const applyAudio = audio.enabled !== false && (fp.audio !== false);
 
   // Generate a stable per-profile seed for consistent noise
   const profileSeed = hashCode(profile?.id || 'default');
@@ -235,29 +247,35 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   // ═══════════════════════════════════════════════════════════════════════
   if (applyNavigator) {
     try {
-      await context.addInitScript(({ adv, primaryLang, flags }) => {
+      await context.addInitScript(({ adv, primaryLang, flags, identity, network }) => {
         try {
-          if (!adv || typeof adv !== 'object') return;
+          if (!adv || typeof adv !== 'object') adv = {};
 
-          // Platform
-          if (adv.platform) {
-            try { Object.defineProperty(navigator, 'platform', { get: () => adv.platform, configurable: true }); } catch {}
+          // Platform — prefer identity.platform, fall back to adv.platform
+          const platform = (identity && identity.platform) || adv.platform;
+          if (platform) {
+            try { Object.defineProperty(navigator, 'platform', { get: () => platform, configurable: true }); } catch {}
           }
 
-          // Do Not Track
-          if (typeof adv.dnt === 'boolean') {
-            try { Object.defineProperty(navigator, 'doNotTrack', { get: () => (adv.dnt ? '1' : null), configurable: true }); } catch {}
+          // Do Not Track — prefer network.doNotTrack, fall back to adv.dnt
+          const dntVal = (network && network.doNotTrack) || (typeof adv.dnt === 'boolean' ? (adv.dnt ? 'true' : 'false') : null);
+          if (dntVal === 'true') {
+            try { Object.defineProperty(navigator, 'doNotTrack', { get: () => '1', configurable: true }); } catch {}
+          } else if (dntVal === 'false') {
+            try { Object.defineProperty(navigator, 'doNotTrack', { get: () => null, configurable: true }); } catch {}
           }
 
-          // Max Touch Points
-          if (typeof adv.maxTouchPoints === 'number') {
-            try { Object.defineProperty(navigator, 'maxTouchPoints', { get: () => adv.maxTouchPoints, configurable: true }); } catch {}
+          // Max Touch Points — prefer network.maxTouchPoints, fall back to adv.maxTouchPoints
+          const touchPoints = (network && typeof network.maxTouchPoints === 'number') ? network.maxTouchPoints : adv.maxTouchPoints;
+          if (typeof touchPoints === 'number') {
+            try { Object.defineProperty(navigator, 'maxTouchPoints', { get: () => touchPoints, configurable: true }); } catch {}
           }
 
-          // Languages
-          if (flags.applyLang) {
+          // Languages — prefer identity.languages, fall back to adv.languages
+          const langStr = (identity && identity.languages) || adv.languages;
+          if (flags.applyLang && langStr) {
             try {
-              const langs = Array.isArray(adv.languages) ? adv.languages : (typeof adv.languages === 'string' ? adv.languages.split(',').map(s => s.trim()).filter(Boolean) : []);
+              const langs = Array.isArray(langStr) ? langStr : (typeof langStr === 'string' ? langStr.split(',').map(s => s.trim()).filter(Boolean) : []);
               const finalLangs = langs.length ? langs : (primaryLang ? [primaryLang] : []);
               if (finalLangs && finalLangs.length) {
                 const frozen = Object.freeze([...finalLangs]);
@@ -340,7 +358,7 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
             } catch {}
           }
         } catch {}
-      }, { adv, primaryLang: locale, flags: { applyLang: !!applyLang } });
+      }, { adv, primaryLang: locale, flags: { applyLang: !!applyLang }, identity, network });
     } catch {}
   }
 
@@ -365,8 +383,9 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   // ═══════════════════════════════════════════════════════════════════════
   if (applyViewport) {
     try {
-      const resolution = parseResolution(fp.screenResolution);
-      await context.addInitScript(({ dpr, res }) => {
+      const resolution = display.width && display.height ? { width: display.width, height: display.height } : parseResolution(fp.screenResolution);
+      const colorDepthVal = display.colorDepth || 24;
+      await context.addInitScript(({ dpr, res, colorDepth }) => {
         try {
           if (typeof dpr === 'number' && dpr > 0) {
             Object.defineProperty(window, 'devicePixelRatio', { get: () => dpr, configurable: true });
@@ -378,8 +397,8 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
             try { Object.defineProperty(screen, 'height', { get: () => h, configurable: true }); } catch {}
             try { Object.defineProperty(screen, 'availWidth', { get: () => w, configurable: true }); } catch {}
             try { Object.defineProperty(screen, 'availHeight', { get: () => h - taskbar, configurable: true }); } catch {}
-            try { Object.defineProperty(screen, 'colorDepth', { get: () => 24, configurable: true }); } catch {}
-            try { Object.defineProperty(screen, 'pixelDepth', { get: () => 24, configurable: true }); } catch {}
+            try { Object.defineProperty(screen, 'colorDepth', { get: () => colorDepth, configurable: true }); } catch {}
+            try { Object.defineProperty(screen, 'pixelDepth', { get: () => colorDepth, configurable: true }); } catch {}
             try { Object.defineProperty(window, 'outerWidth', { get: () => w, configurable: true }); } catch {}
             try { Object.defineProperty(window, 'outerHeight', { get: () => h, configurable: true }); } catch {}
             // screenX / screenY — top-left of browser window on the monitor
@@ -389,14 +408,14 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
             try { Object.defineProperty(window, 'screenTop', { get: () => 0, configurable: true }); } catch {}
           }
         } catch {}
-      }, { dpr: Number(adv.devicePixelRatio || 1), res: resolution });
+      }, { dpr: Number(display.pixelRatio || adv.devicePixelRatio || 1), res: resolution, colorDepth: colorDepthVal });
     } catch {}
   }
 
   // ═══════════════════════════════════════════════════════════════════════
   // 5. WEBGL vendor & renderer spoofing
   // ═══════════════════════════════════════════════════════════════════════
-  if (applyWebgl && (adv.webglVendor || adv.webglRenderer)) {
+  if (applyWebgl && (hardware.gpuVendor || hardware.gpuRenderer || adv.webglVendor || adv.webglRenderer)) {
     try {
       await context.addInitScript(({ vendor, renderer }) => {
         try {
@@ -419,7 +438,7 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
           if (window.WebGLRenderingContext) patch(WebGLRenderingContext.prototype);
           if (window.WebGL2RenderingContext) patch(WebGL2RenderingContext.prototype);
         } catch {}
-      }, { vendor: adv.webglVendor, renderer: adv.webglRenderer });
+      }, { vendor: hardware.gpuVendor || adv.webglVendor, renderer: hardware.gpuRenderer || adv.webglRenderer });
     } catch {}
   }
 
@@ -698,7 +717,7 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   // ═══════════════════════════════════════════════════════════════════════
   // 9. WEBRTC IP leak protection (JS-level)
   // ═══════════════════════════════════════════════════════════════════════
-  const webrtcMode = settings?.webrtc || 'default';
+  const webrtcMode = network.webrtcPolicy || settings?.webrtc || 'default';
   if (webrtcMode === 'disable_udp' || webrtcMode === 'proxy_only') {
     try {
       await context.addInitScript(({ mode }) => {
@@ -737,37 +756,53 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   // ═══════════════════════════════════════════════════════════════════════
   // 10. BATTERY API spoofing
   // ═══════════════════════════════════════════════════════════════════════
+  if (battery.enabled !== false) {
   try {
-    await context.addInitScript(({ seed }) => {
+    await context.addInitScript(({ seed, batteryData }) => {
       try {
-        function mulberry32(a) {
-          return function () {
-            a |= 0; a = a + 0x6D2B79F5 | 0;
-            let t = Math.imul(a ^ a >>> 15, 1 | a);
-            t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-            return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        // Use profile-specified battery data if available, else seed-based random
+        let bat;
+        if (batteryData && typeof batteryData === 'object' && batteryData.charging !== undefined) {
+          bat = {
+            charging: batteryData.charging === 'charging',
+            chargingTime: batteryData.charging === 'charging' ? (Number(batteryData.chargingTime) || 0) : Infinity,
+            dischargingTime: batteryData.charging !== 'charging' ? (Number(batteryData.dischargingTime) || Infinity) : Infinity,
+            level: Math.max(0, Math.min(1, Number(batteryData.level) || 1)),
+            addEventListener: function () {},
+            removeEventListener: function () {},
+            dispatchEvent: function () { return false; },
+          };
+        } else {
+          function mulberry32(a) {
+            return function () {
+              a |= 0; a = a + 0x6D2B79F5 | 0;
+              let t = Math.imul(a ^ a >>> 15, 1 | a);
+              t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+              return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            };
+          }
+          const rng = mulberry32(seed + 4201);
+          const level = 0.5 + rng() * 0.5;
+          bat = {
+            charging: rng() > 0.3,
+            chargingTime: rng() > 0.5 ? Infinity : Math.floor(rng() * 7200),
+            dischargingTime: Infinity,
+            level: Math.round(level * 100) / 100,
+            addEventListener: function () {},
+            removeEventListener: function () {},
+            dispatchEvent: function () { return false; },
           };
         }
-        const rng = mulberry32(seed + 4201);
-        const level = 0.5 + rng() * 0.5;
-        const fakeBattery = {
-          charging: rng() > 0.3,
-          chargingTime: rng() > 0.5 ? Infinity : Math.floor(rng() * 7200),
-          dischargingTime: Infinity,
-          level: Math.round(level * 100) / 100,
-          addEventListener: function () {},
-          removeEventListener: function () {},
-          dispatchEvent: function () { return false; },
-        };
         if (navigator.getBattery) {
           Object.defineProperty(navigator, 'getBattery', {
-            value: function () { return Promise.resolve(fakeBattery); },
+            value: function () { return Promise.resolve(bat); },
             configurable: true,
           });
         }
       } catch {}
-    }, { seed: profileSeed });
+    }, { seed: profileSeed, batteryData: battery });
   } catch {}
+  } // end if (battery.enabled !== false)
 
   // ═══════════════════════════════════════════════════════════════════════
   // 11. NETWORK INFORMATION API

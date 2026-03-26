@@ -1,262 +1,307 @@
-/* ===== ProfileForm – AdsPower-style Dark Theme ===== */
+/* ===== New Profile Form – Left Sidebar Layout (Dark Theme) ===== */
 
-/* Container */
-.profile-form-container {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  max-width: 1200px;
-  margin: 0 auto;
-  position: relative;
-  z-index: 50;
+/* ─── Container ─── */
+.npf-container {
   display: flex;
   flex-direction: column;
   height: 100%;
   max-height: 100%;
   overflow: hidden;
-  overscroll-behavior: contain;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
 }
 
-/* Header */
-.profile-form-header {
-  padding: 0.75rem 1.25rem;
+/* ─── Header ─── */
+.npf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1.25rem;
   background: var(--card);
   border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   flex: 0 0 auto;
+  min-height: 48px;
 }
 
-.profile-form-header h2 {
-  font-size: 1.1rem;
-  font-weight: 700;
+.npf-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.npf-back-btn {
+  background: none;
+  border: none;
+  color: var(--fg);
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  transition: background var(--transition);
+}
+
+.npf-back-btn:hover {
+  background: var(--glass-hover);
+}
+
+.npf-title {
+  font-size: 1rem;
+  font-weight: 600;
   margin: 0;
   color: var(--fg);
 }
 
-.btn-close {
-  background: var(--glass-input);
-  border: 1px solid var(--border2);
-  color: var(--fg);
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 1rem;
+.npf-header-actions {
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: background var(--transition);
+  gap: 0.5rem;
 }
 
-.btn-close:hover {
-  background: rgba(0, 210, 211, .12);
+.npf-generate-btn {
+  background: var(--glass-strong) !important;
+  border-color: var(--border2) !important;
 }
 
-/* ===== Tab navigation ===== */
-.pf-tabs {
+.npf-create-btn {
+  font-weight: 600 !important;
+  min-width: 72px;
+}
+
+/* ─── Body: Sidebar + Content ─── */
+.npf-body {
   display: flex;
-  gap: 0;
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
-  padding: 0 1rem;
-  flex: 0 0 auto;
-}
-
-.pf-tab {
-  position: relative;
-  padding: 0.6rem 1.1rem;
-  font-size: 0.82rem;
-  font-weight: 500;
-  color: var(--muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  transition: color var(--transition);
-  white-space: nowrap;
-}
-
-.pf-tab:hover {
-  color: var(--fg);
-}
-
-.pf-tab.active {
-  color: var(--fg);
-  font-weight: 600;
-}
-
-.pf-tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0.5rem;
-  right: 0.5rem;
-  height: 2px;
-  background: var(--primary);
-  border-radius: 2px 2px 0 0;
-}
-
-/* ===== Main body: form + overview sidebar ===== */
-.pf-body {
-  display: grid;
-  grid-template-columns: 1fr 300px;
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
 }
 
-.profile-form {
-  padding: 1.25rem 1.5rem;
-  background: var(--card);
+/* ─── Left Sidebar Navigation ─── */
+.npf-sidebar {
+  width: 130px;
+  min-width: 130px;
+  background: var(--card2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0;
   overflow-y: auto;
-  overflow-x: hidden;
   overscroll-behavior: contain;
 }
 
-/* ===== Overview sidebar ===== */
-.pf-overview {
-  border-left: 1px solid var(--border);
-  background: var(--card);
-  padding: 1rem 1.25rem;
-  overflow-y: auto;
-  font-size: 0.8rem;
-}
-
-.pf-overview-header {
+.npf-nav-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition);
+  text-align: left;
+  width: 100%;
+  position: relative;
+  white-space: nowrap;
 }
 
-.pf-overview-header h3 {
-  font-size: 0.9rem;
-  font-weight: 600;
+.npf-nav-item:hover {
   color: var(--fg);
+  background: var(--glass);
+}
+
+.npf-nav-item.active {
+  color: var(--fg);
+  font-weight: 600;
+  background: rgba(0, 210, 211, 0.08);
+  border-left-color: var(--primary);
+}
+
+/* Green dot indicator for enabled sections */
+.npf-nav-dot {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: background var(--transition), box-shadow var(--transition);
+}
+
+.npf-nav-dot.dot-disabled {
+  background: var(--muted);
+  opacity: 0.35;
+}
+
+.npf-nav-dot.dot-enabled {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+
+/* Icon turns green when section is enabled */
+.npf-nav-item.section-enabled {
+  color: var(--fg);
+}
+
+.npf-nav-item.section-enabled svg {
+  color: #22c55e;
+}
+
+/* ─── Disabled Section Overlay ─── */
+.npf-section-disabled .npf-divider ~ * {
+  opacity: 0.35;
+  pointer-events: none;
+  filter: grayscale(0.3);
+  user-select: none;
+  transition: opacity var(--transition), filter var(--transition);
+}
+
+/* Keep header (toggle + title) fully interactive */
+.npf-section-disabled .npf-section-header,
+.npf-section-disabled .npf-divider {
+  opacity: 1;
+  pointer-events: auto;
+  filter: none;
+}
+
+/* ─── Content Area ─── */
+.npf-content {
+  flex: 1 1 auto;
+  padding: 1.25rem 2rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  min-height: 0;
+}
+
+/* ─── Section ─── */
+.npf-section {
+  max-width: 680px;
+}
+
+/* ─── Warning Banner ─── */
+.npf-warning-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 1rem;
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-left: 3px solid #eab308;
+  border-radius: 6px;
+  color: #eab308;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.npf-warning-icon {
+  flex-shrink: 0;
+  font-size: 0.95rem;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+/* ─── Section Header ─── */
+.npf-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.npf-section-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--fg);
+  margin: 0 0 0.2rem 0;
+}
+
+.npf-section-subtitle {
+  font-size: 0.78rem;
+  color: var(--muted);
   margin: 0;
 }
 
-.pf-overview-header .btn-new-fp {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.78rem;
-  color: var(--primary);
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-weight: 500;
-  transition: opacity var(--transition);
-}
-
-.pf-overview-header .btn-new-fp:hover {
-  opacity: 0.8;
-}
-
-.pf-overview table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.pf-overview table tr {
-  border-bottom: 1px solid var(--border);
-}
-
-.pf-overview table tr:last-child {
-  border-bottom: none;
-}
-
-.pf-overview table td {
-  padding: 0.45rem 0;
-  vertical-align: top;
-}
-
-.pf-overview table td:first-child {
-  color: var(--muted);
-  white-space: nowrap;
-  padding-right: 1rem;
-  width: 120px;
-}
-
-.pf-overview table td:last-child {
-  color: var(--fg);
-  word-break: break-word;
-  text-align: right;
-}
-
-.pf-overview-footer {
-  margin-top: 1rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border);
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-.pf-overview-footer a {
-  color: var(--primary);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-/* ===== Fieldset-style section dividers ===== */
-.pf-fieldset {
-  position: relative;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 1.25rem 1rem 1rem;
+/* ─── Divider ─── */
+.npf-divider {
+  height: 1px;
+  background: var(--border);
   margin-bottom: 1.25rem;
 }
 
-.pf-fieldset-legend {
-  position: absolute;
-  top: -0.6rem;
-  left: 0.75rem;
-  background: var(--card);
-  padding: 0 0.5rem;
+/* ─── Toggle Switch ─── */
+.npf-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.npf-toggle-label {
   font-size: 0.78rem;
-  font-weight: 600;
   color: var(--muted);
-  text-transform: capitalize;
+  font-weight: 500;
 }
 
-/* ===== Horizontal form rows ===== */
-.pf-row {
-  display: grid;
-  grid-template-columns: 110px 1fr;
-  align-items: start;
-  gap: 0.75rem;
+.npf-toggle {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.npf-toggle.on {
+  background: var(--primary);
+}
+
+.npf-toggle.off {
+  background: var(--glass-strong);
+  border: 1px solid var(--border2);
+}
+
+.npf-toggle-knob {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.npf-toggle.on .npf-toggle-knob {
+  transform: translateX(20px);
+}
+
+.npf-toggle.off .npf-toggle-knob {
+  transform: translateX(3px);
+}
+
+/* ─── Field ─── */
+.npf-field {
   margin-bottom: 1rem;
-  min-height: 36px;
 }
 
-.pf-row>label,
-.pf-row>.pf-label {
-  font-size: 0.82rem;
+.npf-field label {
+  display: block;
+  font-size: 0.78rem;
   font-weight: 500;
   color: var(--muted);
-  padding-top: 0.45rem;
-  line-height: 1.4;
-  text-align: right;
-  white-space: nowrap;
+  margin-bottom: 0.35rem;
 }
 
-.pf-row>label .required {
-  color: #ef4444;
-  margin-right: 0.15rem;
-}
-
-.pf-control {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-/* ===== Inputs ===== */
-.pf-input,
-.pf-select,
-.pf-textarea {
+.npf-input {
   width: 100%;
   padding: 0.5rem 0.7rem;
   background: var(--glass-input);
@@ -269,499 +314,135 @@
   box-sizing: border-box;
 }
 
-.pf-input:focus,
-.pf-select:focus,
-.pf-textarea:focus {
+.npf-input:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(0, 210, 211, .15);
+  box-shadow: 0 0 0 2px rgba(0, 210, 211, 0.15);
 }
 
-.pf-select option {
-  background: var(--card);
-  color: var(--fg);
-}
-
-.pf-textarea {
-  resize: vertical;
-  font-family: inherit;
-  min-height: 60px;
-}
-
-.pf-input-wrap {
-  position: relative;
-}
-
-.pf-char-count {
-  position: absolute;
-  right: 0.6rem;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 0.72rem;
-  color: var(--muted);
-  pointer-events: none;
-}
-
-.pf-textarea-wrap {
-  position: relative;
-}
-
-.pf-textarea-wrap .pf-char-count {
-  top: auto;
-  bottom: 0.4rem;
-  right: 0.6rem;
-  transform: none;
-}
-
-/* ===== Segmented controls ===== */
-.seg-ctrl {
-  display: inline-flex;
-  gap: 0;
-  background: var(--glass-input);
-  border: 1px solid var(--border2);
-  border-radius: 6px;
-  padding: 2px;
-  flex-wrap: wrap;
-}
-
-.seg-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.3rem;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--muted);
-  background: transparent;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-  min-height: 30px;
-}
-
-.seg-btn:hover {
-  color: var(--fg);
-}
-
-.seg-btn.active {
-  background: var(--primary);
-  color: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
-}
-
-.seg-btn .seg-icon {
-  font-size: 1rem;
-  line-height: 1;
-}
-
-/* ===== Sub-tab for Proxy ===== */
-.pf-subtabs {
-  display: flex;
-  gap: 0;
-  margin-bottom: 1rem;
-}
-
-.pf-subtab {
-  padding: 0.45rem 0.9rem;
-  font-size: 0.82rem;
-  font-weight: 500;
-  color: var(--muted);
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-  transition: all var(--transition);
-}
-
-.pf-subtab:hover {
-  color: var(--fg);
-}
-
-.pf-subtab.active {
-  color: var(--fg);
-  font-weight: 600;
-  border-bottom-color: var(--fg);
-}
-
-/* ===== Cookie / Merge ===== */
-.pf-merge-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.3rem 0.6rem;
-  font-size: 0.78rem;
-  color: var(--fg);
-  background: var(--glass-input);
-  border: 1px solid var(--border2);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background var(--transition);
-  margin-top: 0.3rem;
-}
-
-.pf-merge-btn:hover {
-  background: var(--glass-hover);
-}
-
-/* ===== Check network btn ===== */
-.pf-check-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.45rem 0.85rem;
-  font-size: 0.82rem;
-  font-weight: 500;
-  color: var(--fg);
-  background: var(--glass-input);
-  border: 1px solid var(--border2);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all var(--transition);
-  white-space: nowrap;
-}
-
-.pf-check-btn:hover:not(:disabled) {
-  background: var(--glass-hover);
-}
-
-.pf-check-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* ===== Proxy Check Result Card ===== */
-.pf-proxy-result {
-  margin-top: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  animation: slideUpFade 0.2s ease-out;
-}
-
-.pf-proxy-result.alive {
-  border-color: #28c76f;
-  background: rgba(40, 199, 111, 0.06);
-}
-
-.pf-proxy-result.dead {
-  border-color: #ea5455;
-  background: rgba(234, 84, 85, 0.06);
-}
-
-.pf-proxy-result-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-}
-
-.pf-proxy-result.alive .pf-proxy-status-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: #28c76f;
-  box-shadow: 0 0 6px rgba(40, 199, 111, 0.5);
-}
-
-.pf-proxy-result.dead .pf-proxy-status-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: #ea5455;
-  box-shadow: 0 0 6px rgba(234, 84, 85, 0.5);
-}
-
-.pf-proxy-latency {
-  margin-left: auto;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--primary);
-  background: rgba(0, 210, 211, 0.1);
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-}
-
-.pf-proxy-result-body {
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-  color: var(--fg);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.3rem 1rem;
-}
-
-.pf-proxy-result-error {
-  margin-top: 0.35rem;
-  font-size: 0.8rem;
-  color: #ea5455;
-}
-
-@keyframes slideUpFade {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* ===== Radio group inline ===== */
-.pf-radio-group {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 0.35rem;
-}
-
-.pf-radio-group label {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.8rem;
-  color: var(--fg);
-  cursor: pointer;
-}
-
-.pf-radio-group input[type="radio"] {
-  accent-color: var(--primary);
-  margin: 0;
-}
-
-/* ===== Form hint ===== */
-.pf-hint {
-  font-size: 0.72rem;
-  color: var(--muted);
-  opacity: 0.85;
-  margin-top: 0.15rem;
-}
-
-/* ===== Inline row (for proxy host/pass) ===== */
-.pf-inline-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.pf-two-col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-
-/* ===== Form actions (bottom bar) ===== */
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--border);
-}
-
-.form-actions .btn {
-  padding: 0.5rem 1.25rem;
-  font-size: 0.85rem;
-}
-
-/* ===== Legacy compat: preset bar ===== */
-.preset-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  background: var(--glass-input);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.5rem 0.7rem;
-  margin-bottom: 0.75rem;
-}
-
-.preset-bar .preset-select {
-  flex: 1;
-  min-width: 200px;
-}
-
-.preset-bar .preset-select label {
-  font-size: 0.78rem;
-  color: var(--muted);
-  margin-bottom: 0.2rem;
-  display: block;
-}
-
-.preset-bar .preset-actions {
-  display: inline-flex;
-  gap: 0.35rem;
-}
-
-.preset-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.preset-count select {
-  padding: 0.2rem 0.3rem;
-  font-size: 0.8rem;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--glass);
-  color: var(--fg);
-}
-
-.icon-btn {
-  background: var(--glass);
-  border: 1px solid var(--border);
-  color: var(--fg);
-  border-radius: 6px;
-  padding: 0.3rem 0.5rem;
-  cursor: pointer;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--transition);
-}
-
-.icon-btn:hover {
-  background: var(--glass-hover);
-}
-
-.icon-btn.disabled,
-.icon-btn:disabled {
+.npf-input:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-.icon-btn.active {
-  background: rgba(0, 210, 211, .15);
-  border-color: var(--primary);
-}
-
-.preset-note {
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-
-.preset-note .badge {
-  display: inline-block;
-  max-width: 380px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: var(--glass);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.1rem 0.45rem;
-}
-
-/* ===== Region block (fingerprint toggle) ===== */
-.region-block {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.55rem 0.75rem;
-  margin-bottom: 0.75rem;
-  background: var(--glass-input);
-}
-
-.region-block-header label {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-weight: 600;
-  font-size: 0.82rem;
-  color: var(--fg);
-  cursor: pointer;
-}
-
-.region-block-header input[type="checkbox"] {
-  accent-color: var(--primary);
-}
-
-.region-block-body {
-  margin-top: 0.5rem;
-}
-
-/* Button compat */
-.btn.btn-icon {
-  padding: 0.3rem 0.5rem;
-  min-width: unset;
-}
-
-.btn.btn-icon.active {
-  background: rgba(0, 210, 211, .15);
-  border-color: var(--primary);
-}
-
-.btn-ghost {
-  background: var(--glass-strong);
-  border: 1px solid var(--border2);
-  color: var(--fg);
-  padding: 0.4rem 0.7rem;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all var(--transition);
-}
-
-.btn-ghost:hover {
-  background: var(--glass-hover);
-}
-
-/* Old form-group compat for selects inside preset bar */
-.form-group select {
-  width: 100%;
-  padding: 0.5rem 0.7rem;
-  background: var(--glass-input);
-  border: 1px solid var(--border2);
-  border-radius: 6px;
-  color: var(--fg);
-  font-size: 0.84rem;
-  font-family: inherit;
-}
-
-.form-group select:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(0, 210, 211, .15);
-}
-
-.form-group select option {
+.npf-input option {
   background: var(--card);
   color: var(--fg);
 }
 
-.form-hint {
+/* ─── Field Row (multi-column) ─── */
+.npf-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.npf-three-col {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+/* ─── Fieldset ─── */
+.npf-fieldset {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem 1rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.npf-fieldset legend {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 0 0.4rem;
+  text-transform: capitalize;
+}
+
+/* ─── Hint text ─── */
+.npf-hint-text {
   font-size: 0.72rem;
   color: var(--muted);
   opacity: 0.85;
-  margin-top: 0.15rem;
+  margin: 0.25rem 0 0.75rem 0;
+  line-height: 1.4;
 }
 
-.form-group label {
-  display: block;
+/* ─── Info text (description) ─── */
+.npf-info-text {
   font-size: 0.8rem;
-  font-weight: 500;
   color: var(--muted);
-  margin-bottom: 0.3rem;
+  margin: 0 0 1.25rem 0;
+  line-height: 1.5;
 }
 
-/* ===== Responsive ===== */
-@media (max-width: 900px) {
-  .pf-body {
-    grid-template-columns: 1fr;
+/* ─── Summary box ─── */
+.npf-summary-box {
+  background: var(--glass-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-top: 0.5rem;
+}
+
+.npf-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.25rem 0;
+  font-size: 0.8rem;
+}
+
+.npf-summary-row span:first-child {
+  color: var(--muted);
+}
+
+.npf-summary-row span:last-child {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+/* ─── Battery Status colors ─── */
+.npf-status-charging {
+  color: var(--success) !important;
+}
+
+.npf-status-discharging {
+  color: var(--warning) !important;
+}
+
+/* ═══════════════ Legacy compatibility ═══════════════ */
+/* Keep these for other components that may reference them */
+.profile-form-container { display: none; }
+
+/* ═══════════════ Responsive ═══════════════ */
+@media (max-width: 768px) {
+  .npf-sidebar {
+    width: 50px;
+    min-width: 50px;
   }
 
-  .pf-overview {
+  .npf-nav-item span {
     display: none;
   }
-}
 
-@media (max-width: 600px) {
-  .pf-row {
-    grid-template-columns: 1fr;
-    gap: 0.25rem;
+  .npf-nav-info {
+    display: none;
   }
 
-  .pf-row>label,
-  .pf-row>.pf-label {
-    text-align: left;
-    padding-top: 0;
+  .npf-nav-item {
+    justify-content: center;
+    padding: 0.6rem;
+  }
+
+  .npf-content {
+    padding: 1rem;
+  }
+
+  .npf-field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .npf-three-col {
+    grid-template-columns: 1fr;
   }
 }
