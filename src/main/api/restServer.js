@@ -107,6 +107,22 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
     const r = await handlers.evalInternal(req.params.id, req.body || {}); res.json(r);
   });
 
+  // Native mouse actions
+  appx.post('/api/profiles/:id/actions/mouse/move', async (req, res) => {
+    try {
+      const { mouseMove } = require('../engine/actions');
+      const result = await mouseMove(req.params.id, req.body || {});
+      res.status(result.success ? 200 : 500).json(result);
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+  appx.post('/api/profiles/:id/actions/mouse/click', async (req, res) => {
+    try {
+      const { mouseClick } = require('../engine/actions');
+      const result = await mouseClick(req.params.id, req.body || {});
+      res.status(result.success ? 200 : 500).json(result);
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+
   // Generic action dispatcher and helpers
   appx.get('/api/actions', async (_req, res) => {
     try {
