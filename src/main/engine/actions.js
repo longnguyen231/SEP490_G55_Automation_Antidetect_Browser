@@ -64,6 +64,31 @@ async function mouseClick(profileId, { x, y, button = 'left', clickCount = 1, de
   } catch (e) { await cleanup(); return err(e?.message || e); }
 }
 
+async function mouseDblclick(profileId, { x, y, button = 'left', delay = 0 } = {}) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return err('x and y are required numbers');
+  const { success, error, page, cleanup } = await withPage(profileId, {});
+  if (!success) return err(error);
+  try {
+    await page.mouse.dblclick(Number(x), Number(y), { button, delay });
+    appendLog(profileId, `Action: mouseDblclick (${x}, ${y}) button=${button}`);
+    await cleanup();
+    return ok();
+  } catch (e) { await cleanup(); return err(e?.message || e); }
+}
+
+async function mouseDown(profileId, { button = 'left', clickCount = 1 } = {}) {
+  const { success, error, page, cleanup } = await withPage(profileId, {});
+  if (!success) return err(error);
+  try {
+    await page.mouse.down({ button, clickCount });
+    appendLog(profileId, `Action: mouseDown button=${button}`);
+    await cleanup();
+    return ok();
+  } catch (e) { await cleanup(); return err(e?.message || e); }
+}
+
+
+
 async function clickAt(profileId, { x, y, button = 'left', clickCount = 1, delay } = {}) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return err('x and y are required numbers');
   const { success, error, page, cleanup } = await withPage(profileId, {});
@@ -284,6 +309,8 @@ async function selectOption(profileId, { selector, values, timeout = 10000 } = {
 const ACTION_MAP = {
   'mouse.move': mouseMove,
   'mouse.click': mouseClick,
+  'mouse.dblclick': mouseDblclick,
+  'mouse.down': mouseDown,
   'click.at': clickAt,
   'click.percent': clickByPercent,
   'click.element': clickOnElement,
@@ -652,6 +679,8 @@ module.exports = {
   performAction,
   mouseMove,
   mouseClick,
+  mouseDblclick,
+  mouseDown,
   clickAt,
   clickByPercent,
   clickOnElement,
