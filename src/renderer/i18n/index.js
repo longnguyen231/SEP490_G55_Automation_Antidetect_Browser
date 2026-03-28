@@ -193,6 +193,44 @@ const messages = {
     'scripts.save': 'Lưu',
     'scripts.cancel': 'Huỷ',
 
+    // Scripts & Tasks Page
+    'stp.tab.scripts': 'Kịch bản',
+    'stp.tab.logs': 'Nhật ký tác vụ',
+    'stp.search': 'Tìm kịch bản...',
+    'stp.newScript': 'Kịch bản mới',
+    'stp.noScripts': 'Chưa có kịch bản',
+    'stp.name': 'Tên',
+    'stp.desc': 'Mô tả',
+    'stp.profile': 'Profile',
+    'stp.selectProfile': 'Chọn profile...',
+    'stp.save': 'Lưu',
+    'stp.run': 'Chạy kịch bản',
+    'stp.running': 'Đang chạy...',
+    'stp.completed': 'Hoàn thành',
+    'stp.error': 'Lỗi',
+    'stp.apiRef': 'Tham chiếu API',
+    'stp.selectScript': 'Chọn hoặc tạo kịch bản mới',
+    'stp.taskHistory': 'Lịch sử tác vụ',
+    'stp.selectTask': 'Chọn tác vụ để xem nhật ký',
+    'stp.noLogs': 'Chưa có nhật ký tác vụ',
+    'stp.noLogEntries': 'Không có nhật ký cho tác vụ này',
+    'stp.deleteConfirm': 'Xoá kịch bản này?',
+    'stp.clearConfirm': 'Xoá tất cả nhật ký tác vụ?',
+    'stp.saveFirst': 'Lưu kịch bản trước',
+    'stp.selectProfileFirst': 'Chọn profile trước',
+    'stp.namePh': 'Tên kịch bản',
+    'stp.descPh': 'Mô tả (tuỳ chọn)',
+
+    // API Reference categories
+    'stp.api.navigation': 'Điều hướng',
+    'stp.api.pageInfo': 'Thông tin trang',
+    'stp.api.click': 'Click & Tương tác',
+    'stp.api.input': 'Nhập liệu',
+    'stp.api.wait': 'Chờ đợi',
+    'stp.api.evaluate': 'Thực thi JS',
+    'stp.api.screenshot': 'Chụp & Xuất',
+    'stp.api.globals': 'Biến toàn cục',
+
     // Cookies
     'cookies.title': 'Cookie của:',
     'cookies.saved': 'Cookie đã lưu',
@@ -265,7 +303,7 @@ const messages = {
     'proxies.delete.confirm': 'Bạn có chắc chắn muốn xóa proxy này không?',
   },
   en: {
-    'app.title': 'OBT Automation Antidetect Browser',
+    'app.title': 'HL-MCK Automation Antidetect Browser',
     'app.subtitle': 'Manage browser profiles with fingerprint spoofing',
 
     // Sidebar
@@ -456,6 +494,44 @@ const messages = {
     'scripts.save': 'Save',
     'scripts.cancel': 'Cancel',
 
+    // Scripts & Tasks Page
+    'stp.tab.scripts': 'Scripts',
+    'stp.tab.logs': 'Task Logs',
+    'stp.search': 'Search scripts...',
+    'stp.newScript': 'New Script',
+    'stp.noScripts': 'No scripts yet',
+    'stp.name': 'Name',
+    'stp.desc': 'Description',
+    'stp.profile': 'Profile',
+    'stp.selectProfile': 'Select profile...',
+    'stp.save': 'Save',
+    'stp.run': 'Run Script',
+    'stp.running': 'Running...',
+    'stp.completed': 'Completed',
+    'stp.error': 'Error',
+    'stp.apiRef': 'API Reference',
+    'stp.selectScript': 'Select a script or create a new one',
+    'stp.taskHistory': 'Task History',
+    'stp.selectTask': 'Select a task to view logs',
+    'stp.noLogs': 'No task logs yet',
+    'stp.noLogEntries': 'No logs for this task',
+    'stp.deleteConfirm': 'Delete this script?',
+    'stp.clearConfirm': 'Clear all task logs?',
+    'stp.saveFirst': 'Save the script first',
+    'stp.selectProfileFirst': 'Select a profile first',
+    'stp.namePh': 'Script name',
+    'stp.descPh': 'Optional description',
+
+    // API Reference categories
+    'stp.api.navigation': 'Navigation',
+    'stp.api.pageInfo': 'Page Info',
+    'stp.api.click': 'Click & Interact',
+    'stp.api.input': 'Input',
+    'stp.api.wait': 'Wait',
+    'stp.api.evaluate': 'Evaluate',
+    'stp.api.screenshot': 'Screenshot & PDF',
+    'stp.api.globals': 'Globals',
+
     // Cookies
     'cookies.title': 'Cookies for:',
     'cookies.saved': 'Saved Cookies',
@@ -529,10 +605,10 @@ const messages = {
   }
 };
 
-const I18nContext = createContext({ lang: 'vi', setLang: () => { }, t: (k, d) => d || k });
+const I18nContext = createContext({ lang: 'en', setLang: () => { }, t: (k, d) => d || k });
 
 export function I18nProvider({ children }) {
-  const [lang, setLang] = useState('vi');
+  const [lang, setLang] = useState('en');
 
   // Load persisted language from settings
   useEffect(() => {

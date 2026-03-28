@@ -41,6 +41,16 @@ export default defineConfig(async ({ mode, command }) => {
     plugins: [react()],
     base: './',
     root: 'src/renderer',
+    resolve: {
+      alias: {
+        '@shared': path.resolve(__dirname, './src/shared'),
+        '@components': path.resolve(__dirname, './src/shared/components'),
+        '@hooks': path.resolve(__dirname, './src/shared/hooks'),
+        '@services': path.resolve(__dirname, './src/shared/services'),
+        '@utils': path.resolve(__dirname, './src/shared/utils'),
+        '@styles': path.resolve(__dirname, './src/shared/styles')
+      }
+    },
     build: {
       outDir: '../../dist/renderer',
       emptyOutDir: true,

@@ -21,14 +21,14 @@ function getDataRoot() {
       fs.mkdirSync(fb, { recursive: true });
       __dataRoot = fb;
       return __dataRoot;
-    } catch {}
+    } catch { }
   }
   __dataRoot = app.getPath('userData');
   return __dataRoot;
 }
 
 function ensureDir(p) {
-  try { fs.mkdirSync(p, { recursive: true }); } catch {}
+  try { fs.mkdirSync(p, { recursive: true }); } catch { }
 }
 
 function storageStatePath(profileId) {
@@ -59,6 +59,10 @@ function scriptsFilePath() {
   return path.join(getDataRoot(), 'scripts.json');
 }
 
+function proxiesFilePath() {
+  return path.join(getDataRoot(), 'proxies.json');
+}
+
 function initializeDataFiles() {
   // migrate legacy files from userData to data root (one-time)
   try {
@@ -67,20 +71,25 @@ function initializeDataFiles() {
     const newProfiles = profilesFilePath();
     const newSettings = settingsFilePath();
     if (!fs.existsSync(newProfiles) && fs.existsSync(legacyProfiles)) {
-      try { fs.copyFileSync(legacyProfiles, newProfiles); } catch {}
+      try { fs.copyFileSync(legacyProfiles, newProfiles); } catch { }
     }
     if (!fs.existsSync(newSettings) && fs.existsSync(legacySettings)) {
-      try { fs.copyFileSync(legacySettings, newSettings); } catch {}
+      try { fs.copyFileSync(legacySettings, newSettings); } catch { }
     }
     if (!fs.existsSync(newProfiles)) {
-      try { fs.mkdirSync(path.dirname(newProfiles), { recursive: true }); } catch {}
+      try { fs.mkdirSync(path.dirname(newProfiles), { recursive: true }); } catch { }
       fs.writeFileSync(newProfiles, JSON.stringify([]));
+    }
+    const newProxies = proxiesFilePath();
+    if (!fs.existsSync(newProxies)) {
+      try { fs.mkdirSync(path.dirname(newProxies), { recursive: true }); } catch { }
+      fs.writeFileSync(newProxies, JSON.stringify([]));
     }
     return { profilesPath: newProfiles };
   } catch (e) {
     const p = profilesFilePath();
     if (!fs.existsSync(p)) {
-      try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch {}
+      try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch { }
       fs.writeFileSync(p, JSON.stringify([]));
     }
     return { profilesPath: p };
@@ -96,5 +105,6 @@ module.exports = {
   settingsFilePath,
   presetsFilePath,
   scriptsFilePath,
+  proxiesFilePath,
   initializeDataFiles,
 };
