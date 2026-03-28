@@ -12,21 +12,21 @@ export default function ScriptsManager({ profiles = [] }) {
             {/* Header */}
             <div className="flex items-center gap-6 mb-6">
                 <h1 className="text-2xl font-bold text-slate-800">Scripts & Tasks</h1>
-                <div className="flex bg-[#e2e8f0] p-1 rounded-lg">
+                <div className="flex bg-[#e2e8f0] p-1 rounded-lg border border-slate-200/50">
                     <button
-                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${activeTab === 'scripts' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`px-4 py-1.5 text-[0.85rem] font-medium rounded transition ${activeTab === 'scripts' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
                         onClick={() => setActiveTab('scripts')}
                     >
                         Scripts
                     </button>
                     <button
-                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${activeTab === 'logs' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`px-4 py-1.5 text-[0.85rem] font-medium rounded transition ${activeTab === 'logs' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
                         onClick={() => setActiveTab('logs')}
                     >
                         Task Logs
                     </button>
                     <button
-                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${activeTab === 'modules' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`px-4 py-1.5 text-[0.85rem] font-medium rounded transition ${activeTab === 'modules' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
                         onClick={() => setActiveTab('modules')}
                     >
                         Script Modules
@@ -36,8 +36,8 @@ export default function ScriptsManager({ profiles = [] }) {
 
             {/* Content Area */}
             {activeTab === 'scripts' && <ScriptsTab profiles={profiles} />}
-            {activeTab === 'logs' && <div className="flex-1 bg-white rounded flex items-center justify-center text-slate-500">No task logs available.</div>}
-            {activeTab === 'modules' && <div className="flex-1 bg-white rounded flex items-center justify-center text-slate-500">No script modules loaded.</div>}
+            {activeTab === 'logs' && <TaskLogsTab />}
+            {activeTab === 'modules' && <ScriptModulesTab />}
         </div>
     );
 }
@@ -118,12 +118,12 @@ function ScriptsTab({ profiles }) {
     const filtered = scripts.filter(s => !filter || (s.name || '').toLowerCase().includes(filter.toLowerCase()));
 
     return (
-        <div className="flex-1 flex flex-row gap-[1px] bg-slate-200 border border-slate-200 overflow-hidden">
+        <div className="flex-1 flex flex-row rounded-lg gap-[1px] bg-slate-200 border border-slate-200 overflow-hidden shadow-sm">
             {/* Left Sidebar */}
             <div className="w-[300px] bg-[#f8fafc] flex flex-col justify-between">
                 <div>
                     {!filtered.length && scripts.length === 0 ? (
-                        <div className="p-8 text-center text-slate-400 text-sm mt-4">
+                        <div className="p-8 text-center text-slate-400 text-[0.85rem] mt-4">
                             No scripts yet. Create one to get started.
                         </div>
                     ) : (
@@ -141,17 +141,17 @@ function ScriptsTab({ profiles }) {
                                 {filtered.map(s => (
                                     <div
                                         key={s.id}
-                                        className={`px-4 py-3 cursor-pointer border-l-4 transition flex justify-between items-center group
-                                            ${selectedId === s.id ? 'bg-white border-blue-500 shadow-sm' : 'border-transparent hover:bg-slate-100'}`}
+                                        className={`px-4 py-2 cursor-pointer border-l-4 transition flex justify-between items-center group
+                                            ${selectedId === s.id ? 'bg-white border-[#2563eb] text-[#2563eb] shadow-sm' : 'border-transparent text-slate-600 hover:bg-slate-100'}`}
                                         onClick={() => handleSelect(s)}
                                     >
-                                        <div className="font-medium text-slate-700 text-[0.9rem] truncate pr-2">{s.name || '(untitled)'}</div>
+                                        <div className="font-medium text-[0.9rem] truncate pr-2">{s.name || '(untitled)'}</div>
                                         <div className="opacity-0 group-hover:opacity-100 transition flex gap-1">
                                             <button className="p-1 hover:bg-blue-100 text-blue-600 rounded" title={'Run'} onClick={e => { e.stopPropagation(); handleSelect(s); handleRun(s.id); }}>
-                                                <Play size={14} />
+                                                <Play size={13} />
                                             </button>
                                             <button className="p-1 hover:bg-red-100 text-red-500 rounded" title={'Delete'} onClick={e => handleDelete(s.id, e)}>
-                                                <Trash2 size={14} />
+                                                <Trash2 size={13} />
                                             </button>
                                         </div>
                                     </div>
@@ -161,13 +161,13 @@ function ScriptsTab({ profiles }) {
                     )}
                 </div>
 
-                <div className="p-4 bg-white border-t border-slate-200 shadow-sm z-10">
-                    <button className="w-full bg-[#2563eb] hover:bg-blue-700 text-white font-medium py-2 rounded shadow-sm text-sm mb-3" onClick={handleNew}>
+                <div className="p-4 bg-white border-t border-slate-200 z-10">
+                    <button className="w-full bg-[#2563eb] hover:bg-blue-700 text-white font-medium py-2 rounded text-sm mb-3" onClick={handleNew}>
                         + New Script
                     </button>
                     <div className="flex gap-2">
-                        <button className="flex-1 bg-[#e2e8f0] hover:bg-[#cbd5e1] text-slate-600 font-medium py-1.5 rounded text-xs transition">Export JSON</button>
-                        <button className="flex-1 bg-[#e2e8f0] hover:bg-[#cbd5e1] text-slate-600 font-medium py-1.5 rounded text-xs transition">Import JSON</button>
+                        <button className="flex-1 bg-[#e2e8f0] hover:bg-[#cbd5e1] text-slate-600 font-medium py-1.5 rounded text-[0.75rem] transition">Export JSON</button>
+                        <button className="flex-1 bg-[#e2e8f0] hover:bg-[#cbd5e1] text-slate-600 font-medium py-1.5 rounded text-[0.75rem] transition">Import JSON</button>
                     </div>
                 </div>
             </div>
@@ -216,25 +216,83 @@ function ScriptsTab({ profiles }) {
                             />
                         </div>
                         {runResult && (
-                            <div className="h-[200px] border-t border-slate-200 bg-[#1e1e1e] text-slate-300 font-mono text-xs overflow-y-auto p-3">
-                                <div className={`mb-2 font-bold ${runResult.success ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                    {runResult.success ? 'Task Completed' : 'Task Failed'}: {runResult.error || 'No errors'}
+                            <div className="h-[200px] border-t border-slate-200 bg-[#f8fafc] text-slate-600 font-mono text-[0.8rem] overflow-y-auto p-4 shadow-inner">
+                                <div className={`mb-3 flex items-center gap-2 font-bold ${runResult.success ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                    <span className="w-2 h-2 rounded-full border border-current bg-current"></span>
+                                    {runResult.success ? 'Task Completed' : 'Task Failed'} {runResult.error && `- ${runResult.error}`}
                                 </div>
                                 {runResult.logs && runResult.logs.map((l, i) => (
                                     <div key={i} className="mb-1">
-                                        <span className="text-slate-500 mr-2">[{new Date(l.time).toLocaleTimeString()}]</span>
-                                        <span className="text-slate-200">{l.message}</span>
+                                        <span className="text-slate-400 mr-3">[{new Date(l.time).toLocaleTimeString()}]</span>
+                                        <span className="text-slate-700">{l.message}</span>
                                     </div>
                                 ))}
                             </div>
                         )}
                     </div>
                 ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-slate-500">
-                        <FileCode size={48} className="text-slate-200 mb-4" strokeWidth={1} />
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-400 text-[0.9rem]">
                         Select a script to edit, or create a new one
                     </div>
                 )}
+            </div>
+        </div>
+    );
+}
+
+function TaskLogsTab() {
+    const [tasks, setTasks] = useState([]);
+    
+    // We mock empty state as seen in screenshot
+    return (
+        <div className="flex-1 flex flex-row rounded-lg gap-[1px] bg-slate-200 border border-slate-200 overflow-hidden shadow-sm">
+            {/* Left Sidebar */}
+            <div className="w-[300px] bg-[#f8fafc] flex flex-col">
+                <div className="px-4 py-3 border-b border-slate-200 bg-[#f8fafc]">
+                    <span className="text-[0.85rem] font-medium text-slate-500">Tasks ({tasks.length})</span>
+                </div>
+                <div className="flex-1 p-6 text-slate-400 text-[0.85rem]">
+                    No tasks yet. Run a script to create one.
+                </div>
+            </div>
+
+            {/* Right Output Area */}
+            <div className="flex-1 bg-white flex flex-col">
+                <div className="px-5 py-3 border-b border-slate-200 flex justify-between items-center bg-white">
+                    <span className="text-[0.85rem] font-medium text-slate-500">Select a task</span>
+                    <label className="flex items-center gap-2 text-[0.85rem] text-slate-500 cursor-pointer">
+                        <input type="checkbox" defaultChecked className="rounded border-slate-300 text-blue-500 focus:ring-blue-500" />
+                        Auto-scroll
+                    </label>
+                </div>
+                <div className="flex-1 p-6 font-mono text-[0.85rem] text-slate-400">
+                    Select a task to view its output.
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ScriptModulesTab() {
+    return (
+        <div className="w-full flex-1">
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm w-full">
+                <p className="text-[0.9rem] text-slate-600 mb-5">
+                    Install npm packages for use in automation scripts via <code className="text-slate-800 font-mono text-[0.85rem]">require('package-name')</code>.
+                </p>
+                <div className="flex gap-3 mb-5">
+                    <input 
+                        type="text" 
+                        placeholder="e.g. axios or lodash@4" 
+                        className="flex-1 bg-[#f8fafc] border border-slate-200 rounded-md px-4 py-2.5 text-[0.9rem] text-slate-700 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300 transition shadow-inner"
+                    />
+                    <button className="bg-[#7fa1f9] hover:bg-[#6b8bea] text-white font-medium px-6 py-2.5 rounded-md transition shadow-sm text-[0.9rem]">
+                        Install
+                    </button>
+                </div>
+                <p className="text-[0.85rem] text-slate-400 italic">
+                    No modules installed.
+                </p>
             </div>
         </div>
     );
