@@ -115,7 +115,27 @@ async function mouseDown(profileId, { button = 'left', clickCount = 1 } = {}) {
   } catch (e) { await cleanup(); return err(e?.message || e); }
 }
 
+async function mouseUp(profileId, { button = 'left', clickCount = 1 } = {}) {
+  const { success, error, page, cleanup } = await withPage(profileId, {});
+  if (!success) return err(error);
+  try {
+    await page.mouse.up({ button, clickCount });
+    appendLog(profileId, `Action: mouseUp button=${button}`);
+    await cleanup();
+    return ok();
+  } catch (e) { await cleanup(); return err(e?.message || e); }
+}
 
+async function mouseWheel(profileId, { deltaX = 0, deltaY = 0 } = {}) {
+  const { success, error, page, cleanup } = await withPage(profileId, {});
+  if (!success) return err(error);
+  try {
+    await page.mouse.wheel(Number(deltaX), Number(deltaY));
+    appendLog(profileId, `Action: mouseWheel deltaX=${deltaX} deltaY=${deltaY}`);
+    await cleanup();
+    return ok();
+  } catch (e) { await cleanup(); return err(e?.message || e); }
+}
 
 async function clickAt(profileId, { x, y, button = 'left', clickCount = 1, delay } = {}) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return err('x and y are required numbers');
@@ -345,6 +365,8 @@ const ACTION_MAP = {
   'mouse.click': mouseClick,
   'mouse.dblclick': mouseDblclick,
   'mouse.down': mouseDown,
+  'mouse.up': mouseUp,
+  'mouse.wheel': mouseWheel,
   'click.at': clickAt,
   'click.percent': clickByPercent,
   'click.element': clickOnElement,
@@ -715,6 +737,8 @@ module.exports = {
   mouseClick,
   mouseDblclick,
   mouseDown,
+  mouseUp,
+  mouseWheel,
   clickAt,
   clickByPercent,
   clickOnElement,
