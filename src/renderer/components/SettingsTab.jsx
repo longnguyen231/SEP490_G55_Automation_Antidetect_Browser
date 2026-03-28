@@ -27,7 +27,7 @@ export default function SettingsTab({
                     <div className="absolute -top-3 left-4 bg-[var(--card)] px-2 text-[0.85rem] font-bold text-[var(--fg)]">Appearance</div>
                     <div className="mb-2 pt-1"> 
                         <label className="block text-[0.75rem] text-[var(--muted)] mb-1.5">Theme</label>
-                        <select  
+                        <select 
                             value={theme}
                             onChange={(e) => setTheme(e.target.value)}
                             className="w-[160px] text-[0.75rem] py-1 cursor-pointer"

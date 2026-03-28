@@ -153,26 +153,26 @@ export default function ProxyManager() {
     });
 
     return (
-        <div className="w-full h-full flex flex-col p-4 bg-[#f1f5f9]">
+        <div className="w-full h-full flex flex-col p-4" style={{ background: 'var(--bg)' }}>
             {/* Header Area */}
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-[1.2rem] font-bold text-slate-800">Proxy Pool</h1>
+                <h1 className="text-[1.2rem] font-bold" style={{ color: 'var(--fg)' }}>Proxy Pool</h1>
                 <div className="flex items-center gap-3">
                     <button 
-                        className="bg-[#e2e8f0] hover:bg-[#cbd5e1] text-slate-600 font-medium text-[0.75rem] px-3 py-1.5 rounded transition"
+                        className="btn btn-secondary text-[0.75rem]"
                         onClick={() => setShowImport(true)}
                     >
                         Import Excel
                     </button>
                     <button 
-                        className={`font-medium text-[0.75rem] px-3 py-1.5 rounded transition ${proxies.length === 0 ? 'bg-white text-slate-400 cursor-not-allowed opacity-60' : 'bg-[#e2e8f0] hover:bg-[#cbd5e1] text-slate-600'}`}
+                        className="btn btn-secondary text-[0.75rem]"
                         onClick={() => {}}
                         disabled={proxies.length === 0}
                     >
                         Export Excel
                     </button>
                     <button 
-                        className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-medium text-[0.75rem] px-3 py-1.5 rounded shadow transition"
+                        className="btn btn-primary text-[0.75rem]"
                         onClick={() => { setEditingProxy(null); setShowForm(true); }}
                     >
                         + Add Proxy
@@ -184,11 +184,11 @@ export default function ProxyManager() {
             <div className="flex-1 flex flex-col w-full">
                 {proxies.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 relative top-[-40px]">
-                        <h3 className="text-[1.125rem] font-semibold text-slate-500">No proxies yet</h3>
-                        <p className="text-[0.875rem] text-slate-400">Add a proxy or import from Excel.</p>
+                        <h3 className="text-[1.125rem] font-semibold" style={{ color: 'var(--muted)' }}>No proxies yet</h3>
+                        <p className="text-[0.875rem]" style={{ color: 'var(--muted)' }}>Add a proxy or import from Excel.</p>
                     </div>
                 ) : (
-                    <div className="w-full bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden flex-1">
+                    <div className="w-full rounded-lg overflow-hidden flex-1" style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
                         <ProxyTable
                             proxies={filteredProxies}
                             onEdit={(p) => { setEditingProxy(p); setShowForm(true); }}
@@ -329,21 +329,21 @@ function ProxyFormModal({ proxy, onSave, onClose, t }) {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[999] p-4" onClick={onClose}>
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-[440px] p-8" onClick={e => e.stopPropagation()}>
-                <h2 className="text-[1.35rem] font-bold text-slate-800 mb-6 tracking-tight">
+        <div className="fixed inset-0 flex items-center justify-center z-[999] p-4" style={{ background: 'var(--overlay-bg)' }} onClick={onClose}>
+            <div className="rounded-xl w-full max-w-[440px] p-8" style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }} onClick={e => e.stopPropagation()}>
+                <h2 className="text-[1.35rem] font-bold mb-6 tracking-tight" style={{ color: 'var(--fg)' }}>
                     {proxy ? 'Edit Proxy' : 'Add Proxy'}
                 </h2>
                 <form onSubmit={submit} className="flex flex-col gap-4">
                     <div>
-                        <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Label (optional)</label>
-                        <input type="text" name="name" className="w-full bg-[#f8fafc] border border-slate-200 text-slate-700 text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300 transition shadow-inner" placeholder="e.g. US Residential #1" value={formData.name} onChange={handleChange} />
+                        <label className="block text-[0.8rem] font-semibold mb-1.5" style={{ color: 'var(--muted)' }}>Label (optional)</label>
+                        <input type="text" name="name" className="w-full text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 transition" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }} placeholder="e.g. US Residential #1" value={formData.name} onChange={handleChange} />
                     </div>
 
                     <div className="flex gap-4">
                         <div className="w-1/3">
                             <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Type</label>
-                            <select name="protocol" className="w-full bg-[#f8fafc] border border-slate-200 text-slate-700 text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300 transition shadow-inner" value={formData.protocol} onChange={handleChange}>
+                            <select name="protocol" className="w-full text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 transition" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }} value={formData.protocol} onChange={handleChange}>
                                 <option value="http">HTTP</option>
                                 <option value="https">HTTPS</option>
                                 <option value="socks4">SOCKS4</option>
@@ -352,25 +352,25 @@ function ProxyFormModal({ proxy, onSave, onClose, t }) {
                         </div>
                         <div className="w-2/3">
                             <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Port</label>
-                            <input type="text" name="port" className="w-full bg-[#f8fafc] border border-slate-200 text-slate-700 text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300 transition shadow-inner" placeholder="8080" value={formData.port} onChange={handleChange} required />
+                            <input type="text" name="port" className="w-full text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 transition" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }} placeholder="8080" value={formData.port} onChange={handleChange} required />
                         </div>
                     </div>
 
                     <div>
                         <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Host / IP</label>
-                        <input type="text" name="host" className="w-full bg-[#f8fafc] border border-slate-200 text-slate-700 text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300 transition shadow-inner" placeholder="proxy.example.com" value={formData.host} onChange={handleChange} required />
+                        <input type="text" name="host" className="w-full text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 transition" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }} placeholder="proxy.example.com" value={formData.host} onChange={handleChange} required />
                     </div>
 
                     <div className="flex gap-4 mb-2">
                         <div className="w-1/2">
                             <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Username (optional)</label>
-                            <input type="text" name="username" className="w-full bg-[#f8fafc] border border-slate-200 text-slate-700 text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300 transition shadow-inner" placeholder="user" value={formData.username || ''} onChange={handleChange} />
+                            <input type="text" name="username" className="w-full text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 transition" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }} placeholder="user" value={formData.username || ''} onChange={handleChange} />
                         </div>
                         <div className="w-1/2 relative">
                             <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Password (optional)</label>
                             <div className="relative">
-                                <input type={showPassword ? "text" : "password"} name="password" className="w-full bg-[#f8fafc] border border-slate-200 text-slate-700 text-[0.9rem] rounded-[0.5rem] pl-3 pr-12 py-2.5 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300 transition shadow-inner" placeholder="••••••••" value={formData.password || ''} onChange={handleChange} />
-                                <button type="button" className="absolute right-3 top-[0.6rem] text-[0.85rem] font-medium text-slate-500 hover:text-slate-700" onClick={() => setShowPassword(!showPassword)}>
+                                <input type={showPassword ? "text" : "password"} name="password" className="w-full text-[0.9rem] rounded-[0.5rem] pl-3 pr-12 py-2.5 transition" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }} placeholder="••••••••" value={formData.password || ''} onChange={handleChange} />
+                                <button type="button" className="absolute right-3 top-[0.6rem] text-[0.85rem] font-medium" style={{ color: 'var(--muted)' }} onClick={() => setShowPassword(!showPassword)}>
                                     {showPassword ? "Hide" : "Show"}
                                 </button>
                             </div>
@@ -378,10 +378,10 @@ function ProxyFormModal({ proxy, onSave, onClose, t }) {
                     </div>
 
                     <div className="flex justify-end gap-3 mt-4">
-                        <button type="button" className="bg-[#cbd5e1]/60 hover:bg-[#cbd5e1] text-slate-600 px-6 py-2.5 rounded-[0.4rem] text-[0.85rem] font-medium transition" onClick={onClose}>
+                        <button type="button" className="btn btn-secondary px-6 py-2.5 text-[0.85rem]" onClick={onClose}>
                             Cancel
                         </button>
-                        <button type="submit" className="bg-[#2563eb] hover:bg-blue-700 text-white px-7 py-2.5 rounded-[0.4rem] text-[0.85rem] font-medium transition shadow-sm" disabled={saving}>
+                        <button type="submit" className="btn btn-primary px-7 py-2.5 text-[0.85rem]" disabled={saving}>
                             {saving ? 'Saving...' : 'Save'}
                         </button>
                     </div>
