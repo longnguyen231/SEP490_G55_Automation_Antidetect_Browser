@@ -8,6 +8,7 @@ import Toasts from './components/Toasts';
 import ScriptsManager from './components/ScriptsManager';
 import ProxyManager from './components/ProxyManager';
 import AppLogsTab from './components/AppLogsTab';
+import SettingsTab from './components/SettingsTab';
 import LicenseModal from './components/LicenseModal';
 import './App.css';
 import { useI18n } from './i18n/index';
@@ -39,6 +40,21 @@ function App() {
     sessionStorage.setItem('license-shown', 'true');
     setShowLicenseModal(false);
   };
+
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('app-theme') || 'Light';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('app-theme', theme);
+    if (theme === 'Dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'light');
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
 
   // Bridge helper: prefer IPC via preload; fallback to REST API when unavailable
   const api = useMemo(() => {
@@ -255,55 +271,23 @@ function App() {
         );
 
       case 'settings':
-        return renderSettingsView();
+        return (
+          <SettingsTab
+            apiStatus={apiStatus}
+            apiDesiredPort={apiDesiredPort}
+            setApiDesiredPort={setApiDesiredPort}
+            applyPortChange={applyPortChange}
+            handleToggleApiRun={handleToggleApiRun}
+            handleRestartApi={handleRestartApi}
+            theme={theme}
+            setTheme={setTheme}
+          />
+        );
 
       default:
         return null;
     }
   };
-
-  const renderSettingsView = () => (
-    <div>
-      <div className="page-header">
-        <h1>{t('settings.title')}</h1>
-      </div>
-      <div className="settings-card">
-        <h3>{t('settings.apiServer')}</h3>
-        <div className="settings-row">
-          <span className="settings-label">{t('settings.status')}</span>
-          <span className={`status-pill ${apiStatus.running ? 'status-running' : 'status-stopped'}`}>
-            {apiStatus.running ? t('settings.running') : (apiStatus.error ? `Error: ${apiStatus.error}` : t('settings.stopped'))}
-          </span>
-        </div>
-        <div className="settings-row">
-          <span className="settings-label">{t('settings.port')}</span>
-          <input
-            type="number" min={1} max={65535} value={apiDesiredPort}
-            onChange={(e) => {
-              const val = e.target.value; setApiDesiredPort(val); const num = Number(val);
-              if (apiPortTimerRef.current) clearTimeout(apiPortTimerRef.current);
-              apiPortTimerRef.current = setTimeout(() => applyPortChange(num), 600);
-            }}
-            style={{ width: 100 }}
-          />
-        </div>
-        <div className="settings-row">
-          <span className="settings-label">{t('settings.control')}</span>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className={`btn ${apiStatus.running ? 'btn-danger' : 'btn-success'}`} onClick={handleToggleApiRun}>
-              {apiStatus.running ? t('settings.stop') : t('settings.start')}
-            </button>
-            <button className="btn btn-secondary" onClick={handleRestartApi}>{t('settings.restart')}</button>
-            <button className="btn" onClick={() => {
-              const host = apiStatus.host || '127.0.0.1';
-              const port = apiStatus.port || 5478;
-              window.electronAPI.openExternal?.(`http://${host}:${port}/api-docs`);
-            }}>{t('settings.apiDocs')}</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 
   return (
     <div className="app">
