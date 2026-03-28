@@ -605,10 +605,10 @@ const messages = {
   }
 };
 
-const I18nContext = createContext({ lang: 'vi', setLang: () => { }, t: (k, d) => d || k });
+const I18nContext = createContext({ lang: 'en', setLang: () => { }, t: (k, d) => d || k });
 
 export function I18nProvider({ children }) {
-  const [lang, setLang] = useState('vi');
+  const [lang, setLang] = useState('en');
 
   // Load persisted language from settings
   useEffect(() => {
