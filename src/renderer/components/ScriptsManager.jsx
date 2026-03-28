@@ -1,173 +1,241 @@
-import React, { useEffect, useState } from 'react';
-import { Plus, Edit2, Trash2, Play, Search, X } from 'lucide-react';
-import { useI18n } from '../i18n/index';
-import './ScriptsManager.css';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Play, Plus, Trash2, Search, FileCode, RefreshCw } from 'lucide-react';
+import Editor from '@monaco-editor/react';
 
-export default function ScriptsManager({ open, onClose, profiles, onRunScript, fullPage = false }) {
-  const { t } = useI18n();
-  const [scripts, setScripts] = useState([]);
-  const [editing, setEditing] = useState(null);
-  const [selectedProfileId, setSelectedProfileId] = useState('');
-  const [filter, setFilter] = useState('');
+const DEFAULT_CODE = `// Automation Script\n// Available: page, cdp, context, profileId, log(), sleep()\n\nawait page.goto("https://example.com");\nconst title = await page.title();\nlog("Page title:", title);\n`;
 
-  const load = async () => {
-    try { const list = await window.electronAPI.listScripts(); setScripts(Array.isArray(list) ? list : []); }
-    catch { setScripts([]); }
-  };
-  useEffect(() => { if (open) load(); }, [open]);
+export default function ScriptsManager({ profiles = [] }) {
+    const [activeTab, setActiveTab] = useState('scripts');
 
-  const startCreate = () => setEditing({ id: null, name: '', description: '', code: `// Example script\n// Available: log(...), sleep(ms), actions['nav.goto']({url}), actions['click.element']({selector})\nlog('Hello from script');\nawait actions['nav.goto']({ url: 'https://example.com' });\nawait sleep(1000);\nlog('Title will be fetched via action js.eval');\nconst r = await actions['js.eval']({ expression: 'document.title' });\nlog('Title =', r.success ? r.value : r.error);\n` });
-  const startEdit = (s) => setEditing({ ...s });
-  const cancelEdit = () => setEditing(null);
-  const save = async () => {
-    try {
-      const payload = { id: editing.id, name: editing.name, description: editing.description, code: editing.code };
-      const res = await window.electronAPI.saveScript(payload);
-      if (!res?.success) { alert(res?.error || 'Save failed'); return; }
-      setEditing(null);
-      await load();
-    } catch (e) { alert(e?.message || String(e)); }
-  };
-  const del = async (id) => {
-    if (!window.confirm('Delete this script?')) return;
-    try { const r = await window.electronAPI.deleteScript(id); if (!r?.success) alert(r?.error || 'Delete failed'); await load(); }
-    catch (e) { alert(e?.message || String(e)); }
-  };
-  const run = async (sid) => {
-    const pid = selectedProfileId || (profiles[0]?.id || '');
-    if (!pid) { alert('No profile selected'); return; }
-    try {
-      onRunScript && onRunScript(pid, sid);
-      const r = await window.electronAPI.executeScript(pid, sid, { timeoutMs: 120000 });
-      if (!r?.success) alert('Run error: ' + (r?.error || ''));
-      else alert('Run done');
-    } catch (e) { alert(e?.message || String(e)); }
-  };
-
-  if (!open) return null;
-  const filtered = scripts.filter(s => !filter || (s.name || '').toLowerCase().includes(filter.toLowerCase()));
-
-  // Full page mode
-  if (fullPage) {
     return (
-      <div className="scripts-page">
-        <div className="page-header">
-          <h1>{t('scripts.title')}</h1>
-          <div className="page-header-actions">
-            <button className="btn btn-primary" onClick={startCreate}>
-              <Plus size={15} /> {t('scripts.new')}
-            </button>
-          </div>
-        </div>
+        <div className="w-full h-full flex flex-col p-6 bg-[#f1f5f9]">
+            {/* Header */}
+            <div className="flex items-center gap-6 mb-6">
+                <h1 className="text-2xl font-bold text-slate-800">Scripts & Tasks</h1>
+                <div className="flex bg-[#e2e8f0] p-1 rounded-lg">
+                    <button
+                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${activeTab === 'scripts' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                        onClick={() => setActiveTab('scripts')}
+                    >
+                        Scripts
+                    </button>
+                    <button
+                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${activeTab === 'logs' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                        onClick={() => setActiveTab('logs')}
+                    >
+                        Task Logs
+                    </button>
+                    <button
+                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${activeTab === 'modules' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                        onClick={() => setActiveTab('modules')}
+                    >
+                        Script Modules
+                    </button>
+                </div>
+            </div>
 
-        <div className="toolbar">
-          <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
-            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
-            <input placeholder={t('scripts.filter')} value={filter} onChange={(e) => setFilter(e.target.value)}
-              style={{ paddingLeft: 32, width: '100%' }} />
-          </div>
-          <select value={selectedProfileId} onChange={(e) => setSelectedProfileId(e.target.value)}>
-            <option value="">{t('scripts.selectProfile')}</option>
-            {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+            {/* Content Area */}
+            {activeTab === 'scripts' && <ScriptsTab profiles={profiles} />}
+            {activeTab === 'logs' && <div className="flex-1 bg-white rounded flex items-center justify-center text-slate-500">No task logs available.</div>}
+            {activeTab === 'modules' && <div className="flex-1 bg-white rounded flex items-center justify-center text-slate-500">No script modules loaded.</div>}
         </div>
-
-        <div className="scripts-grid">
-          {filtered.map(s => (
-            <div className="script-card" key={s.id}>
-              <div className="script-title">{s.name || '(untitled)'}</div>
-              <div className="script-desc">{s.description}</div>
-              <div className="script-actions">
-                <button className="btn" onClick={() => startEdit(s)}>
-                  <Edit2 size={14} /> {t('scripts.edit')}
-                </button>
-                <button className="btn btn-danger" onClick={() => del(s.id)}>
-                  <Trash2 size={14} />
-                </button>
-                <button className="btn btn-success" onClick={() => run(s.id)}>
-                  <Play size={14} /> {t('scripts.run')}
-                </button>
-              </div>
-            </div>
-          ))}
-          {!filtered.length && <div style={{ opacity: 0.6, padding: '2rem', textAlign: 'center' }}>{t('scripts.noScripts')}</div>}
-        </div>
-
-        {editing && (
-          <div className="editor">
-            <div className="row">
-              <label>{t('scripts.name')}</label>
-              <input value={editing.name} onChange={(e) => setEditing(prev => ({ ...prev, name: e.target.value }))} />
-            </div>
-            <div className="row">
-              <label>{t('scripts.description')}</label>
-              <input value={editing.description} onChange={(e) => setEditing(prev => ({ ...prev, description: e.target.value }))} />
-            </div>
-            <div className="row">
-              <label>{t('scripts.code')}</label>
-              <textarea value={editing.code} onChange={(e) => setEditing(prev => ({ ...prev, code: e.target.value }))} spellCheck={false} />
-            </div>
-            <div className="row actions">
-              <button className="btn" onClick={cancelEdit}>{t('scripts.cancel')}</button>
-              <button className="btn btn-success" onClick={save}>{t('scripts.save')}</button>
-            </div>
-          </div>
-        )}
-      </div>
     );
-  }
+}
 
-  // Modal mode (fallback)
-  return (
-    <div className="modal-root">
-      <div className="modal-card">
-        <div className="modal-header">
-          <h3>{t('scripts.title')}</h3>
-          <button className="btn btn-icon" onClick={onClose}><X size={18} /></button>
+function ScriptsTab({ profiles }) {
+    const [scripts, setScripts] = useState([]);
+    const [selectedId, setSelectedId] = useState(null);
+    const [editing, setEditing] = useState(null);
+    const [filter, setFilter] = useState('');
+    const [runProfileId, setRunProfileId] = useState('');
+    const [running, setRunning] = useState(false);
+    const [runResult, setRunResult] = useState(null);
+
+    const load = useCallback(async () => {
+        try {
+            const list = await window.electronAPI.listScripts();
+            setScripts(Array.isArray(list) ? list : []);
+        } catch { setScripts([]); }
+    }, []);
+
+    useEffect(() => { load(); }, [load]);
+
+    const handleNew = () => {
+        setEditing({ id: null, name: '', description: '', code: DEFAULT_CODE });
+        setSelectedId(null);
+        setRunResult(null);
+    };
+
+    const handleSelect = (s) => {
+        setEditing({ ...s });
+        setSelectedId(s.id);
+        setRunResult(null);
+    };
+
+    const handleSave = async () => {
+        if (!editing) return;
+        try {
+            const res = await window.electronAPI.saveScript({
+                id: editing.id,
+                name: editing.name,
+                description: editing.description,
+                code: editing.code,
+            });
+            if (!res?.success) { alert(res?.error || 'Save failed'); return; }
+            await load();
+            if (!editing.id && res.script?.id) {
+                setEditing(prev => ({ ...prev, id: res.script.id }));
+                setSelectedId(res.script.id);
+            }
+        } catch (e) { alert(e?.message || String(e)); }
+    };
+
+    const handleDelete = async (id, e) => {
+        e && e.stopPropagation();
+        if (!window.confirm('Delete this script?')) return;
+        try {
+            await window.electronAPI.deleteScript(id);
+            await load();
+            if (selectedId === id) { setEditing(null); setSelectedId(null); }
+        } catch (e) { alert(e?.message || String(e)); }
+    };
+
+    const handleRun = async (scriptId) => {
+        const pid = runProfileId || (profiles[0]?.id || '');
+        if (!pid) { alert('Select a profile to run this script first.'); return; }
+        const sid = scriptId || editing?.id;
+        if (!sid) { alert('Save script first.'); return; }
+        setRunning(true);
+        setRunResult(null);
+        try {
+            const res = await window.electronAPI.executeScript(pid, sid, { timeoutMs: 120000 });
+            setRunResult(res);
+        } catch (e) {
+            setRunResult({ success: false, error: e?.message || String(e), logs: [] });
+        } finally { setRunning(false); }
+    };
+
+    const filtered = scripts.filter(s => !filter || (s.name || '').toLowerCase().includes(filter.toLowerCase()));
+
+    return (
+        <div className="flex-1 flex flex-row gap-[1px] bg-slate-200 border border-slate-200 overflow-hidden">
+            {/* Left Sidebar */}
+            <div className="w-[300px] bg-[#f8fafc] flex flex-col justify-between">
+                <div>
+                    {!filtered.length && scripts.length === 0 ? (
+                        <div className="p-8 text-center text-slate-400 text-sm mt-4">
+                            No scripts yet. Create one to get started.
+                        </div>
+                    ) : (
+                        <div className="h-full overflow-y-auto">
+                            <div className="px-4 py-3 relative border-b border-slate-100">
+                                <Search size={14} className="absolute left-7 top-[1.35rem] text-slate-400" />
+                                <input
+                                    placeholder="Search scripts..."
+                                    value={filter}
+                                    onChange={e => setFilter(e.target.value)}
+                                    className="w-full bg-white border border-slate-200 rounded text-sm px-8 py-1.5 focus:outline-none focus:border-blue-400"
+                                />
+                            </div>
+                            <div className="py-2">
+                                {filtered.map(s => (
+                                    <div
+                                        key={s.id}
+                                        className={`px-4 py-3 cursor-pointer border-l-4 transition flex justify-between items-center group
+                                            ${selectedId === s.id ? 'bg-white border-blue-500 shadow-sm' : 'border-transparent hover:bg-slate-100'}`}
+                                        onClick={() => handleSelect(s)}
+                                    >
+                                        <div className="font-medium text-slate-700 text-[0.9rem] truncate pr-2">{s.name || '(untitled)'}</div>
+                                        <div className="opacity-0 group-hover:opacity-100 transition flex gap-1">
+                                            <button className="p-1 hover:bg-blue-100 text-blue-600 rounded" title={'Run'} onClick={e => { e.stopPropagation(); handleSelect(s); handleRun(s.id); }}>
+                                                <Play size={14} />
+                                            </button>
+                                            <button className="p-1 hover:bg-red-100 text-red-500 rounded" title={'Delete'} onClick={e => handleDelete(s.id, e)}>
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-4 bg-white border-t border-slate-200 shadow-sm z-10">
+                    <button className="w-full bg-[#2563eb] hover:bg-blue-700 text-white font-medium py-2 rounded shadow-sm text-sm mb-3" onClick={handleNew}>
+                        + New Script
+                    </button>
+                    <div className="flex gap-2">
+                        <button className="flex-1 bg-[#e2e8f0] hover:bg-[#cbd5e1] text-slate-600 font-medium py-1.5 rounded text-xs transition">Export JSON</button>
+                        <button className="flex-1 bg-[#e2e8f0] hover:bg-[#cbd5e1] text-slate-600 font-medium py-1.5 rounded text-xs transition">Import JSON</button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Right Editor Area */}
+            <div className="flex-1 bg-white flex flex-col">
+                {editing ? (
+                    <div className="flex flex-col h-full">
+                        <div className="p-4 border-b border-slate-100 bg-[#f8fafc] flex gap-4 items-center">
+                            <input
+                                className="flex-1 bg-white border border-slate-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400"
+                                value={editing.name}
+                                onChange={e => setEditing(p => ({ ...p, name: e.target.value }))}
+                                placeholder="Script Name"
+                            />
+                            <select
+                                className="w-[180px] bg-white border border-slate-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400"
+                                value={runProfileId}
+                                onChange={e => setRunProfileId(e.target.value)}
+                            >
+                                <option value="">Select profile to run...</option>
+                                {profiles.map(p => <option key={p.id} value={p.id}>{p.name || p.id}</option>)}
+                            </select>
+                            <button className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-1.5 rounded text-sm font-medium transition" onClick={handleSave}>
+                                Save
+                            </button>
+                            <button className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-1.5 rounded text-sm font-medium transition flex items-center gap-1" onClick={() => handleRun()} disabled={running}>
+                                {running ? <><RefreshCw size={14} className="animate-spin" /> Running...</> : <><Play size={14} /> Run Log</>}
+                            </button>
+                        </div>
+                        <div className="flex-1 relative">
+                            <Editor
+                                height="100%"
+                                language="javascript"
+                                theme="vs-light"
+                                value={editing.code}
+                                onChange={v => setEditing(p => ({ ...p, code: v || '' }))}
+                                options={{
+                                    minimap: { enabled: false },
+                                    fontSize: 13,
+                                    lineNumbers: 'on',
+                                    scrollBeyondLastLine: false,
+                                    automaticLayout: true,
+                                    tabSize: 4,
+                                }}
+                            />
+                        </div>
+                        {runResult && (
+                            <div className="h-[200px] border-t border-slate-200 bg-[#1e1e1e] text-slate-300 font-mono text-xs overflow-y-auto p-3">
+                                <div className={`mb-2 font-bold ${runResult.success ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    {runResult.success ? 'Task Completed' : 'Task Failed'}: {runResult.error || 'No errors'}
+                                </div>
+                                {runResult.logs && runResult.logs.map((l, i) => (
+                                    <div key={i} className="mb-1">
+                                        <span className="text-slate-500 mr-2">[{new Date(l.time).toLocaleTimeString()}]</span>
+                                        <span className="text-slate-200">{l.message}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-500">
+                        <FileCode size={48} className="text-slate-200 mb-4" strokeWidth={1} />
+                        Select a script to edit, or create a new one
+                    </div>
+                )}
+            </div>
         </div>
-        <div className="toolbar">
-          <input placeholder={t('scripts.filter')} value={filter} onChange={(e) => setFilter(e.target.value)} />
-          <select value={selectedProfileId} onChange={(e) => setSelectedProfileId(e.target.value)}>
-            <option value="">{t('scripts.selectProfile')}</option>
-            {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <button className="btn btn-primary" onClick={startCreate}><Plus size={15} /> {t('scripts.new')}</button>
-        </div>
-        <div className="scripts-grid">
-          {filtered.map(s => (
-            <div className="script-card" key={s.id}>
-              <div className="script-title">{s.name || '(untitled)'}</div>
-              <div className="script-desc">{s.description}</div>
-              <div className="script-actions">
-                <button className="btn" onClick={() => startEdit(s)}><Edit2 size={14} /> {t('scripts.edit')}</button>
-                <button className="btn btn-danger" onClick={() => del(s.id)}><Trash2 size={14} /></button>
-                <button className="btn btn-success" onClick={() => run(s.id)}><Play size={14} /> {t('scripts.run')}</button>
-              </div>
-            </div>
-          ))}
-          {!filtered.length && <div style={{ opacity: 0.7 }}>{t('scripts.noScripts')}</div>}
-        </div>
-        {editing && (
-          <div className="editor">
-            <div className="row">
-              <label>{t('scripts.name')}</label>
-              <input value={editing.name} onChange={(e) => setEditing(prev => ({ ...prev, name: e.target.value }))} />
-            </div>
-            <div className="row">
-              <label>{t('scripts.description')}</label>
-              <input value={editing.description} onChange={(e) => setEditing(prev => ({ ...prev, description: e.target.value }))} />
-            </div>
-            <div className="row">
-              <label>{t('scripts.code')}</label>
-              <textarea value={editing.code} onChange={(e) => setEditing(prev => ({ ...prev, code: e.target.value }))} spellCheck={false} />
-            </div>
-            <div className="row actions">
-              <button className="btn" onClick={cancelEdit}>{t('scripts.cancel')}</button>
-              <button className="btn btn-success" onClick={save}>{t('scripts.save')}</button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+    );
 }
