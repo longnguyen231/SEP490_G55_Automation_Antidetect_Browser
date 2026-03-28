@@ -153,26 +153,26 @@ export default function ProxyManager() {
     });
 
     return (
-        <div className="w-full h-full flex flex-col p-6 bg-[#f1f5f9]">
+        <div className="w-full h-full flex flex-col p-4 bg-[#f1f5f9]">
             {/* Header Area */}
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold text-slate-800">Proxy Pool</h1>
+                <h1 className="text-[1.2rem] font-bold text-slate-800">Proxy Pool</h1>
                 <div className="flex items-center gap-3">
                     <button 
-                        className="bg-[#e2e8f0] hover:bg-[#cbd5e1] text-slate-600 font-medium text-sm px-4 py-2 rounded transition"
+                        className="bg-[#e2e8f0] hover:bg-[#cbd5e1] text-slate-600 font-medium text-[0.75rem] px-3 py-1.5 rounded transition"
                         onClick={() => setShowImport(true)}
                     >
                         Import Excel
                     </button>
                     <button 
-                        className={`font-medium text-sm px-4 py-2 rounded transition ${proxies.length === 0 ? 'bg-white text-slate-400 cursor-not-allowed opacity-60' : 'bg-[#e2e8f0] hover:bg-[#cbd5e1] text-slate-600'}`}
+                        className={`font-medium text-[0.75rem] px-3 py-1.5 rounded transition ${proxies.length === 0 ? 'bg-white text-slate-400 cursor-not-allowed opacity-60' : 'bg-[#e2e8f0] hover:bg-[#cbd5e1] text-slate-600'}`}
                         onClick={() => {}}
                         disabled={proxies.length === 0}
                     >
                         Export Excel
                     </button>
                     <button 
-                        className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-medium text-sm px-4 py-2 rounded shadow transition"
+                        className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-medium text-[0.75rem] px-3 py-1.5 rounded shadow transition"
                         onClick={() => { setEditingProxy(null); setShowForm(true); }}
                     >
                         + Add Proxy

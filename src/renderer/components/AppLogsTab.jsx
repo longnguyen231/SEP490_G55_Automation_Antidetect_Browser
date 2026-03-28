@@ -81,18 +81,18 @@ export default function AppLogsTab() {
     });
 
     return (
-        <div className="w-full h-full flex flex-col p-6 bg-[#f1f5f9]">
-            <h1 className="text-2xl font-bold text-slate-800 mb-6 tracking-tight">Application Logs</h1>
+        <div className="w-full h-full flex flex-col p-4 bg-[#f1f5f9]">
+            <h1 className="text-[1.2rem] font-bold text-slate-800 mb-4 tracking-tight">Application Logs</h1>
             
             <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
                 {/* Header Toolbar */}
-                <div className="flex justify-between items-center bg-[#f8fafc] border-b border-slate-200 px-4 py-3">
+                <div className="flex justify-between items-center bg-[#f8fafc] border-b border-slate-200 px-3 py-2">
                     <div className="flex items-center gap-4">
                         <div className="relative">
                             <select 
                                 value={levelFilter}
                                 onChange={e => setLevelFilter(e.target.value)}
-                                className="appearance-none bg-white border border-slate-300 text-slate-700 text-sm rounded-md pl-3 pr-8 py-1.5 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 cursor-pointer shadow-sm"
+                                className="appearance-none bg-white border border-slate-300 text-slate-700 text-[0.75rem] rounded-md pl-2 pr-6 py-1 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 cursor-pointer shadow-sm"
                             >
                                 <option>Trace+</option>
                                 <option>Debug+</option>
@@ -104,7 +104,7 @@ export default function AppLogsTab() {
                                 <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
                             </div>
                         </div>
-                        <label className="flex items-center gap-2 text-sm text-slate-600 font-medium cursor-pointer">
+                        <label className="flex items-center gap-2 text-[0.75rem] text-slate-600 font-medium cursor-pointer">
                             <input 
                                 type="checkbox" 
                                 checked={autoScroll} 
@@ -116,10 +116,10 @@ export default function AppLogsTab() {
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <span className="text-sm text-slate-500">{filteredLogs.length} entries</span>
+                        <span className="text-[0.75rem] text-slate-500">{filteredLogs.length} entries</span>
                         <button 
                             onClick={handleClear}
-                            className="bg-[#e2e8f0] hover:bg-[#cbd5e1] text-slate-700 text-sm font-medium px-4 py-1.5 rounded-md transition border border-slate-200 shadow-sm"
+                            className="bg-[#e2e8f0] hover:bg-[#cbd5e1] text-slate-700 text-[0.75rem] font-medium px-3 py-1 rounded-md transition border border-slate-200 shadow-sm"
                         >
                             Clear
                         </button>
@@ -127,12 +127,12 @@ export default function AppLogsTab() {
                 </div>
 
                 {/* Terminal View */}
-                <div ref={containerRef} className="flex-1 overflow-y-auto p-4 font-mono text-[0.85rem] leading-relaxed bg-white">
+                <div ref={containerRef} className="flex-1 overflow-y-auto p-3 font-mono text-[0.75rem] leading-relaxed bg-white">
                     {filteredLogs.length === 0 ? (
                         <div className="text-slate-400 italic">No logs currently available. Waiting for runtime events...</div>
                     ) : (
                         filteredLogs.map(log => (
-                            <div key={log.id} className="flex gap-4 mb-2 hover:bg-slate-50 px-2 py-1 -mx-2 rounded transition-colors group">
+                            <div key={log.id} className="flex gap-4 mb-1 hover:bg-slate-50 px-2 py-0.5 -mx-2 rounded transition-colors group">
                                 <span className="text-slate-400 min-w-[65px]">{log.time}</span>
                                 <span className={`min-w-[35px] ${getLevelColor(log.level)}`}>{log.level}</span>
                                 <span className="text-slate-700 whitespace-pre-wrap break-all">{log.text}</span>

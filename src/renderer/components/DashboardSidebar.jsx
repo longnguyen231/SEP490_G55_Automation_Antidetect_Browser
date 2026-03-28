@@ -29,7 +29,7 @@ export default function DashboardSidebar({
             {/* Brand */}
             <div className="sidebar-brand pb-6 pt-2 px-2 border-b-0 mb-2 mt-2">
                 <div className="flex flex-col gap-1">
-                    <h2 className="text-[1.2rem] font-bold text-slate-800 tracking-tight leading-none">HL-MCKBrowser</h2>
+                    <h2 className="text-[1.2rem] font-bold text-slate-800 tracking-tight leading-none">HL-MCK Browser</h2>
                     <span className="text-[0.75rem] text-slate-500 font-medium">Antidetect Manager</span>
                 </div>
             </div>

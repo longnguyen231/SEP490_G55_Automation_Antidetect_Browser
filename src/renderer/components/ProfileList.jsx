@@ -49,12 +49,12 @@ export default function ProfileList({
   };
 
   return (
-    <div className="w-full h-full flex flex-col p-6 bg-[#f1f5f9]">
+    <div className="w-full h-full flex flex-col p-4 bg-[#f1f5f9]">
       {/* Header Area */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Profiles</h1>
+        <h1 className="text-[1.2rem] font-bold text-slate-800">Profiles</h1>
         <button 
-          className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-medium text-sm px-4 py-2 rounded shadow transition"
+          className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-medium text-[0.75rem] px-3 py-1.5 rounded shadow transition"
           onClick={onCreateProfile}
         >
           + New Profile
@@ -76,7 +76,7 @@ export default function ProfileList({
             const res = profile?.fingerprint?.screenResolution || '1920x1080';
 
             return (
-              <div key={profile.id} className="bg-white border border-slate-200 rounded-lg p-3 xl:p-5 flex items-start gap-3 shadow-sm hover:shadow-md transition-shadow">
+              <div key={profile.id} className="bg-white border border-slate-200 rounded-lg p-2 xl:p-3 flex items-start gap-3 shadow-sm hover:shadow-md transition-shadow">
                 
                 {/* Active Dot indicator */}
                 <div className="pt-[14px] pl-2">
@@ -88,33 +88,33 @@ export default function ProfileList({
                   
                   {/* Top Row: Details */}
                   <div className="flex flex-wrap items-center gap-2 xl:gap-3">
-                    <span className="bg-[#e2e8f0] text-[#64748b] text-[11px] font-bold px-2 py-0.5 rounded align-middle uppercase cursor-help" title={profile.id}>
+                    <span className="bg-[#e2e8f0] text-[#64748b] text-[0.75rem] font-bold px-2 py-0.5 rounded align-middle uppercase cursor-help" title={profile.id}>
                       {shortId(profile.id)}
                     </span>
                     
-                    <div className="bg-[#e0f2fe] text-[#0284c7] px-2 py-0.5 rounded flex items-center gap-1.5 text-xs font-semibold">
+                    <div className="bg-[#e0f2fe] text-[#0284c7] px-2 py-0.5 rounded flex items-center gap-1.5 text-[0.75rem] font-semibold">
                       {browser === 'Firefox' ? <FoxIcon /> : <ChromiumIcon />}
                       {browser}
                     </div>
                     
-                    <h3 className="text-lg xl:text-xl font-semibold text-slate-800 leading-none truncate max-w-[250px] xl:max-w-md" title={profile.name || 'Profile'}>
+                    <h3 className="text-[0.9rem] xl:text-[1rem] font-semibold text-slate-800 leading-none truncate max-w-[250px] xl:max-w-md" title={profile.name || 'Profile'}>
                       {profile.name || 'Profile'}
                     </h3>
                   </div>
 
                   {/* Middle Row: OS and Screen Specs */}
                   <div className="flex flex-wrap items-center gap-2 pl-[2px] xl:pl-[4px]">
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 bg-white">
+                    <div className="flex items-center gap-1.5 text-[0.75rem] font-bold text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 bg-white">
                       {osInfo.icon && <span className={osInfo.label === 'MACINTEL' ? "text-red-500" : ""}>{osInfo.icon}</span>}
                       {osInfo.label}
                     </div>
                     
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 bg-white">
+                    <div className="flex items-center gap-1.5 text-[0.75rem] font-bold text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 bg-white">
                       {browser === 'Firefox' ? <FoxIcon /> : <ChromiumIcon />}
                       {browser}
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 bg-white">
+                    <div className="flex items-center gap-1.5 text-[0.75rem] font-bold text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 bg-white">
                       <div className="text-slate-400"><MonitorIcon /></div>
                       {res}
                     </div>
@@ -123,7 +123,7 @@ export default function ProfileList({
                   {/* Bottom Row: Badges */}
                   <div className="flex flex-wrap items-center gap-1 xl:gap-1.5 pl-[2px] xl:pl-[4px]">
                     {['ID', 'DSP', 'HW', 'CVS', 'GL', 'AUD', 'MED', 'NET', 'BAT'].map(badge => (
-                      <span key={badge} className="bg-[#cbd5e1] text-white text-[9px] xl:text-[10px] font-bold px-1 xl:px-1.5 py-0.5 rounded uppercase">
+                      <span key={badge} className="bg-[#cbd5e1] text-white text-[7px] xl:text-[8px] font-bold px-1 xl:px-1.5 py-0.5 rounded uppercase">
                         {badge}
                       </span>
                     ))}
@@ -136,7 +136,7 @@ export default function ProfileList({
                   {isRunning ? (
                     <button 
                       onClick={() => onStopProfile(profile.id)}
-                      className="bg-[#ef4444] hover:bg-[#dc2626] text-white font-medium text-[12px] xl:text-[13px] px-3 py-1.5 xl:px-3.5 rounded transition shadow-sm"
+                      className="bg-[#ef4444] hover:bg-[#dc2626] text-white font-medium text-[0.75rem] px-3 py-1.5 rounded transition shadow-sm"
                     >
                       Stop
                     </button>
@@ -144,13 +144,13 @@ export default function ProfileList({
                     <>
                       <button 
                         onClick={() => onToggleProfile(profile.id)}
-                        className="bg-[#10b981] hover:bg-[#059669] text-white font-medium text-[12px] xl:text-[13px] px-3 py-1.5 xl:px-3.5 rounded transition shadow-sm"
+                        className="bg-[#10b981] hover:bg-[#059669] text-white font-medium text-[0.75rem] px-3 py-1.5 rounded transition shadow-sm"
                       >
                         Launch
                       </button>
                       <button 
                         onClick={() => onLaunchHeadless(profile.id)}
-                        className="bg-[#94a3b8] hover:bg-[#64748b] text-white font-medium text-[12px] xl:text-[13px] px-3 py-1.5 xl:px-3.5 rounded transition shadow-sm"
+                        className="bg-[#94a3b8] hover:bg-[#64748b] text-white font-medium text-[0.75rem] px-3 py-1.5 rounded transition shadow-sm"
                       >
                         Headless
                       </button>
@@ -158,25 +158,25 @@ export default function ProfileList({
                   )}
                   <button 
                     onClick={() => onEditProfile(profile)}
-                    className="bg-[#6366f1] hover:bg-[#4f46e5] text-white font-medium text-[12px] xl:text-[13px] px-3 py-1.5 xl:px-3.5 rounded transition shadow-sm"
+                    className="bg-[#6366f1] hover:bg-[#4f46e5] text-white font-medium text-[0.75rem] px-3 py-1.5 rounded transition shadow-sm"
                   >
                     Proxy
                   </button>
                   <button 
                     onClick={() => onCloneProfile(profile.id)}
-                    className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-medium text-[12px] xl:text-[13px] px-3 py-1.5 xl:px-3.5 rounded transition shadow-sm"
+                    className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-medium text-[0.75rem] px-3 py-1.5 rounded transition shadow-sm"
                   >
                     Clone
                   </button>
                   <button 
                     onClick={() => onEditProfile(profile)}
-                    className="bg-[#94a3b8] hover:bg-[#64748b] text-white font-medium text-[12px] xl:text-[13px] px-3 py-1.5 xl:px-3.5 rounded transition shadow-sm"
+                    className="bg-[#94a3b8] hover:bg-[#64748b] text-white font-medium text-[0.75rem] px-3 py-1.5 rounded transition shadow-sm"
                   >
                     Edit
                   </button>
                   <button 
                     onClick={() => onDeleteProfile(profile.id)}
-                    className="bg-[#ef4444] hover:bg-[#dc2626] text-white font-medium text-[12px] xl:text-[13px] px-3 py-1.5 xl:px-3.5 rounded transition shadow-sm"
+                    className="bg-[#ef4444] hover:bg-[#dc2626] text-white font-medium text-[0.75rem] px-3 py-1.5 rounded transition shadow-sm"
                   >
                     Delete
                   </button>
