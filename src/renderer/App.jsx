@@ -7,10 +7,11 @@ import LogViewer from './components/LogViewer';
 import Toasts from './components/Toasts';
 import ScriptsManager from './components/ScriptsManager';
 import ProxyManager from './components/ProxyManager';
+import AppLogsTab from './components/AppLogsTab';
 import LicenseModal from './components/LicenseModal';
 import './App.css';
 import { useI18n } from './i18n/index';
-
+ 
 function App() {
   const { t, lang, setLang } = useI18n();
   const [activeNav, setActiveNav] = useState('profiles');
@@ -246,6 +247,11 @@ function App() {
       case 'proxies':
         return (
           <ProxyManager />
+        );
+
+      case 'logs':
+        return (
+          <AppLogsTab />
         );
 
       case 'settings':
