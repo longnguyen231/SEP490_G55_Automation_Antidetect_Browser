@@ -7,6 +7,7 @@ import LogViewer from './components/LogViewer';
 import Toasts from './components/Toasts';
 import ScriptsManager from './components/ScriptsManager';
 import ProxyManager from './components/ProxyManager';
+import LicenseModal from './components/LicenseModal';
 import './App.css';
 import { useI18n } from './i18n/index';
 
@@ -29,6 +30,14 @@ function App() {
   const apiPortTimerRef = useRef(null);
   const [showApiPwdModal, setShowApiPwdModal] = useState(false);
   const [apiPwdInput, setApiPwdInput] = useState('');
+
+  const [showLicenseModal, setShowLicenseModal] = useState(() => {
+    return !sessionStorage.getItem('license-shown');
+  });
+  const handleCloseLicense = () => {
+    sessionStorage.setItem('license-shown', 'true');
+    setShowLicenseModal(false);
+  };
 
   // Bridge helper: prefer IPC via preload; fallback to REST API when unavailable
   const api = useMemo(() => {
@@ -302,6 +311,8 @@ function App() {
       <main className="app-main">
         {renderContent()}
       </main>
+
+      {showLicenseModal && <LicenseModal onClose={handleCloseLicense} />}
 
       {/* Overlays */}
       {cookieProfile && <CookieManager profile={cookieProfile} onClose={() => setCookieProfile(null)} />}
