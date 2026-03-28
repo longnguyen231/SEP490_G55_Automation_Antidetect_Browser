@@ -88,6 +88,16 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   });
 
   // Browser control endpoints
+  // Sample App Aliases mapping requested by user
+  appx.get('/api/browsers/:profileId/context/storage-state', async (req, res) => {
+    const r = await (handlers.getStorageStateInternal ? handlers.getStorageStateInternal(req.params.profileId) : { success: false, error: 'Not implemented' });
+    res.json(r);
+  });
+  appx.post('/api/browsers/:profileId/context/new-page', async (req, res) => {
+    const r = await handlers.newPageInternal(req.params.profileId, req.body || {});
+    res.json(r);
+  });
+  
   appx.get('/api/profiles/:id/pages', async (req, res) => {
     const r = await handlers.listPagesInternal(req.params.id); res.json(r);
   });

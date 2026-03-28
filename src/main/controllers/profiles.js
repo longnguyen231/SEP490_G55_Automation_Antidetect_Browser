@@ -544,6 +544,8 @@ async function getCookiesInternal(profileId) { try { if (runningProfiles.has(pro
 
 async function importCookiesInternal(profileId, cookies) { try { if (!Array.isArray(cookies)) throw new Error('Invalid cookies payload'); if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies(cookies); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } state.cookies = cookies; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
 
+async function getStorageStateInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const state = await running.context.storageState(); return { success: true, state }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, state }; } return { success: true, state: { cookies: [], origins: [] } }; } catch (error) { return { success: false, error: error.message }; } }
+
 async function getProfileWsInternal(profileId) { try { const running = runningProfiles.get(profileId); if (!running) return { success: true, wsEndpoint: null }; const ws = running.wsEndpoint; if (running.engine === 'playwright' && (running.context?.isClosed?.() || running.browser?.isConnected?.() === false)) { runningProfiles.delete(profileId); appendLog(profileId, 'Heartbeat: context/browser disconnected'); broadcastRunningMap(); return { success: true, wsEndpoint: null }; } const alive = await require('../engine/health').isWsAlive(ws); if (!alive) { runningProfiles.delete(profileId); appendLog(profileId, 'Heartbeat failed; removed stale running state'); broadcastRunningMap(); return { success: true, wsEndpoint: null }; } return { success: true, wsEndpoint: ws }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function getRunningMapInternal() { try { const result = {}; for (const [id, info] of runningProfiles.entries()) { let alive = true; if (info.engine === 'playwright' && (info.context?.isClosed?.() || info.browser?.isConnected?.() === false)) alive = false; else if (!(await require('../engine/health').isWsAlive(info.wsEndpoint))) alive = false; if (!alive) { runningProfiles.delete(id); appendLog(id, 'Bulk heartbeat: stale, clearing'); result[id] = null; } else { result[id] = info.wsEndpoint; } } return { success: true, map: result }; } catch (error) { return { success: false, error: error.message }; } }
@@ -596,6 +598,7 @@ module.exports = {
   getProfileLogInternal,
   getCookiesInternal,
   importCookiesInternal,
+  getStorageStateInternal,
   getProfileWsInternal,
   getRunningMapInternal,
   getLocalesTimezonesInternal,
