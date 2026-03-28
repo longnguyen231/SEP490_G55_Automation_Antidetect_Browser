@@ -55,4 +55,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveScript: (script) => ipcRenderer.invoke('scripts-save', script),
   deleteScript: (id) => ipcRenderer.invoke('scripts-delete', id),
   executeScript: (profileId, scriptId, opts) => ipcRenderer.invoke('scripts-execute', profileId, scriptId, opts || {}),
+  getTaskLogs: () => ipcRenderer.invoke('task-logs-list'),
+  getTaskLog: (id) => ipcRenderer.invoke('task-logs-get', id),
+  clearTaskLogs: () => ipcRenderer.invoke('task-logs-clear'),
+
+  // Proxy management
+  getProxies: () => ipcRenderer.invoke('proxy-get-all'),
+  getProxyById: (id) => ipcRenderer.invoke('proxy-get-by-id', id),
+  createProxy: (data) => ipcRenderer.invoke('proxy-create', data),
+  updateProxy: (id, data) => ipcRenderer.invoke('proxy-update', id, data),
+  deleteProxy: (id) => ipcRenderer.invoke('proxy-delete', id),
+  deleteProxiesBulk: (ids) => ipcRenderer.invoke('proxy-delete-bulk', ids),
+  importProxies: (text, format) => ipcRenderer.invoke('proxy-import', text, format),
+  exportProxies: (ids) => ipcRenderer.invoke('proxy-export', ids),
+  checkProxy: (cfg) => ipcRenderer.invoke('proxy-check', cfg),
+  checkAllProxies: () => ipcRenderer.invoke('proxy-check-all'),
 });

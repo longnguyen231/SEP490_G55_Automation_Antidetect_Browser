@@ -99,7 +99,7 @@ function validateProfileInputBasic(p) {
     errors.push('Unsupported browser value');
   }
   const engine = p.settings?.engine;
-  if (engine && !['playwright','cdp'].includes(engine)) errors.push('settings.engine must be playwright or cdp');
+  if (engine && !['playwright','cdp','auto'].includes(engine)) errors.push('settings.engine must be playwright, cdp, or auto');
   const cpu = p.settings?.cpuCores; if (cpu != null && (!Number.isInteger(cpu) || cpu < 1 || cpu > 64)) errors.push('cpuCores must be 1-64');
   const mem = p.settings?.memoryGB; if (mem != null && (!Number.isInteger(mem) || mem < 1 || mem > 256)) errors.push('memoryGB must be 1-256');
   return errors;
@@ -112,6 +112,14 @@ function normalizeProfileInput(input = {}, existing = null) {
   const startUrl = normalizeStartUrl(input.startUrl || base.startUrl || 'https://www.google.com');
   const fingerprint = deepMerge(DEFAULT_FINGERPRINT, deepMerge(base.fingerprint || {}, input.fingerprint || {}));
   const settings = deepMerge(DEFAULT_SETTINGS, deepMerge(base.settings || {}, input.settings || {}));
+  if (!settings.engine || settings.engine === 'auto') {
+    const { resolveChromeExecutable } = require('./settings');
+    if (resolveChromeExecutable && resolveChromeExecutable()) {
+      settings.engine = 'cdp';
+    } else {
+      settings.engine = 'playwright';
+    }
+  }
   const automation = deepMerge(DEFAULT_AUTOMATION, deepMerge(base.automation || {}, input.automation || {}));
   const active = (input.active != null) ? !!input.active : (base.active != null ? !!base.active : true);
   const id = input.id || base.id; // do not generate here

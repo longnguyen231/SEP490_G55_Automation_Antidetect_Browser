@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "OBT Antidetect Browser API",
+    "title": "HL-MCK Automation Antidetect Browser API",
     "version": "1.0.0"
   },
   "servers": [

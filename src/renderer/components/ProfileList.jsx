@@ -1,405 +1,192 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import ReactDOM from 'react-dom';
-import {
-    Play, Square, Edit2, Copy, Trash2, MoreVertical,
-    Cookie, FileText, Plus, CheckSquare, XSquare,
-    Database, Bot, Globe, User, Fingerprint,
-    Search, Filter, X
-} from 'lucide-react';
-import { useI18n } from '../i18n/index';
-import './ProfileList.css';
+import React from 'react';
 
-/* ═══════ Context Menu (three-dot) ═══════ */
-function ContextMenu({ profile, position, onClose, onEditProfile, onCloneProfile, onDeleteProfile, onManageCookies, onViewLogs, onCopyWs, isRunning }) {
-    const ref = useRef(null);
+// Common SVG Icons
+const ChromiumIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="4" />
+    <line x1="21.17" y1="8" x2="12" y2="8" />
+    <line x1="3.95" y1="6.06" x2="8.54" y2="14" />
+    <line x1="10.88" y1="21.94" x2="15.46" y2="14" />
+  </svg>
+);
 
-    useEffect(() => {
-        const handler = (e) => {
-            if (ref.current && !ref.current.contains(e.target)) onClose();
-        };
-        document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
-    }, [onClose]);
+const AppleIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+    <path d="M12 2.04C10.5 2.04 9 3.54 9 5c1.5 0 3-1.5 3-2.96zm1.2 19.33c-.71.55-1.55.84-3.2.84-1.65 0-2.49-.29-3.2-.84-2.1-1.65-4.8-6.15-4.8-10.35 0-3.3 2.1-5.1 4.5-5.1 1.2 0 2.4.6 3.3 1.2.9-.6 2.1-1.2 3.3-1.2 2.4 0 4.5 1.8 4.5 5.1 0 4.2-2.7 8.7-4.8 10.35z"/>
+  </svg>
+);
 
-    const menuStyle = {
-        top: position?.top ?? 0,
-        left: position?.left ?? 0,
-    };
+const FoxIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 6s-2-2-5-2-4 2-4 2-2-2-4-2-5 2-5 2l1.6 4.8c0 0-1.6 3.2-1.6 6.4 0 3.2 2.4 4.8 4 4.8s4-2 6-2 4.4 2 6 2 4-1.6 4-4.8c0-3.2-1.6-6.4-1.6-6.4L22 6z"/>
+  </svg>
+);
 
-    return ReactDOM.createPortal(
-        <div className="pl-ctx-menu" ref={ref} style={menuStyle}>
-            <button className="pl-ctx-item" onClick={() => { onEditProfile(profile); onClose(); }}>
-                <span className="ctx-icon"><Edit2 size={14} /></span> Edit
-            </button>
-            <button className="pl-ctx-item" onClick={() => { onCloneProfile && onCloneProfile(profile.id); onClose(); }}>
-                <span className="ctx-icon"><Copy size={14} /></span> Copy
-            </button>
-            <button className="pl-ctx-item danger" onClick={() => { onDeleteProfile(profile.id); onClose(); }}>
-                <span className="ctx-icon"><Trash2 size={14} /></span> Delete
-            </button>
+const MonitorIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+    <line x1="8" y1="21" x2="16" y2="21" />
+    <line x1="12" y1="17" x2="12" y2="21" />
+  </svg>
+);
 
-            <div className="pl-ctx-divider" />
-
-            <button className="pl-ctx-item" onClick={() => { onViewLogs && onViewLogs(profile); onClose(); }}>
-                <span className="ctx-icon"><Database size={14} /></span> Cache data
-            </button>
-            <button className="pl-ctx-item" onClick={() => { onManageCookies(profile); onClose(); }}>
-                <span className="ctx-icon"><Cookie size={14} /></span> Cookie robot
-                <span className="ctx-badge">🍪</span>
-            </button>
-
-            <div className="pl-ctx-divider" />
-
-            <button className="pl-ctx-item" onClick={() => { onEditProfile(profile); onClose(); }}>
-                <span className="ctx-icon"><Globe size={14} /></span> Edit proxy
-            </button>
-            <button className="pl-ctx-item" onClick={() => { onEditProfile(profile); onClose(); }}>
-                <span className="ctx-icon"><User size={14} /></span> Edit account
-            </button>
-            <button className="pl-ctx-item" onClick={() => { onEditProfile(profile); onClose(); }}>
-                <span className="ctx-icon"><Fingerprint size={14} /></span> Edit fingerprint
-            </button>
-        </div>,
-        document.body
-    );
-}
-
-/* ═══════ Main Component ═══════ */
-function ProfileList({
-    profiles, onCreateProfile, onEditProfile, onDeleteProfile, onToggleProfile,
-    onManageCookies, runningWs = {}, onCopyWs, onStopProfile, onViewLogs,
-    selectedIds = {}, onToggleSelect, onSelectAll, onClearSelection,
-    onStartSelected, onStopSelected, onCloneProfile,
-    headlessPrefs = {}, onSetHeadless, enginePrefs = {}, onSetEngine, onDeleteSelected
+export default function ProfileList({
+  profiles, onCreateProfile, onEditProfile, onDeleteProfile, onToggleProfile,
+  onLaunchHeadless, onManageCookies, runningWs = {}, onCopyWs, onStopProfile, onViewLogs,
+  selectedIds = {}, onToggleSelect, onSelectAll, onClearSelection,
+  onStartSelected, onStopSelected, onCloneProfile,
+  headlessPrefs = {}, onSetHeadless, enginePrefs = {}, onSetEngine, onDeleteSelected,
+  errorProfiles = {}
 }) {
-    const { t } = useI18n();
-    const selectedCount = Object.values(selectedIds || {}).filter(Boolean).length;
-    const [openMenuId, setOpenMenuId] = useState(null);
-    const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const shortId = (id) => (id || '').substring(0, 6);
 
-    /* ── Search & Filter state ── */
-    const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [proxyFilter, setProxyFilter] = useState('all');
+  const getOsLabel = (p) => {
+    const os = p?.fingerprint?.os || 'Windows';
+    if (os === 'Windows') return { label: 'WIN32', icon: null };
+    if (os === 'macOS') return { label: 'MACINTEL', icon: <AppleIcon /> };
+    return { label: 'LINUX', icon: null };
+  };
 
-    const filteredProfiles = useMemo(() => {
-        let result = profiles;
+  return (
+    <div className="w-full h-full flex flex-col p-4">
+      {/* Header Area */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-[1.2rem] font-bold text-[var(--fg)]">Profiles</h1>
+        <button 
+          className="btn btn-primary text-[0.75rem] px-3 py-1.5"
+          onClick={onCreateProfile}
+        >
+          + New Profile
+        </button>
+      </div>
 
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase().trim();
-            result = result.filter(p =>
-                (p.name || '').toLowerCase().includes(q) ||
-                (p.id || '').toLowerCase().includes(q)
-            );
-        }
+      {/* Profiles Container */}
+      <div className="bg-transparent rounded-lg flex flex-col gap-3 overflow-y-auto w-full flex-1">
+        {(!profiles || profiles.length === 0) ? (
+          <div className="card flex justify-center items-center py-10">
+            <p className="text-[var(--muted)]">No profiles yet. Click <strong>+ New Profile</strong> to create one.</p>
+          </div>
+        ) : (
+          profiles.map(profile => {
+            const isRunning = !!runningWs[profile.id];
+            const hasError = !!errorProfiles[profile.id] && !isRunning;
+            const osInfo = getOsLabel(profile);
+            const browser = profile?.fingerprint?.browser || 'Chromium';
+            const res = profile?.fingerprint?.screenResolution || '1920x1080';
 
-        if (statusFilter === 'running') {
-            result = result.filter(p => !!runningWs[p.id]);
-        } else if (statusFilter === 'stopped') {
-            result = result.filter(p => !runningWs[p.id]);
-        }
-
-        if (proxyFilter === 'has') {
-            result = result.filter(p => !!p.settings?.proxy?.server);
-        } else if (proxyFilter === 'none') {
-            result = result.filter(p => !p.settings?.proxy?.server);
-        }
-
-        return result;
-    }, [profiles, searchQuery, statusFilter, proxyFilter, runningWs]);
-
-    const allChecked = filteredProfiles.length > 0 && filteredProfiles.every(p => selectedIds[p.id]);
-    const hasActiveFilters = searchQuery || statusFilter !== 'all' || proxyFilter !== 'all';
-
-    const clearAllFilters = () => {
-        setSearchQuery('');
-        setStatusFilter('all');
-        setProxyFilter('all');
-    };
-
-    /* ── Helpers ── */
-    const shortId = (id) => (id || '').substring(0, 8);
-
-    const fmtDate = (dateStr) => {
-        if (!dateStr) return '—';
-        const d = new Date(dateStr);
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        const hh = String(d.getHours()).padStart(2, '0');
-        const mi = String(d.getMinutes()).padStart(2, '0');
-        const ss = String(d.getSeconds()).padStart(2, '0');
-        return `${mm}-${dd} ${hh}:${mi}:${ss}`;
-    };
-
-    const getProxyIp = (profile) => {
-        const server = profile.settings?.proxy?.server;
-        if (!server) return null;
-        let host = server.replace(/^https?:\/\//, '').split(':')[0];
-        return host || null;
-    };
-
-    return (
-        <div className="profile-list-container">
-            {/* Page Header + Toolbar */}
-            <div className="page-header">
-                <div>
-                    <h1>{t('profiles.title')}</h1>
-                    <span className="profile-count">{profiles.length} {t('profiles.count')}</span>
-                </div>
-                <div className="page-header-actions">
-                    {selectedCount > 0 && (
-                        <span className="selection-badge">{selectedCount} {t('actions.selected')}</span>
-                    )}
-                    {selectedCount > 0 && (
-                        <>
-                            <button className="btn btn-success" onClick={onStartSelected}>
-                                <Play size={14} /> {t('actions.startSelected')}
-                            </button>
-                            <button className="btn btn-danger" onClick={onStopSelected}>
-                                <Square size={14} /> {t('actions.stopSelected')}
-                            </button>
-                            <button className="btn btn-danger" onClick={onDeleteSelected}>
-                                <Trash2 size={14} /> {t('actions.deleteSelected')}
-                            </button>
-                        </>
-                    )}
-                    <button className="btn btn-primary" onClick={onCreateProfile}>
-                        <Plus size={15} /> {t('actions.newProfile')}
-                    </button>
-                </div>
-            </div>
-
-            {/* ── Search & Filter Bar ── */}
-            <div className="pl-filter-bar">
-                <div className="pl-search-box">
-                    <Search size={15} className="pl-search-icon" />
-                    <input
-                        type="text"
-                        className="pl-search-input"
-                        placeholder={t('pl.search.placeholder', 'Search by name or ID...')}
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    {searchQuery && (
-                        <button className="pl-search-clear" onClick={() => setSearchQuery('')}>
-                            <X size={14} />
-                        </button>
-                    )}
+            return (
+              <div key={profile.id} className="card p-2 xl:p-3 flex items-start gap-3 transition-shadow hover:brightness-110">
+                
+                {/* Active Dot indicator */}
+                <div className="pt-[14px] pl-2">
+                  <div className={`w-2.5 h-2.5 rounded-full ${isRunning ? 'bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.5)]' : hasError ? 'bg-[#ef4444]' : 'bg-[var(--border2)]'}`}></div>
                 </div>
 
-                <div className="pl-filter-group">
-                    <Filter size={14} className="pl-filter-icon" />
-
-                    <select
-                        className="pl-filter-select"
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                    >
-                        <option value="all">{t('pl.filter.allStatus', 'All Status')}</option>
-                        <option value="running">{t('pl.filter.running', 'Running')}</option>
-                        <option value="stopped">{t('pl.filter.stopped', 'Stopped')}</option>
-                    </select>
-
-                    <select
-                        className="pl-filter-select"
-                        value={proxyFilter}
-                        onChange={(e) => setProxyFilter(e.target.value)}
-                    >
-                        <option value="all">{t('pl.filter.allProxy', 'All Proxy')}</option>
-                        <option value="has">{t('pl.filter.hasProxy', 'Has Proxy')}</option>
-                        <option value="none">{t('pl.filter.noProxy', 'No Proxy')}</option>
-                    </select>
-
-                    {hasActiveFilters && (
-                        <button className="pl-clear-filters" onClick={clearAllFilters}>
-                            <X size={13} /> {t('pl.filter.clear', 'Clear')}
-                        </button>
-                    )}
-                </div>
-
-                {hasActiveFilters && (
-                    <span className="pl-filter-count">
-                        {filteredProfiles.length} / {profiles.length}
+                {/* Card Content Area - Taking most space */}
+                <div className="flex-1 flex flex-col gap-2 ml-1">
+                  
+                  {/* Top Row: Details */}
+                  <div className="flex flex-wrap items-center gap-2 xl:gap-3">
+                    <span className="bg-[var(--glass-strong)] text-[var(--muted)] text-[0.75rem] font-bold px-2 py-0.5 rounded align-middle uppercase cursor-help" title={profile.id}>
+                      {shortId(profile.id)}
                     </span>
-                )}
-            </div>
-
-            {/* Table content */}
-            <div className="profile-scroll">
-                {filteredProfiles.length === 0 ? (
-                    <div className="empty-state">
-                        <div className="empty-icon">🌐</div>
-                        <h3>{t('profiles.empty.title')}</h3>
-                        <p>{t('profiles.empty.desc')}</p>
-                        <button className="btn btn-accent" onClick={onCreateProfile}>
-                            <Plus size={16} /> {t('profiles.empty.btn')}
-                        </button>
+                    
+                    <div className="bg-[var(--glass)] text-[var(--primary)] px-2 py-0.5 rounded flex items-center gap-1.5 text-[0.75rem] font-semibold">
+                      {browser === 'Firefox' ? <FoxIcon /> : <ChromiumIcon />}
+                      {browser}
                     </div>
-                ) : (
-                    <table className="pl-table">
-                        <thead>
-                            <tr>
-                                <th className="pl-col-check">
-                                    <input
-                                        type="checkbox"
-                                        className="pl-check"
-                                        checked={allChecked}
-                                        onChange={() => allChecked ? onClearSelection() : filteredProfiles.forEach(p => onToggleSelect(p.id))}
-                                    />
-                                </th>
-                                <th className="pl-col-no sortable">
-                                    {t('pl.col.noId', 'No./ID')} <span className="sort-icon">⇅</span>
-                                </th>
-                                <th className="pl-col-group">
-                                    {t('pl.col.group', 'Group')}
-                                </th>
-                                <th className="pl-col-name sortable">
-                                    {t('pl.col.name', 'Name')} <span className="sort-icon">⇅</span>
-                                </th>
-                                <th className="pl-col-ip">
-                                    {t('pl.col.ip', 'IP')}
-                                </th>
-                                <th className="pl-col-last sortable">
-                                    {t('pl.col.lastOp', 'Last op.')} <span className="sort-icon">⇅</span>
-                                </th>
-                                <th className="pl-col-plat">
-                                    {t('pl.col.platform', 'Platform')}
-                                </th>
-                                <th className="pl-col-action">
-                                    {t('pl.col.action', 'Action')}
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredProfiles.map((profile, index) => {
-                                const isRunning = !!runningWs[profile.id];
-                                const proxyIp = getProxyIp(profile);
-                                return (
-                                    <tr
-                                        key={profile.id}
-                                        className={selectedIds[profile.id] ? 'selected' : ''}
-                                    >
-                                        {/* Checkbox */}
-                                        <td className="pl-col-check">
-                                            <input
-                                                type="checkbox"
-                                                className="pl-check"
-                                                checked={!!selectedIds[profile.id]}
-                                                onChange={() => onToggleSelect(profile.id)}
-                                            />
-                                        </td>
+                    
+                    <h3 className="text-[0.9rem] xl:text-[1rem] font-semibold text-[var(--fg)] leading-none truncate max-w-[250px] xl:max-w-md" title={profile.name || 'Profile'}>
+                      {profile.name || 'Profile'}
+                    </h3>
+                  </div>
 
-                                        {/* No./ID */}
-                                        <td className="pl-col-no">
-                                            <div className="pl-no-cell">
-                                                <span className="pl-seq">{index + 1}</span>
-                                                <span className="pl-id">{shortId(profile.id)}</span>
-                                            </div>
-                                        </td>
+                  {/* Middle Row: OS and Screen Specs */}
+                  <div className="flex flex-wrap items-center gap-2 pl-[2px] xl:pl-[4px]">
+                    <div className="flex items-center gap-1.5 text-[0.75rem] font-bold text-[var(--muted)] border border-[var(--border2)] rounded px-1.5 py-0.5 bg-[var(--bg)]">
+                      {osInfo.icon && <span className={osInfo.label === 'MACINTEL' ? "text-red-500" : ""}>{osInfo.icon}</span>}
+                      {osInfo.label}
+                    </div>
+                    
+                    <div className="flex items-center gap-1.5 text-[0.75rem] font-bold text-[var(--muted)] border border-[var(--border2)] rounded px-1.5 py-0.5 bg-[var(--bg)]">
+                      {browser === 'Firefox' ? <FoxIcon /> : <ChromiumIcon />}
+                      {browser}
+                    </div>
 
-                                        {/* Group */}
-                                        <td className="pl-col-group">
-                                            {profile.group || 'Ungrouped'}
-                                        </td>
+                    <div className="flex items-center gap-1.5 text-[0.75rem] font-bold text-[var(--muted)] border border-[var(--border2)] rounded px-1.5 py-0.5 bg-[var(--bg)]">
+                      <div className="text-[var(--muted)]"><MonitorIcon /></div>
+                      {res}
+                    </div>
+                  </div>
 
-                                        {/* Name */}
-                                        <td className="pl-col-name">
-                                            <div className="pl-name-cell">
-                                                {isRunning && <span className="pl-status-dot running" />}
-                                                <span className="pl-name-text">{profile.name || `Profile ${index + 1}`}</span>
-                                                <Edit2
-                                                    size={13}
-                                                    className="pl-edit-icon"
-                                                    onClick={(e) => { e.stopPropagation(); onEditProfile(profile); }}
-                                                />
-                                            </div>
-                                        </td>
+                  {/* Bottom Row: Badges */}
+                  <div className="flex flex-wrap items-center gap-1 xl:gap-1.5 pl-[2px] xl:pl-[4px]">
+                    {['ID', 'DSP', 'HW', 'CVS', 'GL', 'AUD', 'MED', 'NET', 'BAT'].map(badge => (
+                      <span key={badge} className="bg-[var(--glass-strong)] border border-[var(--border)] text-[var(--muted)] text-[7px] xl:text-[8px] font-bold px-1 xl:px-1.5 py-0.5 rounded uppercase">
+                        {badge}
+                      </span>
+                    ))}
+                  </div>
+                  
+                </div>
 
-                                        {/* IP */}
-                                        <td className="pl-col-ip">
-                                            {proxyIp ? (
-                                                <div className="pl-ip-cell">
-                                                    <span className="pl-ip-addr">
-                                                        <span className="pl-flag">🔴</span>
-                                                        {proxyIp}
-                                                    </span>
-                                                    <span className="pl-ip-loc">
-                                                        {profile.settings?.proxy?.type?.toUpperCase() || 'Proxy'}
-                                                    </span>
-                                                </div>
-                                            ) : (
-                                                <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>—</span>
-                                            )}
-                                        </td>
+                {/* Right Side Actions Container - Flexed to right */}
+                <div className="pt-2 flex flex-wrap items-center gap-1.5 xl:gap-2 self-start justify-end flex-shrink-0 max-w-[150px] sm:max-w-none">
+                  {isRunning ? (
+                    <button 
+                      onClick={() => onStopProfile(profile.id)}
+                      className="btn btn-danger text-[0.75rem] px-3 py-1.5"
+                    >
+                      Stop
+                    </button>
+                  ) : (
+                    <>
+                      <button 
+                        onClick={() => onToggleProfile(profile.id)}
+                        className="btn btn-success text-[0.75rem] px-3 py-1.5"
+                      >
+                        Launch
+                      </button>
+                      <button 
+                        onClick={() => onLaunchHeadless(profile.id)}
+                        className="btn btn-secondary text-[0.75rem] px-3 py-1.5"
+                      >
+                        Headless
+                      </button>
+                    </>
+                  )}
+                  <button 
+                    onClick={() => onEditProfile(profile)}
+                    className="btn btn-accent text-[0.75rem] px-3 py-1.5"
+                  >
+                    Proxy
+                  </button>
+                  <button 
+                    onClick={() => onCloneProfile(profile.id)}
+                    className="btn btn-primary text-[0.75rem] px-3 py-1.5"
+                  >
+                    Clone
+                  </button>
+                  <button 
+                    onClick={() => onEditProfile(profile)}
+                    className="btn btn-secondary text-[0.75rem] px-3 py-1.5"
+                  >
+                    Edit
+                  </button>
+                  <button 
+                    onClick={() => onDeleteProfile(profile.id)}
+                    className="btn btn-danger text-[0.75rem] px-3 py-1.5"
+                  >
+                    Delete
+                  </button>
+                </div>
 
-                                        {/* Last op. */}
-                                        <td className="pl-col-last">
-                                            <div className="pl-last-cell">
-                                                {fmtDate(profile.updatedAt || profile.createdAt)}
-                                            </div>
-                                        </td>
-
-                                        {/* Platform */}
-                                        <td className="pl-col-plat">
-                                            <div className="pl-platform-cell">
-                                                <span className="pl-platform-dot dot-blue" title="Browser" />
-                                                {isRunning && <span className="pl-platform-dot dot-green" title="Running" />}
-                                            </div>
-                                        </td>
-
-                                        {/* Action */}
-                                        <td className="pl-col-action">
-                                            <div className="pl-action-cell">
-                                                <button
-                                                    className={`pl-open-btn${isRunning ? ' running' : ''}`}
-                                                    onClick={(e) => { e.stopPropagation(); onToggleProfile(profile.id); }}
-                                                >
-                                                    <span className="btn-icon-emoji">{isRunning ? '⏹' : '🌐'}</span>
-                                                    {isRunning ? 'Close' : 'Open'}
-                                                </button>
-
-                                                <div>
-                                                    <button
-                                                        className="pl-menu-btn"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (openMenuId === profile.id) {
-                                                                setOpenMenuId(null);
-                                                            } else {
-                                                                const rect = e.currentTarget.getBoundingClientRect();
-                                                                setMenuPos({ top: rect.bottom + 4, left: rect.right - 180 });
-                                                                setOpenMenuId(profile.id);
-                                                            }
-                                                        }}
-                                                    >
-                                                        <MoreVertical size={16} />
-                                                    </button>
-                                                    {openMenuId === profile.id && (
-                                                        <ContextMenu
-                                                            profile={profile}
-                                                            position={menuPos}
-                                                            isRunning={isRunning}
-                                                            onClose={() => setOpenMenuId(null)}
-                                                            onEditProfile={onEditProfile}
-                                                            onCloneProfile={onCloneProfile}
-                                                            onDeleteProfile={onDeleteProfile}
-                                                            onManageCookies={onManageCookies}
-                                                            onViewLogs={onViewLogs}
-                                                            onCopyWs={onCopyWs}
-                                                        />
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                )}
-            </div>
-        </div>
-    );
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
 }
-
-export default ProfileList;
