@@ -25,8 +25,8 @@ export default function DashboardSidebar({
             {/* Brand */}
             <div className="sidebar-brand pb-6 pt-2 px-2 border-b-0 mb-2 mt-2">
                 <div className="flex flex-col gap-1">
-                    <h2 className="text-[1.2rem] font-bold text-slate-800 dark:text-slate-100 tracking-tight leading-none">HL-MCK Browser</h2>
-                    <span className="text-[0.75rem] text-slate-500 dark:text-slate-400 font-medium">Antidetect Manager</span>
+                    <h2 className="text-[1.2rem] font-bold text-[var(--fg)] tracking-tight leading-none">HL-MCK Browser</h2>
+                    <span className="text-[0.75rem] text-[var(--muted)] font-medium">Antidetect Manager</span>
                 </div>
             </div>
 
@@ -35,7 +35,7 @@ export default function DashboardSidebar({
                 {NAVIGATION_ITEMS.map((item) => (
                     <div
                         key={item.id}
-                        className={`sidebar-nav-item py-2.5 px-4 rounded-lg cursor-pointer transition-colors ${activeNav === item.id ? 'active bg-[#2563eb] dark:bg-[#3b82f6] text-white font-medium' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'}`}
+                        className={`sidebar-nav-item py-2.5 px-4 rounded-lg cursor-pointer transition-colors ${activeNav === item.id ? 'active' : ''}`}
                         onClick={() => { onNavigate(item.id); closeMobile && closeMobile(); }}
                         role="button"
                         tabIndex={0}
@@ -50,13 +50,13 @@ export default function DashboardSidebar({
     return (
         <>
             {/* Desktop sidebar */}
-            <aside className="app-sidebar bg-white dark:bg-slate-900 w-[240px] border-r border-slate-200 dark:border-slate-800">
+            <aside className="app-sidebar w-[240px]">
                 {renderNav(null)}
             </aside>
 
             {/* Mobile menu button */}
-            <button className="mobile-menu-btn fixed top-3 left-3 z-[200] md:hidden p-2 rounded bg-white dark:bg-slate-800 shadow" onClick={() => setMobileOpen(true)}>
-                <Menu size={22} className="text-slate-800 dark:text-slate-200" />
+            <button className="mobile-menu-btn fixed top-3 left-3 z-[200] md:hidden p-2 rounded bg-[var(--card)] shadow" onClick={() => setMobileOpen(true)}>
+                <Menu size={22} className="text-[var(--fg)]" />
             </button>
 
             {/* Mobile offcanvas */}

@@ -18,148 +18,148 @@ export default function SettingsTab({
     const [maxBrowsers, setMaxBrowsers] = useState(5);
 
     return (
-        <div className="w-full h-full flex flex-col p-4 bg-[#f1f5f9] dark:bg-slate-900 overflow-y-auto">
+        <div className="w-full h-full flex flex-col p-4 overflow-y-auto">
             <div className="max-w-[700px]">
-                <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6 tracking-tight">{t('settings.title') || 'Settings'}</h1>
+                <h1 className="text-2xl font-bold text-[var(--fg)] mb-6 tracking-tight">{t('settings.title') || 'Settings'}</h1>
 
                 {/* Appearance */}
-                <div className="relative border border-slate-200 dark:border-slate-700 rounded-xl p-3 mb-6 bg-white dark:bg-slate-800 shadow-sm mt-4">
-                    <div className="absolute -top-3 left-4 bg-white dark:bg-slate-800 px-2 text-[0.85rem] font-bold text-slate-700 dark:text-slate-200">Appearance</div>
-                    <div className="mb-2 pt-1">
-                        <label className="block text-[0.75rem] text-slate-600 dark:text-slate-300 mb-1.5">Theme</label>
+                <div className="card relative p-4 mb-6 mt-4">
+                    <div className="absolute -top-3 left-4 bg-[var(--card)] px-2 text-[0.85rem] font-bold text-[var(--fg)]">Appearance</div>
+                    <div className="mb-2 pt-1"> 
+                        <label className="block text-[0.75rem] text-[var(--muted)] mb-1.5">Theme</label>
                         <select
                             value={theme}
                             onChange={(e) => setTheme(e.target.value)}
-                            className="w-[160px] bg-[#f1f5f9] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-[0.75rem] rounded-md px-2 py-1 cursor-pointer focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition"
+                            className="w-[160px] text-[0.75rem] py-1 cursor-pointer"
                         >
                             <option value="Light">Light</option>
                             <option value="Dark">Dark</option>
                         </select>
                     </div>
-                    <p className="text-[0.7rem] text-slate-500 dark:text-slate-400">Current mode: {theme}</p>
+                    <p className="text-[0.7rem] text-[var(--muted)]">Current mode: {theme}</p>
                 </div>
 
                 {/* License */}
-                <div className="relative border border-slate-200 dark:border-slate-700 rounded-xl p-3 mb-6 bg-white dark:bg-slate-800 shadow-sm mt-4">
-                    <div className="absolute -top-3 left-4 bg-white dark:bg-slate-800 px-2 text-[0.85rem] font-bold text-slate-700 dark:text-slate-200">License</div>
+                <div className="card relative p-4 mb-6 mt-4">
+                    <div className="absolute -top-3 left-4 bg-[var(--card)] px-2 text-[0.85rem] font-bold text-[var(--fg)]">License</div>
                     <div className="flex items-center gap-2 mb-3 pt-1">
                         <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                        <span className="text-[0.85rem] font-medium text-slate-700 dark:text-slate-200">Not licensed</span>
+                        <span className="text-[0.85rem] font-medium text-[var(--fg)]">Not licensed</span>
                     </div>
                     <p className="text-[0.7rem] text-red-500 mb-1">No license key configured</p>
-                    <p className="text-[0.7rem] text-slate-500 dark:text-slate-400 mb-3">Free plan: up to 5 profiles.</p>
+                    <p className="text-[0.7rem] text-[var(--muted)] mb-3">Free plan: up to 5 profiles.</p>
                     <div className="flex gap-2 mb-4">
                         <input
                             type="text"
                             placeholder="OBT1-..."
                             value={licenseKey}
                             onChange={e => setLicenseKey(e.target.value)}
-                            className="flex-1 bg-[#f1f5f9] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-[0.75rem] rounded-md px-2 py-1.5 focus:outline-none focus:border-blue-400 transition"
+                            className="flex-1 text-[0.75rem] py-1.5"
                         />
-                        <button className="bg-[#8ba4f9] hover:bg-blue-500 text-white font-medium px-3 py-1.5 rounded-md text-[0.75rem] transition shadow-sm">Activate</button>
+                        <button className="btn btn-primary px-3 py-1.5 text-[0.75rem]">Activate</button>
                     </div>
                     <div>
-                        <label className="block text-[0.7rem] text-slate-600 dark:text-slate-300 mb-1">Machine Code</label>
+                        <label className="block text-[0.7rem] text-[var(--muted)] mb-1">Machine Code</label>
                         <div className="flex items-center gap-2 mb-1.5">
-                            <code className="bg-[#e2e8f0] dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[0.7rem] px-2 py-1 rounded-md font-mono tracking-wider">{machineCode}</code>
-                            <button onClick={() => navigator.clipboard.writeText(machineCode)} className="text-[0.7rem] text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 font-medium px-1">Copy</button>
+                            <code className="bg-[var(--glass-strong)] border border-[var(--border2)] text-[var(--fg)] text-[0.7rem] px-2 py-1 rounded-md font-mono tracking-wider">{machineCode}</code>
+                            <button onClick={() => navigator.clipboard.writeText(machineCode)} className="text-[0.7rem] text-[var(--primary)] hover:text-[var(--primary-hover)] font-medium px-1">Copy</button>
                         </div>
-                        <p className="text-[0.7rem] text-slate-500 dark:text-slate-400">Send this code to obtain a license key for this machine.</p>
+                        <p className="text-[0.7rem] text-[var(--muted)]">Send this code to obtain a license key for this machine.</p>
                     </div>
                 </div>
 
                 {/* REST API Server */}
-                <div className="relative border border-slate-200 dark:border-slate-700 rounded-xl p-3 mb-6 bg-[#f4f7fb] dark:bg-slate-800/80 mt-4">
-                    <div className="absolute -top-3 left-4 bg-[#f4f7fb] dark:bg-slate-800 px-2 text-[0.85rem] font-bold text-slate-700 dark:text-slate-200">REST API Server</div>
+                <div className="card relative p-4 mb-6 mt-4">
+                    <div className="absolute -top-3 left-4 bg-[var(--card)] px-2 text-[0.85rem] font-bold text-[var(--fg)]">REST API Server</div>
                     <div className="flex items-center gap-2 mb-3 pt-1">
-                        <div className={`w-2 h-2 rounded-full ${apiStatus?.running ? 'bg-emerald-500' : 'bg-[#9ca3af]'}`}></div>
-                        <span className="text-[0.85rem] font-medium text-slate-700 dark:text-slate-200">{apiStatus?.running ? 'Running' : 'Stopped'}</span>
+                        <div className={`w-2 h-2 rounded-full ${apiStatus?.running ? 'bg-emerald-500' : 'bg-slate-400'}`}></div>
+                        <span className="text-[0.85rem] font-medium text-[var(--fg)]">{apiStatus?.running ? 'Running' : 'Stopped'}</span>
                     </div>
                     <div className="flex items-center gap-3 mb-3">
-                        <span className="text-[0.75rem] text-slate-600 dark:text-slate-300 font-medium">Port</span>
+                        <span className="text-[0.75rem] text-[var(--muted)] font-medium">Port</span>
                         <input
                             type="number"
                             min="1" max="65535"
                             value={apiDesiredPort || 3000}
                             onChange={e => { setApiDesiredPort(e.target.value); applyPortChange(Number(e.target.value)); }}
-                            className="w-[80px] bg-[#e2e8f0] dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-[0.75rem] rounded-md px-2 py-1 focus:outline-none focus:border-blue-400 transition"
+                            className="w-[80px] text-[0.75rem] py-1"
                         />
                         <button
                             onClick={handleToggleApiRun}
-                            className={`px-3 py-1.5 text-[0.75rem] font-semibold text-white rounded-md transition shadow-sm ${apiStatus?.running ? 'bg-red-500 hover:bg-red-600' : 'bg-[#16a34a] hover:bg-green-700'}`}
+                            className={`btn px-3 py-1.5 text-[0.75rem] ${apiStatus?.running ? 'btn-danger' : 'btn-success'}`}
                         >
                             {apiStatus?.running ? 'Stop Server' : 'Start Server'}
                         </button>
                     </div>
-                    <label className="flex items-center gap-2 text-[0.7rem] text-slate-600 dark:text-slate-400 mb-2 cursor-pointer">
-                        <input type="checkbox" checked={autoStartApi} onChange={e => setAutoStartApi(e.target.checked)} className="rounded border-slate-300 dark:border-slate-600 text-blue-500 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer dark:bg-slate-700" />
+                    <label className="flex items-center gap-2 text-[0.7rem] text-[var(--muted)] mb-2 cursor-pointer">
+                        <input type="checkbox" checked={autoStartApi} onChange={e => setAutoStartApi(e.target.checked)} className="rounded cursor-pointer" />
                         Auto-start server on app launch
                     </label>
-                    <p className="text-[0.7rem] text-slate-500 dark:text-slate-400">Exposes REST API for automation scripting. Swagger docs available at /docs when running.</p>
+                    <p className="text-[0.7rem] text-[var(--muted)]">Exposes REST API for automation scripting. Swagger docs available at /docs when running.</p>
                 </div>
 
                 {/* Playwright Chromium */}
-                <div className="relative border border-slate-200 dark:border-slate-700 rounded-xl p-3 mb-6 bg-white dark:bg-slate-800 shadow-sm mt-4">
-                    <div className="absolute -top-3 left-4 bg-white dark:bg-slate-800 px-2 text-[0.85rem] font-bold text-slate-700 dark:text-slate-200">Playwright Chromium</div>
+                <div className="card relative p-4 mb-6 mt-4">
+                    <div className="absolute -top-3 left-4 bg-[var(--card)] px-2 text-[0.85rem] font-bold text-[var(--fg)]">Playwright Chromium</div>
                     <div className="flex items-center gap-2 mb-3 pt-1">
                         <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                        <span className="text-[0.85rem] font-medium text-slate-700 dark:text-slate-200">Installed</span>
+                        <span className="text-[0.85rem] font-medium text-[var(--fg)]">Installed</span>
                     </div>
-                    <p className="text-[0.7rem] text-slate-500 dark:text-slate-400 font-mono break-all mb-3">Path: C:\Users\ManhZizou\AppData\Local\Programs\ObtBrowser\data\.playwright\browsers\chromium-1208\chrome-win64\chrome.exe</p>
-                    <p className="text-[0.7rem] text-slate-600 dark:text-slate-300 mb-3">Playwright Chromium is required for headless and visible browser profiles.</p>
+                    <p className="text-[0.7rem] text-[var(--muted)] font-mono break-all mb-3">Path: C:\Users\ManhZizou\AppData\Local\Programs\ObtBrowser\data\.playwright\browsers\chromium-1208\chrome-win64\chrome.exe</p>
+                    <p className="text-[0.7rem] text-[var(--muted)] mb-3">Playwright Chromium is required for headless and visible browser profiles.</p>
                     <div className="flex gap-2">
-                        <button className="bg-[#2563eb] hover:bg-blue-700 text-white font-medium px-3 py-1.5 rounded-md text-[0.75rem] transition shadow-sm">Reinstall Chromium</button>
-                        <button className="bg-[#b91c1c] hover:bg-red-800 text-white font-medium px-3 py-1.5 rounded-md text-[0.75rem] transition shadow-sm">Uninstall Chromium</button>
+                        <button className="btn btn-primary px-3 py-1.5 text-[0.75rem]">Reinstall Chromium</button>
+                        <button className="btn btn-danger px-3 py-1.5 text-[0.75rem]">Uninstall Chromium</button>
                     </div>
                 </div>
 
                 {/* Playwright Firefox */}
-                <div className="relative border border-slate-200 dark:border-slate-700 rounded-xl p-3 mb-6 bg-white dark:bg-slate-800 shadow-sm mt-4">
-                    <div className="absolute -top-3 left-4 bg-white dark:bg-slate-800 px-2 text-[0.85rem] font-bold text-slate-700 dark:text-slate-200">Playwright Firefox</div>
+                <div className="card relative p-4 mb-6 mt-4">
+                    <div className="absolute -top-3 left-4 bg-[var(--card)] px-2 text-[0.85rem] font-bold text-[var(--fg)]">Playwright Firefox</div>
                     <div className="flex items-center gap-2 mb-3 pt-1">
                         <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                        <span className="text-[0.85rem] font-medium text-slate-700 dark:text-slate-200">Not installed</span>
+                        <span className="text-[0.85rem] font-medium text-[var(--fg)]">Not installed</span>
                     </div>
-                    <p className="text-[0.7rem] text-slate-500 dark:text-slate-400 mb-3">Playwright Firefox is required for profiles using the Firefox engine. Firefox doesn't need stealth patches — naturally stealthier than Chromium.</p>
+                    <p className="text-[0.7rem] text-[var(--muted)] mb-3">Playwright Firefox is required for profiles using the Firefox engine. Firefox doesn't need stealth patches — naturally stealthier than Chromium.</p>
                     <div className="flex gap-2">
-                        <button className="bg-[#2563eb] hover:bg-blue-700 text-white font-medium px-3 py-1.5 rounded-md text-[0.75rem] transition shadow-sm">Install Firefox</button>
-                        <button className="bg-[#f87171]/70 text-white font-medium px-3 py-1.5 rounded-md text-[0.75rem] cursor-not-allowed">Uninstall Firefox</button>
+                        <button className="btn btn-primary px-3 py-1.5 text-[0.75rem]">Install Firefox</button>
+                        <button className="btn btn-danger px-3 py-1.5 text-[0.75rem]" disabled>Uninstall Firefox</button>
                     </div>
                 </div>
 
                 {/* Main Settings Root Options */}
                 <div className="mb-4 ml-2">
-                    <h3 className="text-[0.85rem] font-bold text-slate-800 dark:text-slate-100 mb-2">Max concurrent browsers</h3>
+                    <h3 className="text-[0.85rem] font-bold text-[var(--fg)] mb-2">Max concurrent browsers</h3>
                     <input
                         type="number"
                         value={maxBrowsers}
                         onChange={e => setMaxBrowsers(e.target.value)}
-                        className="w-[80px] bg-[#f1f5f9] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-[0.75rem] rounded-md px-2 py-1 outline-none focus:border-blue-400 mb-2"
+                        className="w-[80px] text-[0.75rem] py-1 mb-2"
                     />
-                    <p className="text-[0.7rem] text-slate-500 dark:text-slate-400 mb-4">Limits simultaneous browser instances. Higher = more RAM usage.</p>
-                    <button className="bg-[#2563eb] hover:bg-blue-700 text-white font-semibold px-4 py-1.5 rounded-md text-[0.75rem] transition shadow-sm">Save Settings</button>
+                    <p className="text-[0.7rem] text-[var(--muted)] mb-4">Limits simultaneous browser instances. Higher = more RAM usage.</p>
+                    <button className="btn btn-primary px-4 py-1.5 text-[0.75rem]">Save Settings</button>
                 </div>
 
                 {/* Environment Variables */}
-                <div className="relative border border-slate-200 dark:border-slate-700 rounded-xl p-3 mb-6 bg-white dark:bg-slate-800 shadow-sm mt-8">
-                    <div className="absolute -top-3 left-4 bg-white dark:bg-slate-800 px-2 text-[0.85rem] font-bold text-slate-700 dark:text-slate-200">Environment Variables</div>
+                <div className="card relative p-4 mb-6 mt-8">
+                    <div className="absolute -top-3 left-4 bg-[var(--card)] px-2 text-[0.85rem] font-bold text-[var(--fg)]">Environment Variables</div>
                     <div className="mb-4 pt-1">
                         <span className="text-[0.75rem] font-bold text-emerald-500 block mb-1">LOG_LEVEL</span>
-                        <p className="text-[0.7rem] text-slate-500 dark:text-slate-400 ml-4">Logging level: trace, debug, info, warn, error, fatal</p>
-                        <p className="text-[0.7rem] text-slate-500 dark:text-slate-400 ml-4">Default: info</p>
+                        <p className="text-[0.7rem] text-[var(--muted)] ml-4">Logging level: trace, debug, info, warn, error, fatal</p>
+                        <p className="text-[0.7rem] text-[var(--muted)] ml-4">Default: info</p>
                     </div>
                     <div className="mb-4">
                         <span className="text-[0.75rem] font-bold text-emerald-500 block mb-1">MAX_CONCURRENT_BROWSERS</span>
-                        <p className="text-[0.7rem] text-slate-500 dark:text-slate-400 ml-4">Maximum number of browser instances running simultaneously</p>
-                        <p className="text-[0.7rem] text-slate-500 dark:text-slate-400 ml-4">Default: 5 (overrides UI setting above)</p>
+                        <p className="text-[0.7rem] text-[var(--muted)] ml-4">Maximum number of browser instances running simultaneously</p>
+                        <p className="text-[0.7rem] text-[var(--muted)] ml-4">Default: 5 (overrides UI setting above)</p>
                     </div>
                     <div className="mb-4">
                         <span className="text-[0.75rem] font-bold text-emerald-500 block mb-1">MASTER_ENCRYPTION_KEY</span>
-                        <p className="text-[0.7rem] text-slate-500 dark:text-slate-400 ml-4">32-byte base64-encoded key for encrypting proxy credentials in database</p>
+                        <p className="text-[0.7rem] text-[var(--muted)] ml-4">32-byte base64-encoded key for encrypting proxy credentials in database</p>
                         <p className="text-[0.7rem] text-amber-500 ml-4 mt-0.5 flex items-center gap-1"><svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 3.8l7.5 13.2H4.5L12 5.8zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/></svg>Required for production use. Dev mode uses insecure default key.</p>
                     </div>
-                    <div className="mt-4 border-t border-slate-100 pt-2">
-                        <p className="text-[0.7rem] text-slate-500 italic"><strong className="font-semibold not-italic">Note:</strong> Environment variables must be set before launching the application. Restart required after changes.</p>
+                    <div className="mt-4 border-t border-[var(--border)] pt-2">
+                        <p className="text-[0.7rem] text-[var(--muted)] italic"><strong className="font-semibold not-italic">Note:</strong> Environment variables must be set before launching the application. Restart required after changes.</p>
                     </div>
                 </div>
             </div>
