@@ -311,6 +311,7 @@ function ProxyFormModal({ proxy, onSave, onClose, t }) {
         name: '', protocol: 'http', host: '', port: '', username: '', password: ''
     });
     const [saving, setSaving] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
@@ -328,55 +329,60 @@ function ProxyFormModal({ proxy, onSave, onClose, t }) {
     };
 
     return (
-        <div className="proxy-modal-backdrop" onClick={onClose}>
-            <div className="proxy-modal-content" onClick={e => e.stopPropagation()}>
-                <div className="proxy-modal-header">
-                    <h2 className="proxy-modal-title">
-                        {proxy ? t('proxies.form.title.edit') : t('proxies.form.title.add')}
-                    </h2>
-                    <button className="btn-icon-danger" onClick={onClose}><X size={20} /></button>
-                </div>
-                <form onSubmit={submit}>
-                    <div className="proxy-form-group">
-                        <label className="proxy-form-label">{t('proxies.form.name')}</label>
-                        <input type="text" name="name" className="proxy-form-control" value={formData.name} onChange={handleChange} required />
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[999] p-4" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-[440px] p-8" onClick={e => e.stopPropagation()}>
+                <h2 className="text-[1.35rem] font-bold text-slate-800 mb-6 tracking-tight">
+                    {proxy ? 'Edit Proxy' : 'Add Proxy'}
+                </h2>
+                <form onSubmit={submit} className="flex flex-col gap-4">
+                    <div>
+                        <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Label (optional)</label>
+                        <input type="text" name="name" className="w-full bg-[#f8fafc] border border-slate-200 text-slate-700 text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300 transition shadow-inner" placeholder="e.g. US Residential #1" value={formData.name} onChange={handleChange} />
                     </div>
 
-                    <div className="proxy-form-row">
-                        <div className="proxy-form-group" style={{ flex: 1 }}>
-                            <label className="proxy-form-label">{t('proxies.form.protocol')}</label>
-                            <select name="protocol" className="proxy-form-control" value={formData.protocol} onChange={handleChange}>
+                    <div className="flex gap-4">
+                        <div className="w-1/3">
+                            <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Type</label>
+                            <select name="protocol" className="w-full bg-[#f8fafc] border border-slate-200 text-slate-700 text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300 transition shadow-inner" value={formData.protocol} onChange={handleChange}>
                                 <option value="http">HTTP</option>
                                 <option value="https">HTTPS</option>
                                 <option value="socks4">SOCKS4</option>
                                 <option value="socks5">SOCKS5</option>
                             </select>
                         </div>
-                        <div className="proxy-form-group" style={{ flex: 2 }}>
-                            <label className="proxy-form-label">{t('proxies.form.host')}</label>
-                            <input type="text" name="host" className="proxy-form-control" value={formData.host} onChange={handleChange} required />
-                        </div>
-                        <div className="proxy-form-group" style={{ flex: 1 }}>
-                            <label className="proxy-form-label">{t('proxies.form.port')}</label>
-                            <input type="text" name="port" className="proxy-form-control" value={formData.port} onChange={handleChange} required />
+                        <div className="w-2/3">
+                            <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Port</label>
+                            <input type="text" name="port" className="w-full bg-[#f8fafc] border border-slate-200 text-slate-700 text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300 transition shadow-inner" placeholder="8080" value={formData.port} onChange={handleChange} required />
                         </div>
                     </div>
 
-                    <div className="proxy-form-row">
-                        <div className="proxy-form-group" style={{ flex: 1 }}>
-                            <label className="proxy-form-label">{t('proxies.form.username')} (Optional)</label>
-                            <input type="text" name="username" className="proxy-form-control" value={formData.username || ''} onChange={handleChange} />
+                    <div>
+                        <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Host / IP</label>
+                        <input type="text" name="host" className="w-full bg-[#f8fafc] border border-slate-200 text-slate-700 text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300 transition shadow-inner" placeholder="proxy.example.com" value={formData.host} onChange={handleChange} required />
+                    </div>
+
+                    <div className="flex gap-4 mb-2">
+                        <div className="w-1/2">
+                            <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Username (optional)</label>
+                            <input type="text" name="username" className="w-full bg-[#f8fafc] border border-slate-200 text-slate-700 text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300 transition shadow-inner" placeholder="user" value={formData.username || ''} onChange={handleChange} />
                         </div>
-                        <div className="proxy-form-group" style={{ flex: 1 }}>
-                            <label className="proxy-form-label">{t('proxies.form.password')} (Optional)</label>
-                            <input type="password" name="password" className="proxy-form-control" value={formData.password || ''} onChange={handleChange} />
+                        <div className="w-1/2 relative">
+                            <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Password (optional)</label>
+                            <div className="relative">
+                                <input type={showPassword ? "text" : "password"} name="password" className="w-full bg-[#f8fafc] border border-slate-200 text-slate-700 text-[0.9rem] rounded-[0.5rem] pl-3 pr-12 py-2.5 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300 transition shadow-inner" placeholder="••••••••" value={formData.password || ''} onChange={handleChange} />
+                                <button type="button" className="absolute right-3 top-[0.6rem] text-[0.85rem] font-medium text-slate-500 hover:text-slate-700" onClick={() => setShowPassword(!showPassword)}>
+                                    {showPassword ? "Hide" : "Show"}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="proxy-modal-footer">
-                        <button type="button" className="btn btn-secondary" onClick={onClose}>{t('proxies.form.cancel')}</button>
-                        <button type="submit" className="btn btn-primary" disabled={saving}>
-                            {saving ? 'Đang lưu...' : t('proxies.form.save')}
+                    <div className="flex justify-end gap-3 mt-4">
+                        <button type="button" className="bg-[#cbd5e1]/60 hover:bg-[#cbd5e1] text-slate-600 px-6 py-2.5 rounded-[0.4rem] text-[0.85rem] font-medium transition" onClick={onClose}>
+                            Cancel
+                        </button>
+                        <button type="submit" className="bg-[#2563eb] hover:bg-blue-700 text-white px-7 py-2.5 rounded-[0.4rem] text-[0.85rem] font-medium transition shadow-sm" disabled={saving}>
+                            {saving ? 'Saving...' : 'Save'}
                         </button>
                     </div>
                 </form>
