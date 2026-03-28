@@ -868,6 +868,113 @@
           }
         }
       }
+    },
+    "/api/profiles/{id}/actions/mouse/click": {
+      "post": {
+        "summary": "Click at absolute page coordinates",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "button": {
+                    "type": "string",
+                    "enum": [
+                      "left",
+                      "right",
+                      "middle"
+                    ],
+                    "default": "left"
+                  },
+                  "clickCount": {
+                    "type": "integer",
+                    "default": 1
+                  }
+                },
+                "required": [
+                  "x",
+                  "y"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/actions/mouse/move": {
+      "post": {
+        "summary": "Move mouse to page coordinates",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "steps": {
+                    "type": "integer",
+                    "default": 1
+                  }
+                },
+                "required": [
+                  "x",
+                  "y"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
     }
   }
 }
