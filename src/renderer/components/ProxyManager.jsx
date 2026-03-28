@@ -153,58 +153,51 @@ export default function ProxyManager() {
     });
 
     return (
-        <div className="proxy-manager-container">
-            <div className="proxy-manager-header">
-                <h1 className="proxy-manager-title">{t('proxies.title')}</h1>
-                <div className="proxy-actions">
-                    <input
-                        type="text"
-                        className="proxy-search"
-                        placeholder={t('proxies.search')}
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-                    <button className="btn btn-secondary" onClick={() => setShowImport(true)}>
-                        <Upload size={16} /> {t('proxies.import')}
-                    </button>
-                    <button
-                        className="btn btn-secondary"
-                        onClick={handleCheckAll}
-                        disabled={checkingAll || proxies.length === 0}
-                        title="Check all proxies"
+        <div className="w-full h-full flex flex-col p-6 bg-[#f1f5f9]">
+            {/* Header Area */}
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold text-slate-800">Proxy Pool</h1>
+                <div className="flex items-center gap-3">
+                    <button 
+                        className="bg-[#e2e8f0] hover:bg-[#cbd5e1] text-slate-600 font-medium text-sm px-4 py-2 rounded transition"
+                        onClick={() => setShowImport(true)}
                     >
-                        {checkingAll ? <Loader2 size={16} className="spin" /> : <Zap size={16} />}
-                        {checkingAll ? 'Checking...' : 'Check All'}
+                        Import Excel
                     </button>
-                    <button className="btn btn-primary" onClick={() => { setEditingProxy(null); setShowForm(true); }}>
-                        <Plus size={16} /> {t('proxies.add')}
+                    <button 
+                        className={`font-medium text-sm px-4 py-2 rounded transition ${proxies.length === 0 ? 'bg-white text-slate-400 cursor-not-allowed opacity-60' : 'bg-[#e2e8f0] hover:bg-[#cbd5e1] text-slate-600'}`}
+                        onClick={() => {}}
+                        disabled={proxies.length === 0}
+                    >
+                        Export Excel
+                    </button>
+                    <button 
+                        className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-medium text-sm px-4 py-2 rounded shadow transition"
+                        onClick={() => { setEditingProxy(null); setShowForm(true); }}
+                    >
+                        + Add Proxy
                     </button>
                 </div>
             </div>
 
-            <div className="proxy-list-card">
+            {/* List or Empty State */}
+            <div className="flex-1 flex flex-col w-full">
                 {proxies.length === 0 ? (
-                    <div className="proxy-empty-state">
-                        <Network size={48} className="proxy-empty-icon" />
-                        <p>{t('proxies.empty')}</p>
-                        <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
-                            <button className="btn btn-secondary" onClick={() => setShowImport(true)}>
-                                {t('proxies.import')}
-                            </button>
-                            <button className="btn btn-primary" onClick={() => { setEditingProxy(null); setShowForm(true); }}>
-                                {t('proxies.add')}
-                            </button>
-                        </div>
+                    <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 relative top-[-40px]">
+                        <h3 className="text-[1.125rem] font-semibold text-slate-500">No proxies yet</h3>
+                        <p className="text-[0.875rem] text-slate-400">Add a proxy or import from Excel.</p>
                     </div>
                 ) : (
-                    <ProxyTable
-                        proxies={filteredProxies}
-                        onEdit={(p) => { setEditingProxy(p); setShowForm(true); }}
-                        onDelete={handleDelete}
-                        onCheck={handleCheckOne}
-                        checkingIds={checkingIds}
-                        t={t}
-                    />
+                    <div className="w-full bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden flex-1">
+                        <ProxyTable
+                            proxies={filteredProxies}
+                            onEdit={(p) => { setEditingProxy(p); setShowForm(true); }}
+                            onDelete={handleDelete}
+                            onCheck={handleCheckOne}
+                            checkingIds={checkingIds}
+                            t={t}
+                        />
+                    </div>
                 )}
             </div>
 

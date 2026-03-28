@@ -183,7 +183,7 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   });
   if (swaggerUi) {
     try {
-      const spec = require('fs').existsSync(openapiPath) ? JSON.parse(require('fs').readFileSync(openapiPath, 'utf8')) : { openapi: '3.0.0', info: { title: 'OBT API', version: '1.0.0' } };
+      const spec = require('fs').existsSync(openapiPath) ? JSON.parse(require('fs').readFileSync(openapiPath, 'utf8')) : { openapi: '3.0.0', info: { title: 'HL-MCK API', version: '1.0.0' } };
       appx.use('/api-docs', swaggerUi.serve, swaggerUi.setup(spec));
     } catch { }
   }
@@ -203,8 +203,8 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
   }
 
   // Fixed password hardcoded in code. Change this value to your desired password.
-  // Optionally override via environment variable OBT_REST_PASSWORD for development.
-  const FIXED_PASSWORD = process.env.OBT_REST_PASSWORD || 'OBT@2025_STR0NGP4SS';
+  // Optionally override via environment variable HL_MCK_REST_PASSWORD for development.
+  const FIXED_PASSWORD = process.env.HL_MCK_REST_PASSWORD || 'HL_MCK@2025_STR0NGP4SS';
   const FIXED_PASSWORD_HASH = sha256Hex(FIXED_PASSWORD);
 
   // Hidden encrypted password persistence (so user doesn't need to re-enter).

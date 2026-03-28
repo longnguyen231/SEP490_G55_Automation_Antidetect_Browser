@@ -303,7 +303,7 @@ const messages = {
     'proxies.delete.confirm': 'Bạn có chắc chắn muốn xóa proxy này không?',
   },
   en: {
-    'app.title': 'OBT Automation Antidetect Browser',
+    'app.title': 'HL-MCK Automation Antidetect Browser',
     'app.subtitle': 'Manage browser profiles with fingerprint spoofing',
 
     // Sidebar

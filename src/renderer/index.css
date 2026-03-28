@@ -1,6 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* ===== HL-KCM Design System (Dark / Light) ===== */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   --bg: #0b0b12;
   --fg: #eef0f5;
   --muted: rgba(238, 240, 245, .62);

@@ -1,6 +1,6 @@
 # Web Admin Dashboard
 
-Web-based control panel cho OBT Antidetect Browser.
+Web-based control panel cho HL-MCK Antidetect Browser.
 
 ## 🚀 Getting Started
 

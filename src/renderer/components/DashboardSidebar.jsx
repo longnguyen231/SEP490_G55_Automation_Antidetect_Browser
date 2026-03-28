@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { Offcanvas } from 'react-bootstrap';
-import {
-    Menu, X, Globe, Settings, Plus, FileCode, Sun, Moon, Network
-} from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { useI18n } from '../i18n/index';
 
 export default function DashboardSidebar({
@@ -11,142 +9,66 @@ export default function DashboardSidebar({
     onCreateProfile,
     apiStatus = {},
 }) {
-    const { t, lang, setLang } = useI18n();
     const [mobileOpen, setMobileOpen] = useState(false);
 
-    // Theme state — persist in localStorage, apply on <html>
-    const [theme, setTheme] = useState(() => {
-        return localStorage.getItem('app-theme') || 'dark';
-    });
-
-    const toggleTheme = () => {
-        setTheme(prev => {
-            const next = prev === 'dark' ? 'light' : 'dark';
-            localStorage.setItem('app-theme', next);
-            document.documentElement.setAttribute('data-theme', next);
-            return next;
-        });
-    };
-
-    // Apply theme on mount
+    // Hardcode theme to light as per screenshot
     React.useEffect(() => {
-        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.setAttribute('data-theme', 'light');
     }, []);
 
     const NAVIGATION_ITEMS = [
-        { id: 'profiles', labelKey: 'nav.profiles', icon: <Globe size={18} /> },
-        { id: 'proxies', labelKey: 'nav.proxies', icon: <Network size={18} /> },
-        { id: 'scripts', labelKey: 'nav.scripts', icon: <FileCode size={18} /> },
-        { id: 'settings', labelKey: 'nav.settings', icon: <Settings size={18} /> },
+        { id: 'profiles', label: 'Profiles' },
+        { id: 'proxies', label: 'Proxies' },
+        { id: 'scripts', label: 'Scripts' },
+        { id: 'logs', label: 'Logs' },
+        { id: 'settings', label: 'Settings' },
     ];
 
     const renderNav = (closeMobile) => (
         <>
             {/* Brand */}
-            <div className="sidebar-brand">
-                <div className="sidebar-logo">HL-MCK</div>
-                <div className="sidebar-brand-text">
-                    <h2>HL-MCK Browser</h2>
-                    <span>v1.0.0</span>
+            <div className="sidebar-brand pb-6 pt-2 px-2 border-b-0 mb-2 mt-2">
+                <div className="flex flex-col gap-1">
+                    <h2 className="text-[1.2rem] font-bold text-slate-800 tracking-tight leading-none">HL-MCKBrowser</h2>
+                    <span className="text-[0.75rem] text-slate-500 font-medium">Antidetect Manager</span>
                 </div>
             </div>
 
             {/* Navigation */}
-            <div className="sidebar-section-label">{t('nav.navigation')}</div>
-            <nav className="sidebar-nav">
+            <nav className="flex flex-col gap-1 px-1">
                 {NAVIGATION_ITEMS.map((item) => (
                     <div
                         key={item.id}
-                        className={`sidebar-nav-item ${activeNav === item.id ? 'active' : ''}`}
+                        className={`sidebar-nav-item py-2.5 px-4 rounded-lg cursor-pointer transition-colors ${activeNav === item.id ? 'active bg-[#2563eb] text-white font-medium' : 'text-slate-600 hover:bg-slate-100'}`}
                         onClick={() => { onNavigate(item.id); closeMobile && closeMobile(); }}
                         role="button"
                         tabIndex={0}
                     >
-                        <span className="nav-icon">{item.icon}</span>
-                        {t(item.labelKey)}
+                        {item.label}
                     </div>
                 ))}
             </nav>
-
-            {/* Bottom CTA + Info */}
-            <div className="sidebar-cta">
-                {/* Language toggle switch */}
-                <div className="sidebar-toggle-row">
-                    <span className="sidebar-toggle-label">
-                        <Globe size={14} /> {t('nav.language') || 'Language'}
-                    </span>
-                    <div
-                        className={`toggle-switch ${lang === 'en' ? 'on' : ''}`}
-                        onClick={() => setLang(lang === 'vi' ? 'en' : 'vi')}
-                        role="button"
-                        tabIndex={0}
-                        title={lang === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
-                    >
-                        <span className="toggle-label-left">VI</span>
-                        <span className="toggle-label-right">EN</span>
-                        <span className="toggle-knob" />
-                    </div>
-                </div>
-
-                {/* Theme toggle switch */}
-                <div className="sidebar-toggle-row">
-                    <span className="sidebar-toggle-label">
-                        {theme === 'dark' ? <Moon size={14} /> : <Sun size={14} />}
-                        {' '}{t('nav.theme') || 'Theme'}
-                    </span>
-                    <div
-                        className={`toggle-switch ${theme === 'light' ? 'on' : ''}`}
-                        onClick={toggleTheme}
-                        role="button"
-                        tabIndex={0}
-                        title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                    >
-                        <span className="toggle-label-left"><Moon size={11} /></span>
-                        <span className="toggle-label-right"><Sun size={11} /></span>
-                        <span className="toggle-knob" />
-                    </div>
-                </div>
-
-                {/* New Profile button */}
-                <button className="btn btn-accent" style={{ width: '100%' }} onClick={() => { onCreateProfile(); closeMobile && closeMobile(); }}>
-                    <Plus size={16} /> {t('actions.create')}
-                </button>
-
-                {/* API Status */}
-                <div className="sidebar-api-status">
-                    <div>
-                        <span
-                            className="sidebar-api-dot"
-                            style={{ background: apiStatus.running ? '#28c76f' : (apiStatus.error ? '#ff4d4f' : '#555') }}
-                        />
-                        {apiStatus.running
-                            ? `${t('api.status.running')} · ${apiStatus.host || '127.0.0.1'}:${apiStatus.port || 5478}`
-                            : (apiStatus.error ? t('api.status.error') : t('api.status.stopped'))
-                        }
-                    </div>
-                </div>
-            </div>
         </>
     );
 
     return (
         <>
             {/* Desktop sidebar */}
-            <aside className="app-sidebar">
+            <aside className="app-sidebar bg-white w-[240px] border-r border-slate-200">
                 {renderNav(null)}
             </aside>
 
             {/* Mobile menu button */}
-            <button className="mobile-menu-btn" onClick={() => setMobileOpen(true)}>
-                <Menu size={22} />
+            <button className="mobile-menu-btn fixed top-3 left-3 z-[200] md:hidden p-2 rounded bg-white shadow" onClick={() => setMobileOpen(true)}>
+                <Menu size={22} className="text-slate-800" />
             </button>
 
             {/* Mobile offcanvas */}
             <Offcanvas show={mobileOpen} onHide={() => setMobileOpen(false)} placement="start"
-                style={{ width: 280, background: 'var(--card)', color: 'var(--fg)' }}>
+                style={{ width: 280, background: 'white', color: '#1e293b' }}>
                 <Offcanvas.Header>
-                    <button className="btn btn-icon" onClick={() => setMobileOpen(false)}>
-                        <X size={20} />
+                    <button className="p-2 border-0 bg-transparent hover:bg-slate-100 rounded" onClick={() => setMobileOpen(false)}>
+                        <X size={20} className="text-slate-800" />
                     </button>
                 </Offcanvas.Header>
                 <Offcanvas.Body style={{ display: 'flex', flexDirection: 'column', padding: '0 0.75rem 1rem' }}>

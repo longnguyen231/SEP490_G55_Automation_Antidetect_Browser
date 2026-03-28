@@ -1,5 +1,5 @@
 {
-  "name": "obtautomationantidetectbrowser",
+  "name": "hlmckautomationantidetectbrowser",
   "version": "1.0.0",
   "description": "Browser profile management with antidetect capabilities using Electron and React",
   "main": "src/main/bootstrap.js",
@@ -43,8 +43,8 @@
   "author": "",
   "license": "ISC",
   "build": {
-    "appId": "com.obt.antidetectbrowser",
-    "productName": "OBT Antidetect Browser",
+    "appId": "com.hlmck.antidetectbrowser",
+    "productName": "HL-MCK Antidetect Browser",
     "asar": true,
     "directories": {
       "output": "release"
