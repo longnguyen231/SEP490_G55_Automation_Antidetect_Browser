@@ -167,6 +167,52 @@
     }
   },
   "paths": {
+    "/api/browsers/{profileId}/context/storage-state": {
+      "get": {
+        "summary": "Export context storage state (cookies + localStorage) for session reuse",
+        "tags": [
+          "browsers"
+        ],
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/browsers/{profileId}/context/new-page": {
+      "post": {
+        "summary": "Open a new page/tab in the browser context",
+        "tags": [
+          "browsers"
+        ],
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "summary": "Health",
