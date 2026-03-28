@@ -71,16 +71,31 @@ export default function SettingsTab({
                 {/* REST API Server */}
                 <div className="card relative p-4 mb-6 mt-4">
                     <div className="absolute -top-3 left-4 bg-[var(--card)] px-2 text-[0.85rem] font-bold text-[var(--fg)]">REST API Server</div>
-                    <div className="flex items-center gap-2 mb-3 pt-1">
-                        <div className={`w-2 h-2 rounded-full ${apiStatus?.running ? 'bg-emerald-500' : 'bg-slate-400'}`}></div>
-                        <span className="text-[0.85rem] font-medium text-[var(--fg)]">{apiStatus?.running ? 'Running' : 'Stopped'}</span>
+                    <div className="flex items-center justify-between mb-3 pt-1">
+                        <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${apiStatus?.running ? 'bg-emerald-500' : 'bg-slate-400'}`}></div>
+                            <span className="text-[0.85rem] font-medium text-[var(--fg)]">{apiStatus?.running ? 'Running' : 'Stopped'}</span>
+                        </div>
+                        {apiStatus?.running && (
+                            <button
+                                onClick={() => window.open(`http://localhost:${apiDesiredPort || 5478}/api-docs`, '_blank')}
+                                className="text-[0.8rem] text-[var(--primary)] hover:underline flex items-center gap-1"
+                            >
+                                Open Swagger UI ↗
+                            </button>
+                        )}
                     </div>
+                    {apiStatus?.running && (
+                        <div className="mb-3 text-[0.8rem] text-[var(--fg)] font-mono">
+                            http://localhost:{apiDesiredPort || 5478}/api-docs
+                        </div>
+                    )}
                     <div className="flex items-center gap-3 mb-3">
                         <span className="text-[0.75rem] text-[var(--muted)] font-medium">Port</span>
                         <input
                             type="number"
                             min="1" max="65535"
-                            value={apiDesiredPort || 3000}
+                            value={apiDesiredPort || 5478}
                             onChange={e => { setApiDesiredPort(e.target.value); applyPortChange(Number(e.target.value)); }}
                             className="w-[80px] text-[0.75rem] py-1"
                         />
@@ -95,7 +110,7 @@ export default function SettingsTab({
                         <input type="checkbox" checked={autoStartApi} onChange={e => setAutoStartApi(e.target.checked)} className="rounded cursor-pointer" />
                         Auto-start server on app launch
                     </label>
-                    <p className="text-[0.7rem] text-[var(--muted)]">Exposes REST API for automation scripting. Swagger docs available at /docs when running.</p>
+                    <p className="text-[0.7rem] text-[var(--muted)]">Exposes REST API for automation scripting. Swagger docs available at /api-docs when running.</p>
                 </div>
 
                 {/* Playwright Chromium */}
