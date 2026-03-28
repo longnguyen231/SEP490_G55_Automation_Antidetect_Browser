@@ -122,6 +122,21 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
       res.status(result.success ? 200 : 500).json(result);
     } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
   });
+  appx.post('/api/profiles/:id/actions/mouse/dblclick', async (req, res) => {
+    try {
+      const { mouseDblclick } = require('../engine/actions');
+      const result = await mouseDblclick(req.params.id, req.body || {});
+      res.status(result.success ? 200 : 500).json(result);
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+  appx.post('/api/profiles/:id/actions/mouse/down', async (req, res) => {
+    try {
+      const { mouseDown } = require('../engine/actions');
+      const result = await mouseDown(req.params.id, req.body || {});
+      res.status(result.success ? 200 : 500).json(result);
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+
 
   // Generic action dispatcher and helpers
   appx.get('/api/actions', async (_req, res) => {
