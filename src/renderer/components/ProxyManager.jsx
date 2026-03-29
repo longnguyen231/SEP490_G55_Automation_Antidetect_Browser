@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Network, Plus, Upload, Search, Trash2, Edit2, CheckCircle2,
-    XCircle, AlertCircle, HelpCircle, X, Zap, Loader2, RefreshCw
+    XCircle, AlertCircle, HelpCircle, X, Zap, Loader2
 } from 'lucide-react';
 import { useI18n } from '../i18n';
 import './ProxyManager.css';
@@ -14,30 +14,7 @@ export default function ProxyManager() {
     const [showImport, setShowImport] = useState(false);
     const [editingProxy, setEditingProxy] = useState(null);
     const [checkingIds, setCheckingIds] = useState(new Set()); // proxy IDs currently being checked
-    const [rotatingIds, setRotatingIds] = useState(new Set()); // proxy IDs currently being rotated
     const [checkingAll, setCheckingAll] = useState(false);
-
-    const handleRotateOne = async (proxy) => {
-        if (!proxy.rotateUrl) {
-            alert('This proxy does not have a rotation URL configured.');
-            return;
-        }
-        setRotatingIds(prev => new Set([...prev, proxy.id]));
-        try {
-            const result = await window.electronAPI.rotateProxy(proxy.id);
-            if (result && result.success) {
-                await loadProxies();
-                console.log(`Rotated IP successfully for ${proxy.name}, Latency: ${result.latency}ms`);
-            } else {
-                alert('Rotate failed: ' + (result?.error || 'Unknown error'));
-            }
-        } catch (e) {
-            console.error('Rotate proxy failed:', e);
-            alert('Error rotating IP: ' + e.message);
-        } finally {
-            setRotatingIds(prev => { const s = new Set(prev); s.delete(proxy.id); return s; });
-        }
-    };
 
     const handleCheckOne = async (proxy) => {
         setCheckingIds(prev => new Set([...prev, proxy.id]));
@@ -105,7 +82,6 @@ export default function ProxyManager() {
                 port: Number(formData.port),
                 username: formData.username || '',
                 password: formData.password || '',
-                rotateUrl: formData.rotateUrl || '',
             });
             if (res?.success) {
                 await loadProxies();
@@ -127,7 +103,6 @@ export default function ProxyManager() {
                 port: Number(formData.port),
                 username: formData.username || '',
                 password: formData.password || '',
-                rotateUrl: formData.rotateUrl || '',
             });
             if (res?.success) {
                 await loadProxies();
@@ -178,51 +153,51 @@ export default function ProxyManager() {
     });
 
     return (
-        <div className="proxy-manager-container">
-            <div className="proxy-manager-header">
-                <h1 className="proxy-manager-title">{t('proxies.title')}</h1>
-                <div className="proxy-actions">
-                    <input
-                        type="text"
-                        className="proxy-search"
-                        placeholder={t('proxies.search')}
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-                    <button className="btn btn-secondary" onClick={() => setShowImport(true)}>
-                        <Upload size={16} /> {t('proxies.import')}
+        <div className="w-full h-full flex flex-col p-4" style={{ background: 'var(--bg)' }}>
+            {/* Header Area */}
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-[1.2rem] font-bold" style={{ color: 'var(--fg)' }}>Proxy Pool</h1>
+                <div className="flex items-center gap-3">
+                    <button 
+                        className="btn btn-secondary text-[0.75rem]"
+                        onClick={() => setShowImport(true)}
+                    >
+                        Import Excel
                     </button>
-                    <button className="btn btn-primary" onClick={() => { setEditingProxy(null); setShowForm(true); }}>
-                        <Plus size={16} /> {t('proxies.add')}
+                    <button 
+                        className="btn btn-secondary text-[0.75rem]"
+                        onClick={() => {}}
+                        disabled={proxies.length === 0}
+                    >
+                        Export Excel
+                    </button>
+                    <button 
+                        className="btn btn-primary text-[0.75rem]"
+                        onClick={() => { setEditingProxy(null); setShowForm(true); }}
+                    >
+                        + Add Proxy
                     </button>
                 </div>
             </div>
 
-            <div className="proxy-list-card">
+            {/* List or Empty State */}
+            <div className="flex-1 flex flex-col w-full">
                 {proxies.length === 0 ? (
-                    <div className="proxy-empty-state">
-                        <Network size={48} className="proxy-empty-icon" />
-                        <p>{t('proxies.empty')}</p>
-                        <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
-                            <button className="btn btn-secondary" onClick={() => setShowImport(true)}>
-                                {t('proxies.import')}
-                            </button>
-                            <button className="btn btn-primary" onClick={() => { setEditingProxy(null); setShowForm(true); }}>
-                                {t('proxies.add')}
-                            </button>
-                        </div>
+                    <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 relative top-[-40px]">
+                        <h3 className="text-[1.125rem] font-semibold" style={{ color: 'var(--muted)' }}>No proxies yet</h3>
+                        <p className="text-[0.875rem]" style={{ color: 'var(--muted)' }}>Add a proxy or import from Excel.</p>
                     </div>
                 ) : (
-                    <ProxyTable
-                        proxies={filteredProxies}
-                        onEdit={(p) => { setEditingProxy(p); setShowForm(true); }}
-                        onDelete={handleDelete}
-                        onCheck={handleCheckOne}
-                        onRotate={handleRotateOne}
-                        checkingIds={checkingIds}
-                        rotatingIds={rotatingIds}
-                        t={t}
-                    />
+                    <div className="w-full rounded-lg overflow-hidden flex-1" style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+                        <ProxyTable
+                            proxies={filteredProxies}
+                            onEdit={(p) => { setEditingProxy(p); setShowForm(true); }}
+                            onDelete={handleDelete}
+                            onCheck={handleCheckOne}
+                            checkingIds={checkingIds}
+                            t={t}
+                        />
+                    </div>
                 )}
             </div>
 
@@ -246,7 +221,7 @@ export default function ProxyManager() {
     );
 }
 
-function ProxyTable({ proxies, onEdit, onDelete, onCheck, onRotate, checkingIds, rotatingIds, t }) {
+function ProxyTable({ proxies, onEdit, onDelete, onCheck, checkingIds, t }) {
     const getStatusIcon = (status) => {
         switch (status) {
             case 'alive': return <CheckCircle2 size={14} />;
@@ -274,13 +249,14 @@ function ProxyTable({ proxies, onEdit, onDelete, onCheck, onRotate, checkingIds,
                         <th>{t('proxies.col.protocol')}</th>
                         <th>{t('proxies.col.host')}</th>
                         <th>{t('proxies.col.status')}</th>
+                        <th>Latency</th>
+                        <th>Country</th>
                         <th style={{ textAlign: 'right' }}>{t('proxies.col.actions')}</th>
                     </tr>
                 </thead>
                 <tbody>
                     {proxies.map(p => {
                         const isChecking = checkingIds?.has(p.id);
-                        const isRotating = rotatingIds?.has(p.id);
                         return (
                             <tr key={p.id}>
                                 <td><strong>{p.name}</strong></td>
@@ -310,16 +286,6 @@ function ProxyTable({ proxies, onEdit, onDelete, onCheck, onRotate, checkingIds,
                                     >
                                         {isChecking ? <Loader2 size={16} className="spin" /> : <Zap size={16} />}
                                     </button>
-                                    {p.rotateUrl && (
-                                        <button
-                                            className="btn-icon-secondary"
-                                            onClick={() => onRotate(p)}
-                                            disabled={isRotating}
-                                            title="Rotate IP"
-                                        >
-                                            {isRotating ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}
-                                        </button>
-                                    )}
                                     <button className="btn-icon-primary" onClick={() => onEdit(p)} title={t('proxies.form.title.edit')}>
                                         <Edit2 size={16} />
                                     </button>
@@ -341,75 +307,83 @@ function ProxyFormModal({ proxy, onSave, onClose, t }) {
         ...proxy,
         protocol: proxy.protocol || proxy.type || 'http',
         port: proxy.port || '',
-        rotateUrl: proxy.rotateUrl || '',
     } : {
-        name: '', protocol: 'http', host: '', port: '', username: '', password: '', rotateUrl: ''
+        name: '', protocol: 'http', host: '', port: '', username: '', password: ''
     });
+    const [saving, setSaving] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-    const submit = (e) => {
+    const submit = async (e) => {
         e.preventDefault();
-        onSave(formData);
+        if (saving) return;
+        setSaving(true);
+        try {
+            await onSave(formData);
+        } catch (err) {
+            alert('Error: ' + (err?.message || err));
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
-        <div className="proxy-modal-backdrop" onClick={onClose}>
-            <div className="proxy-modal-content" onClick={e => e.stopPropagation()}>
-                <div className="proxy-modal-header">
-                    <h2 className="proxy-modal-title">
-                        {proxy ? t('proxies.form.title.edit') : t('proxies.form.title.add')}
-                    </h2>
-                    <button className="btn-icon-danger" onClick={onClose}><X size={20} /></button>
-                </div>
-                <form onSubmit={submit}>
-                    <div className="proxy-form-group">
-                        <label className="proxy-form-label">{t('proxies.form.name')}</label>
-                        <input type="text" name="name" className="proxy-form-control" value={formData.name} onChange={handleChange} required />
+        <div className="fixed inset-0 flex items-center justify-center z-[999] p-4" style={{ background: 'var(--overlay-bg)' }} onClick={onClose}>
+            <div className="rounded-xl w-full max-w-[440px] p-8" style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }} onClick={e => e.stopPropagation()}>
+                <h2 className="text-[1.35rem] font-bold mb-6 tracking-tight" style={{ color: 'var(--fg)' }}>
+                    {proxy ? 'Edit Proxy' : 'Add Proxy'}
+                </h2>
+                <form onSubmit={submit} className="flex flex-col gap-4">
+                    <div>
+                        <label className="block text-[0.8rem] font-semibold mb-1.5" style={{ color: 'var(--muted)' }}>Label (optional)</label>
+                        <input type="text" name="name" className="w-full text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 transition" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }} placeholder="e.g. US Residential #1" value={formData.name} onChange={handleChange} />
                     </div>
 
-                    <div className="proxy-form-row">
-                        <div className="proxy-form-group" style={{ flex: 1 }}>
-                            <label className="proxy-form-label">{t('proxies.form.protocol')}</label>
-                            <select name="protocol" className="proxy-form-control" value={formData.protocol} onChange={handleChange}>
+                    <div className="flex gap-4">
+                        <div className="w-1/3">
+                            <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Type</label>
+                            <select name="protocol" className="w-full text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 transition" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }} value={formData.protocol} onChange={handleChange}>
                                 <option value="http">HTTP</option>
                                 <option value="https">HTTPS</option>
                                 <option value="socks4">SOCKS4</option>
                                 <option value="socks5">SOCKS5</option>
                             </select>
                         </div>
-                        <div className="proxy-form-group" style={{ flex: 2 }}>
-                            <label className="proxy-form-label">{t('proxies.form.host')}</label>
-                            <input type="text" name="host" className="proxy-form-control" value={formData.host} onChange={handleChange} required />
-                        </div>
-                        <div className="proxy-form-group" style={{ flex: 1 }}>
-                            <label className="proxy-form-label">{t('proxies.form.port')}</label>
-                            <input type="text" name="port" className="proxy-form-control" value={formData.port} onChange={handleChange} required />
+                        <div className="w-2/3">
+                            <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Port</label>
+                            <input type="text" name="port" className="w-full text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 transition" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }} placeholder="8080" value={formData.port} onChange={handleChange} required />
                         </div>
                     </div>
 
-                    <div className="proxy-form-row">
-                        <div className="proxy-form-group" style={{ flex: 1 }}>
-                            <label className="proxy-form-label">{t('proxies.form.username')} (Optional)</label>
-                            <input type="text" name="username" className="proxy-form-control" value={formData.username} onChange={handleChange} />
+                    <div>
+                        <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Host / IP</label>
+                        <input type="text" name="host" className="w-full text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 transition" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }} placeholder="proxy.example.com" value={formData.host} onChange={handleChange} required />
+                    </div>
+
+                    <div className="flex gap-4 mb-2">
+                        <div className="w-1/2">
+                            <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Username (optional)</label>
+                            <input type="text" name="username" className="w-full text-[0.9rem] rounded-[0.5rem] px-3 py-2.5 transition" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }} placeholder="user" value={formData.username || ''} onChange={handleChange} />
                         </div>
-                        <div className="proxy-form-group" style={{ flex: 1 }}>
-                            <label className="proxy-form-label">{t('proxies.form.password')} (Optional)</label>
-                            <input type="password" name="password" className="proxy-form-control" value={formData.password} onChange={handleChange} />
+                        <div className="w-1/2 relative">
+                            <label className="block text-[0.8rem] font-semibold text-slate-500 mb-1.5">Password (optional)</label>
+                            <div className="relative">
+                                <input type={showPassword ? "text" : "password"} name="password" className="w-full text-[0.9rem] rounded-[0.5rem] pl-3 pr-12 py-2.5 transition" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }} placeholder="••••••••" value={formData.password || ''} onChange={handleChange} />
+                                <button type="button" className="absolute right-3 top-[0.6rem] text-[0.85rem] font-medium" style={{ color: 'var(--muted)' }} onClick={() => setShowPassword(!showPassword)}>
+                                    {showPassword ? "Hide" : "Show"}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="proxy-form-group">
-                        <label className="proxy-form-label">Rotate URL / API Link (Optional)</label>
-                        <input type="url" name="rotateUrl" className="proxy-form-control" placeholder="https://api.proxynetwork.com/rotate?id=123" value={formData.rotateUrl || ''} onChange={handleChange} />
-                        <small className="form-help-text" style={{ fontSize: '0.8rem', color: '#888', marginTop: '4px', display: 'block' }}>
-                            Providing a URL allows you to rotate the proxy IP with one click.
-                        </small>
-                    </div>
-
-                    <div className="proxy-modal-footer">
-                        <button type="button" className="btn btn-secondary" onClick={onClose}>{t('proxies.form.cancel')}</button>
-                        <button type="submit" className="btn btn-primary">{t('proxies.form.save')}</button>
+                    <div className="flex justify-end gap-3 mt-4">
+                        <button type="button" className="btn btn-secondary px-6 py-2.5 text-[0.85rem]" onClick={onClose}>
+                            Cancel
+                        </button>
+                        <button type="submit" className="btn btn-primary px-7 py-2.5 text-[0.85rem]" disabled={saving}>
+                            {saving ? 'Saving...' : 'Save'}
+                        </button>
                     </div>
                 </form>
             </div>

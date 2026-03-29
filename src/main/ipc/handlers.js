@@ -22,6 +22,7 @@ const { loadSettings, saveSettings } = require('../storage/settings');
 const { listPresetsInternal, addPresetInternal, deletePresetInternal } = require('../storage/presets');
 const { performAction } = require('../engine/actions');
 const { listScriptsInternal, getScriptInternal, saveScriptInternal, deleteScriptInternal } = require('../storage/scripts');
+const { addTaskLog, getTaskLogs, getTaskLogById, clearTaskLogs } = require('../storage/taskLogs');
 const { executeScript } = require('../engine/scriptRuntime');
 const {
   getProxiesInternal, getProxyByIdInternal,
@@ -29,7 +30,7 @@ const {
   deleteProxyInternal, deleteProxiesBulkInternal,
   importProxiesInternal, exportProxiesInternal,
 } = require('../storage/proxies');
-const { checkProxy, checkProxiesBatch } = require('../engine/proxyChecker');
+const { checkProxy, checkProxiesBatch } = require('../services/ProxyChecker');
 
 function registerIpcHandlers(extra = {}) {
   ipcMain.handle('get-profiles', async () => await getProfilesInternal());
@@ -72,8 +73,38 @@ function registerIpcHandlers(extra = {}) {
     try {
       const g = await getScriptInternal(String(scriptId));
       if (!g.success) return g;
-      return await executeScript(String(profileId), String(g.script.code || ''), { timeoutMs: Number(opts.timeoutMs || 120000) });
+      const startedAt = new Date().toISOString();
+      const result = await executeScript(String(profileId), String(g.script.code || ''), { timeoutMs: Number(opts.timeoutMs || 120000) });
+      const finishedAt = new Date().toISOString();
+      // Save task log
+      try {
+        await addTaskLog({
+          scriptId: String(scriptId),
+          scriptName: g.script.name || '(untitled)',
+          profileId: String(profileId),
+          status: result.success ? 'completed' : 'error',
+          startedAt,
+          finishedAt,
+          logs: result.logs || [],
+          error: result.error || null,
+        });
+      } catch {}
+      return result;
     } catch (e) { return { success: false, error: e?.message || String(e) }; }
+  });
+
+  // Task logs
+  ipcMain.handle('task-logs-list', async () => {
+    try { return await getTaskLogs(); }
+    catch (e) { return []; }
+  });
+  ipcMain.handle('task-logs-get', async (_e, id) => {
+    try { return await getTaskLogById(String(id)); }
+    catch (e) { return { success: false, error: e?.message || String(e) }; }
+  });
+  ipcMain.handle('task-logs-clear', async () => {
+    try { return await clearTaskLogs(); }
+    catch (e) { return { success: false, error: e?.message || String(e) }; }
   });
 
   // Proxy management
@@ -85,19 +116,33 @@ function registerIpcHandlers(extra = {}) {
   ipcMain.handle('proxy-delete-bulk', async (_e, ids) => await deleteProxiesBulkInternal(ids));
   ipcMain.handle('proxy-import', async (_e, text, format) => await importProxiesInternal(text, format));
   ipcMain.handle('proxy-export', async (_e, ids) => await exportProxiesInternal(ids));
-  
-
-
-  ipcMain.handle('proxy-test-connection', async (_e, proxy) => {
-    try {
-      const checkRes = await checkProxy(proxy);
-      return checkRes;
-    } catch (e) {
-      return { success: false, error: e.message };
-    }
-  });
 
   // Proxy checker
+  ipcMain.handle('proxy-check', async (_e, cfg) => {
+    try { return await checkProxy(cfg); }
+    catch (e) { return { success: false, alive: false, error: e?.message || String(e) }; }
+  });
+  ipcMain.handle('proxy-check-all', async () => {
+    try {
+      const proxies = await getProxiesInternal();
+      const results = {};
+      await checkProxiesBatch(proxies, (id, result) => {
+        results[id] = result;
+        // Update proxy status in storage
+        try {
+          updateProxyInternal(id, {
+            status: result.alive ? 'alive' : 'dead',
+            latency: result.latency || null,
+            lastChecked: new Date().toISOString(),
+            country: result.countryCode || '',
+          }).catch(() => {});
+        } catch {}
+      });
+      return { success: true, results };
+    } catch (e) { return { success: false, error: e?.message || String(e) }; }
+  });
+
+  // Proxy Rotator (from huy branch)
   ipcMain.handle('proxy-rotate', async (_e, id) => {
     try {
       const getRes = await getProxyByIdInternal(id);
@@ -117,6 +162,18 @@ function registerIpcHandlers(extra = {}) {
       return { success: true, latency, data: response.data };
     } catch (e) {
       return { success: false, error: e?.message || e };
+    }
+  });
+
+  ipcMain.handle('proxy-rotate-url', async (_e, url) => {
+    try {
+      if (!url) return { success: false, error: 'No URL provided' };
+      const axios = require('axios');
+      const startTime = Date.now();
+      const response = await axios.get(url, { timeout: 15000 });
+      return { success: true, latency: Date.now() - startTime, data: response.data };
+    } catch (e) {
+      return { success: false, error: e?.message || String(e) };
     }
   });
 

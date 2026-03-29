@@ -64,10 +64,78 @@ async function withPage(profileId, { index = 0, createIfMissing = true } = {}) {
   }
 }
 
+async function mouseMove(profileId, { x, y, steps = 1 } = {}) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return err('x and y are required numbers');
+  const { success, error, page, cleanup } = await withPage(profileId, {});
+  if (!success) return err(error);
+  try {
+    await page.mouse.move(Number(x), Number(y), { steps });
+    appendLog(profileId, `Action: mouseMove to (${x}, ${y}) steps=${steps}`);
+    await cleanup();
+    return ok();
+  } catch (e) { await cleanup(); return err(e?.message || e); }
+}
+
+async function mouseClick(profileId, { x, y, button = 'left', clickCount = 1, delay = 0 } = {}) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return err('x and y are required numbers');
+  const { success, error, page, cleanup } = await withPage(profileId, {});
+  if (!success) return err(error);
+  try {
+    await page.mouse.click(Number(x), Number(y), { button, clickCount, delay });
+    appendLog(profileId, `Action: mouseClick (${x}, ${y}) button=${button} count=${clickCount}`);
+    await cleanup();
+    return ok();
+  } catch (e) { await cleanup(); return err(e?.message || e); }
+}
 // ==========================================
 // MOUSE & INTERACTION ACTIONS
 // ==========================================
 
+
+async function mouseDblclick(profileId, { x, y, button = 'left', delay = 0 } = {}) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return err('x and y are required numbers');
+  const { success, error, page, cleanup } = await withPage(profileId, {});
+  if (!success) return err(error);
+  try {
+    await page.mouse.dblclick(Number(x), Number(y), { button, delay });
+    appendLog(profileId, `Action: mouseDblclick (${x}, ${y}) button=${button}`);
+    await cleanup();
+    return ok();
+  } catch (e) { await cleanup(); return err(e?.message || e); }
+}
+
+async function mouseDown(profileId, { button = 'left', clickCount = 1 } = {}) {
+  const { success, error, page, cleanup } = await withPage(profileId, {});
+  if (!success) return err(error);
+  try {
+    await page.mouse.down({ button, clickCount });
+    appendLog(profileId, `Action: mouseDown button=${button}`);
+    await cleanup();
+    return ok();
+  } catch (e) { await cleanup(); return err(e?.message || e); }
+}
+
+async function mouseUp(profileId, { button = 'left', clickCount = 1 } = {}) {
+  const { success, error, page, cleanup } = await withPage(profileId, {});
+  if (!success) return err(error);
+  try {
+    await page.mouse.up({ button, clickCount });
+    appendLog(profileId, `Action: mouseUp button=${button}`);
+    await cleanup();
+    return ok();
+  } catch (e) { await cleanup(); return err(e?.message || e); }
+}
+
+async function mouseWheel(profileId, { deltaX = 0, deltaY = 0 } = {}) {
+  const { success, error, page, cleanup } = await withPage(profileId, {});
+  if (!success) return err(error);
+  try {
+    await page.mouse.wheel(Number(deltaX), Number(deltaY));
+    appendLog(profileId, `Action: mouseWheel deltaX=${deltaX} deltaY=${deltaY}`);
+    await cleanup();
+    return ok();
+  } catch (e) { await cleanup(); return err(e?.message || e); }
+}
 
 async function clickAt(profileId, { x, y, button = 'left', clickCount = 1, delay } = {}) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return err('x and y are required numbers');
@@ -293,6 +361,12 @@ async function selectOption(profileId, { selector, values, timeout = 10000 } = {
 // This is used by the frontend Workflow builder and the Script runner (scriptRuntime.js)
 // to dynamically invoke these functions.
 const ACTION_MAP = {
+  'mouse.move': mouseMove,
+  'mouse.click': mouseClick,
+  'mouse.dblclick': mouseDblclick,
+  'mouse.down': mouseDown,
+  'mouse.up': mouseUp,
+  'mouse.wheel': mouseWheel,
   'click.at': clickAt,
   'click.percent': clickByPercent,
   'click.element': clickOnElement,
@@ -659,6 +733,12 @@ async function exportPdf(profileId, { path: outPath, format = 'A4', printBackgro
 
 module.exports = {
   performAction,
+  mouseMove,
+  mouseClick,
+  mouseDblclick,
+  mouseDown,
+  mouseUp,
+  mouseWheel,
   clickAt,
   clickByPercent,
   clickOnElement,

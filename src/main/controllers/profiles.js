@@ -41,16 +41,15 @@ async function launchProfileInternal(profileId, options = {}) {
     const settings = profile.settings || {};
     const startUrl = profile.startUrl || 'https://www.google.com';
     const engine = (options && options.engine) ? String(options.engine).toLowerCase() : (settings.engine === 'cdp' ? 'cdp' : 'playwright');
-  // Headless only meaningful for Playwright engine; ignore for CDP
   const requestedHeadless = (options && typeof options.headless === 'boolean') ? options.headless : undefined;
-  const headless = engine === 'playwright' ? ((requestedHeadless !== undefined) ? requestedHeadless : !!settings.headless) : false;
+  const headless = (requestedHeadless !== undefined) ? requestedHeadless : !!settings.headless;
 
     // Persist engine/headless
     try {
       const idx = profiles.findIndex(p => p.id === profileId);
       if (idx !== -1) {
   const persist = { ...(profile.settings || {}), engine: (engine === 'cdp' ? 'cdp' : 'playwright') };
-  if (engine === 'playwright') persist.headless = !!headless; else delete persist.headless;
+  persist.headless = !!headless;
   profiles[idx] = { ...profile, settings: persist };
         writeProfiles(profiles);
       }
@@ -81,27 +80,19 @@ async function launchProfileInternal(profileId, options = {}) {
       }
       const fp = profile.fingerprint || {};
       if (settings.webgl === false || fp.webgl === false) { extraArgs.push('--disable-3d-apis'); }
+      if (headless) { extraArgs.push('--headless=new'); }
+      // Proxy handling: start local forwarder when auth is present or using SOCKS
       let proxyForChrome = settings.proxy;
       let forwarder = null;
       try {
-        let serverStr = '';
-        if (settings.proxy) {
-          if (settings.proxy.server) serverStr = String(settings.proxy.server);
-          else if (settings.proxy.host && settings.proxy.port) {
-            serverStr = `${settings.proxy.type || 'http'}://${settings.proxy.host}:${settings.proxy.port}`;
-          }
-        }
-        
+        const serverStr = (settings.proxy && settings.proxy.server) ? String(settings.proxy.server) : '';
         const hasAuth = !!(settings.proxy && (settings.proxy.username || settings.proxy.password));
         const proxyType = (settings.proxy?.type || '').toLowerCase();
         const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(serverStr);
-        if (settings.proxy && serverStr && (hasAuth || isSocks)) {
-          const proxyConfig = { ...settings.proxy, server: serverStr };
+        if (settings.proxy && (hasAuth || isSocks)) {
           const { startProxyForwarder } = require('../engine/proxyForwarder');
-          forwarder = await startProxyForwarder(proxyConfig, { appendLog, profileId });
+          forwarder = await startProxyForwarder(settings.proxy, { appendLog, profileId });
           proxyForChrome = { server: forwarder.url };
-        } else if (settings.proxy && serverStr) {
-          proxyForChrome = { server: serverStr };
         }
       } catch (e) {
         appendLog(profileId, `Proxy forwarder failed, falling back to direct proxy: ${e?.message || e}`);
@@ -222,35 +213,37 @@ async function launchProfileInternal(profileId, options = {}) {
     } catch {}
     let proxy;
     let forwarder = null;
-    
-    let serverStr = '';
-    if (settings.proxy) {
-      if (settings.proxy.server) serverStr = String(settings.proxy.server);
-      else if (settings.proxy.host && settings.proxy.port) {
-        serverStr = `${settings.proxy.type || 'http'}://${settings.proxy.host}:${settings.proxy.port}`;
-      }
-    }
-    
-    if (serverStr) {
+    if (settings.proxy?.server) {
+      // Determine proxy type from settings
       const proxyType = (settings.proxy.type || '').toLowerCase();
-      const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(serverStr);
+      const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(settings.proxy.server);
       const hasAuth = !!(settings.proxy.username || settings.proxy.password);
 
       if (hasAuth || isSocks) {
+        // Use local forwarder for SOCKS or authenticated proxies
         try {
-          const proxyConfig = { ...settings.proxy, server: serverStr };
           const { startProxyForwarder } = require('../engine/proxyForwarder');
-          forwarder = await startProxyForwarder(proxyConfig, { appendLog, profileId });
+          forwarder = await startProxyForwarder(settings.proxy, { appendLog, profileId });
           proxy = { server: forwarder.url };
           appendLog(profileId, `Playwright using proxy forwarder: ${forwarder.url}`);
         } catch (e) {
           appendLog(profileId, `Proxy forwarder failed, falling back to direct: ${e?.message || e}`);
-          proxy = { server: serverStr };
+          // Fallback: build proxy URL with correct scheme
+          let serverUrl = settings.proxy.server;
+          if (!/^(https?|socks\d?):\/\//i.test(serverUrl)) {
+            serverUrl = `${isSocks ? 'socks5' : 'http'}://${serverUrl}`;
+          }
+          proxy = { server: serverUrl };
           if (settings.proxy.username) proxy.username = settings.proxy.username;
           if (settings.proxy.password) proxy.password = settings.proxy.password;
         }
       } else {
-        proxy = { server: serverStr };
+        // Simple HTTP/HTTPS proxy without auth
+        let serverUrl = settings.proxy.server;
+        if (!/^(https?|socks\d?):\/\//i.test(serverUrl)) {
+          serverUrl = `http://${serverUrl}`;
+        }
+        proxy = { server: serverUrl };
       }
     }
     let server;
@@ -261,9 +254,9 @@ async function launchProfileInternal(profileId, options = {}) {
       if (/playwright\s+install|executable|not\s+found|Please run/i.test(msg)) {
         appendLog(profileId, 'Attempting auto-install playwright browsers (chromium)...');
         const ok = await runPlaywrightInstall('chromium');
-        if (!ok) return { success: false, error: 'Playwright browsers not installed.' };
+        if (!ok) { try { await forwarder?.stop?.(); } catch {} return { success: false, error: 'Playwright browsers not installed.' }; }
         server = await chromium.launchServer({ headless, args, proxy });
-      } else throw e;
+      } else { try { await forwarder?.stop?.(); } catch {} throw e; }
     }
     const wsEndpoint = server.wsEndpoint();
     const browser = await chromium.connect(wsEndpoint);
@@ -355,12 +348,7 @@ async function launchProfileInternal(profileId, options = {}) {
         }
       } catch (e) {}
     };
-    try {
-      const firstPage = context.pages()[0];
-      if (firstPage) {
-        firstPage.on('close', async () => { await saveState(); try { await context.close(); } catch { } });
-      }
-    } catch { }
+    page.on('close', async () => { await saveState(); try { await context.close(); } catch { } });
     context.on('close', async () => { await saveState(); try { await forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Context closed'); try { await server.close(); } catch { }; broadcastRunningMap(); });
     try { browser.on?.('disconnected', () => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Browser disconnected'); try { server.close(); } catch { }; broadcastRunningMap(); } }); } catch { }
     try { const proc = server.process?.(); proc && proc.once && proc.once('exit', (code, signal) => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, `Browser server exited (${code || ''} ${signal || ''})`); broadcastRunningMap(); } }); } catch { }
@@ -479,7 +467,6 @@ async function stopProfileInternal(profileId) {
     try { await context.close(); } catch { }
     try { await browser?.close?.(); } catch { }
     try { await server.close(); } catch { }
-    try { await running.forwarder?.stop?.(); } catch { }
     runningProfiles.delete(profileId);
     appendLog(profileId, 'Stopped profile');
     broadcastRunningMap();
@@ -509,7 +496,6 @@ async function stopAllProfilesInternal() {
         try { await context.close(); } catch { }
         try { await browser?.close?.(); } catch { }
         try { await server.close(); } catch { }
-        try { await running.forwarder?.stop?.(); } catch { }
         runningProfiles.delete(id); appendLog(id, 'Stopped by stop-all');
       }
       stopped++;
@@ -557,6 +543,8 @@ async function getProfileLogInternal(profileId) { try { const p = require('path'
 async function getCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const cookies = await running.context.cookies(); return { success: true, cookies }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, cookies: state.cookies || [] }; } return { success: true, cookies: [] }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function importCookiesInternal(profileId, cookies) { try { if (!Array.isArray(cookies)) throw new Error('Invalid cookies payload'); if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies(cookies); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } state.cookies = cookies; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
+
+async function getStorageStateInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const state = await running.context.storageState(); return { success: true, state }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, state }; } return { success: true, state: { cookies: [], origins: [] } }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function getProfileWsInternal(profileId) { try { const running = runningProfiles.get(profileId); if (!running) return { success: true, wsEndpoint: null }; const ws = running.wsEndpoint; if (running.engine === 'playwright' && (running.context?.isClosed?.() || running.browser?.isConnected?.() === false)) { runningProfiles.delete(profileId); appendLog(profileId, 'Heartbeat: context/browser disconnected'); broadcastRunningMap(); return { success: true, wsEndpoint: null }; } const alive = await require('../engine/health').isWsAlive(ws); if (!alive) { runningProfiles.delete(profileId); appendLog(profileId, 'Heartbeat failed; removed stale running state'); broadcastRunningMap(); return { success: true, wsEndpoint: null }; } return { success: true, wsEndpoint: ws }; } catch (error) { return { success: false, error: error.message }; } }
 
@@ -610,6 +598,7 @@ module.exports = {
   getProfileLogInternal,
   getCookiesInternal,
   importCookiesInternal,
+  getStorageStateInternal,
   getProfileWsInternal,
   getRunningMapInternal,
   getLocalesTimezonesInternal,

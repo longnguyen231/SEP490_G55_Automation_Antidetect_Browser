@@ -98,9 +98,9 @@
 }
 
 .sidebar-nav-item.active {
-  background: linear-gradient(135deg, rgba(0, 210, 211, .18), rgba(0, 210, 211, .10));
-  color: var(--fg);
-  border-color: rgba(0, 210, 211, .25);
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
   font-weight: 600;
 }
 

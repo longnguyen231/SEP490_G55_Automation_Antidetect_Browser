@@ -1,173 +1,309 @@
-import React, { useEffect, useState } from 'react';
-import { Plus, Edit2, Trash2, Play, Search, X } from 'lucide-react';
-import { useI18n } from '../i18n/index';
-import './ScriptsManager.css';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Play, Plus, Trash2, Search, FileCode, RefreshCw } from 'lucide-react';
+import Editor from '@monaco-editor/react';
 
-export default function ScriptsManager({ open, onClose, profiles, onRunScript, fullPage = false }) {
-  const { t } = useI18n();
-  const [scripts, setScripts] = useState([]);
-  const [editing, setEditing] = useState(null);
-  const [selectedProfileId, setSelectedProfileId] = useState('');
-  const [filter, setFilter] = useState('');
+const DEFAULT_CODE = `// Automation Script\n// Available: page, cdp, context, profileId, log(), sleep()\n\nawait page.goto("https://example.com");\nconst title = await page.title();\nlog("Page title:", title);\n`;
 
-  const load = async () => {
-    try { const list = await window.electronAPI.listScripts(); setScripts(Array.isArray(list) ? list : []); }
-    catch { setScripts([]); }
-  };
-  useEffect(() => { if (open) load(); }, [open]);
+export default function ScriptsManager({ profiles = [] }) {
+    const [activeTab, setActiveTab] = useState('scripts');
 
-  const startCreate = () => setEditing({ id: null, name: '', description: '', code: `// Example script\n// Available: log(...), sleep(ms), actions['nav.goto']({url}), actions['click.element']({selector})\nlog('Hello from script');\nawait actions['nav.goto']({ url: 'https://example.com' });\nawait sleep(1000);\nlog('Title will be fetched via action js.eval');\nconst r = await actions['js.eval']({ expression: 'document.title' });\nlog('Title =', r.success ? r.value : r.error);\n` });
-  const startEdit = (s) => setEditing({ ...s });
-  const cancelEdit = () => setEditing(null);
-  const save = async () => {
-    try {
-      const payload = { id: editing.id, name: editing.name, description: editing.description, code: editing.code };
-      const res = await window.electronAPI.saveScript(payload);
-      if (!res?.success) { alert(res?.error || 'Save failed'); return; }
-      setEditing(null);
-      await load();
-    } catch (e) { alert(e?.message || String(e)); }
-  };
-  const del = async (id) => {
-    if (!window.confirm('Delete this script?')) return;
-    try { const r = await window.electronAPI.deleteScript(id); if (!r?.success) alert(r?.error || 'Delete failed'); await load(); }
-    catch (e) { alert(e?.message || String(e)); }
-  };
-  const run = async (sid) => {
-    const pid = selectedProfileId || (profiles[0]?.id || '');
-    if (!pid) { alert('No profile selected'); return; }
-    try {
-      onRunScript && onRunScript(pid, sid);
-      const r = await window.electronAPI.executeScript(pid, sid, { timeoutMs: 120000 });
-      if (!r?.success) alert('Run error: ' + (r?.error || ''));
-      else alert('Run done');
-    } catch (e) { alert(e?.message || String(e)); }
-  };
-
-  if (!open) return null;
-  const filtered = scripts.filter(s => !filter || (s.name || '').toLowerCase().includes(filter.toLowerCase()));
-
-  // Full page mode
-  if (fullPage) {
     return (
-      <div className="scripts-page">
-        <div className="page-header">
-          <h1>{t('scripts.title')}</h1>
-          <div className="page-header-actions">
-            <button className="btn btn-primary" onClick={startCreate}>
-              <Plus size={15} /> {t('scripts.new')}
-            </button>
-          </div>
-        </div>
+        <div className="w-full h-full flex flex-col p-4" style={{ background: 'var(--bg)' }}>
+            {/* Header */}
+            <div className="flex items-center gap-4 mb-4">
+                <h1 className="text-[1.2rem] font-bold" style={{ color: 'var(--fg)' }}>Scripts &amp; Tasks</h1>
+                <div className="flex p-1 rounded-lg" style={{ background: 'var(--glass)', border: '1px solid var(--border)' }}>
+                    <button
+                        className={`px-3 py-1 text-[0.75rem] font-medium rounded transition ${activeTab === 'scripts' ? 'btn btn-primary' : 'btn btn-secondary'}`}
+                        onClick={() => setActiveTab('scripts')}
+                    >
+                        Scripts
+                    </button>
+                    <button
+                        className={`px-3 py-1 text-[0.75rem] font-medium rounded transition ${activeTab === 'logs' ? 'btn btn-primary' : 'btn btn-secondary'}`}
+                        onClick={() => setActiveTab('logs')}
+                    >
+                        Task Logs
+                    </button>
+                    <button
+                        className={`px-3 py-1 text-[0.75rem] font-medium rounded transition ${activeTab === 'modules' ? 'btn btn-primary' : 'btn btn-secondary'}`}
+                        onClick={() => setActiveTab('modules')}
+                    >
+                        Script Modules
+                    </button>
+                </div>
+            </div>
 
-        <div className="toolbar">
-          <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
-            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
-            <input placeholder={t('scripts.filter')} value={filter} onChange={(e) => setFilter(e.target.value)}
-              style={{ paddingLeft: 32, width: '100%' }} />
-          </div>
-          <select value={selectedProfileId} onChange={(e) => setSelectedProfileId(e.target.value)}>
-            <option value="">{t('scripts.selectProfile')}</option>
-            {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+            {/* Content Area */}
+            {activeTab === 'scripts' && <ScriptsTab profiles={profiles} />}
+            {activeTab === 'logs' && <TaskLogsTab />}
+            {activeTab === 'modules' && <ScriptModulesTab />}
         </div>
-
-        <div className="scripts-grid">
-          {filtered.map(s => (
-            <div className="script-card" key={s.id}>
-              <div className="script-title">{s.name || '(untitled)'}</div>
-              <div className="script-desc">{s.description}</div>
-              <div className="script-actions">
-                <button className="btn" onClick={() => startEdit(s)}>
-                  <Edit2 size={14} /> {t('scripts.edit')}
-                </button>
-                <button className="btn btn-danger" onClick={() => del(s.id)}>
-                  <Trash2 size={14} />
-                </button>
-                <button className="btn btn-success" onClick={() => run(s.id)}>
-                  <Play size={14} /> {t('scripts.run')}
-                </button>
-              </div>
-            </div>
-          ))}
-          {!filtered.length && <div style={{ opacity: 0.6, padding: '2rem', textAlign: 'center' }}>{t('scripts.noScripts')}</div>}
-        </div>
-
-        {editing && (
-          <div className="editor">
-            <div className="row">
-              <label>{t('scripts.name')}</label>
-              <input value={editing.name} onChange={(e) => setEditing(prev => ({ ...prev, name: e.target.value }))} />
-            </div>
-            <div className="row">
-              <label>{t('scripts.description')}</label>
-              <input value={editing.description} onChange={(e) => setEditing(prev => ({ ...prev, description: e.target.value }))} />
-            </div>
-            <div className="row">
-              <label>{t('scripts.code')}</label>
-              <textarea value={editing.code} onChange={(e) => setEditing(prev => ({ ...prev, code: e.target.value }))} spellCheck={false} />
-            </div>
-            <div className="row actions">
-              <button className="btn" onClick={cancelEdit}>{t('scripts.cancel')}</button>
-              <button className="btn btn-success" onClick={save}>{t('scripts.save')}</button>
-            </div>
-          </div>
-        )}
-      </div>
     );
-  }
+}
 
-  // Modal mode (fallback)
-  return (
-    <div className="modal-root">
-      <div className="modal-card">
-        <div className="modal-header">
-          <h3>{t('scripts.title')}</h3>
-          <button className="btn btn-icon" onClick={onClose}><X size={18} /></button>
+function ScriptsTab({ profiles }) {
+    const [scripts, setScripts] = useState([]);
+    const [selectedId, setSelectedId] = useState(null);
+    const [editing, setEditing] = useState(null);
+    const [filter, setFilter] = useState('');
+    const [runProfileId, setRunProfileId] = useState('');
+    const [running, setRunning] = useState(false);
+    const [runResult, setRunResult] = useState(null);
+
+    const load = useCallback(async () => {
+        try {
+            const list = await window.electronAPI.listScripts();
+            setScripts(Array.isArray(list) ? list : []);
+        } catch { setScripts([]); }
+    }, []);
+
+    useEffect(() => { load(); }, [load]);
+
+    const handleNew = () => {
+        setEditing({ id: null, name: '', description: '', code: DEFAULT_CODE });
+        setSelectedId(null);
+        setRunResult(null);
+    };
+
+    const handleSelect = (s) => {
+        setEditing({ ...s });
+        setSelectedId(s.id);
+        setRunResult(null);
+    };
+
+    const handleSave = async () => {
+        if (!editing) return;
+        try {
+            const res = await window.electronAPI.saveScript({
+                id: editing.id,
+                name: editing.name,
+                description: editing.description,
+                code: editing.code,
+            });
+            if (!res?.success) { alert(res?.error || 'Save failed'); return; }
+            await load();
+            if (!editing.id && res.script?.id) {
+                setEditing(prev => ({ ...prev, id: res.script.id }));
+                setSelectedId(res.script.id);
+            }
+        } catch (e) { alert(e?.message || String(e)); }
+    };
+
+    const handleDelete = async (id, e) => {
+        e && e.stopPropagation();
+        if (!window.confirm('Delete this script?')) return;
+        try {
+            await window.electronAPI.deleteScript(id);
+            await load();
+            if (selectedId === id) { setEditing(null); setSelectedId(null); }
+        } catch (e) { alert(e?.message || String(e)); }
+    };
+
+    const handleRun = async (scriptId) => {
+        const pid = runProfileId || (profiles[0]?.id || '');
+        if (!pid) { alert('Select a profile to run this script first.'); return; }
+        const sid = scriptId || editing?.id;
+        if (!sid) { alert('Save script first.'); return; }
+        setRunning(true);
+        setRunResult(null);
+        try {
+            const res = await window.electronAPI.executeScript(pid, sid, { timeoutMs: 120000 });
+            setRunResult(res);
+        } catch (e) {
+            setRunResult({ success: false, error: e?.message || String(e), logs: [] });
+        } finally { setRunning(false); }
+    };
+
+    const filtered = scripts.filter(s => !filter || (s.name || '').toLowerCase().includes(filter.toLowerCase()));
+
+    return (
+        <div className="flex-1 flex flex-row rounded-lg gap-[1px] overflow-hidden" style={{ background: 'var(--border)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+            {/* Left Sidebar */}
+            <div className="w-[300px] flex flex-col justify-between" style={{ background: 'var(--card)' }}>
+                <div>
+                    {!filtered.length && scripts.length === 0 ? (
+                        <div className="p-6 text-center text-[0.75rem] mt-2" style={{ color: 'var(--muted)' }}>
+                            No scripts yet. Create one to get started.
+                        </div>
+                    ) : (
+                        <div className="h-full overflow-y-auto">
+                            <div className="px-3 py-2 relative" style={{ borderBottom: '1px solid var(--border)' }}>
+                                <Search size={13} className="absolute left-6 top-[0.85rem]" style={{ color: 'var(--muted)' }} />
+                                <input
+                                    placeholder="Search scripts..."
+                                    value={filter}
+                                    onChange={e => setFilter(e.target.value)}
+                                    className="w-full rounded text-[0.75rem] px-7 py-1"
+                                    style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
+                                />
+                            </div>
+                            <div className="py-2">
+                                {filtered.map(s => (
+                                    <div
+                                        key={s.id}
+                                        className="px-3 py-1.5 cursor-pointer border-l-4 transition flex justify-between items-center group"
+                                        style={{
+                                            borderColor: selectedId === s.id ? 'var(--primary)' : 'transparent',
+                                            background: selectedId === s.id ? 'var(--glass-strong)' : 'transparent',
+                                            color: selectedId === s.id ? 'var(--primary)' : 'var(--muted)',
+                                        }}
+                                        onMouseEnter={e => { if (selectedId !== s.id) e.currentTarget.style.background = 'var(--glass-hover)'; }}
+                                        onMouseLeave={e => { if (selectedId !== s.id) e.currentTarget.style.background = 'transparent'; }}
+                                        onClick={() => handleSelect(s)}
+                                    >
+                                        <div className="font-medium text-[0.75rem] truncate pr-2" style={{ color: selectedId === s.id ? 'var(--primary)' : 'var(--fg)' }}>{s.name || '(untitled)'}</div>
+                                        <div className="opacity-0 group-hover:opacity-100 transition flex gap-1">
+                                            <button className="p-1 rounded" style={{ color: 'var(--primary)' }} title={'Run'} onClick={e => { e.stopPropagation(); handleSelect(s); handleRun(s.id); }}>
+                                                <Play size={13} />
+                                            </button>
+                                            <button className="p-1 rounded" style={{ color: 'var(--danger)' }} title={'Delete'} onClick={e => handleDelete(s.id, e)}>
+                                                <Trash2 size={13} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-3 z-10" style={{ background: 'var(--card2)', borderTop: '1px solid var(--border)' }}>
+                    <button className="btn btn-primary w-full mb-2 text-[0.75rem]" onClick={handleNew}>
+                        + New Script
+                    </button>
+                    <div className="flex gap-2">
+                        <button className="btn btn-secondary flex-1 text-[0.7rem]">Export JSON</button>
+                        <button className="btn btn-secondary flex-1 text-[0.7rem]">Import JSON</button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Right Editor Area */}
+            <div className="flex-1 flex flex-col" style={{ background: 'var(--card)' }}>
+                {editing ? (
+                    <div className="flex flex-col h-full">
+                        <div className="p-3 flex gap-3 items-center" style={{ background: 'var(--card2)', borderBottom: '1px solid var(--border)' }}>
+                            <input
+                                className="flex-1 rounded px-2 py-1 text-[0.75rem]"
+                                style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
+                                value={editing.name}
+                                onChange={e => setEditing(p => ({ ...p, name: e.target.value }))}
+                                placeholder="Script Name"
+                            />
+                            <select
+                                className="w-[180px] rounded px-2 py-1 text-[0.75rem]"
+                                style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
+                                value={runProfileId}
+                                onChange={e => setRunProfileId(e.target.value)}
+                            >
+                                <option value="">Select profile to run...</option>
+                                {profiles.map(p => <option key={p.id} value={p.id}>{p.name || p.id}</option>)}
+                            </select>
+                            <button className="btn btn-secondary text-[0.75rem]" onClick={handleSave}>
+                                Save
+                            </button>
+                            <button className="btn btn-success text-[0.75rem] flex items-center gap-1" onClick={() => handleRun()} disabled={running}>
+                                {running ? <><RefreshCw size={14} className="animate-spin" /> Running...</> : <><Play size={14} /> Run Log</>}
+                            </button>
+                        </div>
+                        <div className="flex-1 relative">
+                            <Editor
+                                height="100%"
+                                language="javascript"
+                                theme="vs-dark"
+                                value={editing.code}
+                                onChange={v => setEditing(p => ({ ...p, code: v || '' }))}
+                                options={{
+                                    minimap: { enabled: false },
+                                    fontSize: 12,
+                                    lineNumbers: 'on',
+                                    scrollBeyondLastLine: false,
+                                    automaticLayout: true,
+                                    tabSize: 4,
+                                }}
+                            />
+                        </div>
+                        {runResult && (
+                            <div className="h-[150px] font-mono text-[0.75rem] overflow-y-auto p-3 shadow-inner" style={{ borderTop: '1px solid var(--border)', background: 'var(--card2)', color: 'var(--fg)' }}>
+                                <div className={`mb-3 flex items-center gap-2 font-bold ${runResult.success ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                    <span className="w-2 h-2 rounded-full border border-current bg-current"></span>
+                                    {runResult.success ? 'Task Completed' : 'Task Failed'} {runResult.error && `- ${runResult.error}`}
+                                </div>
+                                {runResult.logs && runResult.logs.map((l, i) => (
+                                    <div key={i} className="mb-1">
+                                        <span className="mr-3" style={{ color: 'var(--muted)' }}>[{new Date(l.time).toLocaleTimeString()}]</span>
+                                        <span style={{ color: 'var(--fg)' }}>{l.message}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-[0.75rem]" style={{ color: 'var(--muted)' }}>
+                        Select a script to edit, or create a new one
+                    </div>
+                )}
+            </div>
         </div>
-        <div className="toolbar">
-          <input placeholder={t('scripts.filter')} value={filter} onChange={(e) => setFilter(e.target.value)} />
-          <select value={selectedProfileId} onChange={(e) => setSelectedProfileId(e.target.value)}>
-            <option value="">{t('scripts.selectProfile')}</option>
-            {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <button className="btn btn-primary" onClick={startCreate}><Plus size={15} /> {t('scripts.new')}</button>
+    );
+}
+
+function TaskLogsTab() {
+    const [tasks, setTasks] = useState([]);
+    
+    // We mock empty state as seen in screenshot
+    return (
+        <div className="flex-1 flex flex-row rounded-lg gap-[1px] overflow-hidden" style={{ background: 'var(--border)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+            {/* Left Sidebar */}
+            <div className="w-[300px] flex flex-col" style={{ background: 'var(--card)' }}>
+                <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)', background: 'var(--card2)' }}>
+                    <span className="text-[0.75rem] font-medium" style={{ color: 'var(--muted)' }}>Tasks ({tasks.length})</span>
+                </div>
+                <div className="flex-1 p-4 text-[0.75rem]" style={{ color: 'var(--muted)' }}>
+                    No tasks yet. Run a script to create one.
+                </div>
+            </div>
+
+            {/* Right Output Area */}
+            <div className="flex-1 flex flex-col" style={{ background: 'var(--card)' }}>
+                <div className="px-4 py-2 flex justify-between items-center" style={{ borderBottom: '1px solid var(--border)', background: 'var(--card2)' }}>
+                    <span className="text-[0.75rem] font-medium" style={{ color: 'var(--muted)' }}>Select a task</span>
+                    <label className="flex items-center gap-2 text-[0.75rem] cursor-pointer" style={{ color: 'var(--muted)' }}>
+                        <input type="checkbox" defaultChecked className="rounded w-4 h-4" style={{ accentColor: 'var(--primary)' }} />
+                        Auto-scroll
+                    </label>
+                </div>
+                <div className="flex-1 p-4 font-mono text-[0.75rem]" style={{ color: 'var(--muted)' }}>
+                    Select a task to view its output.
+                </div>
+            </div>
         </div>
-        <div className="scripts-grid">
-          {filtered.map(s => (
-            <div className="script-card" key={s.id}>
-              <div className="script-title">{s.name || '(untitled)'}</div>
-              <div className="script-desc">{s.description}</div>
-              <div className="script-actions">
-                <button className="btn" onClick={() => startEdit(s)}><Edit2 size={14} /> {t('scripts.edit')}</button>
-                <button className="btn btn-danger" onClick={() => del(s.id)}><Trash2 size={14} /></button>
-                <button className="btn btn-success" onClick={() => run(s.id)}><Play size={14} /> {t('scripts.run')}</button>
-              </div>
+    );
+}
+
+function ScriptModulesTab() {
+    return (
+        <div className="w-full flex-1">
+            <div className="rounded-xl p-4 w-full" style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+                <p className="text-[0.8rem] mb-4" style={{ color: 'var(--muted)' }}>
+                    Install npm packages for use in automation scripts via <code className="font-mono text-[0.75rem]" style={{ color: 'var(--fg)' }}>require('package-name')</code>.
+                </p>
+                <div className="flex gap-3 mb-4">
+                    <input 
+                        type="text" 
+                        placeholder="e.g. axios or lodash@4" 
+                        className="flex-1 rounded-md px-3 py-1.5 text-[0.75rem] transition"
+                        style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
+                    />
+                    <button className="btn btn-primary text-[0.75rem]">
+                        Install
+                    </button>
+                </div>
+                <p className="text-[0.75rem] italic" style={{ color: 'var(--muted)' }}>
+                    No modules installed.
+                </p>
             </div>
-          ))}
-          {!filtered.length && <div style={{ opacity: 0.7 }}>{t('scripts.noScripts')}</div>}
         </div>
-        {editing && (
-          <div className="editor">
-            <div className="row">
-              <label>{t('scripts.name')}</label>
-              <input value={editing.name} onChange={(e) => setEditing(prev => ({ ...prev, name: e.target.value }))} />
-            </div>
-            <div className="row">
-              <label>{t('scripts.description')}</label>
-              <input value={editing.description} onChange={(e) => setEditing(prev => ({ ...prev, description: e.target.value }))} />
-            </div>
-            <div className="row">
-              <label>{t('scripts.code')}</label>
-              <textarea value={editing.code} onChange={(e) => setEditing(prev => ({ ...prev, code: e.target.value }))} spellCheck={false} />
-            </div>
-            <div className="row actions">
-              <button className="btn" onClick={cancelEdit}>{t('scripts.cancel')}</button>
-              <button className="btn btn-success" onClick={save}>{t('scripts.save')}</button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+    );
 }

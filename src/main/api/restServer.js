@@ -88,6 +88,16 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   });
 
   // Browser control endpoints
+  // Sample App Aliases mapping requested by user
+  appx.get('/api/browsers/:profileId/context/storage-state', async (req, res) => {
+    const r = await (handlers.getStorageStateInternal ? handlers.getStorageStateInternal(req.params.profileId) : { success: false, error: 'Not implemented' });
+    res.json(r);
+  });
+  appx.post('/api/browsers/:profileId/context/new-page', async (req, res) => {
+    const r = await handlers.newPageInternal(req.params.profileId, req.body || {});
+    res.json(r);
+  });
+  
   appx.get('/api/profiles/:id/pages', async (req, res) => {
     const r = await handlers.listPagesInternal(req.params.id); res.json(r);
   });
@@ -105,6 +115,50 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   });
   appx.post('/api/profiles/:id/eval', async (req, res) => {
     const r = await handlers.evalInternal(req.params.id, req.body || {}); res.json(r);
+  });
+
+  // Native mouse actions
+  appx.post('/api/profiles/:id/actions/mouse/move', async (req, res) => {
+    try {
+      const { mouseMove } = require('../engine/actions');
+      const result = await mouseMove(req.params.id, req.body || {});
+      res.status(result.success ? 200 : 500).json(result);
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+  appx.post('/api/profiles/:id/actions/mouse/click', async (req, res) => {
+    try {
+      const { mouseClick } = require('../engine/actions');
+      const result = await mouseClick(req.params.id, req.body || {});
+      res.status(result.success ? 200 : 500).json(result);
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+  appx.post('/api/profiles/:id/actions/mouse/dblclick', async (req, res) => {
+    try {
+      const { mouseDblclick } = require('../engine/actions');
+      const result = await mouseDblclick(req.params.id, req.body || {});
+      res.status(result.success ? 200 : 500).json(result);
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+  appx.post('/api/profiles/:id/actions/mouse/down', async (req, res) => {
+    try {
+      const { mouseDown } = require('../engine/actions');
+      const result = await mouseDown(req.params.id, req.body || {});
+      res.status(result.success ? 200 : 500).json(result);
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+  appx.post('/api/profiles/:id/actions/mouse/up', async (req, res) => {
+    try {
+      const { mouseUp } = require('../engine/actions');
+      const result = await mouseUp(req.params.id, req.body || {});
+      res.status(result.success ? 200 : 500).json(result);
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+  appx.post('/api/profiles/:id/actions/mouse/wheel', async (req, res) => {
+    try {
+      const { mouseWheel } = require('../engine/actions');
+      const result = await mouseWheel(req.params.id, req.body || {});
+      res.status(result.success ? 200 : 500).json(result);
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
   });
 
   // Generic action dispatcher and helpers
@@ -183,7 +237,7 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   });
   if (swaggerUi) {
     try {
-      const spec = require('fs').existsSync(openapiPath) ? JSON.parse(require('fs').readFileSync(openapiPath, 'utf8')) : { openapi: '3.0.0', info: { title: 'OBT API', version: '1.0.0' } };
+      const spec = require('fs').existsSync(openapiPath) ? JSON.parse(require('fs').readFileSync(openapiPath, 'utf8')) : { openapi: '3.0.0', info: { title: 'HL-MCK API', version: '1.0.0' } };
       appx.use('/api-docs', swaggerUi.serve, swaggerUi.setup(spec));
     } catch { }
   }
@@ -203,8 +257,8 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
   }
 
   // Fixed password hardcoded in code. Change this value to your desired password.
-  // Optionally override via environment variable OBT_REST_PASSWORD for development.
-  const FIXED_PASSWORD = process.env.OBT_REST_PASSWORD || 'OBT@2025_STR0NGP4SS';
+  // Optionally override via environment variable HL_MCK_REST_PASSWORD for development.
+  const FIXED_PASSWORD = process.env.HL_MCK_REST_PASSWORD || 'HL_MCK@2025_STR0NGP4SS';
   const FIXED_PASSWORD_HASH = sha256Hex(FIXED_PASSWORD);
 
   // Hidden encrypted password persistence (so user doesn't need to re-enter).
