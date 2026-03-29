@@ -142,6 +142,41 @@ function registerIpcHandlers(extra = {}) {
     } catch (e) { return { success: false, error: e?.message || String(e) }; }
   });
 
+  // Proxy Rotator (from huy branch)
+  ipcMain.handle('proxy-rotate', async (_e, id) => {
+    try {
+      const getRes = await getProxyByIdInternal(id);
+      if (!getRes.success) return getRes;
+      const proxy = getRes.proxy;
+      if (!proxy.rotateUrl) return { success: false, error: 'No rotate URL configured' };
+      
+      const axios = require('axios');
+      const startTime = Date.now();
+      const response = await axios.get(proxy.rotateUrl, { timeout: 15000 });
+      const latency = Date.now() - startTime;
+      
+      await updateProxyInternal(id, {
+        lastRotated: new Date().toISOString()
+      });
+      
+      return { success: true, latency, data: response.data };
+    } catch (e) {
+      return { success: false, error: e?.message || e };
+    }
+  });
+
+  ipcMain.handle('proxy-rotate-url', async (_e, url) => {
+    try {
+      if (!url) return { success: false, error: 'No URL provided' };
+      const axios = require('axios');
+      const startTime = Date.now();
+      const response = await axios.get(url, { timeout: 15000 });
+      return { success: true, latency: Date.now() - startTime, data: response.data };
+    } catch (e) {
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+
   // Settings direct save (optional future use)
   ipcMain.handle('load-settings', async () => {
     try { const s = loadSettings(); return { success: true, settings: s || {} }; }
