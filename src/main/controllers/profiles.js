@@ -584,6 +584,22 @@ async function runAutomationNowInternal(profileId) {
   } catch (e) { return { success: false, error: e?.message || String(e) }; }
 }
 
+async function setExtraHTTPHeadersInternal(profileId, headers) {
+  if (!headers || typeof headers !== 'object') return { success: false, error: 'Headers must be an object' };
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      if (typeof context.setExtraHTTPHeaders === 'function') {
+        await context.setExtraHTTPHeaders(headers);
+      }
+      await cleanup();
+      return { success: true };
+    } catch (e) {
+      await cleanup();
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+}
+
 module.exports = {
   launchProfileInternal,
   stopProfileInternal,
@@ -602,4 +618,5 @@ module.exports = {
   getProfileWsInternal,
   getRunningMapInternal,
   getLocalesTimezonesInternal,
+  setExtraHTTPHeadersInternal,
 };

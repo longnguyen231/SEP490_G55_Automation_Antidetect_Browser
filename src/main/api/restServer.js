@@ -97,6 +97,15 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
     const r = await handlers.newPageInternal(req.params.profileId, req.body || {});
     res.json(r);
   });
+  appx.get('/api/browsers/:profileId/context/pages', async (req, res) => {
+    const r = await handlers.listPagesInternal(req.params.profileId);
+    res.json(r);
+  });
+  appx.post('/api/browsers/:profileId/context/extra-http-headers', async (req, res) => {
+    const headers = (req.body && req.body.headers) ? req.body.headers : req.body || {};
+    const r = await (handlers.setExtraHTTPHeadersInternal ? handlers.setExtraHTTPHeadersInternal(req.params.profileId, headers) : { success: false, error: 'Not implemented' });
+    res.json(r);
+  });
   
   appx.get('/api/profiles/:id/pages', async (req, res) => {
     const r = await handlers.listPagesInternal(req.params.id); res.json(r);

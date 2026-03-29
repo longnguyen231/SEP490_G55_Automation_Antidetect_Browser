@@ -414,6 +414,7 @@ const ACTION_MAP = {
   // Tabs
   'tab.new': tabNew,
   'tab.close': tabClose,
+  'tab.list': tabList,
   'page.front': bringToFront,
   // JS & Content
   'js.eval': evaluateJS,
@@ -660,6 +661,26 @@ async function tabClose(profileId, { index = 0 } = {}) {
   try { const pages = context.pages(); const page = pages[index]; if (!page) { await cleanup(); return err('Invalid page index'); } await page.close({ runBeforeUnload: true }); await cleanup(); return ok(); } catch (e) { await cleanup(); return err(e?.message || e); }
 }
 
+async function tabList(profileId, params = {}) {
+  const { success, error, context, cleanup } = await withPage(profileId, {});
+  if (!success) return err(error);
+  try { 
+    const pages = context.pages(); 
+    const out = []; 
+    let i = 0; 
+    for (const p of pages) { 
+      const title = await p.title().catch(() => ''); 
+      out.push({ index: i, url: p.url(), title }); 
+      i++; 
+    } 
+    await cleanup(); 
+    return ok({ pages: out }); 
+  } catch (e) { 
+    await cleanup(); 
+    return err(e?.message || e); 
+  }
+}
+
 async function bringToFront(profileId, { index = 0 } = {}) {
   const { success, error, context, cleanup } = await withPage(profileId, {});
   if (!success) return err(error);
@@ -781,6 +802,7 @@ module.exports = {
   headersSetExtra,
   tabNew,
   tabClose,
+  tabList,
   bringToFront,
   evaluateJS,
   elementEval,

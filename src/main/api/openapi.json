@@ -213,6 +213,70 @@
         }
       }
     },
+    "/api/browsers/{profileId}/context/pages": {
+      "get": {
+        "summary": "List all open pages/tabs in the browser context",
+        "tags": [
+          "browsers"
+        ],
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/browsers/{profileId}/context/extra-http-headers": {
+      "post": {
+        "summary": "Set extra HTTP headers for all pages in the context",
+        "tags": [
+          "browsers"
+        ],
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "summary": "Health",
