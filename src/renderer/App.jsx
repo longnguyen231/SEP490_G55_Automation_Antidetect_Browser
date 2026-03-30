@@ -10,11 +10,14 @@ import ProxyManager from './components/ProxyManager';
 import AppLogsTab from './components/AppLogsTab';
 import SettingsTab from './components/SettingsTab';
 import LicenseModal from './components/LicenseModal';
+import EngineInstallModal from './components/EngineInstallModal';
 import './App.css';
 import { useI18n } from './i18n/index';
  
 function App() {
   const { t, lang, setLang } = useI18n();
+  // Engine install modal: { profileId, engine, headless } | null
+  const [engineInstallState, setEngineInstallState] = useState(null);
   const [activeNav, setActiveNav] = useState('profiles');
   const [profiles, setProfiles] = useState([]);
   const [selectedProfile, setSelectedProfile] = useState(null);
@@ -124,7 +127,7 @@ function App() {
       const data = await api.getProfiles();
       setProfiles(data);
       setHeadlessPrefs(prev => { const next = { ...prev }; (data || []).forEach(p => { if (next[p.id] === undefined) next[p.id] = !!p?.settings?.headless; }); return next; });
-      setEnginePrefs(prev => { const next = { ...prev }; (data || []).forEach(p => { if (!next[p.id]) next[p.id] = (p?.settings?.engine === 'cdp' ? 'cdp' : 'playwright'); }); return next; });
+      setEnginePrefs(prev => { const next = { ...prev }; (data || []).forEach(p => { next[p.id] = p?.settings?.engine || 'playwright'; }); return next; });
       await refreshRunningStatus(data);
     } catch (e) { console.error('Error loading profiles:', e); }
   };
@@ -150,11 +153,50 @@ function App() {
 
   const handleLaunchProfile = async (profileId) => {
     setErrorProfiles(prev => { const n = { ...prev }; delete n[profileId]; return n; });
-    try { const headless = !!headlessPrefs[profileId]; const engine = enginePrefs[profileId] || 'playwright'; const options = { headless, engine: engine === 'cdp' ? 'cdp' : 'playwright' }; const result = await window.electronAPI.launchProfile(profileId, options); if (!result.success) { setErrorProfiles(prev => ({ ...prev, [profileId]: true })); alert('Error launching profile: ' + result.error); } await refreshRunningStatus(profiles.filter(p => p.id === profileId)); } catch (e) { setErrorProfiles(prev => ({ ...prev, [profileId]: true })); alert('Error launching profile: ' + e.message); }
+    try {
+      const headless = !!headlessPrefs[profileId];
+      const engine = enginePrefs[profileId] || 'playwright';
+
+      // Only check Playwright engines (cdp uses system Chrome, no install needed)
+      if (engine !== 'cdp') {
+        const isFirefox = engine === 'playwright-firefox' || engine === 'firefox';
+        const requiredBrowser = isFirefox ? 'firefox' : 'chromium';
+        try {
+          const status = await window.electronAPI?.checkBrowserStatus?.(requiredBrowser);
+          if (status?.status !== 'installed') {
+            // Pause launch and show install modal
+            setEngineInstallState({ profileId, engine: requiredBrowser, headless });
+            return;
+          }
+        } catch { /* ignore check errors, proceed with launch */ }
+      }
+
+      await doLaunchProfile(profileId, { headless, engine });
+    } catch (e) {
+      setErrorProfiles(prev => ({ ...prev, [profileId]: true }));
+      addToast('Error launching profile: ' + e.message, 'error', 5000);
+    }
+  };
+
+  const doLaunchProfile = async (profileId, { headless, engine } = {}) => {
+    const h = headless !== undefined ? headless : !!headlessPrefs[profileId];
+    const eng = engine || enginePrefs[profileId] || 'playwright';
+    try {
+      const options = { headless: h, engine: eng };
+      const result = await window.electronAPI.launchProfile(profileId, options);
+      if (!result.success) {
+        setErrorProfiles(prev => ({ ...prev, [profileId]: true }));
+        addToast('Error launching profile: ' + result.error, 'error', 5000);
+      }
+      await refreshRunningStatus(profiles.filter(p => p.id === profileId));
+    } catch (e) {
+      setErrorProfiles(prev => ({ ...prev, [profileId]: true }));
+      addToast('Error launching profile: ' + e.message, 'error', 5000);
+    }
   };
   const handleStopProfile = async (profileId) => { try { const res = profileId === '__ALL__' ? await window.electronAPI.stopAllProfiles() : await window.electronAPI.stopProfile(profileId); if (!res.success) alert('Error stopping profile: ' + res.error); await refreshRunningStatus(); } catch (e) { alert('Error stopping profile: ' + e.message); } };
   const handleSetHeadless = async (profileId, value) => { if (runningWs[profileId]) return; setHeadlessPrefs(prev => ({ ...prev, [profileId]: !!value })); try { const p = profiles.find(x => x.id === profileId); if (p) { const updated = { ...p, settings: { ...(p.settings || {}), headless: !!value } }; const res = await window.electronAPI.saveProfile(updated); if (res?.success && res.profile) setProfiles(prev => prev.map(pp => pp.id === profileId ? res.profile : pp)); } } catch { } };
-  const handleSetEngine = async (profileId, value) => { if (runningWs[profileId]) return; const normalized = value === 'cdp' ? 'cdp' : 'playwright'; setEnginePrefs(prev => ({ ...prev, [profileId]: normalized })); try { const p = profiles.find(x => x.id === profileId); if (p) { const updated = { ...p, settings: { ...(p.settings || {}), engine: normalized } }; const res = await window.electronAPI.saveProfile(updated); if (res?.success && res.profile) setProfiles(prev => prev.map(pp => pp.id === profileId ? res.profile : pp)); } } catch { } };
+  const handleSetEngine = async (profileId, value) => { if (runningWs[profileId]) return; setEnginePrefs(prev => ({ ...prev, [profileId]: value })); try { const p = profiles.find(x => x.id === profileId); if (p) { const updated = { ...p, settings: { ...(p.settings || {}), engine: value } }; const res = await window.electronAPI.saveProfile(updated); if (res?.success && res.profile) setProfiles(prev => prev.map(pp => pp.id === profileId ? res.profile : pp)); } } catch { } };
   const handleToggleProfile = async (profileId) => runningWs[profileId] ? handleStopProfile(profileId) : handleLaunchProfile(profileId);
   const handleLaunchHeadless = async (profileId) => {
     setErrorProfiles(prev => { const n = { ...prev }; delete n[profileId]; return n; });
@@ -305,6 +347,23 @@ function App() {
       </main>
 
       {showLicenseModal && <LicenseModal onClose={handleCloseLicense} />}
+
+      {/* Engine Install Modal */}
+      {engineInstallState && (
+        <EngineInstallModal
+          engine={engineInstallState.engine}
+          onSkip={() => setEngineInstallState(null)}
+          onInstall={() => {
+            const { profileId, engine, headless } = engineInstallState;
+            setEngineInstallState(null);
+            // Relaunch automatically after successful install
+            doLaunchProfile(profileId, {
+              headless,
+              engine: engine === 'firefox' ? 'playwright-firefox' : 'playwright',
+            });
+          }}
+        />
+      )}
 
       {/* Overlays */}
       {cookieProfile && <CookieManager profile={cookieProfile} onClose={() => setCookieProfile(null)} />}

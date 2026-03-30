@@ -91,8 +91,14 @@ export default function BrowserRuntimes() {
     };
 
     const handleUninstall = async (name) => {
-        if (!window.confirm(`Are you sure you want to completely uninstall ${name}?`)) return;
+        if (!window.confirm(`Uninstall ${name}?\n\nAll running profiles will be stopped first to release file locks.`)) return;
+        setInstalling(prev => ({ ...prev, [name]: true }));
+        setProgressLogs(prev => ({ ...prev, [name]: 'Stopping running profiles...' }));
         try {
+            // Stop all running profiles first to release file locks
+            try { await window.electronAPI.stopAllProfiles(); } catch {}
+            await new Promise(r => setTimeout(r, 1500)); // give OS time to release locks
+            setProgressLogs(prev => ({ ...prev, [name]: 'Removing browser files...' }));
             const res = await window.electronAPI.uninstallBrowser(name);
             if (!res.success) {
                 alert(`Failed to uninstall ${name}:\n${res.error}`);
@@ -100,6 +106,9 @@ export default function BrowserRuntimes() {
             await loadBrowserStatus();
         } catch (err) {
             alert(`Error uninstalling ${name}: ${err.message}`);
+        } finally {
+            setInstalling(prev => ({ ...prev, [name]: false }));
+            setProgressLogs(prev => ({ ...prev, [name]: '' }));
         }
     };
 

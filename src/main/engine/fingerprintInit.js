@@ -46,8 +46,12 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
             if (flags.applyLang) {
               try {
                 const langs = Array.isArray(adv.languages) ? adv.languages : (typeof adv.languages === 'string' ? adv.languages.split(',').map(s=>s.trim()).filter(Boolean) : []);
-                const finalLangs = langs.length ? langs : (primaryLang ? [primaryLang] : navigator.languages);
-                if (finalLangs && finalLangs.length) { Object.defineProperty(navigator, 'languages', { get: () => finalLangs }); }
+                const finalLangs = langs.length ? langs : (primaryLang ? [primaryLang, primaryLang.split('-')[0]].filter((v,i,a)=>a.indexOf(v)===i) : navigator.languages);
+                if (finalLangs && finalLangs.length) {
+                  // Override navigator.language (single) and navigator.languages (array) — must match
+                  try { Object.defineProperty(navigator, 'language', { get: () => finalLangs[0] }); } catch {}
+                  try { Object.defineProperty(navigator, 'languages', { get: () => finalLangs }); } catch {}
+                }
               } catch {}
             }
             if (typeof adv.plugins === 'number') {

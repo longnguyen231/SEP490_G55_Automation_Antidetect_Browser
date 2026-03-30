@@ -10,9 +10,18 @@ function setMainWindowRef(win) {
 }
 
 function getBrowsersPath() {
-    // userData usually is C:\Users\xxx\AppData\Roaming\YourAppName
-    const userData = app.getPath('userData');
-    return path.join(userData, 'data', '.playwright', 'browsers');
+    // Use playwright-core's own executablePath() to find the root browsers folder.
+    // This is the SAME path playwright uses when launching, so detection always matches.
+    try {
+        const { chromium } = require('playwright-core');
+        const exePath = chromium.executablePath();
+        // exePath: ...\ms-playwright\chromium-1194\chrome-win\chrome.exe
+        // Go up 3 levels to get ms-playwright root
+        return require('path').dirname(require('path').dirname(require('path').dirname(exePath)));
+    } catch {
+        const localAppData = process.env.LOCALAPPDATA || require('path').join(require('os').homedir(), 'AppData', 'Local');
+        return require('path').join(localAppData, 'ms-playwright');
+    }
 }
 
 function getExecutableConfig() {
@@ -27,61 +36,30 @@ function getExecutableConfig() {
  */
 function checkBrowserStatus(browserName) {
     try {
-        const browsersPath = getBrowsersPath();
-        if (!fs.existsSync(browsersPath)) {
-            return { status: 'missing', path: null, version: null, size: null, isInstalling: activeInstalls.has(browserName) };
-        }
+        // Use playwright-core's own executablePath() as source of truth
+        // This always matches what Playwright uses when launching
+        const pw = require('playwright-core');
+        const engine = browserName === 'firefox' ? pw.firefox : pw.chromium;
+        const exePath = engine.executablePath();
+        const exists = fs.existsSync(exePath);
 
-        // Playwright creates folders like "chromium-1092" or "firefox-1438"
-        const folders = fs.readdirSync(browsersPath, { withFileTypes: true })
-            .filter(dirent => dirent.isDirectory() && dirent.name.startsWith(browserName + '-'));
+        // Extract version from folder name (e.g. chromium-1194 or firefox-1495)
+        const parts = exePath.split(path.sep);
+        const folderPart = parts.find(p => p.startsWith(browserName + '-'));
+        const versionMatch = folderPart ? (folderPart.split('-')[1] || 'unknown') : 'unknown';
 
-        if (folders.length === 0) {
-            return { status: 'missing', path: null, version: null, size: null, isInstalling: activeInstalls.has(browserName) };
-        }
-
-        // Sort by version (latest ID first)
-        folders.sort((a, b) => {
-            const vA = parseInt(a.name.split('-')[1]) || 0;
-            const vB = parseInt(b.name.split('-')[1]) || 0;
-            return vB - vA;
-        });
-        const latestFolder = folders[0].name; // e.g. "chromium-1092"
-        const versionMatch = latestFolder.split('-')[1] || 'unknown';
-
-        const browserDir = path.join(browsersPath, latestFolder);
-        
-        let subFolderName = '';
-        if (browserName === 'chromium') {
-            subFolderName = 'chrome-win';
-            if (process.platform === 'darwin') subFolderName = 'chrome-mac';
-            if (process.platform === 'linux') subFolderName = 'chrome-linux';
-        } else if (browserName === 'firefox') {
-            subFolderName = 'firefox';
-        }
-
-        const exactDir = path.join(browserDir, subFolderName);
-        const exeConfig = getExecutableConfig()[browserName];
-        if (!exeConfig) return { status: 'missing', path: null, version: null, size: null, isInstalling: activeInstalls.has(browserName) };
-
-        const exePath = path.join(exactDir, exeConfig);
-
-        let status = 'broken';
         let sizeStr = '0 MB';
-
-        if (fs.existsSync(exePath)) {
-            status = 'installed';
+        if (exists) {
             try {
-                // Calculate size of the whole browserDir
+                // Go up 2 levels from exe to get browser folder (e.g. firefox-1495)
+                const browserDir = path.dirname(path.dirname(exePath));
                 const sizeBytes = getFolderSize(browserDir);
                 sizeStr = (sizeBytes / (1024 * 1024)).toFixed(2) + ' MB';
-            } catch (e) {
-                // Ignore size error
-            }
+            } catch {}
         }
 
         return {
-            status,
+            status: exists ? 'installed' : 'missing',
             path: exePath,
             version: versionMatch,
             size: sizeStr,
@@ -122,17 +100,14 @@ async function installBrowser(browserName) {
 
     return new Promise((resolve) => {
         try {
-            const browsersPath = getBrowsersPath();
-            
-            // To ensure playwright installs at browsersPath, we set PLAYWRIGHT_BROWSERS_PATH
+            // Do NOT set PLAYWRIGHT_BROWSERS_PATH — let Playwright install to its default location
+            // (C:\Users\...\AppData\Local\ms-playwright) which is the same place it looks when launching.
             const env = Object.assign({}, process.env, {
-                PLAYWRIGHT_BROWSERS_PATH: browsersPath,
                 ELECTRON_RUN_AS_NODE: '1',
-                // Boot tốc độ tải bằng CDN Mirror dành cho Châu Á (tránh nghẽn Azure của nhánh gốc)
                 PLAYWRIGHT_DOWNLOAD_HOST: 'https://npmmirror.com/mirrors/playwright/'
             });
 
-            // Resolve playwright CLI (bypass Package exports restriction)
+            // Resolve playwright CLI
             const pwCorePath = require.resolve('playwright-core');
             const playwrightCliPath = path.join(path.dirname(pwCorePath), 'cli.js');
 
@@ -190,11 +165,56 @@ async function uninstallBrowser(browserName) {
         const folders = fs.readdirSync(browsersPath, { withFileTypes: true })
             .filter(dirent => dirent.isDirectory() && dirent.name.startsWith(browserName + '-'));
 
+        if (folders.length === 0) return { success: true };
+
+        const errors = [];
         for (const f of folders) {
             const targetPath = path.join(browsersPath, f.name);
-            fs.rmSync(targetPath, { recursive: true, force: true });
+            let deleted = false;
+
+            // On Windows: try PowerShell which spawns a separate process (bypasses EBUSY from Electron)
+            if (process.platform === 'win32') {
+                try {
+                    await new Promise((res, rej) => {
+                        const ps = spawn('powershell.exe', [
+                            '-NoProfile', '-NonInteractive', '-Command',
+                            `Remove-Item -LiteralPath '${targetPath.replace(/'/g, "''")}' -Recurse -Force -ErrorAction Stop`
+                        ], { stdio: 'pipe' });
+                        ps.once('close', code => code === 0 ? res() : rej(new Error(`PS exit ${code}`)));
+                        ps.once('error', rej);
+                    });
+                    deleted = true;
+                } catch (psErr) {
+                    // Fallback to fs.rmSync with retry
+                }
+            }
+
+            if (!deleted) {
+                // Retry up to 5x with 1s delay
+                for (let attempt = 1; attempt <= 5; attempt++) {
+                    try {
+                        fs.rmSync(targetPath, { recursive: true, force: true });
+                        deleted = true;
+                        break;
+                    } catch (err) {
+                        const isLocked = err.code === 'EBUSY' || err.code === 'EPERM' || err.code === 'EACCES';
+                        if (isLocked && attempt < 5) {
+                            await new Promise(r => setTimeout(r, 1000));
+                        } else {
+                            errors.push(err.message);
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
+        if (errors.length > 0) {
+            return {
+                success: false,
+                error: `Could not delete (file locked by system).\nTip: Stop all running profiles, then retry.\nDetails: ${errors[0]}`
+            };
+        }
         return { success: true };
     } catch (err) {
         return { success: false, error: err.message };

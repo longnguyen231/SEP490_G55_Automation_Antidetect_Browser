@@ -1,0 +1,220 @@
+/* EngineInstallModal.css */
+
+.eim-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: eim-fadeIn 0.15s ease;
+}
+
+@keyframes eim-fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.eim-card {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 28px 32px 24px;
+  width: 440px;
+  max-width: calc(100vw - 40px);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.22);
+  animation: eim-slideUp 0.2s ease;
+}
+
+@keyframes eim-slideUp {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* Header */
+.eim-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.eim-icon {
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.eim-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin: 0;
+}
+
+/* Description */
+.eim-desc {
+  font-size: 0.95rem;
+  color: #333;
+  line-height: 1.55;
+  margin: 0 0 8px;
+}
+
+.eim-desc strong {
+  color: #111;
+}
+
+.eim-note {
+  font-size: 0.88rem;
+  color: #4a90d9;
+  margin: 0 0 20px;
+}
+
+/* Progress */
+.eim-progress-wrap {
+  margin: 12px 0 20px;
+}
+
+.eim-progress-status {
+  font-size: 0.88rem;
+  color: #555;
+  margin: 0 0 8px;
+}
+
+.eim-progress-bar-bg {
+  height: 8px;
+  background: #e9ecef;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.eim-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4a90d9, #3b6fd4);
+  border-radius: 8px;
+  transition: width 0.3s ease;
+}
+
+/* Success */
+.eim-success {
+  font-size: 0.95rem;
+  color: #28a745;
+  margin: 12px 0 4px;
+  text-align: center;
+}
+
+/* Error */
+.eim-error {
+  margin: 10px 0;
+  padding: 10px 14px;
+  background: #fff3f3;
+  border: 1px solid #f5c6c6;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  color: #c0392b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.eim-error p {
+  margin: 0;
+  flex: 1;
+}
+
+.eim-btn-retry {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid #c0392b;
+  background: transparent;
+  color: #c0392b;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.eim-btn-retry:hover {
+  background: #fde8e8;
+}
+
+/* Action buttons */
+.eim-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.eim-btn-skip {
+  padding: 8px 22px;
+  border-radius: 8px;
+  border: none;
+  background: #e9ecef;
+  color: #444;
+  font-size: 0.92rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.eim-btn-skip:hover {
+  background: #d8dde3;
+}
+
+.eim-btn-install {
+  padding: 8px 28px;
+  border-radius: 8px;
+  border: none;
+  background: #3b6fd4;
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.eim-btn-install:hover {
+  background: #2f5cb8;
+}
+
+.eim-btn-install:active {
+  transform: scale(0.97);
+}
+
+.eim-btn-install:disabled,
+.eim-btn-skip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Dark theme support */
+[data-theme='dark'] .eim-card {
+  background: #1e2436;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme='dark'] .eim-title {
+  color: #e8eaf6;
+}
+
+[data-theme='dark'] .eim-desc {
+  color: #c8ccd8;
+}
+
+[data-theme='dark'] .eim-desc strong {
+  color: #eef;
+}
+
+[data-theme='dark'] .eim-progress-bar-bg {
+  background: #2d3250;
+}
+
+[data-theme='dark'] .eim-btn-skip {
+  background: #2d3250;
+  color: #b0b8d0;
+}
+
+[data-theme='dark'] .eim-btn-skip:hover {
+  background: #374060;
+}

@@ -197,15 +197,30 @@ async function launchProfileInternal(profileId, options = {}) {
     }
 
     // Playwright flow
+    const engineMode = settings.engine || 'playwright';
+    const isFirefox = engineMode === 'playwright-firefox' || engineMode === 'firefox';
+    const { chromium, firefox } = require('playwright-core');
+    const pwEngine = isFirefox ? firefox : chromium;
+
     const fp = profile.fingerprint || {};
-    const args = ['--lang=en-US'];
-    if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
-      args.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
+    // Build launch args — separate Chrome-specific flags from Firefox-compatible ones
+    const args = isFirefox ? [] : ['--lang=en-US'];
+    // Window size (Chromium flags only)
+    if (!isFirefox && settings.windowWidth > 0 && settings.windowHeight > 0) {
+      args.push(`--window-size=${settings.windowWidth},${settings.windowHeight}`);
+    } else if (!isFirefox && settings.windowWidth === 0 && settings.windowHeight === 0) {
+      args.push('--start-maximized');
     }
-    if (settings.webgl === false || fp.webgl === false) { args.push('--disable-3d-apis'); }
+    if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
+      if (!isFirefox) args.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
+    }
+    if (settings.webgl === false || fp.webgl === false) { if (!isFirefox) args.push('--disable-3d-apis'); }
     const permissions = [];
-    if (settings.mediaDevices?.audio) permissions.push('microphone');
-    if (settings.mediaDevices?.video) permissions.push('camera');
+    // Firefox only supports 'geolocation' and 'notifications' — skip microphone/camera for Firefox
+    if (!isFirefox) {
+      if (settings.mediaDevices?.audio) permissions.push('microphone');
+      if (settings.mediaDevices?.video) permissions.push('camera');
+    }
     // Grant geolocation permission only when we intend to override and have valid coords
     try {
       const apply = (settings && settings.applyOverrides) || {};
@@ -250,28 +265,41 @@ async function launchProfileInternal(profileId, options = {}) {
       }
     }
     let server;
-    try { server = await chromium.launchServer({ headless, args, proxy }); }
+    try { server = await pwEngine.launchServer({ headless, args, proxy }); }
     catch (e) {
       const msg = e?.message || String(e);
       appendLog(profileId, `Playwright launch failed: ${msg}`);
       if (/playwright\s+install|executable|not\s+found|Please run/i.test(msg)) {
-        appendLog(profileId, 'Attempting auto-install playwright browsers (chromium)...');
-        const ok = await runPlaywrightInstall('chromium');
+        const bname = isFirefox ? 'firefox' : 'chromium';
+        appendLog(profileId, `Attempting auto-install playwright browsers (${bname})...`);
+        const ok = await runPlaywrightInstall(bname);
         if (!ok) { try { await forwarder?.stop?.(); } catch {} return { success: false, error: 'Playwright browsers not installed.' }; }
-        server = await chromium.launchServer({ headless, args, proxy });
+        server = await pwEngine.launchServer({ headless, args, proxy });
       } else { try { await forwarder?.stop?.(); } catch {} throw e; }
     }
     const wsEndpoint = server.wsEndpoint();
-    const browser = await chromium.connect(wsEndpoint);
-    appendLog(profileId, `Launched Playwright server: ${wsEndpoint}`);
+    const browser = await pwEngine.connect(wsEndpoint);
+    appendLog(profileId, `Launched Playwright ${isFirefox ? 'Firefox' : 'Chromium'} server: ${wsEndpoint}`);
     const apply = (settings && settings.applyOverrides) || {};
     const applyUA = apply.userAgent !== false;
     const applyLang = apply.language !== false;
     const applyTz = apply.timezone !== false;
     const applyViewport = apply.viewport !== false;
     const applyGeo = apply.geolocation !== false;
-    const contextOptions = { proxy };
-    if (applyLang) contextOptions.locale = fp.language || settings.language || 'en-US';
+    const contextOptions = { proxy, extraHTTPHeaders: {} };
+    if (applyLang) {
+      const spoofLang = fp.language || settings.language || 'en-US';
+      // Use fingerprint language as locale — all signals must be consistent:
+      // navigator.language (JS), locale (Playwright), Accept-Language (header) must all match
+      contextOptions.locale = spoofLang;
+      // Accept-Language: primary = fingerprint lang, secondary = en (fallback)
+      const langBase = spoofLang.split('-')[0];
+      if (spoofLang.toLowerCase().startsWith('en')) {
+        contextOptions.extraHTTPHeaders['Accept-Language'] = `${spoofLang},en;q=0.9`;
+      } else {
+        contextOptions.extraHTTPHeaders['Accept-Language'] = `${spoofLang},${langBase};q=0.9,en;q=0.8`;
+      }
+    }
     if (applyTz) contextOptions.timezoneId = fp.timezone || settings.timezone || 'UTC';
     if (applyUA && fp.userAgent) contextOptions.userAgent = fp.userAgent;
     // Apply viewport and device scale like CDP DeviceMetricsOverride
@@ -301,7 +329,9 @@ async function launchProfileInternal(profileId, options = {}) {
       await applyFingerprintInitScripts(context, profile, settings);
     } catch {}
     const { loadSessionTabs, saveSessionTabs } = require('../storage/sessionTabs');
-    const savedTabs = loadSessionTabs(profileId);
+    const rawSavedTabs = loadSessionTabs(profileId);
+    // Only restore valid http/https URLs — filter out about:blank, en-us, and other garbage
+    const savedTabs = (rawSavedTabs || []).filter(u => typeof u === 'string' && /^https?:\/\//i.test(u));
     
     let page;
     if (savedTabs && savedTabs.length > 0) {
@@ -320,18 +350,23 @@ async function launchProfileInternal(profileId, options = {}) {
         }
       }
     } else {
-      page = await context.newPage();
+      // Reuse the default tab that Playwright opens (avoids double-tab on Firefox)
+      const existingPages = context.pages();
+      if (existingPages && existingPages.length > 0) {
+        page = existingPages[0];
+      } else {
+        page = await context.newPage();
+      }
       // Navigate with timeout and retry for slow proxy connections
       try {
         await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
       } catch (navErr) {
         appendLog(profileId, `First navigation attempt failed: ${navErr?.message || navErr}. Retrying...`);
         try {
-          await new Promise(r => setTimeout(r, 2000)); // brief pause before retry
+          await new Promise(r => setTimeout(r, 2000));
           await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
         } catch (retryErr) {
           appendLog(profileId, `Second navigation attempt failed: ${retryErr?.message || retryErr}. Browser is open but page not loaded.`);
-          // Don't throw — keep the browser open so user can interact with it
         }
       }
       appendLog(profileId, `Opened page: ${startUrl}`);
