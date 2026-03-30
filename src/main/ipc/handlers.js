@@ -221,6 +221,33 @@ function registerIpcHandlers(extra = {}) {
   }
 
   if (extra.register) { try { extra.register(ipcMain); } catch { } }
+  // Proxy Rotator logic
+  ipcMain.handle('proxy-rotate-url', async (_e, rotateUrl) => {
+    try {
+      const axios = require('axios');
+      const start = Date.now();
+      await axios.get(rotateUrl, { timeout: 15000 });
+      return { success: true, latency: Date.now() - start };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('proxy-rotate', async (_e, id) => {
+    try {
+      const { getProxyByIdInternal } = require('../storage/proxies');
+      const proxyRes = await getProxyByIdInternal(id);
+      if (!proxyRes.success || !proxyRes.proxy) return { success: false, error: proxyRes.error || 'Proxy not found' };
+      if (!proxyRes.proxy.rotateUrl) return { success: false, error: 'Proxy does not have a rotate URL' };
+      
+      const axios = require('axios');
+      const start = Date.now();
+      await axios.get(proxyRes.proxy.rotateUrl, { timeout: 15000 });
+      return { success: true, latency: Date.now() - start };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
 }
 
 module.exports = { registerIpcHandlers };
