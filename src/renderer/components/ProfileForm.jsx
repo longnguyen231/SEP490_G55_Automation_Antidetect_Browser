@@ -178,7 +178,7 @@ function ProfileForm({ profile, onSave, onCancel }) {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    startUrl: 'https://www.google.com',
+    startUrl: 'https://www.google.com/?hl=en',
     active: true,
     cookie: '',
     fingerprint: { ...defaultFingerprint },
@@ -208,6 +208,28 @@ function ProfileForm({ profile, onSave, onCancel }) {
   const [proxyRotating, setProxyRotating] = useState(false);
   const [proxyCheckResult, setProxyCheckResult] = useState(null);
   const [proxyRotateResult, setProxyRotateResult] = useState(null);
+
+  const [engineStatus, setEngineStatus] = useState({
+      chromium: { status: 'loading' },
+      firefox: { status: 'loading' }
+  });
+
+  useEffect(() => {
+    const checkEngines = async () => {
+      if (!window.electronAPI?.checkBrowserStatus) return;
+      try {
+        const chromiumData = await window.electronAPI.checkBrowserStatus('chromium');
+        const firefoxData = await window.electronAPI.checkBrowserStatus('firefox');
+        setEngineStatus({
+            chromium: chromiumData,
+            firefox: firefoxData
+        });
+      } catch (e) {
+          console.error(e);
+      }
+    };
+    checkEngines();
+  }, []);
 
   useEffect(() => {
     if (profile) {
@@ -496,9 +518,23 @@ function ProfileForm({ profile, onSave, onCancel }) {
         <div className="pf-field">
           <label className="pf-label">Engine</label>
           <select className="pf-select" value={formData.settings.engine || 'playwright'} onChange={e => setS('engine', e.target.value)}>
-            <option value="playwright">Playwright Chromium</option>
-            <option value="playwright-firefox">Playwright Firefox</option>
+            <option value="playwright" disabled={engineStatus.chromium.status && engineStatus.chromium.status !== 'installed' && engineStatus.chromium.status !== 'loading'}>
+                Playwright Chromium {engineStatus.chromium.status !== 'installed' && engineStatus.chromium.status !== 'loading' ? '(Not Installed)' : ''}
+            </option>
+            <option value="playwright-firefox" disabled={engineStatus.firefox.status && engineStatus.firefox.status !== 'installed' && engineStatus.firefox.status !== 'loading'}>
+                Playwright Firefox {engineStatus.firefox.status !== 'installed' && engineStatus.firefox.status !== 'loading' ? '(Not Installed)' : ''}
+            </option>
           </select>
+          {(formData.settings.engine === 'playwright' && engineStatus.chromium.status !== 'installed' && engineStatus.chromium.status !== 'loading') && (
+            <p className="pf-hint" style={{color: '#dc3545', marginTop: '4px'}}>
+               ⚠️ Playwright Chromium is not installed. Go to Settings to install it.
+            </p>
+          )}
+          {((formData.settings.engine === 'playwright-firefox' || formData.settings.engine === 'firefox') && engineStatus.firefox.status !== 'installed' && engineStatus.firefox.status !== 'loading') && (
+            <p className="pf-hint" style={{color: '#dc3545', marginTop: '4px'}}>
+               ⚠️ Playwright Firefox is not installed. Go to Settings to install it.
+            </p>
+          )}
         </div>
       </fieldset>
 
@@ -507,7 +543,7 @@ function ProfileForm({ profile, onSave, onCancel }) {
         <legend className="pf-legend">Startup</legend>
         <div className="pf-field pf-mb">
           <label className="pf-label">Startup Page</label>
-          <input type="text" className="pf-input" value={formData.settings.startupPage || formData.startUrl || ''} onChange={e => { setS('startupPage', e.target.value); setFormData(p => ({ ...p, startUrl: e.target.value })); }} placeholder="ex: https://browser.ongbantat.store" />
+          <input type="text" className="pf-input" value={formData.settings.startupPage || formData.startUrl || ''} onChange={e => { setS('startupPage', e.target.value); setFormData(p => ({ ...p, startUrl: e.target.value })); }} placeholder="ex: https://www.google.com/?hl=en" />
         </div>
         <div className="pf-row">
           <div className="pf-field">

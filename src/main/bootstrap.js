@@ -9,6 +9,7 @@ const { runningProfiles } = require('./state/runtime');
 const { isWsAlive } = require('./engine/health');
 const { appendLog } = require('./logging/logger');
 const { startAutomationScheduler } = require('./engine/automation');
+const { setMainWindowRef } = require('./services/browserManagerService');
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
@@ -35,6 +36,7 @@ app.whenReady().then(async () => {
 
   // Create main window
   const mainWindow = createWindow();
+  setMainWindowRef(mainWindow);
 
   // Start REST API server
   const settingsProvider = () => loadSettings();
