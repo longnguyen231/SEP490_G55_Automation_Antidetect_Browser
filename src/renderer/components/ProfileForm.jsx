@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Sun, User, Monitor, Cpu, PenLine, Layers, Volume2, Video, Globe, Battery } from 'lucide-react';
 import './ProfileForm.css';
 
 /* ═══════════════ Default data ═══════════════ */
@@ -153,16 +154,16 @@ const RAM_OPTIONS = [2, 4, 8, 12, 16, 24, 32, 64];
 
 /* ═══════════════ Sidebar Tab Definitions ═══════════════ */
 const TABS = [
-  { id: 'general',  label: 'General',  icon: '⚙' },
-  { id: 'identity', label: 'Identity', icon: '👤', toggleable: true },
-  { id: 'display',  label: 'Display',  icon: '🖥', toggleable: true },
-  { id: 'hardware', label: 'Hardware', icon: '🔧', toggleable: true },
-  { id: 'canvas',   label: 'Canvas',   icon: '🎨', toggleable: true },
-  { id: 'webgl',    label: 'WebGL',    icon: '🔷', toggleable: true },
-  { id: 'audio',    label: 'Audio',    icon: '🔊', toggleable: true },
-  { id: 'media',    label: 'Media',    icon: '📷', toggleable: true },
-  { id: 'network',  label: 'Network',  icon: '🌐', toggleable: true },
-  { id: 'battery',  label: 'Battery',  icon: '🔋', toggleable: true },
+  { id: 'general',  label: 'General',  icon: <Sun size={18} /> },
+  { id: 'identity', label: 'Identity', icon: <User size={18} />, toggleable: true },
+  { id: 'display',  label: 'Display',  icon: <Monitor size={18} />, toggleable: true },
+  { id: 'hardware', label: 'Hardware', icon: <Cpu size={18} />, toggleable: true },
+  { id: 'canvas',   label: 'Canvas',   icon: <PenLine size={18} />, toggleable: true },
+  { id: 'webgl',    label: 'WebGL',    icon: <Layers size={18} />, toggleable: true },
+  { id: 'audio',    label: 'Audio',    icon: <Volume2 size={18} />, toggleable: true },
+  { id: 'media',    label: 'Media',    icon: <Video size={18} />, toggleable: true },
+  { id: 'network',  label: 'Network',  icon: <Globe size={18} />, toggleable: true },
+  { id: 'battery',  label: 'Battery',  icon: <Battery size={18} />, toggleable: true },
 ];
 
 /* ═══════════════ Main Component ═══════════════ */
@@ -627,10 +628,13 @@ function ProfileForm({ profile, onSave, onCancel }) {
     </>
   );
 
-  const renderWebGL = () => (
+  const renderWebGL = () => {
+    const extCount = (formData.fingerprint.webglExtensions || '').split(',').filter(e => e.trim()).length;
+    return (
     <>
-      <ToggleHeader id="webgl" label="WebGL" desc="WebGL fingerprint noise, texture and extensions." enabled={sectionToggles.webgl} onToggle={() => toggleSection('webgl')} />
+      <ToggleHeader id="webgl" label="WebGL Fingerprint" desc="WebGL noise, texture size parameters, and supported extensions" enabled={sectionToggles.webgl} onToggle={() => toggleSection('webgl')} />
       <div className={sectionToggles.webgl ? '' : 'pf-section-disabled'}>
+        <p className="pf-hint" style={{ marginBottom: '1rem', opacity: 0.85 }}>WebGL overrides spoof GPU capabilities and inject deterministic hash noise to prevent WebGL-based fingerprinting.</p>
         <div className="pf-row">
           <div className="pf-field">
             <label className="pf-label">Noise Seed</label>
@@ -641,38 +645,43 @@ function ProfileForm({ profile, onSave, onCancel }) {
             <input type="number" className="pf-input" value={formData.fingerprint.maxTextureSize || 8192} onChange={e => setFp('maxTextureSize', e.target.value)} />
           </div>
         </div>
-        <div className="pf-field">
-          <label className="pf-label">Extensions (comma-separated)</label>
+        <div className="pf-field pf-mb">
+          <label className="pf-label">Extensions (comma separated)</label>
           <input type="text" className="pf-input" value={formData.fingerprint.webglExtensions || ''} onChange={e => setFp('webglExtensions', e.target.value)} />
+        </div>
+        <div className="pf-info-box">
+          <div className="pf-info-row"><span>Extensions count:</span><span>{extCount}</span></div>
+          <div className="pf-info-row"><span>Noise seed:</span><span>{formData.fingerprint.webglNoise || 709233842}</span></div>
         </div>
       </div>
     </>
-  );
+    );
+  };
 
   const renderAudio = () => (
     <>
-      <ToggleHeader id="audio" label="Audio" desc="AudioContext fingerprint settings." enabled={sectionToggles.audio} onToggle={() => toggleSection('audio')} />
+      <ToggleHeader id="audio" label="Audio Fingerprint" desc="AudioContext sample rate, channel count, and noise injection" enabled={sectionToggles.audio} onToggle={() => toggleSection('audio')} />
       <div className={sectionToggles.audio ? '' : 'pf-section-disabled'}>
         <div className="pf-row-3">
           <div className="pf-field">
-            <label className="pf-label">Sample Rate</label>
-            <select className="pf-select" value={formData.fingerprint.audioSampleRate || 96000} onChange={e => setFp('audioSampleRate', Number(e.target.value))}>
-              <option value={44100}>44100</option>
-              <option value={48000}>48000</option>
-              <option value={96000}>96000</option>
+            <label className="pf-label">Sample Rate (Hz)</label>
+            <select className="pf-select" value={formData.fingerprint.audioSampleRate || 48000} onChange={e => setFp('audioSampleRate', Number(e.target.value))}>
+              <option value={44100}>44,100 Hz</option>
+              <option value={48000}>48,000 Hz</option>
+              <option value={96000}>96,000 Hz</option>
             </select>
           </div>
           <div className="pf-field">
             <label className="pf-label">Channels</label>
-            <select className="pf-select" value={formData.fingerprint.audioChannels || 'Mono'} onChange={e => setFp('audioChannels', e.target.value)}>
-              <option value="Mono">Mono</option>
-              <option value="Stereo">Stereo</option>
-              <option value="Surround">Surround</option>
+            <select className="pf-select" value={formData.fingerprint.audioChannels || 'Stereo'} onChange={e => setFp('audioChannels', e.target.value)}>
+              <option value="Mono">Mono (1ch)</option>
+              <option value="Stereo">Stereo (2ch)</option>
+              <option value="Surround">5.1 (6ch)</option>
             </select>
           </div>
           <div className="pf-field">
             <label className="pf-label">Noise Seed</label>
-            <input type="number" className="pf-input" value={formData.fingerprint.audioNoise || 699605402} onChange={e => setFp('audioNoise', e.target.value)} />
+            <input type="number" className="pf-input" value={formData.fingerprint.audioNoise || 0} onChange={e => setFp('audioNoise', e.target.value)} />
           </div>
         </div>
       </div>
@@ -703,105 +712,104 @@ function ProfileForm({ profile, onSave, onCancel }) {
 
   const renderNetwork = () => (
     <>
-      <ToggleHeader id="network" label="Network" desc="WebRTC, connection type, proxy and PDF viewer." enabled={sectionToggles.network} onToggle={() => toggleSection('network')} />
+      <ToggleHeader id="network" label="Network & Navigator" desc="WebRTC IP handling policy and navigator network/privacy properties" enabled={sectionToggles.network} onToggle={() => toggleSection('network')} />
       <div className={sectionToggles.network ? '' : 'pf-section-disabled'}>
-        <div className="pf-row">
+        <fieldset className="pf-fieldset">
+          <legend className="pf-legend">WebRTC</legend>
           <div className="pf-field">
-            <label className="pf-label">WebRTC IP Handling</label>
-            <select className="pf-select" value={formData.settings.webrtc || 'Public + private'} onChange={e => setS('webrtc', e.target.value)}>
+            <label className="pf-label">IP Handling Policy</label>
+            <select className="pf-select" value={formData.settings.webrtc || 'Default'} onChange={e => setS('webrtc', e.target.value)}>
               <option value="Public + private">Public + private</option>
-              <option value="Default">Default</option>
+              <option value="Default">Default (allow all)</option>
               <option value="Disable non-proxied UDP">Disable non-proxied UDP</option>
               <option value="Public interface only">Public interface only</option>
             </select>
+            <p className="pf-hint">Controls which IP addresses are exposed via WebRTC. Use "Disable non-proxied UDP" to prevent IP leaks when using a proxy.</p>
           </div>
-          <div className="pf-field">
-            <label className="pf-label">Connection Type</label>
-            <select className="pf-select" value={formData.fingerprint.connectionType || 'Ethernet'} onChange={e => setFp('connectionType', e.target.value)}>
-              <option value="Ethernet">Ethernet</option>
-              <option value="Wi-Fi">Wi-Fi</option>
-              <option value="Cellular">Cellular</option>
-              <option value="None">None</option>
-            </select>
+        </fieldset>
+
+        <fieldset className="pf-fieldset">
+          <legend className="pf-legend">Navigator Properties</legend>
+          <div className="pf-row">
+            <div className="pf-field">
+              <label className="pf-label">Do Not Track</label>
+              <select className="pf-select" value={String(formData.settings.advanced?.dnt !== undefined ? formData.settings.advanced.dnt : 'null')} onChange={e => setAdv('dnt', e.target.value === 'null' ? null : (e.target.value === '1' ? 1 : 0))}>
+                <option value="null">Not set (null)</option>
+                <option value="1">Enabled (1)</option>
+                <option value="0">Unspecified</option>
+              </select>
+            </div>
+            <div className="pf-field">
+              <label className="pf-label">Max Touch Points</label>
+              <input type="number" className="pf-input" value={formData.fingerprint.maxTouchPoints || 0} onChange={e => setFp('maxTouchPoints', Number(e.target.value))} />
+            </div>
           </div>
-        </div>
-        <div className="pf-field pf-mb">
-          <label className="pf-label">PDF Viewer</label>
-          <select className="pf-select" value={formData.fingerprint.pdfViewer || 'Enabled'} onChange={e => setFp('pdfViewer', e.target.value)}>
-            <option value="Enabled">Enabled</option>
-            <option value="Disabled">Disabled</option>
-          </select>
-        </div>
-
-        <div className="pf-divider" />
-
-        <div className="pf-group-title">Proxy</div>
-        <label className="pf-checkbox pf-mb">
-          <input type="checkbox" checked={formData.settings.proxy?.type !== 'none' && formData.settings.proxy?.type !== undefined} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...p.settings.proxy, type: e.target.checked ? 'http' : 'none' } } }))} />
-          <span>Enable proxy for this profile</span>
-        </label>
-        {formData.settings.proxy?.type && formData.settings.proxy.type !== 'none' && (
-          <>
-            <div className="pf-row pf-mb">
-              <div className="pf-field">
-                <label className="pf-label">Type</label>
-                <select className="pf-select" value={formData.settings.proxy?.type || 'http'} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...p.settings.proxy, type: e.target.value } } }))}>
-                  <option value="http">HTTP</option>
-                  <option value="https">HTTPS</option>
-                  <option value="socks5">SOCKS5</option>
-                </select>
-              </div>
-              <div className="pf-field">
-                <label className="pf-label">Server (host:port)</label>
-                <input type="text" className="pf-input" placeholder="192.168.1.1:8080" value={formData.settings.proxy?.server || ''} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...p.settings.proxy, server: e.target.value } } }))} />
-              </div>
+          <div className="pf-row">
+            <div className="pf-field">
+              <label className="pf-label">Connection Type</label>
+              <select className="pf-select" value={formData.fingerprint.connectionType || 'Ethernet'} onChange={e => setFp('connectionType', e.target.value)}>
+                <option value="Ethernet">Ethernet</option>
+                <option value="Wi-Fi">Wi-Fi</option>
+                <option value="Cellular">Cellular</option>
+                <option value="None">None</option>
+              </select>
             </div>
-            <div className="pf-row">
-              <div className="pf-field">
-                <label className="pf-label">Username</label>
-                <input type="text" className="pf-input" placeholder="(optional)" value={formData.settings.proxy?.username || ''} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...p.settings.proxy, username: e.target.value } } }))} />
-              </div>
-              <div className="pf-field">
-                <label className="pf-label">Password</label>
-                <input type="password" className="pf-input" placeholder="(optional)" value={formData.settings.proxy?.password || ''} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...p.settings.proxy, password: e.target.value } } }))} />
-              </div>
+            <div className="pf-field">
+              <label className="pf-label">PDF Viewer</label>
+              <select className="pf-select" value={formData.fingerprint.pdfViewer || 'Enabled'} onChange={e => setFp('pdfViewer', e.target.value)}>
+                <option value="Enabled">Enabled</option>
+                <option value="Disabled">Disabled</option>
+              </select>
             </div>
-          </>
-        )}
+          </div>
+        </fieldset>
+
       </div>
     </>
   );
 
-  const renderBattery = () => (
-    <>
-      <ToggleHeader id="battery" label="Battery" desc="Battery API spoofing settings." enabled={sectionToggles.battery} onToggle={() => toggleSection('battery')} />
-      <div className={sectionToggles.battery ? '' : 'pf-section-disabled'}>
-        <div className="pf-row">
-          <div className="pf-field">
-            <label className="pf-label">Charging</label>
-            <select className="pf-select" value={formData.fingerprint.batteryCharging || 'No'} onChange={e => setFp('batteryCharging', e.target.value)}>
-              <option value="Yes">Yes</option>
-              <option value="No">No</option>
-            </select>
+  const renderBattery = () => {
+    const isCharging = formData.fingerprint.batteryCharging === 'Yes';
+    const statusText = isCharging ? 'Charging' : 'Discharging';
+    const statusColor = isCharging ? '#10b981' : 'var(--fg)';
+    const levelPercent = Math.round((formData.fingerprint.batteryLevel || 0) * 100) + '%';
+
+    return (
+      <>
+        <ToggleHeader id="battery" label="Battery API" desc="Spoof navigator.getBattery() to report custom charging state and level" enabled={sectionToggles.battery} onToggle={() => toggleSection('battery')} />
+        <div className={sectionToggles.battery ? '' : 'pf-section-disabled'}>
+          <p className="pf-hint" style={{ marginBottom: '1rem', opacity: 0.85 }}>Battery status can be used as a fingerprinting vector. Spoofing it prevents sites from using it to track you.</p>
+          <div className="pf-row">
+            <div className="pf-field">
+              <label className="pf-label">Charging</label>
+              <select className="pf-select" value={formData.fingerprint.batteryCharging || 'No'} onChange={e => setFp('batteryCharging', e.target.value)}>
+                <option value="Yes">Charging</option>
+                <option value="No">Discharging</option>
+              </select>
+            </div>
+            <div className="pf-field">
+              <label className="pf-label">Level (0.0 - 1.0)</label>
+              <input type="number" step="0.01" className="pf-input" value={formData.fingerprint.batteryLevel !== undefined ? formData.fingerprint.batteryLevel : 0.27} onChange={e => setFp('batteryLevel', Number(e.target.value))} />
+            </div>
           </div>
-          <div className="pf-field">
-            <label className="pf-label">Level (0-1)</label>
-            <input type="number" step="0.01" className="pf-input" value={formData.fingerprint.batteryLevel || 0.27} onChange={e => setFp('batteryLevel', Number(e.target.value))} />
+          <div className="pf-row">
+            <div className="pf-field">
+              <label className="pf-label">Charging Time (seconds)</label>
+              <input type="number" className="pf-input" value={formData.fingerprint.batteryChargingTime || 0} onChange={e => setFp('batteryChargingTime', Number(e.target.value))} />
+            </div>
+            <div className="pf-field">
+              <label className="pf-label">Discharging Time (seconds)</label>
+              <input type="number" className="pf-input" value={formData.fingerprint.batteryDischargingTime !== undefined ? formData.fingerprint.batteryDischargingTime : 15789} onChange={e => setFp('batteryDischargingTime', Number(e.target.value))} />
+            </div>
+          </div>
+          <div className="pf-info-box">
+            <div className="pf-info-row"><span>Status:</span><span style={{ color: statusColor }}>{statusText}</span></div>
+            <div className="pf-info-row"><span>Level:</span><span>{levelPercent}</span></div>
           </div>
         </div>
-        <div className="pf-row">
-          <div className="pf-field">
-            <label className="pf-label">Charging Time (s)</label>
-            <input type="number" className="pf-input" value={formData.fingerprint.batteryChargingTime || 0} onChange={e => setFp('batteryChargingTime', Number(e.target.value))} />
-          </div>
-          <div className="pf-field">
-            <label className="pf-label">Discharging Time (s)</label>
-            <input type="number" className="pf-input" value={formData.fingerprint.batteryDischargingTime || 15789} onChange={e => setFp('batteryDischargingTime', Number(e.target.value))} />
-          </div>
-        </div>
-      </div>
-    </>
-  );
+      </>
+    );
+  };
 
   const renderTabContent = () => {
     switch (activeTab) {
