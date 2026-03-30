@@ -31,7 +31,7 @@ const defaultSettings = {
   mediaDevices: { audio: true, video: true },
   webgl: true,
   headless: false,
-  engine: 'auto',
+  engine: 'playwright',
   injectFingerprint: true,
   quantity: 1,
   startupPage: '',
@@ -237,19 +237,126 @@ function ProfileForm({ profile, onSave, onCancel }) {
     ...prev, settings: { ...prev.settings, advanced: { ...prev.settings.advanced, [field]: val } }
   }));
 
-  const generateFingerprint = () => {
-    const randomConfig = generateConsistentFingerprint();
-    setFormData(prev => ({
-      ...prev,
-      fingerprint: { ...prev.fingerprint, ...randomConfig.fingerprint },
-      settings: {
-        ...prev.settings, ...randomConfig.settings,
-        injectFingerprint: prev.settings.injectFingerprint,
-        quantity: prev.settings.quantity,
-        engine: prev.settings.engine,
+  /* ── Per-section random generators ── */
+  const randomFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+  const generateForActiveTab = () => {
+    const full = generateConsistentFingerprint();
+
+    switch (activeTab) {
+      case 'general': {
+        // General: regenerate everything (like before)
+        setFormData(prev => ({
+          ...prev,
+          fingerprint: { ...prev.fingerprint, ...full.fingerprint },
+          settings: {
+            ...prev.settings, ...full.settings,
+            injectFingerprint: prev.settings.injectFingerprint,
+            quantity: prev.settings.quantity,
+            engine: prev.settings.engine,
+          }
+        }));
+        break;
       }
-    }));
+      case 'identity': {
+        const LOCALES = [
+          { code: 'vi-VN', tz: 'Asia/Ho_Chi_Minh', langs: 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7' },
+          { code: 'en-US', tz: 'America/New_York', langs: 'en-US,en;q=0.9' },
+          { code: 'en-GB', tz: 'Europe/London', langs: 'en-GB,en;q=0.9,en-US;q=0.8' },
+          { code: 'fr-FR', tz: 'Europe/Paris', langs: 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7' },
+          { code: 'de-DE', tz: 'Europe/Berlin', langs: 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7' },
+          { code: 'ja-JP', tz: 'Asia/Tokyo', langs: 'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7' },
+          { code: 'ko-KR', tz: 'Asia/Seoul', langs: 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7' },
+          { code: 'zh-CN', tz: 'Asia/Shanghai', langs: 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7' },
+        ];
+        const loc = randomFrom(LOCALES);
+        const os = formData.fingerprint.os || 'Windows';
+        const bv = randomFrom(['145.0.0.0','144.0.0.0','143.0.0.0','142.0.0.0','141.0.0.0']);
+        const plat = os === 'Windows' ? 'Win32' : os === 'macOS' ? 'MacIntel' : 'Linux x86_64';
+        let ua;
+        if (os === 'Windows') ua = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
+        else if (os === 'macOS') ua = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
+        else ua = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
+        setFormData(prev => ({
+          ...prev,
+          fingerprint: { ...prev.fingerprint, userAgent: ua, browserVersion: bv, language: loc.code, timezone: loc.tz, maxTouchPoints: randomFrom([0, 5, 10]), fonts: full.fingerprint.fonts },
+          settings: { ...prev.settings, language: loc.code, timezone: loc.tz, advanced: { ...prev.settings.advanced, platform: plat, dnt: randomFrom([true, false]), languages: loc.langs } }
+        }));
+        break;
+      }
+      case 'display': {
+        const SCREENS = [{ res: '1366x768', ratios: [1] }, { res: '1600x900', ratios: [1] }, { res: '1920x1080', ratios: [1, 1.25, 1.5] }, { res: '2560x1440', ratios: [1, 1.25, 1.5, 2] }, { res: '3840x2160', ratios: [1.5, 2] }];
+        const s = randomFrom(SCREENS);
+        const pr = randomFrom(s.ratios);
+        setFormData(prev => ({
+          ...prev,
+          fingerprint: { ...prev.fingerprint, screenResolution: s.res, colorDepth: randomFrom([24, 32]), pixelRatio: pr }
+        }));
+        break;
+      }
+      case 'hardware': {
+        const gpu = randomFrom([
+          { v: 'Google Inc. (Intel)', r: 'ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0)' },
+          { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 Direct3D11 vs_5_0)' },
+          { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0)' },
+          { v: 'Google Inc. (AMD)', r: 'ANGLE (AMD, AMD Radeon RX 580 Direct3D11 vs_5_0)' },
+        ]);
+        setFormData(prev => ({
+          ...prev,
+          settings: { ...prev.settings, cpuCores: randomFrom([2, 4, 6, 8, 12, 16, 24, 32]), memoryGB: randomFrom([2, 4, 8, 12, 16, 24, 32, 64]), gpuVendor: gpu.v, gpuRenderer: gpu.r }
+        }));
+        break;
+      }
+      case 'canvas': {
+        setFormData(prev => ({
+          ...prev,
+          fingerprint: { ...prev.fingerprint, canvasNoise: randomInt(100000000, 2100000000), canvasNoiseIntensity: randomFrom([1, 2, 3, 4, 5]) }
+        }));
+        break;
+      }
+      case 'webgl': {
+        setFormData(prev => ({
+          ...prev,
+          fingerprint: { ...prev.fingerprint, webglNoise: randomInt(100000000, 2100000000), maxTextureSize: randomFrom([4096, 8192, 16384]), webglExtensions: randomFrom(['EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float', 'ANGLE_instanced_arrays, OES_texture_float, WEBGL_depth_texture, OES_vertex_array_object', 'EXT_texture_filter_anisotropic, WEBGL_compressed_texture_s3tc, OES_element_index_uint']) }
+        }));
+        break;
+      }
+      case 'audio': {
+        setFormData(prev => ({
+          ...prev,
+          fingerprint: { ...prev.fingerprint, audioNoise: randomInt(100000000, 2100000000), audioSampleRate: randomFrom([44100, 48000, 96000]), audioChannels: randomFrom(['Mono', 'Stereo', 'Surround']) }
+        }));
+        break;
+      }
+      case 'media': {
+        setFormData(prev => ({
+          ...prev,
+          settings: { ...prev.settings, mediaDevices: { ...prev.settings.mediaDevices, speakers: randomInt(1, 3), microphones: randomInt(0, 2), webcams: randomInt(0, 1) } }
+        }));
+        break;
+      }
+      case 'network': {
+        setFormData(prev => ({
+          ...prev,
+          fingerprint: { ...prev.fingerprint, connectionType: randomFrom(['Ethernet', 'Wi-Fi', 'Cellular']), pdfViewer: randomFrom(['Enabled', 'Disabled']) },
+          settings: { ...prev.settings, webrtc: randomFrom(['Public + private', 'Default', 'Disable non-proxied UDP', 'Public interface only']) }
+        }));
+        break;
+      }
+      case 'battery': {
+        setFormData(prev => ({
+          ...prev,
+          fingerprint: { ...prev.fingerprint, batteryCharging: randomFrom(['Yes', 'No']), batteryLevel: Number((Math.random() * 0.9 + 0.1).toFixed(2)), batteryChargingTime: randomFrom([0, 3600, 7200]), batteryDischargingTime: randomInt(5000, 20000) }
+        }));
+        break;
+      }
+      default: break;
+    }
   };
+
+  const generateBtnLabel = activeTab === 'general' ? 'Generate' : `Generate ${TABS.find(t => t.id === activeTab)?.label || ''}`;
+  const generateBtnTooltip = activeTab === 'general' ? 'Regenerate fingerprint based on general settings' : `Regenerate ${(TABS.find(t => t.id === activeTab)?.label || '').toLowerCase()} fields only`;
 
   const handleOsChange = (os) => {
     const bv = formData.fingerprint.browserVersion || '145.0.0.0';
@@ -273,7 +380,7 @@ function ProfileForm({ profile, onSave, onCancel }) {
     } else {
       delete finalSettings.applyOverrides;
     }
-    if (!finalSettings.engine) finalSettings.engine = 'auto';
+    if (!finalSettings.engine) finalSettings.engine = 'playwright';
 
     const payload = {
       ...formData,
@@ -313,26 +420,23 @@ function ProfileForm({ profile, onSave, onCancel }) {
       </div>
 
       {/* Browser Engine */}
-      <div className="pf-group">
-        <div className="pf-group-title">Browser Engine</div>
+      <fieldset className="pf-fieldset">
+        <legend className="pf-legend">Browser Engine</legend>
         <div className="pf-field">
           <label className="pf-label">Engine</label>
-          <select className="pf-select" value={formData.settings.engine || 'auto'} onChange={e => setS('engine', e.target.value)}>
+          <select className="pf-select" value={formData.settings.engine || 'playwright'} onChange={e => setS('engine', e.target.value)}>
             <option value="playwright">Playwright Chromium</option>
             <option value="playwright-firefox">Playwright Firefox</option>
-            <option value="cdp">CDP (system Chrome only)</option>
-            <option value="auto">Auto (prefer CDP, fallback Playwright)</option>
           </select>
-          <p className="pf-hint">Chromium supports full fingerprint injection. Firefox has limited CDP support.</p>
         </div>
-      </div>
+      </fieldset>
 
       {/* Startup */}
-      <div className="pf-group">
-        <div className="pf-group-title">Startup</div>
+      <fieldset className="pf-fieldset">
+        <legend className="pf-legend">Startup</legend>
         <div className="pf-field pf-mb">
           <label className="pf-label">Startup Page</label>
-          <input type="text" className="pf-input" value={formData.settings.startupPage || formData.startUrl || ''} onChange={e => { setS('startupPage', e.target.value); setFormData(p => ({ ...p, startUrl: e.target.value })); }} placeholder="ex: https://browser.ongloentat.store" />
+          <input type="text" className="pf-input" value={formData.settings.startupPage || formData.startUrl || ''} onChange={e => { setS('startupPage', e.target.value); setFormData(p => ({ ...p, startUrl: e.target.value })); }} placeholder="ex: https://browser.ongbantat.store" />
         </div>
         <div className="pf-row">
           <div className="pf-field">
@@ -345,11 +449,11 @@ function ProfileForm({ profile, onSave, onCancel }) {
           </div>
         </div>
         <p className="pf-hint">Leave width/height at 0 to use the OS default window size.</p>
-      </div>
+      </fieldset>
 
       {/* Quick Generate */}
-      <div className="pf-group">
-        <div className="pf-group-title">Quick Generate</div>
+      <fieldset className="pf-fieldset">
+        <legend className="pf-legend">Quick Generate</legend>
         <div className="pf-row-3">
           <div className="pf-field">
             <label className="pf-label">OS</label>
@@ -376,7 +480,7 @@ function ProfileForm({ profile, onSave, onCancel }) {
           </div>
         </div>
         <p className="pf-hint">Fingerprint auto generates when you change these settings.</p>
-      </div>
+      </fieldset>
     </>
   );
 
@@ -411,25 +515,6 @@ function ProfileForm({ profile, onSave, onCancel }) {
             <label className="pf-label">Languages (comma-separated)</label>
             <input type="text" className="pf-input" value={formData.settings.advanced?.languages || formData.fingerprint.language} onChange={e => setAdv('languages', e.target.value)} />
           </div>
-        </div>
-        <div className="pf-row">
-          <div className="pf-field">
-            <label className="pf-label">Do Not Track</label>
-            <select className="pf-select" value={formData.settings.advanced?.dnt ? '1' : '0'} onChange={e => setAdv('dnt', e.target.value === '1')}>
-              <option value="1">Enabled (1)</option>
-              <option value="0">Disabled (0)</option>
-            </select>
-          </div>
-          <div className="pf-field">
-            <label className="pf-label">Max Touch Points</label>
-            <input type="number" className="pf-input" value={formData.fingerprint.maxTouchPoints || 0} onChange={e => setFp('maxTouchPoints', Number(e.target.value))} />
-          </div>
-        </div>
-        <div className="pf-field pf-mb">
-          <label className="pf-label">
-            Installed Fonts ({(formData.fingerprint.fonts || '').split(',').filter(f => f.trim()).length})
-          </label>
-          <input type="text" className="pf-input" value={formData.fingerprint.fonts || ''} onChange={e => setFp('fonts', e.target.value)} />
         </div>
       </div>
     </>
@@ -477,15 +562,17 @@ function ProfileForm({ profile, onSave, onCancel }) {
     </>
   );
 
-  const renderHardware = () => (
+  const renderHardware = () => {
+    const fontCount = (formData.fingerprint.fonts || '').split(',').filter(f => f.trim()).length;
+    return (
     <>
-      <ToggleHeader id="hardware" label="Hardware" desc="CPU, RAM and GPU configuration." enabled={sectionToggles.hardware} onToggle={() => toggleSection('hardware')} />
+      <ToggleHeader id="hardware" label="Hardware" desc="CPU cores, RAM, GPU vendor and renderer string, installed fonts" enabled={sectionToggles.hardware} onToggle={() => toggleSection('hardware')} />
       <div className={sectionToggles.hardware ? '' : 'pf-section-disabled'}>
         <div className="pf-row">
           <div className="pf-field">
             <label className="pf-label">CPU Cores</label>
             <select className="pf-select" value={formData.settings.cpuCores || 4} onChange={e => setS('cpuCores', Number(e.target.value))}>
-              {CPU_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+              {CPU_OPTIONS.map(n => <option key={n} value={n}>{n} cores</option>)}
             </select>
           </div>
           <div className="pf-field">
@@ -499,18 +586,29 @@ function ProfileForm({ profile, onSave, onCancel }) {
           <label className="pf-label">GPU Vendor</label>
           <input type="text" className="pf-input" value={formData.settings.gpuVendor || ''} onChange={e => setS('gpuVendor', e.target.value)} />
         </div>
-        <div className="pf-field">
+        <div className="pf-field pf-mb">
           <label className="pf-label">GPU Renderer</label>
           <input type="text" className="pf-input" value={formData.settings.gpuRenderer || ''} onChange={e => setS('gpuRenderer', e.target.value)} />
         </div>
+        <div className="pf-field pf-mb">
+          <label className="pf-label">Installed Fonts ({fontCount})</label>
+          <input type="text" className="pf-input" value={formData.fingerprint.fonts || ''} onChange={e => setFp('fonts', e.target.value)} />
+          <p className="pf-hint">Comma-separated list of font family names</p>
+        </div>
+        <div className="pf-field">
+          <label className="pf-label">Font Count (read-only)</label>
+          <input type="number" className="pf-input" value={fontCount} readOnly />
+        </div>
       </div>
     </>
-  );
+    );
+  };
 
   const renderCanvas = () => (
     <>
-      <ToggleHeader id="canvas" label="Canvas" desc="Canvas fingerprint noise settings." enabled={sectionToggles.canvas} onToggle={() => toggleSection('canvas')} />
+      <ToggleHeader id="canvas" label="Canvas Fingerprint" desc="Pixel-level noise injection to randomize canvas fingerprint" enabled={sectionToggles.canvas} onToggle={() => toggleSection('canvas')} />
       <div className={sectionToggles.canvas ? '' : 'pf-section-disabled'}>
+        <p className="pf-hint" style={{ marginBottom: '1rem', opacity: 0.85 }}>Canvas noise adds subtle pixel-level randomization to prevent fingerprint tracking via HTML5 canvas rendering.</p>
         <div className="pf-row">
           <div className="pf-field">
             <label className="pf-label">Noise Seed</label>
@@ -520,6 +618,10 @@ function ProfileForm({ profile, onSave, onCancel }) {
             <label className="pf-label">Noise Intensity (0-10)</label>
             <input type="number" min="0" max="10" className="pf-input" value={formData.fingerprint.canvasNoiseIntensity || 1} onChange={e => setFp('canvasNoiseIntensity', e.target.value)} />
           </div>
+        </div>
+        <div className="pf-info-box">
+          <div className="pf-info-row"><span>Current seed:</span><span>{formData.fingerprint.canvasNoise || 577315052}</span></div>
+          <div className="pf-info-row"><span>Intensity:</span><span>{formData.fingerprint.canvasNoiseIntensity || 1} / 10</span></div>
         </div>
       </div>
     </>
@@ -728,8 +830,8 @@ function ProfileForm({ profile, onSave, onCancel }) {
           <h2 className="pf-header-title">{isEdit ? 'Edit Profile' : 'New Profile'}</h2>
         </div>
         <div className="pf-header-actions">
-          <button type="button" className="pf-btn pf-btn-generate" onClick={generateFingerprint}>
-            🔄 Generate
+          <button type="button" className="pf-btn pf-btn-generate" onClick={generateForActiveTab} title={generateBtnTooltip}>
+            🔄 {generateBtnLabel}
           </button>
           <button type="button" className="pf-btn pf-btn-cancel" onClick={onCancel}>Cancel</button>
           <button type="button" className="pf-btn pf-btn-create" onClick={handleSubmit}>

@@ -315,6 +315,23 @@
   letter-spacing: 0.01em;
 }
 
+/* -- Fieldset / Legend (bordered section groups) -- */
+.pf-fieldset {
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 1rem 1.25rem 1.25rem;
+  margin: 0 0 1.5rem;
+  background: transparent;
+}
+
+.pf-legend {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--fg);
+  padding: 0 0.5rem;
+  letter-spacing: 0.01em;
+}
+
 .pf-label {
   display: block;
   font-size: 0.78rem;
@@ -471,4 +488,27 @@
   font-size: 1rem;
   flex-shrink: 0;
   margin-top: 0.05rem;
+}
+
+/* -- Info box (Canvas / WebGL summary) -- */
+.pf-info-box {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  margin-top: 0.5rem;
+}
+
+.pf-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding: 0.2rem 0;
+}
+
+.pf-info-row span:last-child {
+  font-weight: 600;
+  color: var(--fg);
 }
