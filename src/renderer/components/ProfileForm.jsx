@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, User, Monitor, Cpu, PenLine, Layers, Volume2, Video, Globe, Battery } from 'lucide-react';
+import { Sun, User, Monitor, Cpu, PenLine, Layers, Volume2, Video, Globe, Battery, RefreshCcw } from 'lucide-react';
 import './ProfileForm.css';
 
 /* ═══════════════ Default data ═══════════════ */
@@ -87,6 +87,8 @@ const generateConsistentFingerprint = () => {
   const loc = randomFrom(LOCALES);
   const bv = randomFrom(BROWSERS);
   const os = randomFrom(OS_LIST);
+  const browserType = randomFrom(['Chrome', 'Firefox', 'Edge']);
+  const deviceType = randomFrom(['Desktop', 'Mobile']);
   const screen = randomFrom(SCREENS);
   const pixelRatio = randomFrom(screen.ratios);
   const gpu = randomFrom(GPUS);
@@ -102,7 +104,7 @@ const generateConsistentFingerprint = () => {
   return {
     fingerprint: {
       ...defaultFingerprint,
-      os, browserVersion: bv, userAgent: ua,
+      os, browser: browserType, device: deviceType, browserVersion: bv, userAgent: ua,
       language: loc.code, timezone: loc.timezone,
       screenResolution: screen.res,
       colorDepth: randomFrom([24, 32]),
@@ -135,6 +137,7 @@ const generateConsistentFingerprint = () => {
       gpuVendor: gpu.v, gpuRenderer: gpu.r,
       webrtc: randomFrom(['Public + private', 'Default', 'Disable non-proxied UDP', 'Public interface only']),
       mediaDevices: { speakers: randomInt(1, 3), microphones: randomInt(0, 2), webcams: randomInt(0, 1), audio: true, video: true },
+      windowWidth: screen.w, windowHeight: screen.h,
       advanced: {
         platform: plat, dnt: false, devicePixelRatio: pixelRatio,
         maxTouchPoints: 0, webglVendor: gpu.v, webglRenderer: gpu.r,
@@ -205,7 +208,9 @@ function ProfileForm({ profile, onSave, onCancel }) {
       if (!profile.id) {
         const randomConfig = generateConsistentFingerprint();
         setFormData({
-          ...profile, cookie: '',
+          ...profile, 
+          name: 'Profile ' + Math.floor(1000 + Math.random() * 9000).toString(),
+          cookie: '',
           fingerprint: randomConfig.fingerprint,
           settings: { ...randomConfig.settings, quantity: 1, injectFingerprint: true },
         });
@@ -250,6 +255,7 @@ function ProfileForm({ profile, onSave, onCancel }) {
         // General: regenerate everything (like before)
         setFormData(prev => ({
           ...prev,
+          name: 'Profile ' + Math.floor(1000 + Math.random() * 9000).toString(),
           fingerprint: { ...prev.fingerprint, ...full.fingerprint },
           settings: {
             ...prev.settings, ...full.settings,
@@ -839,7 +845,7 @@ function ProfileForm({ profile, onSave, onCancel }) {
         </div>
         <div className="pf-header-actions">
           <button type="button" className="pf-btn pf-btn-generate" onClick={generateForActiveTab} title={generateBtnTooltip}>
-            🔄 {generateBtnLabel}
+            <RefreshCcw size={16} /> {generateBtnLabel}
           </button>
           <button type="button" className="pf-btn pf-btn-cancel" onClick={onCancel}>Cancel</button>
           <button type="button" className="pf-btn pf-btn-create" onClick={handleSubmit}>
