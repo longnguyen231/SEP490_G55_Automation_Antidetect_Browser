@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n/index';
+import BrowserRuntimes from './BrowserRuntimes';
 
 export default function SettingsTab({
     apiStatus,
@@ -119,33 +120,9 @@ export default function SettingsTab({
                     <p className="text-[0.7rem] text-[var(--muted)]">Exposes REST API for automation scripting. Swagger docs available at /api-docs when running.</p>
                 </div>
 
-                {/* Playwright Chromium */}
-                <div className="card relative p-4 mb-6 mt-4">
-                    <div className="absolute -top-3 left-4 bg-[var(--card)] px-2 text-[0.85rem] font-bold text-[var(--fg)]">Playwright Chromium</div>
-                    <div className="flex items-center gap-2 mb-3 pt-1">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                        <span className="text-[0.85rem] font-medium text-[var(--fg)]">Installed</span>
-                    </div>
-                    <p className="text-[0.7rem] text-[var(--muted)] font-mono break-all mb-3">Path: C:\Users\ManhZizou\AppData\Local\Programs\ObtBrowser\data\.playwright\browsers\chromium-1208\chrome-win64\chrome.exe</p>
-                    <p className="text-[0.7rem] text-[var(--muted)] mb-3">Playwright Chromium is required for headless and visible browser profiles.</p>
-                    <div className="flex gap-2">
-                        <button className="btn btn-success px-3 py-1.5 text-[0.75rem]">Reinstall Chromium</button>
-                        <button className="btn btn-danger px-3 py-1.5 text-[0.75rem]">Uninstall Chromium</button>
-                    </div>
-                </div>
-
-                {/* Playwright Firefox */}
-                <div className="card relative p-4 mb-6 mt-4">
-                    <div className="absolute -top-3 left-4 bg-[var(--card)] px-2 text-[0.85rem] font-bold text-[var(--fg)]">Playwright Firefox</div>
-                    <div className="flex items-center gap-2 mb-3 pt-1">
-                        <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                        <span className="text-[0.85rem] font-medium text-[var(--fg)]">Not installed</span>
-                    </div>
-                    <p className="text-[0.7rem] text-[var(--muted)] mb-3">Playwright Firefox is required for profiles using the Firefox engine. Firefox doesn't need stealth patches — naturally stealthier than Chromium.</p>
-                    <div className="flex gap-2">
-                        <button className="btn btn-success px-3 py-1.5 text-[0.75rem]">Install Firefox</button>
-                        <button className="btn btn-danger px-3 py-1.5 text-[0.75rem]" disabled>Uninstall Firefox</button>
-                    </div>
+                {/* Playwright Engines Control */}
+                <div className="mb-6 mt-4">
+                    <BrowserRuntimes />
                 </div>
 
                 {/* Main Settings Root Options */}

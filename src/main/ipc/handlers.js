@@ -32,10 +32,17 @@ const {
 } = require('../storage/proxies');
 const { checkProxy, checkProxiesBatch } = require('../services/ProxyChecker');
 const { getMachineCode } = require('../services/machineId');
+const { checkBrowserStatus, installBrowser, uninstallBrowser, reinstallBrowser } = require('../services/browserManagerService');
 
 function registerIpcHandlers(extra = {}) {
   // Machine Code
   ipcMain.handle('get-machine-code', () => getMachineCode());
+
+  // Browser Runtime Manager
+  ipcMain.handle('browser-runtime-status', async (_e, name) => checkBrowserStatus(name));
+  ipcMain.handle('browser-runtime-install', async (_e, name) => await installBrowser(name));
+  ipcMain.handle('browser-runtime-uninstall', async (_e, name) => await uninstallBrowser(name));
+  ipcMain.handle('browser-runtime-reinstall', async (_e, name) => await reinstallBrowser(name));
 
   ipcMain.handle('get-profiles', async () => await getProfilesInternal());
   ipcMain.handle('save-profile', async (_e, profile) => await saveProfileInternal(profile));

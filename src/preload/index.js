@@ -75,4 +75,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkAllProxies: () => ipcRenderer.invoke('proxy-check-all'),
   rotateProxy: (id) => ipcRenderer.invoke('proxy-rotate', id),
   rotateProxyByUrl: (url) => ipcRenderer.invoke('proxy-rotate-url', url),
+
+  // Browser Runtimes
+  checkBrowserStatus: (name) => ipcRenderer.invoke('browser-runtime-status', name),
+  installBrowser: (name) => ipcRenderer.invoke('browser-runtime-install', name),
+  uninstallBrowser: (name) => ipcRenderer.invoke('browser-runtime-uninstall', name),
+  reinstallBrowser: (name) => ipcRenderer.invoke('browser-runtime-reinstall', name),
+  onBrowserProgress: (callback) => {
+    const listener = (_e, data) => callback(data);
+    ipcRenderer.on('browser-runtime-progress', listener);
+    return () => ipcRenderer.removeListener('browser-runtime-progress', listener);
+  },
+  removeAllBrowserProgress: () => ipcRenderer.removeAllListeners('browser-runtime-progress'),
 });
