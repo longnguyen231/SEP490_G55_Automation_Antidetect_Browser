@@ -1,4 +1,5 @@
 import React from 'react';
+import './ProfileList.css';
 
 // Common SVG Icons
 const ChromiumIcon = () => (
@@ -18,7 +19,7 @@ const AppleIcon = () => (
 );
 
 const FoxIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M22 6s-2-2-5-2-4 2-4 2-2-2-4-2-5 2-5 2l1.6 4.8c0 0-1.6 3.2-1.6 6.4 0 3.2 2.4 4.8 4 4.8s4-2 6-2 4.4 2 6 2 4-1.6 4-4.8c0-3.2-1.6-6.4-1.6-6.4L22 6z"/>
   </svg>
 );
@@ -28,6 +29,12 @@ const MonitorIcon = () => (
     <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
     <line x1="8" y1="21" x2="16" y2="21" />
     <line x1="12" y1="17" x2="12" y2="21" />
+  </svg>
+);
+
+const WindowsIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+    <path d="M3 5.5l7.5-1v7H3V5.5zm0 13l7.5 1v-7H3v6zm8.5 1.2L21 21V12.5h-9.5v7.2zm0-15.4v7.2H21V3l-9.5 1.3z"/>
   </svg>
 );
 
@@ -41,147 +48,114 @@ export default function ProfileList({
 }) {
   const shortId = (id) => (id || '').substring(0, 6);
 
-  const getOsLabel = (p) => {
+  const getOsInfo = (p) => {
     const os = p?.fingerprint?.os || 'Windows';
-    if (os === 'Windows') return { label: 'WIN32', icon: null };
+    if (os === 'Windows') return { label: 'WIN32', icon: <WindowsIcon /> };
     if (os === 'macOS') return { label: 'MACINTEL', icon: <AppleIcon /> };
     return { label: 'LINUX', icon: null };
   };
 
   return (
-    <div className="w-full h-full flex flex-col p-4">
-      {/* Header Area */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-[1.2rem] font-bold text-[var(--fg)]">Profiles</h1>
-        <button 
-          className="btn btn-primary text-[0.75rem] px-3 py-1.5"
-          onClick={onCreateProfile}
-        >
+    <div className="pl-container" style={{ padding: '1rem' }}>
+      {/* Header */}
+      <div className="pl-header">
+        <h1 className="pl-title">Profiles</h1>
+        <button className="pl-new-btn" onClick={onCreateProfile} style={{ background: 'var(--success)', borderRadius: '8px' }}>
           + New Profile
         </button>
       </div>
 
-      {/* Profiles Container */}
-      <div className="bg-transparent rounded-lg flex flex-col gap-3 overflow-y-auto w-full flex-1">
+      {/* Cards */}
+      <div className="pl-cards" style={{ overflowY: 'auto', flex: 1 }}>
         {(!profiles || profiles.length === 0) ? (
-          <div className="card flex justify-center items-center py-10">
-            <p className="text-[var(--muted)]">No profiles yet. Click <strong>+ New Profile</strong> to create one.</p>
+          <div className="pl-empty">
+            No profiles yet. Click <strong>+ New Profile</strong> to create one.
           </div>
         ) : (
           profiles.map(profile => {
             const isRunning = !!runningWs[profile.id];
             const hasError = !!errorProfiles[profile.id] && !isRunning;
-            const osInfo = getOsLabel(profile);
-            const browser = profile?.fingerprint?.browser || 'Chromium';
+            const osInfo = getOsInfo(profile);
+            const browser = profile?.fingerprint?.browser || 'Chrome';
             const res = profile?.fingerprint?.screenResolution || '1920x1080';
+            const engine = profile?.settings?.engine || 'playwright';
+            const isFirefox = engine === 'playwright-firefox';
+            const engineLabel = isFirefox ? 'Firefox' : 'Chromium';
+
+            const cardClass = `pl-card ${isRunning ? 'pl-card-running' : ''} ${hasError ? 'pl-card-error' : ''}`;
 
             return (
-              <div key={profile.id} className="card p-2 xl:p-3 flex items-start gap-3 transition-shadow hover:brightness-110">
-                
-                {/* Active Dot indicator */}
-                <div className="pt-[14px] pl-2">
-                  <div className={`w-2.5 h-2.5 rounded-full ${isRunning ? 'bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.5)]' : hasError ? 'bg-[#ef4444]' : 'bg-[var(--border2)]'}`}></div>
-                </div>
+              <div key={profile.id} className={cardClass}>
+                {/* Dot */}
+                <div className={`pl-dot ${isRunning ? 'pl-dot-active' : ''} ${hasError ? 'pl-dot-error' : ''}`} />
 
-                {/* Card Content Area - Taking most space */}
-                <div className="flex-1 flex flex-col gap-2 ml-1">
-                  
-                  {/* Top Row: Details */}
-                  <div className="flex flex-wrap items-center gap-2 xl:gap-3">
-                    <span className="bg-[var(--glass-strong)] text-[var(--muted)] text-[0.75rem] font-bold px-2 py-0.5 rounded align-middle uppercase cursor-help" title={profile.id}>
-                      {shortId(profile.id)}
+                {/* Info: 3 rows */}
+                <div className="pl-info">
+                  {/* Row 1: shortId + engine badge + name */}
+                  <div className="pl-name-row">
+                    <span className="pl-id">{shortId(profile.id)}</span>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '5px',
+                      padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600,
+                      background: isFirefox ? 'rgba(234,88,12,0.15)' : 'rgba(16,185,129,0.15)',
+                      color: isFirefox ? '#fb923c' : '#34d399',
+                      border: `1px solid ${isFirefox ? 'rgba(234,88,12,0.3)' : 'rgba(16,185,129,0.3)'}`,
+                    }}>
+                      <span style={{
+                        width: '6px', height: '6px', borderRadius: '50%',
+                        background: isFirefox ? '#fb923c' : '#10b981',
+                      }} />
+                      {engineLabel}
                     </span>
-                    
-                    <div className="bg-[var(--glass)] text-[var(--primary)] px-2 py-0.5 rounded flex items-center gap-1.5 text-[0.75rem] font-semibold">
-                      {browser === 'Firefox' ? <FoxIcon /> : <ChromiumIcon />}
-                      {browser}
-                    </div>
-                    
-                    <h3 className="text-[0.9rem] xl:text-[1rem] font-semibold text-[var(--fg)] leading-none truncate max-w-[250px] xl:max-w-md" title={profile.name || 'Profile'}>
-                      {profile.name || 'Profile'}
-                    </h3>
+                    <span className="pl-name">{profile.name || 'Profile'}</span>
                   </div>
 
-                  {/* Middle Row: OS and Screen Specs */}
-                  <div className="flex flex-wrap items-center gap-2 pl-[2px] xl:pl-[4px]">
-                    <div className="flex items-center gap-1.5 text-[0.75rem] font-bold text-[var(--muted)] border border-[var(--border2)] rounded px-1.5 py-0.5 bg-[var(--bg)]">
-                      {osInfo.icon && <span className={osInfo.label === 'MACINTEL' ? "text-red-500" : ""}>{osInfo.icon}</span>}
+                  {/* Row 2: OS + browser + resolution tags */}
+                  <div className="pl-tags" style={{ marginBottom: '4px' }}>
+                    <span className="pl-tag">
+                      {osInfo.icon && <span className="pl-tag-icon">{osInfo.icon}</span>}
                       {osInfo.label}
-                    </div>
-                    
-                    <div className="flex items-center gap-1.5 text-[0.75rem] font-bold text-[var(--muted)] border border-[var(--border2)] rounded px-1.5 py-0.5 bg-[var(--bg)]">
-                      {browser === 'Firefox' ? <FoxIcon /> : <ChromiumIcon />}
+                    </span>
+                    <span className="pl-tag">
+                      <span className="pl-tag-icon">{isFirefox ? <FoxIcon /> : <ChromiumIcon />}</span>
                       {browser}
-                    </div>
-
-                    <div className="flex items-center gap-1.5 text-[0.75rem] font-bold text-[var(--muted)] border border-[var(--border2)] rounded px-1.5 py-0.5 bg-[var(--bg)]">
-                      <div className="text-[var(--muted)]"><MonitorIcon /></div>
+                    </span>
+                    <span className="pl-tag">
+                      <span className="pl-tag-icon"><MonitorIcon /></span>
                       {res}
-                    </div>
+                    </span>
                   </div>
 
-                  {/* Bottom Row: Badges */}
-                  <div className="flex flex-wrap items-center gap-1 xl:gap-1.5 pl-[2px] xl:pl-[4px]">
+                  {/* Row 3: Fingerprint section badges */}
+                  <div style={{ display: 'flex', gap: '4px' }}>
                     {['ID', 'DSP', 'HW', 'CVS', 'GL', 'AUD', 'MED', 'NET', 'BAT'].map(badge => (
-                      <span key={badge} className="bg-[var(--glass-strong)] border border-[var(--border)] text-[var(--muted)] text-[7px] xl:text-[8px] font-bold px-1 xl:px-1.5 py-0.5 rounded uppercase">
+                      <span key={badge} style={{
+                        fontSize: '0.6rem', fontWeight: 700, padding: '1px 5px',
+                        borderRadius: '3px', textTransform: 'uppercase',
+                        background: 'var(--glass-strong)', border: '1px solid var(--border)',
+                        color: 'var(--muted)',
+                      }}>
                         {badge}
                       </span>
                     ))}
                   </div>
-                  
                 </div>
 
-                {/* Right Side Actions Container - Flexed to right */}
-                <div className="pt-2 flex flex-wrap items-center gap-1.5 xl:gap-2 self-start justify-end flex-shrink-0 max-w-[150px] sm:max-w-none">
+                {/* Actions */}
+                <div className="pl-actions">
                   {isRunning ? (
-                    <button 
-                      onClick={() => onStopProfile(profile.id)}
-                      className="btn btn-danger text-[0.75rem] px-3 py-1.5"
-                    >
-                      Stop
-                    </button>
+                    <button className="pl-btn" style={{ background: '#c07e15' }} onClick={() => onStopProfile(profile.id)}>Stop</button>
                   ) : (
                     <>
-                      <button 
-                        onClick={() => onToggleProfile(profile.id)}
-                        className="btn btn-success text-[0.75rem] px-3 py-1.5"
-                      >
-                        Launch
-                      </button>
-                      <button 
-                        onClick={() => onLaunchHeadless(profile.id)}
-                        className="btn btn-secondary text-[0.75rem] px-3 py-1.5"
-                      >
-                        Headless
-                      </button>
+                      <button className="pl-btn pl-btn-launch" onClick={() => onToggleProfile(profile.id)}>Launch</button>
+                      <button className="pl-btn pl-btn-headless" onClick={() => onLaunchHeadless(profile.id)}>Headless</button>
                     </>
                   )}
-                  <button 
-                    onClick={() => onEditProfile(profile)}
-                    className="btn btn-accent text-[0.75rem] px-3 py-1.5"
-                  >
-                    Proxy
-                  </button>
-                  <button 
-                    onClick={() => onCloneProfile(profile.id)}
-                    className="btn btn-primary text-[0.75rem] px-3 py-1.5"
-                  >
-                    Clone
-                  </button>
-                  <button 
-                    onClick={() => onEditProfile(profile)}
-                    className="btn btn-secondary text-[0.75rem] px-3 py-1.5"
-                  >
-                    Edit
-                  </button>
-                  <button 
-                    onClick={() => onDeleteProfile(profile.id)}
-                    className="btn btn-danger text-[0.75rem] px-3 py-1.5"
-                  >
-                    Delete
-                  </button>
+                  <button className="pl-btn pl-btn-proxy" onClick={() => onEditProfile(profile)}>Proxy</button>
+                  <button className="pl-btn pl-btn-clone" onClick={() => onCloneProfile(profile.id)}>Clone</button>
+                  <button className="pl-btn pl-btn-edit" onClick={() => onEditProfile(profile)}>Edit</button>
+                  <button className="pl-btn pl-btn-delete" onClick={() => onDeleteProfile(profile.id)}>Delete</button>
                 </div>
-
               </div>
             );
           })
@@ -190,3 +164,4 @@ export default function ProfileList({
     </div>
   );
 }
+

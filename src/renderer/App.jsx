@@ -291,12 +291,14 @@ function App() {
 
   return (
     <div className="app">
-      <DashboardSidebar
-        activeNav={showForm ? 'profiles' : activeNav}
-        onNavigate={(id) => { setShowForm(false); setSelectedProfile(null); setActiveNav(id); }}
-        onCreateProfile={handleCreateProfile}
-        apiStatus={apiStatus}
-      />
+      {!showForm && (
+        <DashboardSidebar
+          activeNav={activeNav}
+          onNavigate={(id) => { setShowForm(false); setSelectedProfile(null); setActiveNav(id); }}
+          onCreateProfile={handleCreateProfile}
+          apiStatus={apiStatus}
+        />
+      )}
 
       <main className="app-main">
         {renderContent()}

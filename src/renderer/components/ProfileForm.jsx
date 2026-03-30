@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Sun, User, Monitor, Cpu, PenLine, Layers, Volume2, Video, Globe, Battery, RefreshCcw } from 'lucide-react';
 import './ProfileForm.css';
 
 /* ═══════════════ Default data ═══════════════ */
@@ -17,7 +18,7 @@ const defaultFingerprint = {
   colorDepth: 32,
   pixelRatio: 1,
 };
-
+ 
 const defaultSettings = {
   cpuCores: 4,
   memoryGB: 8,
@@ -31,9 +32,12 @@ const defaultSettings = {
   mediaDevices: { audio: true, video: true },
   webgl: true,
   headless: false,
-  engine: 'auto',
+  engine: 'playwright',
   injectFingerprint: true,
   quantity: 1,
+  startupPage: '',
+  windowWidth: 1440,
+  windowHeight: 900,
   advanced: {
     platform: 'Win32',
     dnt: false,
@@ -83,6 +87,8 @@ const generateConsistentFingerprint = () => {
   const loc = randomFrom(LOCALES);
   const bv = randomFrom(BROWSERS);
   const os = randomFrom(OS_LIST);
+  const browserType = randomFrom(['Chrome', 'Firefox', 'Edge']);
+  const deviceType = randomFrom(['Desktop', 'Mobile']);
   const screen = randomFrom(SCREENS);
   const pixelRatio = randomFrom(screen.ratios);
   const gpu = randomFrom(GPUS);
@@ -98,14 +104,11 @@ const generateConsistentFingerprint = () => {
   return {
     fingerprint: {
       ...defaultFingerprint,
-      os: os,
-      browserVersion: bv,
-      userAgent: ua,
-      language: loc.code,
-      timezone: loc.timezone,
+      os, browser: browserType, device: deviceType, browserVersion: bv, userAgent: ua,
+      language: loc.code, timezone: loc.timezone,
       screenResolution: screen.res,
       colorDepth: randomFrom([24, 32]),
-      pixelRatio: pixelRatio,
+      pixelRatio,
       webglNoise: randomInt(100000000, 2100000000),
       maxTextureSize: randomFrom([4096, 8192, 16384]),
       webglExtensions: randomFrom([
@@ -129,23 +132,16 @@ const generateConsistentFingerprint = () => {
     },
     settings: {
       ...JSON.parse(JSON.stringify(defaultSettings)),
-      language: loc.code,
-      timezone: loc.timezone,
-      cpuCores: cpuCores,
-      memoryGB: ramGB,
-      gpuVendor: gpu.v,
-      gpuRenderer: gpu.r,
+      language: loc.code, timezone: loc.timezone,
+      cpuCores, memoryGB: ramGB,
+      gpuVendor: gpu.v, gpuRenderer: gpu.r,
       webrtc: randomFrom(['Public + private', 'Default', 'Disable non-proxied UDP', 'Public interface only']),
-      mediaDevices: { speakers: randomInt(1,3), microphones: randomInt(0,2), webcams: randomInt(0,1), audio: true, video: true },
+      mediaDevices: { speakers: randomInt(1, 3), microphones: randomInt(0, 2), webcams: randomInt(0, 1), audio: true, video: true },
+      windowWidth: screen.w, windowHeight: screen.h,
       advanced: {
-        platform: plat,
-        dnt: false,
-        devicePixelRatio: pixelRatio,
-        maxTouchPoints: 0,
-        webglVendor: gpu.v,
-        webglRenderer: gpu.r,
-        plugins: randomInt(2, 5),
-        languages: loc.languages
+        platform: plat, dnt: false, devicePixelRatio: pixelRatio,
+        maxTouchPoints: 0, webglVendor: gpu.v, webglRenderer: gpu.r,
+        plugins: randomInt(2, 5), languages: loc.languages
       }
     }
   };
@@ -156,13 +152,28 @@ const SCREEN_PRESETS = [
   '1536x864', '1600x900', '1680x1050', '1920x1080', '1920x1200',
   '2560x1440', '2560x1600', '3840x2160',
 ];
-
 const CPU_OPTIONS = [2, 4, 6, 8, 12, 16, 24, 32];
 const RAM_OPTIONS = [2, 4, 8, 12, 16, 24, 32, 64];
+
+/* ═══════════════ Sidebar Tab Definitions ═══════════════ */
+const TABS = [
+  { id: 'general',  label: 'General',  icon: <Sun size={18} /> },
+  { id: 'identity', label: 'Identity', icon: <User size={18} />, toggleable: true },
+  { id: 'display',  label: 'Display',  icon: <Monitor size={18} />, toggleable: true },
+  { id: 'hardware', label: 'Hardware', icon: <Cpu size={18} />, toggleable: true },
+  { id: 'canvas',   label: 'Canvas',   icon: <PenLine size={18} />, toggleable: true },
+  { id: 'webgl',    label: 'WebGL',    icon: <Layers size={18} />, toggleable: true },
+  { id: 'audio',    label: 'Audio',    icon: <Volume2 size={18} />, toggleable: true },
+  { id: 'media',    label: 'Media',    icon: <Video size={18} />, toggleable: true },
+  { id: 'network',  label: 'Network',  icon: <Globe size={18} />, toggleable: true },
+  { id: 'battery',  label: 'Battery',  icon: <Battery size={18} />, toggleable: true },
+];
 
 /* ═══════════════ Main Component ═══════════════ */
 function ProfileForm({ profile, onSave, onCancel }) {
   const isEdit = !!profile?.id;
+  const [activeTab, setActiveTab] = useState('general');
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -173,6 +184,21 @@ function ProfileForm({ profile, onSave, onCancel }) {
     settings: JSON.parse(JSON.stringify(defaultSettings)),
   });
 
+  /* Section toggles — each toggleable tab can be enabled/disabled */
+  const [sectionToggles, setSectionToggles] = useState({
+    identity: false,
+    display: false,
+    hardware: false,
+    canvas: false,
+    webgl: false,
+    audio: false,
+    media: false,
+    network: false,
+    battery: false,
+  });
+
+  const toggleSection = (id) => setSectionToggles(prev => ({ ...prev, [id]: !prev[id] }));
+
   const [options, setOptions] = useState({ locales: [], timezones: [] });
   const fallbackLocales = ['vi-VN', 'en-US', 'en-GB', 'fr-FR', 'de-DE', 'es-ES', 'ja-JP', 'ko-KR', 'zh-CN'];
   const fallbackTimezones = ['Asia/Ho_Chi_Minh', 'UTC', 'Asia/Tokyo', 'Asia/Seoul', 'Asia/Singapore', 'Europe/Paris', 'America/New_York'];
@@ -180,19 +206,17 @@ function ProfileForm({ profile, onSave, onCancel }) {
   useEffect(() => {
     if (profile) {
       if (!profile.id) {
-        // New Profile: Pre-fill random consistent fingerprint
         const randomConfig = generateConsistentFingerprint();
         setFormData({
-          ...profile,
+          ...profile, 
+          name: 'Profile ' + Math.floor(1000 + Math.random() * 9000).toString(),
           cookie: '',
           fingerprint: randomConfig.fingerprint,
           settings: { ...randomConfig.settings, quantity: 1, injectFingerprint: true },
         });
       } else {
-        // Edit Profile
         setFormData({
-          ...profile,
-          cookie: profile.cookie || '',
+          ...profile, cookie: profile.cookie || '',
           fingerprint: { ...defaultFingerprint, ...profile.fingerprint },
           settings: { ...JSON.parse(JSON.stringify(defaultSettings)), ...(profile.settings || {}) },
         });
@@ -205,46 +229,149 @@ function ProfileForm({ profile, onSave, onCancel }) {
       try {
         if (window.electronAPI?.getLocalesTimezones) {
           const res = await window.electronAPI.getLocalesTimezones();
-          if (res.success) {
-            setOptions({ locales: (res.locales || []).sort(), timezones: res.timezones || [] });
-          }
+          if (res.success) setOptions({ locales: (res.locales || []).sort(), timezones: res.timezones || [] });
         }
       } catch { }
     };
     loadOptions();
   }, []);
 
-  const randomFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
-
+  /* Helpers */
   const setFp = (field, val) => setFormData(prev => ({ ...prev, fingerprint: { ...prev.fingerprint, [field]: val } }));
   const setS = (field, val) => setFormData(prev => ({ ...prev, settings: { ...prev.settings, [field]: val } }));
+  const setAdv = (field, val) => setFormData(prev => ({
+    ...prev, settings: { ...prev.settings, advanced: { ...prev.settings.advanced, [field]: val } }
+  }));
 
-  const generateFingerprint = () => {
-    const randomConfig = generateConsistentFingerprint();
-    setFormData(prev => ({
-      ...prev,
-      fingerprint: {
-        ...prev.fingerprint,
-        ...randomConfig.fingerprint
-      },
-      settings: {
-        ...prev.settings,
-        ...randomConfig.settings,
-        injectFingerprint: prev.settings.injectFingerprint,
-        quantity: prev.settings.quantity,
-        engine: prev.settings.engine
+  /* ── Per-section random generators ── */
+  const randomFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+  const generateForActiveTab = () => {
+    const full = generateConsistentFingerprint();
+
+    switch (activeTab) {
+      case 'general': {
+        // General: regenerate everything (like before)
+        setFormData(prev => ({
+          ...prev,
+          name: 'Profile ' + Math.floor(1000 + Math.random() * 9000).toString(),
+          fingerprint: { ...prev.fingerprint, ...full.fingerprint },
+          settings: {
+            ...prev.settings, ...full.settings,
+            injectFingerprint: prev.settings.injectFingerprint,
+            quantity: prev.settings.quantity,
+            engine: prev.settings.engine,
+          }
+        }));
+        break;
       }
-    }));
+      case 'identity': {
+        const LOCALES = [
+          { code: 'vi-VN', tz: 'Asia/Ho_Chi_Minh', langs: 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7' },
+          { code: 'en-US', tz: 'America/New_York', langs: 'en-US,en;q=0.9' },
+          { code: 'en-GB', tz: 'Europe/London', langs: 'en-GB,en;q=0.9,en-US;q=0.8' },
+          { code: 'fr-FR', tz: 'Europe/Paris', langs: 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7' },
+          { code: 'de-DE', tz: 'Europe/Berlin', langs: 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7' },
+          { code: 'ja-JP', tz: 'Asia/Tokyo', langs: 'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7' },
+          { code: 'ko-KR', tz: 'Asia/Seoul', langs: 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7' },
+          { code: 'zh-CN', tz: 'Asia/Shanghai', langs: 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7' },
+        ];
+        const loc = randomFrom(LOCALES);
+        const os = formData.fingerprint.os || 'Windows';
+        const bv = randomFrom(['145.0.0.0','144.0.0.0','143.0.0.0','142.0.0.0','141.0.0.0']);
+        const plat = os === 'Windows' ? 'Win32' : os === 'macOS' ? 'MacIntel' : 'Linux x86_64';
+        let ua;
+        if (os === 'Windows') ua = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
+        else if (os === 'macOS') ua = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
+        else ua = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
+        setFormData(prev => ({
+          ...prev,
+          fingerprint: { ...prev.fingerprint, userAgent: ua, browserVersion: bv, language: loc.code, timezone: loc.tz, maxTouchPoints: randomFrom([0, 5, 10]), fonts: full.fingerprint.fonts },
+          settings: { ...prev.settings, language: loc.code, timezone: loc.tz, advanced: { ...prev.settings.advanced, platform: plat, dnt: randomFrom([true, false]), languages: loc.langs } }
+        }));
+        break;
+      }
+      case 'display': {
+        const SCREENS = [{ res: '1366x768', ratios: [1] }, { res: '1600x900', ratios: [1] }, { res: '1920x1080', ratios: [1, 1.25, 1.5] }, { res: '2560x1440', ratios: [1, 1.25, 1.5, 2] }, { res: '3840x2160', ratios: [1.5, 2] }];
+        const s = randomFrom(SCREENS);
+        const pr = randomFrom(s.ratios);
+        setFormData(prev => ({
+          ...prev,
+          fingerprint: { ...prev.fingerprint, screenResolution: s.res, colorDepth: randomFrom([24, 32]), pixelRatio: pr }
+        }));
+        break;
+      }
+      case 'hardware': {
+        const gpu = randomFrom([
+          { v: 'Google Inc. (Intel)', r: 'ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0)' },
+          { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 Direct3D11 vs_5_0)' },
+          { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0)' },
+          { v: 'Google Inc. (AMD)', r: 'ANGLE (AMD, AMD Radeon RX 580 Direct3D11 vs_5_0)' },
+        ]);
+        setFormData(prev => ({
+          ...prev,
+          settings: { ...prev.settings, cpuCores: randomFrom([2, 4, 6, 8, 12, 16, 24, 32]), memoryGB: randomFrom([2, 4, 8, 12, 16, 24, 32, 64]), gpuVendor: gpu.v, gpuRenderer: gpu.r }
+        }));
+        break;
+      }
+      case 'canvas': {
+        setFormData(prev => ({
+          ...prev,
+          fingerprint: { ...prev.fingerprint, canvasNoise: randomInt(100000000, 2100000000), canvasNoiseIntensity: randomFrom([1, 2, 3, 4, 5]) }
+        }));
+        break;
+      }
+      case 'webgl': {
+        setFormData(prev => ({
+          ...prev,
+          fingerprint: { ...prev.fingerprint, webglNoise: randomInt(100000000, 2100000000), maxTextureSize: randomFrom([4096, 8192, 16384]), webglExtensions: randomFrom(['EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float', 'ANGLE_instanced_arrays, OES_texture_float, WEBGL_depth_texture, OES_vertex_array_object', 'EXT_texture_filter_anisotropic, WEBGL_compressed_texture_s3tc, OES_element_index_uint']) }
+        }));
+        break;
+      }
+      case 'audio': {
+        setFormData(prev => ({
+          ...prev,
+          fingerprint: { ...prev.fingerprint, audioNoise: randomInt(100000000, 2100000000), audioSampleRate: randomFrom([44100, 48000, 96000]), audioChannels: randomFrom(['Mono', 'Stereo', 'Surround']) }
+        }));
+        break;
+      }
+      case 'media': {
+        setFormData(prev => ({
+          ...prev,
+          settings: { ...prev.settings, mediaDevices: { ...prev.settings.mediaDevices, speakers: randomInt(1, 3), microphones: randomInt(0, 2), webcams: randomInt(0, 1) } }
+        }));
+        break;
+      }
+      case 'network': {
+        setFormData(prev => ({
+          ...prev,
+          fingerprint: { ...prev.fingerprint, connectionType: randomFrom(['Ethernet', 'Wi-Fi', 'Cellular']), pdfViewer: randomFrom(['Enabled', 'Disabled']) },
+          settings: { ...prev.settings, webrtc: randomFrom(['Public + private', 'Default', 'Disable non-proxied UDP', 'Public interface only']) }
+        }));
+        break;
+      }
+      case 'battery': {
+        setFormData(prev => ({
+          ...prev,
+          fingerprint: { ...prev.fingerprint, batteryCharging: randomFrom(['Yes', 'No']), batteryLevel: Number((Math.random() * 0.9 + 0.1).toFixed(2)), batteryChargingTime: randomFrom([0, 3600, 7200]), batteryDischargingTime: randomInt(5000, 20000) }
+        }));
+        break;
+      }
+      default: break;
+    }
   };
+
+  const generateBtnLabel = activeTab === 'general' ? 'Generate' : `Generate ${TABS.find(t => t.id === activeTab)?.label || ''}`;
+  const generateBtnTooltip = activeTab === 'general' ? 'Regenerate fingerprint based on general settings' : `Regenerate ${(TABS.find(t => t.id === activeTab)?.label || '').toLowerCase()} fields only`;
 
   const handleOsChange = (os) => {
     const bv = formData.fingerprint.browserVersion || '145.0.0.0';
-    let ua = formData.fingerprint.userAgent;
     const plat = os === 'Windows' ? 'Win32' : os === 'macOS' ? 'MacIntel' : 'Linux x86_64';
+    let ua;
     if (os === 'Windows') ua = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
     else if (os === 'macOS') ua = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
     else ua = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${bv} Safari/537.36`;
-    
     setFormData(prev => ({
       ...prev,
       fingerprint: { ...prev.fingerprint, os, userAgent: ua },
@@ -253,23 +380,19 @@ function ProfileForm({ profile, onSave, onCancel }) {
   };
 
   const handleSubmit = (e) => {
-    e.preventDefault();
-    
-    // Unchecking "Inject fingerprint" disables the backend applyOverrides:
+    e?.preventDefault?.();
     const finalSettings = { ...formData.settings };
     if (finalSettings.injectFingerprint === false) {
       finalSettings.applyOverrides = { hardware: false, navigator: false, userAgent: false, webgl: false, language: false, viewport: false, geolocation: false };
     } else {
-      delete finalSettings.applyOverrides; // Use default backend behavior (all true)
+      delete finalSettings.applyOverrides;
     }
-
-    if (!finalSettings.engine) {
-      finalSettings.engine = 'auto'; // Resolve to auto and let backend handle it
-    }
+    if (!finalSettings.engine) finalSettings.engine = 'playwright';
 
     const payload = {
       ...formData,
       settings: finalSettings,
+      sectionToggles,
       fingerprint: {
         ...formData.fingerprint,
         language: formData.settings.language || formData.fingerprint.language,
@@ -284,372 +407,502 @@ function ProfileForm({ profile, onSave, onCancel }) {
   const screenRes = formData.fingerprint.screenResolution || '1920x1080';
   const [screenW, screenH] = screenRes.split('x');
 
-  return (
-    <div className="np-container">
-      <h2 className="np-title">{isEdit ? 'Edit Profile' : 'New Profile'}</h2>
+  /* ═══════════════ Tab Content Renderers ═══════════════ */
 
-      <form onSubmit={handleSubmit} className="np-form">
-        
-        <div className="np-top-fixed">
-          {/* Profile & Quick Generate - Fieldset with border */}
-          <fieldset className="np-fieldset">
-          <legend className="np-legend">Profile & Quick Generate</legend>
-          
-          <div className="np-row-2 np-mb">
-            <div className="np-field np-flex-1">
-              <label className="np-label">Name</label>
-              <input type="text" className="np-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="Profile name" />
-            </div>
-            <div className="np-field np-w-small">
-              <label className="np-label">Quantity</label>
-              <input type="number" className="np-input" min={1} value={formData.settings.quantity || 1} onChange={e => setS('quantity', Number(e.target.value))} />
-            </div>
+  const renderGeneral = () => (
+    <>
+      <h3 className="pf-section-title">Profile Settings</h3>
+      <p className="pf-section-desc">Configure the profile name and fingerprint generation options.</p>
+
+      {/* Profile Name + Quantity */}
+      <div className="pf-row pf-row-narrow">
+        <div className="pf-field">
+          <label className="pf-label">Profile Name</label>
+          <input type="text" className="pf-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="Profile name" />
+        </div>
+        <div className="pf-field">
+          <label className="pf-label">Quantity</label>
+          <input type="number" className="pf-input" min={1} value={formData.settings.quantity || 1} onChange={e => setS('quantity', Number(e.target.value))} />
+        </div>
+      </div>
+
+      {/* Browser Engine */}
+      <fieldset className="pf-fieldset">
+        <legend className="pf-legend">Browser Engine</legend>
+        <div className="pf-field">
+          <label className="pf-label">Engine</label>
+          <select className="pf-select" value={formData.settings.engine || 'playwright'} onChange={e => setS('engine', e.target.value)}>
+            <option value="playwright">Playwright Chromium</option>
+            <option value="playwright-firefox">Playwright Firefox</option>
+          </select>
+        </div>
+      </fieldset>
+
+      {/* Startup */}
+      <fieldset className="pf-fieldset">
+        <legend className="pf-legend">Startup</legend>
+        <div className="pf-field pf-mb">
+          <label className="pf-label">Startup Page</label>
+          <input type="text" className="pf-input" value={formData.settings.startupPage || formData.startUrl || ''} onChange={e => { setS('startupPage', e.target.value); setFormData(p => ({ ...p, startUrl: e.target.value })); }} placeholder="ex: https://browser.ongbantat.store" />
+        </div>
+        <div className="pf-row">
+          <div className="pf-field">
+            <label className="pf-label">Window Width (px)</label>
+            <input type="number" className="pf-input" value={formData.settings.windowWidth || 1440} onChange={e => setS('windowWidth', Number(e.target.value))} />
           </div>
+          <div className="pf-field">
+            <label className="pf-label">Window Height (px)</label>
+            <input type="number" className="pf-input" value={formData.settings.windowHeight || 900} onChange={e => setS('windowHeight', Number(e.target.value))} />
+          </div>
+        </div>
+        <p className="pf-hint">Leave width/height at 0 to use the OS default window size.</p>
+      </fieldset>
 
-          <label className="np-checkbox np-mb">
-            <input type="checkbox" checked={formData.settings.injectFingerprint !== false} onChange={e => setS('injectFingerprint', e.target.checked)} />
-            <span style={{ color: 'var(--fg)' }}>
-              Inject fingerprint on launch
-              {formData.settings.injectFingerprint === false && (
-                <span style={{ color: 'var(--warning, #ff9f43)', marginLeft: '0.4rem', fontSize: '0.85rem' }}>
-                  (browser runs with default fingerprint)
-                </span>
-              )}
-            </span>
-          </label>
-
-          <div className="np-field np-mb">
-            <label className="np-label">Visible Engine</label>
-            <select className="np-input" value={formData.settings.engine || 'auto'} onChange={e => setS('engine', e.target.value)}>
-              <option value="auto">Auto (prefer CDP, fallback to Playwright)</option>
-              <option value="cdp">CDP (system Chrome only)</option>
-              <option value="playwright">Playwright Chromium</option>
+      {/* Quick Generate */}
+      <fieldset className="pf-fieldset">
+        <legend className="pf-legend">Quick Generate</legend>
+        <div className="pf-row-3">
+          <div className="pf-field">
+            <label className="pf-label">OS</label>
+            <select className="pf-select" value={formData.fingerprint.os} onChange={e => handleOsChange(e.target.value)}>
+              <option value="Windows">Windows</option>
+              <option value="macOS">macOS</option>
+              <option value="Linux">Linux</option>
             </select>
           </div>
-
-          <div className="np-row-3 np-mb">
-            <div className="np-field">
-              <label className="np-label">OS</label>
-              <select className="np-input" value={formData.fingerprint.os} onChange={e => handleOsChange(e.target.value)}>
-                <option value="Windows">Windows</option>
-                <option value="macOS">macOS</option>
-                <option value="Linux">Linux</option>
-              </select>
-            </div>
-            <div className="np-field">
-              <label className="np-label">Browser</label>
-              <select className="np-input" value={formData.fingerprint.browser} onChange={e => setFp('browser', e.target.value)}>
-                <option value="Chrome">Chrome</option>
-                <option value="Firefox">Firefox</option>
-                <option value="Edge">Edge</option>
-              </select>
-            </div>
-            <div className="np-field">
-              <label className="np-label">Device</label>
-              <select className="np-input" value={formData.fingerprint.device || 'Desktop'} onChange={e => setFp('device', e.target.value)}>
-                <option value="Desktop">Desktop</option>
-                <option value="Mobile">Mobile</option>
-              </select>
-            </div>
+          <div className="pf-field">
+            <label className="pf-label">Browser</label>
+            <select className="pf-select" value={formData.fingerprint.browser} onChange={e => setFp('browser', e.target.value)}>
+              <option value="Chrome">Chrome</option>
+              <option value="Firefox">Firefox</option>
+              <option value="Edge">Edge</option>
+            </select>
           </div>
-
-          <button type="button" className="np-btn-blue" onClick={generateFingerprint}>
-            Generate Fingerprint
-          </button>
-          </fieldset>
-        </div>
-
-        {/* Scrollable area */}
-        <div className="np-scrollable-content">
-
-        {/* Flat fields */}
-        <div className="np-field np-mb">
-          <label className="np-label">User-Agent</label>
-          <textarea className="np-input" rows={2} value={formData.fingerprint.userAgent} onChange={e => setFp('userAgent', e.target.value)} />
-        </div>
-
-        <div className="np-row-2 np-mb">
-          <div className="np-field">
-            <label className="np-label">Platform</label>
-            <input type="text" className="np-input" value={formData.settings.advanced?.platform || 'Win32'} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, advanced: { ...p.settings.advanced, platform: e.target.value } }}))} />
+          <div className="pf-field">
+            <label className="pf-label">Device</label>
+            <select className="pf-select" value={formData.fingerprint.device || 'Desktop'} onChange={e => setFp('device', e.target.value)}>
+              <option value="Desktop">Desktop</option>
+              <option value="Mobile">Mobile</option>
+            </select>
           </div>
-          <div className="np-field">
-            <label className="np-label">Locale</label>
-            <select className="np-input" value={formData.settings.language || formData.fingerprint.language} onChange={e => { setS('language', e.target.value); setFp('language', e.target.value); }}>
+        </div>
+        <p className="pf-hint">Fingerprint auto generates when you change these settings.</p>
+      </fieldset>
+    </>
+  );
+
+  const renderIdentity = () => (
+    <>
+      <ToggleHeader id="identity" label="Identity" desc="User-Agent, platform and locale settings." enabled={sectionToggles.identity} onToggle={() => toggleSection('identity')} />
+      <div className={sectionToggles.identity ? '' : 'pf-section-disabled'}>
+        <div className="pf-field pf-mb">
+          <label className="pf-label">User-Agent</label>
+          <textarea className="pf-input" rows={2} value={formData.fingerprint.userAgent} onChange={e => setFp('userAgent', e.target.value)} />
+        </div>
+        <div className="pf-row">
+          <div className="pf-field">
+            <label className="pf-label">Platform</label>
+            <input type="text" className="pf-input" value={formData.settings.advanced?.platform || 'Win32'} onChange={e => setAdv('platform', e.target.value)} />
+          </div>
+          <div className="pf-field">
+            <label className="pf-label">Locale</label>
+            <select className="pf-select" value={formData.settings.language || formData.fingerprint.language} onChange={e => { setS('language', e.target.value); setFp('language', e.target.value); }}>
               {locales.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
           </div>
         </div>
-
-        <div className="np-row-2 np-mb-large">
-          <div className="np-field">
-            <label className="np-label">Timezone</label>
-            <select className="np-input" value={formData.settings.timezone || formData.fingerprint.timezone} onChange={e => { setS('timezone', e.target.value); setFp('timezone', e.target.value); }}>
+        <div className="pf-row">
+          <div className="pf-field">
+            <label className="pf-label">Timezone</label>
+            <select className="pf-select" value={formData.settings.timezone || formData.fingerprint.timezone} onChange={e => { setS('timezone', e.target.value); setFp('timezone', e.target.value); }}>
               {timezones.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
-          <div className="np-field">
-            <label className="np-label">Languages (comma-separated)</label>
-            <input type="text" className="np-input" value={formData.settings.advanced?.languages || formData.fingerprint.language} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, advanced: { ...p.settings.advanced, languages: e.target.value } }}))} />
+          <div className="pf-field">
+            <label className="pf-label">Languages (comma-separated)</label>
+            <input type="text" className="pf-input" value={formData.settings.advanced?.languages || formData.fingerprint.language} onChange={e => setAdv('languages', e.target.value)} />
           </div>
         </div>
+      </div>
+    </>
+  );
 
-        {/* Screen - Fieldset with border */}
-        <fieldset className="np-fieldset">
-          <legend className="np-legend">Screen</legend>
-          
-          <div className="np-field np-mb">
-            <label className="np-label">Preset</label>
-            <select className="np-input" value={screenRes} onChange={e => setFp('screenResolution', e.target.value)}>
-              <option value="Custom">Custom</option>
-              {SCREEN_PRESETS.map(r => <option key={r} value={r}>{r}</option>)}
+  const renderDisplay = () => (
+    <>
+      <ToggleHeader id="display" label="Display & Screen" desc="Screen resolution, color depth, and device pixel ratio." enabled={sectionToggles.display} onToggle={() => toggleSection('display')} />
+      <div className={sectionToggles.display ? '' : 'pf-section-disabled'}>
+        {/* Warning banner when enabled */}
+        {sectionToggles.display && (
+          <div className="pf-warning-banner">
+            <span className="pf-warning-icon">⚠</span>
+            <span>Enabling Display & Screen injection may trigger Cloudflare bot detection. Disable this category if you need to bypass Cloudflare challenges.</span>
+          </div>
+        )}
+        <div className="pf-field pf-mb">
+          <label className="pf-label">Resolution Preset</label>
+          <select className="pf-select" value={screenRes} onChange={e => setFp('screenResolution', e.target.value)}>
+            <option value="Custom">Custom</option>
+            {SCREEN_PRESETS.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+        <div className="pf-row">
+          <div className="pf-field">
+            <label className="pf-label">Width (px)</label>
+            <input type="number" className="pf-input" value={screenW} onChange={e => setFp('screenResolution', `${e.target.value}x${screenH}`)} />
+          </div>
+          <div className="pf-field">
+            <label className="pf-label">Height (px)</label>
+            <input type="number" className="pf-input" value={screenH} onChange={e => setFp('screenResolution', `${screenW}x${e.target.value}`)} />
+          </div>
+        </div>
+        <div className="pf-row">
+          <div className="pf-field">
+            <label className="pf-label">Color Depth (bits)</label>
+            <input type="number" className="pf-input" value={formData.fingerprint.colorDepth || 32} onChange={e => setFp('colorDepth', Number(e.target.value))} />
+          </div>
+          <div className="pf-field">
+            <label className="pf-label">Pixel Ratio</label>
+            <input type="number" step="0.25" className="pf-input" value={formData.fingerprint.pixelRatio || 1} onChange={e => setFp('pixelRatio', Number(e.target.value))} />
+          </div>
+        </div>
+      </div>
+    </>
+  );
+
+  const renderHardware = () => {
+    const fontCount = (formData.fingerprint.fonts || '').split(',').filter(f => f.trim()).length;
+    return (
+    <>
+      <ToggleHeader id="hardware" label="Hardware" desc="CPU cores, RAM, GPU vendor and renderer string, installed fonts" enabled={sectionToggles.hardware} onToggle={() => toggleSection('hardware')} />
+      <div className={sectionToggles.hardware ? '' : 'pf-section-disabled'}>
+        <div className="pf-row">
+          <div className="pf-field">
+            <label className="pf-label">CPU Cores</label>
+            <select className="pf-select" value={formData.settings.cpuCores || 4} onChange={e => setS('cpuCores', Number(e.target.value))}>
+              {CPU_OPTIONS.map(n => <option key={n} value={n}>{n} cores</option>)}
             </select>
           </div>
-
-          <div className="np-row-2 np-mb">
-            <div className="np-field">
-              <label className="np-label">Width (px)</label>
-              <input type="number" className="np-input" value={screenW} onChange={e => setFp('screenResolution', `${e.target.value}x${screenH}`)} />
-            </div>
-            <div className="np-field">
-              <label className="np-label">Height (px)</label>
-              <input type="number" className="np-input" value={screenH} onChange={e => setFp('screenResolution', `${screenW}x${e.target.value}`)} />
-            </div>
-          </div>
-
-          <div className="np-row-2">
-            <div className="np-field">
-              <label className="np-label">Color depth</label>
-              <input type="number" className="np-input" value={formData.fingerprint.colorDepth || 32} onChange={e => setFp('colorDepth', Number(e.target.value))} />
-            </div>
-            <div className="np-field">
-              <label className="np-label">Pixel ratio</label>
-              <input type="number" className="np-input" step="0.25" value={formData.fingerprint.pixelRatio || 1} onChange={e => setFp('pixelRatio', Number(e.target.value))} />
-            </div>
-          </div>
-        </fieldset>
-
-        {/* Hardware Dropdowns */}
-        <div className="np-row-2 np-mb np-mt-large">
-          <div className="np-field">
-            <label className="np-label">CPU cores</label>
-            <select className="np-input" value={formData.settings.cpuCores || 4} onChange={e => setS('cpuCores', Number(e.target.value))}>
-              {CPU_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </div>
-          <div className="np-field">
-            <label className="np-label">RAM (GB)</label>
-            <select className="np-input" value={formData.settings.memoryGB || 8} onChange={e => setS('memoryGB', Number(e.target.value))}>
+          <div className="pf-field">
+            <label className="pf-label">RAM (GB)</label>
+            <select className="pf-select" value={formData.settings.memoryGB || 8} onChange={e => setS('memoryGB', Number(e.target.value))}>
               {RAM_OPTIONS.map(n => <option key={n} value={n}>{n} GB</option>)}
             </select>
           </div>
         </div>
-
-        <div className="np-field np-mb">
-          <label className="np-label">GPU Vendor</label>
-          <input type="text" className="np-input" value={formData.settings.gpuVendor || ''} onChange={e => setS('gpuVendor', e.target.value)} />
+        <div className="pf-field pf-mb">
+          <label className="pf-label">GPU Vendor</label>
+          <input type="text" className="pf-input" value={formData.settings.gpuVendor || ''} onChange={e => setS('gpuVendor', e.target.value)} />
         </div>
-
-        <div className="np-field np-mb-large">
-          <label className="np-label">GPU Renderer</label>
-          <input type="text" className="np-input" value={formData.settings.gpuRenderer || ''} onChange={e => setS('gpuRenderer', e.target.value)} />
+        <div className="pf-field pf-mb">
+          <label className="pf-label">GPU Renderer</label>
+          <input type="text" className="pf-input" value={formData.settings.gpuRenderer || ''} onChange={e => setS('gpuRenderer', e.target.value)} />
         </div>
-
-        {/* Deep fingerprint section */}
-        <div className="np-divider">
-          <span>deep fingerprint</span>
+        <div className="pf-field pf-mb">
+          <label className="pf-label">Installed Fonts ({fontCount})</label>
+          <input type="text" className="pf-input" value={formData.fingerprint.fonts || ''} onChange={e => setFp('fonts', e.target.value)} />
+          <p className="pf-hint">Comma-separated list of font family names</p>
         </div>
+        <div className="pf-field">
+          <label className="pf-label">Font Count (read-only)</label>
+          <input type="number" className="pf-input" value={fontCount} readOnly />
+        </div>
+      </div>
+    </>
+    );
+  };
 
-        <CollapsibleSection title="WebGL">
-          <div className="np-row-2 np-mb">
-            <div className="np-field">
-              <label className="np-label">Noise seed</label>
-              <input type="number" className="np-input" value={formData.fingerprint.webglNoise || 709233842} onChange={e => setFp('webglNoise', e.target.value)} />
-            </div>
-            <div className="np-field">
-              <label className="np-label">MAX_TEXTURE_SIZE</label>
-              <input type="number" className="np-input" value={formData.fingerprint.maxTextureSize || 8192} onChange={e => setFp('maxTextureSize', e.target.value)} />
-            </div>
+  const renderCanvas = () => (
+    <>
+      <ToggleHeader id="canvas" label="Canvas Fingerprint" desc="Pixel-level noise injection to randomize canvas fingerprint" enabled={sectionToggles.canvas} onToggle={() => toggleSection('canvas')} />
+      <div className={sectionToggles.canvas ? '' : 'pf-section-disabled'}>
+        <p className="pf-hint" style={{ marginBottom: '1rem', opacity: 0.85 }}>Canvas noise adds subtle pixel-level randomization to prevent fingerprint tracking via HTML5 canvas rendering.</p>
+        <div className="pf-row">
+          <div className="pf-field">
+            <label className="pf-label">Noise Seed</label>
+            <input type="number" className="pf-input" value={formData.fingerprint.canvasNoise || 577315052} onChange={e => setFp('canvasNoise', e.target.value)} />
           </div>
-          <div className="np-field np-mb-large">
-            <label className="np-label">Extensions (comma-separated)</label>
-            <input type="text" className="np-input" value={formData.fingerprint.webglExtensions || 'EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float'} onChange={e => setFp('webglExtensions', e.target.value)} />
+          <div className="pf-field">
+            <label className="pf-label">Noise Intensity (0-10)</label>
+            <input type="number" min="0" max="10" className="pf-input" value={formData.fingerprint.canvasNoiseIntensity || 1} onChange={e => setFp('canvasNoiseIntensity', e.target.value)} />
           </div>
-        </CollapsibleSection>
+        </div>
+        <div className="pf-info-box">
+          <div className="pf-info-row"><span>Current seed:</span><span>{formData.fingerprint.canvasNoise || 577315052}</span></div>
+          <div className="pf-info-row"><span>Intensity:</span><span>{formData.fingerprint.canvasNoiseIntensity || 1} / 10</span></div>
+        </div>
+      </div>
+    </>
+  );
 
-        <CollapsibleSection title="Canvas">
-          <div className="np-row-2 np-mb-large">
-            <div className="np-field">
-              <label className="np-label">Noise seed</label>
-              <input type="number" className="np-input" value={formData.fingerprint.canvasNoise || 577315052} onChange={e => setFp('canvasNoise', e.target.value)} />
-            </div>
-            <div className="np-field">
-              <label className="np-label">Noise intensity (0-10)</label>
-              <input type="number" min="0" max="10" className="np-input" value={formData.fingerprint.canvasNoiseIntensity || 1} onChange={e => setFp('canvasNoiseIntensity', e.target.value)} />
-            </div>
+  const renderWebGL = () => {
+    const extCount = (formData.fingerprint.webglExtensions || '').split(',').filter(e => e.trim()).length;
+    return (
+    <>
+      <ToggleHeader id="webgl" label="WebGL Fingerprint" desc="WebGL noise, texture size parameters, and supported extensions" enabled={sectionToggles.webgl} onToggle={() => toggleSection('webgl')} />
+      <div className={sectionToggles.webgl ? '' : 'pf-section-disabled'}>
+        <p className="pf-hint" style={{ marginBottom: '1rem', opacity: 0.85 }}>WebGL overrides spoof GPU capabilities and inject deterministic hash noise to prevent WebGL-based fingerprinting.</p>
+        <div className="pf-row">
+          <div className="pf-field">
+            <label className="pf-label">Noise Seed</label>
+            <input type="number" className="pf-input" value={formData.fingerprint.webglNoise || 709233842} onChange={e => setFp('webglNoise', e.target.value)} />
           </div>
-        </CollapsibleSection>
-
-        <CollapsibleSection title="Audio">
-          <div className="np-row-3 np-mb-large">
-            <div className="np-field">
-              <label className="np-label">Sample rate</label>
-              <select className="np-input" value={formData.fingerprint.audioSampleRate || 96000} onChange={e => setFp('audioSampleRate', Number(e.target.value))}>
-                <option value={44100}>44100</option>
-                <option value={48000}>48000</option>
-                <option value={96000}>96000</option>
-              </select>
-            </div>
-            <div className="np-field">
-              <label className="np-label">Channels</label>
-              <select className="np-input" value={formData.fingerprint.audioChannels || 'Mono'} onChange={e => setFp('audioChannels', e.target.value)}>
-                <option value="Mono">Mono</option>
-                <option value="Stereo">Stereo</option>
-                <option value="Surround">Surround</option>
-              </select>
-            </div>
-            <div className="np-field">
-              <label className="np-label">Noise seed</label>
-              <input type="number" className="np-input" value={formData.fingerprint.audioNoise || 699605402} onChange={e => setFp('audioNoise', e.target.value)} />
-            </div>
+          <div className="pf-field">
+            <label className="pf-label">MAX_TEXTURE_SIZE</label>
+            <input type="number" className="pf-input" value={formData.fingerprint.maxTextureSize || 8192} onChange={e => setFp('maxTextureSize', e.target.value)} />
           </div>
-        </CollapsibleSection>
+        </div>
+        <div className="pf-field pf-mb">
+          <label className="pf-label">Extensions (comma separated)</label>
+          <input type="text" className="pf-input" value={formData.fingerprint.webglExtensions || ''} onChange={e => setFp('webglExtensions', e.target.value)} />
+        </div>
+        <div className="pf-info-box">
+          <div className="pf-info-row"><span>Extensions count:</span><span>{extCount}</span></div>
+          <div className="pf-info-row"><span>Noise seed:</span><span>{formData.fingerprint.webglNoise || 709233842}</span></div>
+        </div>
+      </div>
+    </>
+    );
+  };
 
-        <CollapsibleSection title="Media Devices">
-          <div className="np-row-3 np-mb-large">
-            <div className="np-field">
-              <label className="np-label">Speakers</label>
-              <input type="number" className="np-input" value={formData.settings.mediaDevices?.speakers ?? 3} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, mediaDevices: { ...p.settings.mediaDevices, speakers: Number(e.target.value) } }}))} />
-            </div>
-            <div className="np-field">
-              <label className="np-label">Microphones</label>
-              <input type="number" className="np-input" value={formData.settings.mediaDevices?.microphones ?? 0} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, mediaDevices: { ...p.settings.mediaDevices, microphones: Number(e.target.value) } }}))} />
-            </div>
-            <div className="np-field">
-              <label className="np-label">Webcams</label>
-              <input type="number" className="np-input" value={formData.settings.mediaDevices?.webcams ?? 0} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, mediaDevices: { ...p.settings.mediaDevices, webcams: Number(e.target.value) } }}))} />
-            </div>
+  const renderAudio = () => (
+    <>
+      <ToggleHeader id="audio" label="Audio Fingerprint" desc="AudioContext sample rate, channel count, and noise injection" enabled={sectionToggles.audio} onToggle={() => toggleSection('audio')} />
+      <div className={sectionToggles.audio ? '' : 'pf-section-disabled'}>
+        <div className="pf-row-3">
+          <div className="pf-field">
+            <label className="pf-label">Sample Rate (Hz)</label>
+            <select className="pf-select" value={formData.fingerprint.audioSampleRate || 48000} onChange={e => setFp('audioSampleRate', Number(e.target.value))}>
+              <option value={44100}>44,100 Hz</option>
+              <option value={48000}>48,000 Hz</option>
+              <option value={96000}>96,000 Hz</option>
+            </select>
           </div>
-        </CollapsibleSection>
+          <div className="pf-field">
+            <label className="pf-label">Channels</label>
+            <select className="pf-select" value={formData.fingerprint.audioChannels || 'Stereo'} onChange={e => setFp('audioChannels', e.target.value)}>
+              <option value="Mono">Mono (1ch)</option>
+              <option value="Stereo">Stereo (2ch)</option>
+              <option value="Surround">5.1 (6ch)</option>
+            </select>
+          </div>
+          <div className="pf-field">
+            <label className="pf-label">Noise Seed</label>
+            <input type="number" className="pf-input" value={formData.fingerprint.audioNoise || 0} onChange={e => setFp('audioNoise', e.target.value)} />
+          </div>
+        </div>
+      </div>
+    </>
+  );
 
-        <CollapsibleSection title="Navigator">
-          <div className="np-row-2 np-mb">
-            <div className="np-field">
-              <label className="np-label">Do Not Track</label>
-              <select className="np-input" value={formData.settings.advanced?.dnt ? '1' : '0'} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, advanced: { ...p.settings.advanced, dnt: e.target.value === '1' } }}))}>
+  const renderMedia = () => (
+    <>
+      <ToggleHeader id="media" label="Media Devices" desc="Speakers, microphones and webcam count." enabled={sectionToggles.media} onToggle={() => toggleSection('media')} />
+      <div className={sectionToggles.media ? '' : 'pf-section-disabled'}>
+        <div className="pf-row-3">
+          <div className="pf-field">
+            <label className="pf-label">Speakers</label>
+            <input type="number" className="pf-input" value={formData.settings.mediaDevices?.speakers ?? 3} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, mediaDevices: { ...p.settings.mediaDevices, speakers: Number(e.target.value) } } }))} />
+          </div>
+          <div className="pf-field">
+            <label className="pf-label">Microphones</label>
+            <input type="number" className="pf-input" value={formData.settings.mediaDevices?.microphones ?? 0} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, mediaDevices: { ...p.settings.mediaDevices, microphones: Number(e.target.value) } } }))} />
+          </div>
+          <div className="pf-field">
+            <label className="pf-label">Webcams</label>
+            <input type="number" className="pf-input" value={formData.settings.mediaDevices?.webcams ?? 0} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, mediaDevices: { ...p.settings.mediaDevices, webcams: Number(e.target.value) } } }))} />
+          </div>
+        </div>
+      </div>
+    </>
+  );
+
+  const renderNetwork = () => (
+    <>
+      <ToggleHeader id="network" label="Network & Navigator" desc="WebRTC IP handling policy and navigator network/privacy properties" enabled={sectionToggles.network} onToggle={() => toggleSection('network')} />
+      <div className={sectionToggles.network ? '' : 'pf-section-disabled'}>
+        <fieldset className="pf-fieldset">
+          <legend className="pf-legend">WebRTC</legend>
+          <div className="pf-field">
+            <label className="pf-label">IP Handling Policy</label>
+            <select className="pf-select" value={formData.settings.webrtc || 'Default'} onChange={e => setS('webrtc', e.target.value)}>
+              <option value="Public + private">Public + private</option>
+              <option value="Default">Default (allow all)</option>
+              <option value="Disable non-proxied UDP">Disable non-proxied UDP</option>
+              <option value="Public interface only">Public interface only</option>
+            </select>
+            <p className="pf-hint">Controls which IP addresses are exposed via WebRTC. Use "Disable non-proxied UDP" to prevent IP leaks when using a proxy.</p>
+          </div>
+        </fieldset>
+
+        <fieldset className="pf-fieldset">
+          <legend className="pf-legend">Navigator Properties</legend>
+          <div className="pf-row">
+            <div className="pf-field">
+              <label className="pf-label">Do Not Track</label>
+              <select className="pf-select" value={String(formData.settings.advanced?.dnt !== undefined ? formData.settings.advanced.dnt : 'null')} onChange={e => setAdv('dnt', e.target.value === 'null' ? null : (e.target.value === '1' ? 1 : 0))}>
+                <option value="null">Not set (null)</option>
                 <option value="1">Enabled (1)</option>
-                <option value="0">Disabled (0)</option>
+                <option value="0">Unspecified</option>
               </select>
             </div>
-            <div className="np-field">
-              <label className="np-label">Max touch points</label>
-              <input type="number" className="np-input" value={formData.fingerprint.maxTouchPoints || 10} onChange={e => setFp('maxTouchPoints', Number(e.target.value))} />
+            <div className="pf-field">
+              <label className="pf-label">Max Touch Points</label>
+              <input type="number" className="pf-input" value={formData.fingerprint.maxTouchPoints || 0} onChange={e => setFp('maxTouchPoints', Number(e.target.value))} />
             </div>
           </div>
-          <div className="np-row-2 np-mb-large">
-            <div className="np-field">
-              <label className="np-label">Connection type</label>
-              <select className="np-input" value={formData.fingerprint.connectionType || 'Ethernet'} onChange={e => setFp('connectionType', e.target.value)}>
+          <div className="pf-row">
+            <div className="pf-field">
+              <label className="pf-label">Connection Type</label>
+              <select className="pf-select" value={formData.fingerprint.connectionType || 'Ethernet'} onChange={e => setFp('connectionType', e.target.value)}>
                 <option value="Ethernet">Ethernet</option>
                 <option value="Wi-Fi">Wi-Fi</option>
                 <option value="Cellular">Cellular</option>
                 <option value="None">None</option>
               </select>
             </div>
-            <div className="np-field">
-              <label className="np-label">PDF viewer</label>
-              <select className="np-input" value={formData.fingerprint.pdfViewer || 'Enabled'} onChange={e => setFp('pdfViewer', e.target.value)}>
+            <div className="pf-field">
+              <label className="pf-label">PDF Viewer</label>
+              <select className="pf-select" value={formData.fingerprint.pdfViewer || 'Enabled'} onChange={e => setFp('pdfViewer', e.target.value)}>
                 <option value="Enabled">Enabled</option>
                 <option value="Disabled">Disabled</option>
               </select>
             </div>
           </div>
-        </CollapsibleSection>
+        </fieldset>
 
-        <CollapsibleSection title="Battery">
-          <div className="np-row-2 np-mb">
-            <div className="np-field">
-              <label className="np-label">Charging</label>
-              <select className="np-input" value={formData.fingerprint.batteryCharging || 'No'} onChange={e => setFp('batteryCharging', e.target.value)}>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
+      </div>
+    </>
+  );
+
+  const renderBattery = () => {
+    const isCharging = formData.fingerprint.batteryCharging === 'Yes';
+    const statusText = isCharging ? 'Charging' : 'Discharging';
+    const statusColor = isCharging ? '#10b981' : 'var(--fg)';
+    const levelPercent = Math.round((formData.fingerprint.batteryLevel || 0) * 100) + '%';
+
+    return (
+      <>
+        <ToggleHeader id="battery" label="Battery API" desc="Spoof navigator.getBattery() to report custom charging state and level" enabled={sectionToggles.battery} onToggle={() => toggleSection('battery')} />
+        <div className={sectionToggles.battery ? '' : 'pf-section-disabled'}>
+          <p className="pf-hint" style={{ marginBottom: '1rem', opacity: 0.85 }}>Battery status can be used as a fingerprinting vector. Spoofing it prevents sites from using it to track you.</p>
+          <div className="pf-row">
+            <div className="pf-field">
+              <label className="pf-label">Charging</label>
+              <select className="pf-select" value={formData.fingerprint.batteryCharging || 'No'} onChange={e => setFp('batteryCharging', e.target.value)}>
+                <option value="Yes">Charging</option>
+                <option value="No">Discharging</option>
               </select>
             </div>
-            <div className="np-field">
-              <label className="np-label">Level (0-1)</label>
-              <input type="number" step="0.01" className="np-input" value={formData.fingerprint.batteryLevel || 0.27} onChange={e => setFp('batteryLevel', Number(e.target.value))} />
+            <div className="pf-field">
+              <label className="pf-label">Level (0.0 - 1.0)</label>
+              <input type="number" step="0.01" className="pf-input" value={formData.fingerprint.batteryLevel !== undefined ? formData.fingerprint.batteryLevel : 0.27} onChange={e => setFp('batteryLevel', Number(e.target.value))} />
             </div>
           </div>
-          <div className="np-row-2 np-mb-large">
-            <div className="np-field">
-              <label className="np-label">Charging time (s)</label>
-              <input type="number" className="np-input" value={formData.fingerprint.batteryChargingTime || 0} onChange={e => setFp('batteryChargingTime', Number(e.target.value))} />
+          <div className="pf-row">
+            <div className="pf-field">
+              <label className="pf-label">Charging Time (seconds)</label>
+              <input type="number" className="pf-input" value={formData.fingerprint.batteryChargingTime || 0} onChange={e => setFp('batteryChargingTime', Number(e.target.value))} />
             </div>
-            <div className="np-field">
-              <label className="np-label">Discharging time (s)</label>
-              <input type="number" className="np-input" value={formData.fingerprint.batteryDischargingTime || 15789} onChange={e => setFp('batteryDischargingTime', Number(e.target.value))} />
+            <div className="pf-field">
+              <label className="pf-label">Discharging Time (seconds)</label>
+              <input type="number" className="pf-input" value={formData.fingerprint.batteryDischargingTime !== undefined ? formData.fingerprint.batteryDischargingTime : 15789} onChange={e => setFp('batteryDischargingTime', Number(e.target.value))} />
             </div>
           </div>
-        </CollapsibleSection>
-
-        <CollapsibleSection title="WebRTC">
-          <div className="np-field np-mb-large">
-            <label className="np-label">IP handling policy</label>
-            <select className="np-input" value={formData.settings.webrtc || 'Public + private'} onChange={e => setS('webrtc', e.target.value)}>
-              <option value="Public + private">Public + private</option>
-              <option value="Default">Default</option>
-              <option value="Disable non-proxied UDP">Disable non-proxied UDP</option>
-              <option value="Public interface only">Public interface only</option>
-            </select>
+          <div className="pf-info-box">
+            <div className="pf-info-row"><span>Status:</span><span style={{ color: statusColor }}>{statusText}</span></div>
+            <div className="pf-info-row"><span>Level:</span><span>{levelPercent}</span></div>
           </div>
-        </CollapsibleSection>
-
-        <CollapsibleSection title="Fonts">
-          <div className="np-field np-mb-large">
-            <label className="np-label">
-              Installed fonts ({(formData.fingerprint.fonts || 'Cambria, Microsoft New Tai Lue, Constantia, Palatino Linotype, Corbel, SimSu, Arial, Arial Black, Comic Sans MS, Courier New, Georgia, Impact, Lucida Console, Lucida Sans Unicode, Tahoma, Times New Roman, Trebuchet MS, Verdana, Consolas, Segoe UI, Calibri, Candara, Franklin Gothic Medium, Garamond, MS Sans Serif, MS Serif, Symbol, Webdings, Wingdings, MS Gothic, MS Mincho, PMingLiU, MingLiU, SimSun, NSimSun').split(',').filter(f => f.trim()).length})
-            </label>
-            <input 
-              type="text"
-              className="np-input" 
-              value={formData.fingerprint.fonts || 'Cambria, Microsoft New Tai Lue, Constantia, Palatino Linotype, Corbel, SimSu, Arial, Arial Black, Comic Sans MS, Courier New, Georgia, Impact, Lucida Console, Lucida Sans Unicode, Tahoma, Times New Roman, Trebuchet MS, Verdana, Consolas, Segoe UI, Calibri, Candara, Franklin Gothic Medium, Garamond, MS Sans Serif, MS Serif, Symbol, Webdings, Wingdings, MS Gothic, MS Mincho, PMingLiU, MingLiU, SimSun, NSimSun'} 
-              onChange={e => setFp('fonts', e.target.value)} 
-            />
-          </div>
-        </CollapsibleSection>
-
-        {/* Proxy Section */}
-        <div className="np-proxy-container">
-          <fieldset className="np-fieldset" style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
-            <legend className="np-legend">Proxy</legend>
-            <label className="np-checkbox">
-              <input type="checkbox" checked={formData.settings.proxy?.type !== 'none' && formData.settings.proxy?.type !== undefined} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...p.settings.proxy, type: e.target.checked ? 'http' : 'none' } }}))} />
-              <span style={{ fontSize: '1rem', marginLeft: '0.2rem', color: 'var(--fg)' }}>Enable proxy for this profile</span>
-            </label>
-          </fieldset>
         </div>
+      </>
+    );
+  };
 
-        </div> {/* End scrollable content */}
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'general': return renderGeneral();
+      case 'identity': return renderIdentity();
+      case 'display': return renderDisplay();
+      case 'hardware': return renderHardware();
+      case 'canvas': return renderCanvas();
+      case 'webgl': return renderWebGL();
+      case 'audio': return renderAudio();
+      case 'media': return renderMedia();
+      case 'network': return renderNetwork();
+      case 'battery': return renderBattery();
+      default: return null;
+    }
+  };
 
-        {/* Actions footer */}
-        <div className="np-actions">
-          <button type="button" className="np-btn-cancel" onClick={onCancel}>Cancel</button>
-          <button type="submit" className="np-btn-create">{isEdit ? 'Save' : 'Create'}</button>
+
+
+  return (
+    <div className="pf-root">
+      {/* ── Header ── */}
+      <div className="pf-header">
+        <div className="pf-header-left">
+          <button type="button" className="pf-back-btn" onClick={onCancel} title="Back">←</button>
+          <h2 className="pf-header-title">{isEdit ? 'Edit Profile' : 'New Profile'}</h2>
         </div>
-      </form>
+        <div className="pf-header-actions">
+          <button type="button" className="pf-btn pf-btn-generate" onClick={generateForActiveTab} title={generateBtnTooltip}>
+            <RefreshCcw size={16} /> {generateBtnLabel}
+          </button>
+          <button type="button" className="pf-btn pf-btn-cancel" onClick={onCancel}>Cancel</button>
+          <button type="button" className="pf-btn pf-btn-create" onClick={handleSubmit}>
+            {isEdit ? 'Save' : 'Create'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Body ── */}
+      <div className="pf-body">
+        {/* Sidebar */}
+        <nav className="pf-sidebar">
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`pf-sidebar-item ${activeTab === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <span className="pf-sidebar-icon">{tab.icon}</span>
+              <span className="pf-sidebar-label">{tab.label}</span>
+              {tab.toggleable && (
+                <span className={`pf-sidebar-status ${sectionToggles[tab.id] ? 'on' : ''}`}>ⓘ</span>
+              )}
+            </button>
+          ))}
+        </nav>
+
+        {/* Content */}
+        <div className="pf-content">
+          {renderTabContent()}
+        </div>
+      </div>
     </div>
   );
 }
 
-function CollapsibleSection({ title, children }) {
-  const [open, setOpen] = useState(false);
+/* ═══════════════ Toggle Section Header ═══════════════ */
+function ToggleHeader({ id, label, desc, enabled, onToggle }) {
   return (
-    <div className="np-collapse">
-      <button type="button" className="np-collapse-header" onClick={() => setOpen(!open)}>
-        <span className="np-collapse-icon">{open ? '▼' : '▶'}</span>
-        {title}
-      </button>
-      {open && <div className="np-collapse-body">{children}</div>}
+    <div className="pf-toggle-header">
+      <div className="pf-toggle-header-left">
+        <h3 className="pf-section-title">{label}</h3>
+        <p className="pf-section-desc" style={{ marginBottom: 0 }}>{desc}</p>
+      </div>
+      <div className="pf-toggle-wrapper">
+        <span className="pf-toggle-label">{enabled ? 'Enabled' : 'Disabled'}</span>
+        <div
+          className={`pf-toggle ${enabled ? 'on' : ''}`}
+          onClick={onToggle}
+          role="switch"
+          aria-checked={enabled}
+          title={enabled ? 'Click to disable' : 'Click to enable'}
+        >
+          <div className="pf-toggle-knob" />
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n/index';
 
 export default function SettingsTab({
@@ -13,9 +13,15 @@ export default function SettingsTab({
 }) {
     const { t } = useI18n();
     const [licenseKey, setLicenseKey] = useState('');
-    const machineCode = "99D6-05C6-6BEC-912C";
+    const [machineCode, setMachineCode] = useState('Loading...');
     const [autoStartApi, setAutoStartApi] = useState(false);
     const [maxBrowsers, setMaxBrowsers] = useState(5);
+
+    useEffect(() => {
+        window.electronAPI.getMachineCode()
+            .then(code => setMachineCode(code || 'UNKNOWN'))
+            .catch(console.error);
+    }, []);
 
     return (
         <div className="w-full h-full flex flex-col p-4 overflow-y-auto">
@@ -56,7 +62,7 @@ export default function SettingsTab({
                             onChange={e => setLicenseKey(e.target.value)}
                             className="flex-1 text-[0.75rem] py-1.5"
                         />
-                        <button className="btn btn-primary px-3 py-1.5 text-[0.75rem]">Activate</button>
+                        <button className="btn btn-success px-3 py-1.5 text-[0.75rem]">Activate</button>
                     </div>
                     <div>
                         <label className="block text-[0.7rem] text-[var(--muted)] mb-1">Machine Code</label>
@@ -123,7 +129,7 @@ export default function SettingsTab({
                     <p className="text-[0.7rem] text-[var(--muted)] font-mono break-all mb-3">Path: C:\Users\ManhZizou\AppData\Local\Programs\ObtBrowser\data\.playwright\browsers\chromium-1208\chrome-win64\chrome.exe</p>
                     <p className="text-[0.7rem] text-[var(--muted)] mb-3">Playwright Chromium is required for headless and visible browser profiles.</p>
                     <div className="flex gap-2">
-                        <button className="btn btn-primary px-3 py-1.5 text-[0.75rem]">Reinstall Chromium</button>
+                        <button className="btn btn-success px-3 py-1.5 text-[0.75rem]">Reinstall Chromium</button>
                         <button className="btn btn-danger px-3 py-1.5 text-[0.75rem]">Uninstall Chromium</button>
                     </div>
                 </div>
@@ -137,7 +143,7 @@ export default function SettingsTab({
                     </div>
                     <p className="text-[0.7rem] text-[var(--muted)] mb-3">Playwright Firefox is required for profiles using the Firefox engine. Firefox doesn't need stealth patches — naturally stealthier than Chromium.</p>
                     <div className="flex gap-2">
-                        <button className="btn btn-primary px-3 py-1.5 text-[0.75rem]">Install Firefox</button>
+                        <button className="btn btn-success px-3 py-1.5 text-[0.75rem]">Install Firefox</button>
                         <button className="btn btn-danger px-3 py-1.5 text-[0.75rem]" disabled>Uninstall Firefox</button>
                     </div>
                 </div>
@@ -152,7 +158,7 @@ export default function SettingsTab({
                         className="w-[80px] text-[0.75rem] py-1 mb-2"
                     />
                     <p className="text-[0.7rem] text-[var(--muted)] mb-4">Limits simultaneous browser instances. Higher = more RAM usage.</p>
-                    <button className="btn btn-primary px-4 py-1.5 text-[0.75rem]">Save Settings</button>
+                    <button className="btn btn-success px-4 py-1.5 text-[0.75rem]">Save Settings</button>
                 </div>
 
                 {/* Environment Variables */}

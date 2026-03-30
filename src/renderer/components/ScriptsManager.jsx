@@ -169,7 +169,7 @@ function ScriptsTab({ profiles }) {
                 </div>
 
                 <div className="p-3 z-10" style={{ background: 'var(--card2)', borderTop: '1px solid var(--border)' }}>
-                    <button className="btn btn-primary w-full mb-2 text-[0.75rem]" onClick={handleNew}>
+                    <button className="btn btn-success w-full mb-2 text-[0.75rem]" onClick={handleNew}>
                         + New Script
                     </button>
                     <div className="flex gap-2">
@@ -296,7 +296,7 @@ function ScriptModulesTab() {
                         className="flex-1 rounded-md px-3 py-1.5 text-[0.75rem] transition"
                         style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
                     />
-                    <button className="btn btn-primary text-[0.75rem]">
+                    <button className="btn btn-success text-[0.75rem]">
                         Install
                     </button>
                 </div>

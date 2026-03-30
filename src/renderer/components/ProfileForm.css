@@ -1,234 +1,514 @@
-/* ===== Profile Form ===== */
-.np-container {
+/* ===== ProfileForm — Sidebar-tabbed layout ===== */
+
+/* -- Outer wrapper: full-bleed inside .app-main -- */
+.pf-root {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  color: #e0e0e0;
-  overflow: hidden;
-}
-
-.np-title {
-  font-size: 1.4rem;
-  font-weight: 700;
-  margin: 0 0 1.5rem 0;
+  height: calc(100vh - 3rem);
+  margin: -1.5rem -2rem;
   color: var(--fg);
-  flex-shrink: 0;
 }
 
-.np-form {
+/* -- Top header bar -- */
+.pf-header {
   display: flex;
-  flex-direction: column;
-  max-width: 750px;
-  flex: 1;
-  overflow: hidden;
-}
-
-.np-top-fixed {
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
   flex-shrink: 0;
+  gap: 1rem;
+  min-height: 48px;
 }
 
-.np-scrollable-content {
-  flex: 1;
-  overflow-y: auto;
-  padding-right: 8px;
-  margin-right: -8px;
-}
-
-.np-scrollable-content::-webkit-scrollbar {
-  width: 8px;
-}
-.np-scrollable-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-.np-scrollable-content::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 4px;
-}
-.np-scrollable-content::-webkit-scrollbar-thumb:hover {
-  background: #475569;
-}
-
-/* Form fields */
-.np-field {
+.pf-header-left {
   display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  align-items: center;
+  gap: 0.75rem;
 }
 
-.np-label {
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.np-input {
-  background: var(--glass-input);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.6rem 0.8rem;
-  color: var(--fg);
-  font-size: 0.9rem;
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.np-input:focus {
-  border-color: #3b82f6;
-}
-
-.np-textarea {
-  resize: vertical;
-  min-height: 80px;
-}
-
-/* Layout helpers */
-.np-row-2 { display: flex; gap: 1rem; }
-.np-row-2 > * { flex: 1; min-width: 0; }
-.np-row-3 { display: flex; gap: 1rem; }
-.np-row-3 > * { flex: 1; min-width: 0; }
-
-.np-flex-1 { flex: 1; }
-.np-w-small { flex: 0 0 120px; }
-
-.np-mb { margin-bottom: 1rem; }
-.np-mb-large { margin-bottom: 2rem; }
-.np-mt-large { margin-top: 1.5rem; }
-
-/* Fieldsets */
-.np-fieldset {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 1.2rem;
-  margin: 0 0 1.5rem 0;
-  background: transparent;
-}
-
-.np-legend {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--primary);
-  padding: 0 0.5rem;
-}
-
-/* Buttons */
-.np-btn-blue {
-  width: 100%;
-  background: var(--primary);
-  color: #fff;
+.pf-back-btn {
+  background: none;
   border: none;
-  border-radius: 6px;
-  padding: 0.7rem;
-  font-size: 0.95rem;
-  font-weight: 600;
+  color: var(--fg);
+  font-size: 1.15rem;
   cursor: pointer;
-  transition: background 0.15s;
-  margin-top: 0.5rem;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  opacity: 0.75;
+  transition: opacity 0.15s;
+}
+.pf-back-btn:hover { opacity: 1; }
+
+.pf-header-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
 }
 
-.np-btn-blue:hover { background: var(--primary-hover); }
-
-.np-checkbox {
-  display: inline-flex;
+.pf-header-actions {
+  display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.9rem;
+}
+
+/* -- Buttons -- */
+.pf-btn {
+  padding: 0.4rem 1rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 500;
   cursor: pointer;
+  border: 1px solid var(--border2);
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: inherit;
+}
+
+.pf-btn-cancel {
+  background: var(--glass-strong);
+  color: var(--muted);
+  border-color: var(--border2);
+}
+.pf-btn-cancel:hover {
+  background: var(--glass-hover);
+  color: var(--fg);
+}
+
+.pf-btn-create {
+  background: var(--success);
+  color: #fff;
+  border-color: var(--success);
+  font-weight: 600;
+}
+.pf-btn-create:hover {
+  background: var(--success-hover);
+  border-color: var(--success-hover);
+}
+
+.pf-btn-generate {
+  background: transparent;
+  color: var(--primary);
+  border-color: var(--primary);
+}
+.pf-btn-generate:hover {
+  background: rgba(0, 210, 211, 0.1);
+}
+
+/* -- Body: sidebar + content -- */
+.pf-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* -- Sidebar -- */
+.pf-sidebar {
+  width: 170px;
+  min-width: 170px;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 0;
+  overflow-y: auto;
+}
+
+.pf-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 1rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted);
+  transition: all 0.12s;
+  border: none;
+  background: none;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+  position: relative;
   user-select: none;
 }
 
-.np-checkbox input {
+.pf-sidebar-item:hover {
+  background: var(--glass);
+  color: var(--fg);
+}
+
+.pf-sidebar-item.active {
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+}
+
+.pf-sidebar-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pf-sidebar-dot.enabled {
+  background: var(--success);
+  box-shadow: 0 0 6px rgba(40, 199, 111, 0.4);
+}
+.pf-sidebar-dot.disabled {
+  background: var(--danger);
+  box-shadow: 0 0 6px rgba(255, 77, 79, 0.3);
+}
+.pf-sidebar-dot.neutral {
+  background: var(--primary);
+  box-shadow: 0 0 6px rgba(0, 210, 211, 0.3);
+}
+
+.pf-sidebar-label {
+  flex: 1;
+}
+
+.pf-sidebar-status {
+  font-size: 0.85rem;
+  opacity: 0.4;
+  flex-shrink: 0;
+  transition: opacity 0.15s, color 0.15s;
+  color: var(--muted);
+}
+
+.pf-sidebar-status.on {
+  opacity: 0.85;
+  color: var(--primary);
+}
+
+.pf-sidebar-item.active .pf-sidebar-status {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.pf-sidebar-item.active .pf-sidebar-status.on {
+  color: #fff;
+  opacity: 1;
+}
+
+.pf-sidebar-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.pf-sidebar-item.active .pf-sidebar-icon {
+  opacity: 1;
+}
+
+/* -- Content area -- */
+.pf-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.75rem 2.5rem 2rem;
+}
+
+/* -- Section header -- */
+.pf-section-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+  color: var(--fg);
+}
+
+.pf-section-desc {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0 0 1.5rem;
+}
+
+/* -- Section toggle header (Identity-Battery tabs) -- */
+.pf-toggle-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.pf-toggle-header-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.pf-toggle-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pf-toggle-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--muted);
+  user-select: none;
+}
+
+/* -- Toggle switch (reusable) -- */
+.pf-toggle {
+  position: relative;
+  width: 44px;
+  height: 22px;
+  background: var(--glass-strong);
+  border: 1px solid var(--border2);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  flex-shrink: 0;
+}
+
+.pf-toggle:hover {
+  border-color: var(--primary);
+}
+
+.pf-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
   width: 16px;
   height: 16px;
+  border-radius: 50%;
+  background: var(--fg);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pf-toggle.on {
+  background: linear-gradient(135deg, var(--primary), rgba(0, 210, 211, 0.6));
+  border-color: var(--primary);
+}
+
+.pf-toggle.on .pf-toggle-knob {
+  transform: translateX(22px);
+}
+
+/* -- Disabled overlay when section toggle is off -- */
+.pf-section-disabled {
+  opacity: 0.35;
+  pointer-events: none;
+  user-select: none;
+  filter: grayscale(0.5);
+  transition: opacity 0.2s, filter 0.2s;
+}
+
+/* -- Form elements -- */
+.pf-group {
+  margin-bottom: 1.5rem;
+}
+
+.pf-group-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0 0 0.85rem;
+  letter-spacing: 0.01em;
+}
+
+/* -- Fieldset / Legend (bordered section groups) -- */
+.pf-fieldset {
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 1rem 1.25rem 1.25rem;
+  margin: 0 0 1.5rem;
+  background: transparent;
+}
+
+.pf-legend {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--fg);
+  padding: 0 0.5rem;
+  letter-spacing: 0.01em;
+}
+
+.pf-label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+  font-weight: 500;
+}
+
+.pf-hint {
+  font-size: 0.72rem;
+  color: var(--muted);
+  opacity: 0.7;
+  margin-top: 0.35rem;
+}
+
+.pf-input {
+  width: 100%;
+  background: var(--glass-input);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 0.55rem 0.75rem;
+  color: var(--fg);
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+
+.pf-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 210, 211, 0.18);
+}
+
+.pf-select {
+  width: 100%;
+  background: var(--glass-input);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 0.55rem 0.75rem;
+  color: var(--fg);
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+  appearance: auto;
+}
+
+.pf-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 210, 211, 0.18);
+}
+
+.pf-select option {
+  background: var(--card);
+  color: var(--fg);
+}
+
+/* -- Row layouts -- */
+.pf-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.pf-row > * {
+  flex: 1;
+  min-width: 0;
+}
+
+.pf-row-narrow > *:last-child {
+  flex: 0 0 100px;
+}
+
+.pf-row-3 {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.pf-row-3 > * {
+  flex: 1;
+  min-width: 0;
+}
+
+/* -- Field wrapper -- */
+.pf-field {
+  display: flex;
+  flex-direction: column;
+}
+
+/* -- Spacing helpers -- */
+.pf-mb { margin-bottom: 1rem; }
+.pf-mb-lg { margin-bottom: 1.75rem; }
+
+/* -- Divider -- */
+.pf-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 1.5rem 0;
+}
+
+/* -- Scrollbar for content -- */
+.pf-content::-webkit-scrollbar {
+  width: 6px;
+}
+.pf-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.pf-content::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+}
+.pf-content::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover);
+}
+
+/* -- Checkbox -- */
+.pf-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+  color: var(--fg);
+}
+
+.pf-checkbox input {
+  width: 15px;
+  height: 15px;
   accent-color: var(--primary);
   cursor: pointer;
 }
 
-/* Deep fingerprint divider */
-.np-divider {
+/* -- Warning banner -- */
+.pf-warning-banner {
   display: flex;
-  align-items: center;
-  text-align: center;
-  margin: 1.5rem 0 1rem;
-}
-
-.np-divider::before, .np-divider::after {
-  content: '';
-  flex: 1;
-  border-bottom: 1px solid var(--border);
-}
-
-.np-divider span {
-  padding: 0 1rem;
-  color: var(--muted);
-  font-size: 0.85rem;
-  border-bottom: none;
-}
-
-/* Collapsibles */
-.np-collapse {
-  margin-bottom: 0.5rem;
-}
-
-.np-collapse-header {
-  width: 100%;
-  display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
-  background: transparent;
-  border: none;
-  color: var(--fg);
-  font-size: 0.95rem;
-  font-weight: 500;
-  padding: 0.5rem 0;
-  cursor: pointer;
-  text-align: left;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  border-radius: 8px;
+  background: rgba(255, 159, 67, 0.15);
+  border: 1px solid rgba(255, 159, 67, 0.3);
+  color: var(--warning, #ff9f43);
+  font-size: 0.8rem;
+  line-height: 1.5;
 }
 
-.np-collapse-icon {
-  font-size: 0.65rem;
-  color: #94a3b8;
-  width: 12px;
-}
-
-.np-collapse-body {
-  padding: 0.5rem 0 0.5rem 1.25rem;
-}
-
-/* Actions footer */
-.np-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.8rem;
-  margin-top: 1rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
+.pf-warning-icon {
+  font-size: 1rem;
   flex-shrink: 0;
+  margin-top: 0.05rem;
 }
 
-.np-btn-cancel {
-  background: var(--glass-strong);
-  color: var(--muted);
+/* -- Info box (Canvas / WebGL summary) -- */
+.pf-info-box {
+  background: var(--glass);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 0.6rem 1.5rem;
-  font-size: 0.95rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
+  padding: 0.6rem 1rem;
+  margin-top: 0.5rem;
 }
 
-.np-btn-cancel:hover { background: var(--glass-hover); color: var(--fg); }
-
-.np-btn-create {
-  background: var(--success);
-  color: #fff;
-  border: 1px solid var(--success);
-  border-radius: 6px;
-  padding: 0.6rem 1.5rem;
-  font-size: 0.95rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: filter 0.15s;
+.pf-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding: 0.2rem 0;
 }
 
-.np-btn-create:hover { filter: brightness(1.15); }
+.pf-info-row span:last-child {
+  font-weight: 600;
+  color: var(--fg);
+}

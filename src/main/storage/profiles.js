@@ -99,7 +99,7 @@ function validateProfileInputBasic(p) {
     errors.push('Unsupported browser value');
   }
   const engine = p.settings?.engine;
-  if (engine && !['playwright','cdp','auto'].includes(engine)) errors.push('settings.engine must be playwright, cdp, or auto');
+  if (engine && !['playwright','playwright-firefox','cdp','auto'].includes(engine)) errors.push('settings.engine must be playwright, playwright-firefox, cdp, or auto');
   const cpu = p.settings?.cpuCores; if (cpu != null && (!Number.isInteger(cpu) || cpu < 1 || cpu > 64)) errors.push('cpuCores must be 1-64');
   const mem = p.settings?.memoryGB; if (mem != null && (!Number.isInteger(mem) || mem < 1 || mem > 256)) errors.push('memoryGB must be 1-256');
   return errors;
