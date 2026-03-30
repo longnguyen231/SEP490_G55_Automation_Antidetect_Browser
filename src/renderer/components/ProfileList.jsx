@@ -54,7 +54,7 @@ export default function ProfileList({
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-[1.2rem] font-bold text-[var(--fg)]">Profiles</h1>
         <button 
-          className="btn btn-primary text-[0.75rem] px-3 py-1.5"
+          className="btn btn-success text-[0.75rem] px-3 py-1.5"
           onClick={onCreateProfile}
         >
           + New Profile

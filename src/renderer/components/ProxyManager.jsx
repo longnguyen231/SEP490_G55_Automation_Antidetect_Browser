@@ -172,7 +172,7 @@ export default function ProxyManager() {
                         Export Excel
                     </button>
                     <button 
-                        className="btn btn-primary text-[0.75rem]"
+                        className="btn btn-success text-[0.75rem]"
                         onClick={() => { setEditingProxy(null); setShowForm(true); }}
                     >
                         + Add Proxy
@@ -381,7 +381,7 @@ function ProxyFormModal({ proxy, onSave, onClose, t }) {
                         <button type="button" className="btn btn-secondary px-6 py-2.5 text-[0.85rem]" onClick={onClose}>
                             Cancel
                         </button>
-                        <button type="submit" className="btn btn-primary px-7 py-2.5 text-[0.85rem]" disabled={saving}>
+                        <button type="submit" className="btn btn-success px-7 py-2.5 text-[0.85rem]" disabled={saving}>
                             {saving ? 'Saving...' : 'Save'}
                         </button>
                     </div>

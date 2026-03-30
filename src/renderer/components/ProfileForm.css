@@ -80,14 +80,14 @@
 }
 
 .pf-btn-create {
-  background: #2563eb;
+  background: var(--success);
   color: #fff;
-  border-color: #2563eb;
+  border-color: var(--success);
   font-weight: 600;
 }
 .pf-btn-create:hover {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
+  background: var(--success-hover);
+  border-color: var(--success-hover);
 }
 
 .pf-btn-generate {
