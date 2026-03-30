@@ -126,6 +126,7 @@ export default function ProxyManager() {
                 port: Number(formData.port),
                 username: formData.username || '',
                 password: formData.password || '',
+                rotateUrl: formData.rotateUrl || '',
             });
             if (res?.success) {
                 await loadProxies();
