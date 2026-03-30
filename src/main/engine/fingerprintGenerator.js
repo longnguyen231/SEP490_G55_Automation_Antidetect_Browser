@@ -174,7 +174,8 @@ const FONTS_BY_OS = {
 
 function buildUserAgent(os, chromeVersion, rng) {
   const { major, full } = chromeVersion;
-
+  // Real Chrome UA uses the FULL version (e.g., 136.0.7103.93), not abbreviated.
+  // Anti-bot systems cross-check UA version with sec-ch-ua-full-version-list.
   switch (os) {
     case 'Windows': {
       return `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${full} Safari/537.36`;
@@ -189,6 +190,17 @@ function buildUserAgent(os, chromeVersion, rng) {
     default:
       return `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${full} Safari/537.36`;
   }
+}
+
+// Build sec-ch-ua brands for a specific Chrome major version
+function buildSecChUaBrands(major) {
+  const m = Number(major);
+  let notABrand;
+  if (m >= 135) notABrand = { brand: 'Not?A_Brand', version: '99' };
+  else if (m >= 131) notABrand = { brand: 'Not)A;Brand', version: '99' };
+  else if (m >= 125) notABrand = { brand: 'Not/A)Brand', version: '8' };
+  else notABrand = { brand: 'Not_A Brand', version: '24' };
+  return [notABrand, { brand: 'Chromium', version: String(m) }, { brand: 'Google Chrome', version: String(m) }];
 }
 
 // ═══════════════════════════════════════════════════════════════════════

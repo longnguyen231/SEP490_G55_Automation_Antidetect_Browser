@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"require\\\\|import\" /e/SEP490/SEP490_G55_Automation_Antidetect_Browser/SEP490_G55_Automation_Antidetect_Browser/src/main --include=*.js)"
+    ]
+  }
+}

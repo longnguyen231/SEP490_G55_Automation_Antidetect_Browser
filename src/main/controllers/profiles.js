@@ -8,6 +8,29 @@ const { applyCdpOverrides } = require('../engine/cdpOverrides');
 const { findFreePort, fetchJsonVersion, killProcessTreeWin, userDataDirFor, launchChromeCdp } = require('../engine/cdp');
 const { readProfiles, writeProfiles } = require('../storage/profiles');
 
+// Build correct Sec-CH-UA brands for a given Chrome major version.
+// Chrome rotates the "Not A Brand" string every few versions.
+function buildSecChUaBrands(major) {
+  const m = Number(major);
+  // Brand rotation pattern based on real Chrome releases
+  let notABrand;
+  if (m >= 135) notABrand = { brand: 'Not?A_Brand', version: '99' };
+  else if (m >= 131) notABrand = { brand: 'Not)A;Brand', version: '99' };
+  else if (m >= 125) notABrand = { brand: 'Not/A)Brand', version: '8' };
+  else notABrand = { brand: 'Not_A Brand', version: '24' };
+  return {
+    brands: [notABrand, { brand: 'Chromium', version: String(m) }, { brand: 'Google Chrome', version: String(m) }],
+    header: `"${notABrand.brand}";v="${notABrand.version}", "Chromium";v="${m}", "Google Chrome";v="${m}"`,
+  };
+}
+
+function buildPlatformFromAdvanced(advSettings) {
+  const p = (advSettings?.platform || '');
+  if (p.includes('Mac')) return 'macOS';
+  if (p.includes('Linux')) return 'Linux';
+  return 'Windows';
+}
+
 async function runPlaywrightInstall(browser = 'chromium') {
   appendLog('system', `Running Playwright install for ${browser}...`);
   return new Promise((resolve) => {
@@ -196,9 +219,11 @@ async function launchProfileInternal(profileId, options = {}) {
     // Playwright flow
     const fp = profile.fingerprint || {};
     const args = [
-      // ── Stealth / anti-detection flags ──
+      // ── Anti-automation detection (CRITICAL) ──
       '--disable-blink-features=AutomationControlled',
-      '--disable-features=AutomationControlled',
+      '--disable-features=AutomationControlled,TranslateUI',
+
+      // ── Match real Chrome startup flags ──
       '--disable-infobars',
       '--disable-background-timer-throttling',
       '--disable-backgrounding-occluded-windows',
@@ -213,7 +238,13 @@ async function launchProfileInternal(profileId, options = {}) {
       '--password-store=basic',
       '--use-mock-keychain',
       '--export-tagged-pdf',
-      '--disable-features=TranslateUI',
+      '--no-first-run',
+      '--no-default-browser-check',
+
+      // ── Prevent detection via Chrome-specific signals ──
+      '--disable-features=IsolateOrigins,site-per-process,CrossSiteDocumentBlockingIfIsolating',
+      '--disable-site-isolation-trials',
+      '--disable-features=BlockInsecurePrivateNetworkRequests',
     ];
     if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
       args.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
@@ -265,13 +296,17 @@ async function launchProfileInternal(profileId, options = {}) {
         proxy = { server: serverUrl };
       }
     }
-    args.push('--no-first-run', '--no-default-browser-check');
     const launchOpts = {
       headless,
       args,
       proxy,
-      // Remove Playwright's default --enable-automation flag which sets navigator.webdriver=true
-      ignoreDefaultArgs: ['--enable-automation'],
+      // Remove Playwright's default flags that expose automation
+      ignoreDefaultArgs: [
+        '--enable-automation',           // Sets navigator.webdriver=true
+        '--disable-extensions',          // Real Chrome has extensions enabled
+        '--disable-default-apps',        // Real Chrome has default apps
+        '--disable-component-extensions-with-background-pages',
+      ],
     };
     let server;
     try { server = await chromium.launchServer(launchOpts); }
@@ -295,26 +330,31 @@ async function launchProfileInternal(profileId, options = {}) {
     const applyViewport = apply.viewport !== false;
     const applyGeo = apply.geolocation !== false;
     const contextOptions = { proxy };
-    if (applyLang) contextOptions.locale = fp.language || settings.language || 'en-US';
+    const locale = fp.language || settings.language || 'en-US';
+    const primaryLang = locale.split('-')[0];
+    const acceptLang = locale === primaryLang ? locale : `${locale},${primaryLang};q=0.9`;
+    if (applyLang) contextOptions.locale = locale;
     if (applyTz) contextOptions.timezoneId = fp.timezone || settings.timezone || 'UTC';
+
+    // Extra HTTP headers must include Accept-Language to match locale (Google checks this)
+    contextOptions.extraHTTPHeaders = {
+      'Accept-Language': acceptLang,
+    };
+
     if (applyUA && fp.userAgent) {
       contextOptions.userAgent = fp.userAgent;
-      // Build User-Agent Client Hints for Playwright context (Cloudflare checks Sec-CH-UA)
       try {
         const vMatch = fp.userAgent.match(/Chrome\/(\d+)\.(\d+)\.(\d+)\.(\d+)/);
         if (vMatch) {
           const major = vMatch[1];
           const full = `${vMatch[1]}.${vMatch[2]}.${vMatch[3]}.${vMatch[4]}`;
-          const advSettings = settings.advanced || {};
-          const plat = (advSettings.platform || '').includes('Mac') ? 'macOS' :
-                       (advSettings.platform || '').includes('Linux') ? 'Linux' : 'Windows';
-          const platVer = plat === 'Windows' ? '15.0.0' : plat === 'macOS' ? '14.0.0' : '6.5.0';
-          contextOptions.userAgent = fp.userAgent;
-          // Playwright supports extra HTTP headers for client hints
-          contextOptions.extraHTTPHeaders = Object.assign({}, contextOptions.extraHTTPHeaders || {}, {
-            'sec-ch-ua': `"Not/A)Brand";v="8", "Chromium";v="${major}", "Google Chrome";v="${major}"`,
+          const plat = buildPlatformFromAdvanced(settings.advanced);
+          const chUa = buildSecChUaBrands(major);
+          Object.assign(contextOptions.extraHTTPHeaders, {
+            'sec-ch-ua': chUa.header,
             'sec-ch-ua-mobile': '?0',
             'sec-ch-ua-platform': `"${plat}"`,
+            'sec-ch-ua-full-version-list': chUa.brands.map(b => `"${b.brand}";v="${b.brand === 'Chromium' || b.brand === 'Google Chrome' ? full : b.version + '.0.0.0'}"`).join(', '),
           });
         }
       } catch {}

@@ -56,6 +56,7 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   const applyViewport = display.enabled !== false && apply.viewport !== false;
   const applyCanvas = canvas.enabled !== false && (fp.canvas !== false);
   const applyAudio = audio.enabled !== false && (fp.audio !== false);
+  const applyAntiDetection = network.antiDetection !== false && apply.antiDetection !== false;
 
   // Generate a stable per-profile seed for consistent noise
   const profileSeed = hashCode(profile?.id || 'default');
@@ -63,29 +64,31 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   // ═══════════════════════════════════════════════════════════════════════
   // 0. ANTI-AUTOMATION DETECTION (must run FIRST, before anything else)
   //    Cloudflare, DataDome, PerimeterX all check these signals.
+  //    Can be disabled via network.antiDetection=false or applyOverrides.antiDetection=false
   // ═══════════════════════════════════════════════════════════════════════
-  try {
+  if (applyAntiDetection) try {
     await context.addInitScript(() => {
       try {
         // ── navigator.webdriver ──
-        // Real Chrome: property exists on prototype with value false, not configurable.
-        // Automation sets it to true. We delete + redefine on prototype to match real browser.
+        // Real Chrome: navigator.webdriver === false (not undefined, not true).
+        // Playwright/CDP set it to true. We must make it false to match real Chrome.
+        // Also must survive Object.getOwnPropertyDescriptor checks.
         const proto = Object.getPrototypeOf(navigator);
         if (proto) {
           try {
             delete proto.webdriver;
             Object.defineProperty(proto, 'webdriver', {
-              get: () => undefined,
+              get: () => false,
               configurable: true,
               enumerable: true,
             });
           } catch {}
         }
-        // Also override instance level
         try {
           Object.defineProperty(navigator, 'webdriver', {
-            get: () => undefined,
+            get: () => false,
             configurable: true,
+            enumerable: true,
           });
         } catch {}
 
@@ -96,12 +99,32 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
         try { delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array; } catch {}
         try { delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise; } catch {}
         try { delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol; } catch {}
-        // Remove any window property starting with 'cdc_'
+        // Remove any window property starting with 'cdc_' or '__'playwright markers
         try {
           for (const key of Object.keys(window)) {
-            if (key.startsWith('cdc_') || key.startsWith('__cdc_')) {
+            if (key.startsWith('cdc_') || key.startsWith('__cdc_') ||
+                key.startsWith('__playwright') || key.startsWith('__pw')) {
               try { delete window[key]; } catch {}
             }
+          }
+        } catch {}
+
+        // ── Remove CDP Runtime.enable detection ──
+        // Google checks for the existence of CDP debugging artifacts.
+        // Intercept calls that reveal CDP is active.
+        try {
+          // Some sites check Error.stack for devtools/CDP traces
+          const origCaptureStack = Error.captureStackTrace;
+          if (origCaptureStack) {
+            Error.captureStackTrace = function (target, constructorOpt) {
+              origCaptureStack.call(Error, target, constructorOpt);
+              if (target && target.stack) {
+                // Remove any lines referencing playwright, puppeteer, or CDP internals
+                target.stack = target.stack.split('\n').filter(function (line) {
+                  return !(/playwright|puppeteer|__puppeteer|devtools|pptr:/).test(line);
+                }).join('\n');
+              }
+            };
           }
         } catch {}
 
@@ -120,18 +143,33 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
           };
         }
 
-        // chrome.runtime — must have connect/sendMessage but also id
+        // chrome.runtime — must have connect/sendMessage AND proper id/getManifest
+        // Google specifically checks chrome.runtime.id existence and type
         if (!window.chrome.runtime) {
           window.chrome.runtime = {};
         }
         const rt = window.chrome.runtime;
-        if (!rt.connect) rt.connect = function () { return { onMessage: { addListener: function () {} }, postMessage: function () {}, disconnect: function () {} }; };
-        if (!rt.sendMessage) rt.sendMessage = function () {};
-        // OnInstalledReason, OnRestartRequiredReason, PlatformArch, PlatformNaclArch, PlatformOs, RequestUpdateCheckStatus
+        if (!rt.connect) rt.connect = function () {
+          return {
+            onMessage: { addListener: function () {}, removeListener: function () {} },
+            onDisconnect: { addListener: function () {}, removeListener: function () {} },
+            postMessage: function () {},
+            disconnect: function () {},
+          };
+        };
+        if (!rt.sendMessage) rt.sendMessage = function (id, msg, opts, cb) {
+          // Real Chrome calls callback with undefined for unknown extensions
+          if (typeof cb === 'function') cb();
+          else if (typeof opts === 'function') opts();
+        };
+        if (!rt.getManifest) rt.getManifest = function () { return {}; };
+        if (!rt.getURL) rt.getURL = function (p) { return ''; };
+        if (!rt.id) rt.id = undefined; // Real Chrome: undefined when no extension context
         if (!rt.OnInstalledReason) rt.OnInstalledReason = { CHROME_UPDATE: 'chrome_update', INSTALL: 'install', SHARED_MODULE_UPDATE: 'shared_module_update', UPDATE: 'update' };
         if (!rt.OnRestartRequiredReason) rt.OnRestartRequiredReason = { APP_UPDATE: 'app_update', OS_UPDATE: 'os_update', PERIODIC: 'periodic' };
         if (!rt.PlatformArch) rt.PlatformArch = { ARM: 'arm', ARM64: 'arm64', MIPS: 'mips', MIPS64: 'mips64', X86_32: 'x86-32', X86_64: 'x86-64' };
-        if (!rt.PlatformOs) rt.PlatformOs = { ANDROID: 'android', CROS: 'cros', LINUX: 'linux', MAC: 'mac', OPENBSD: 'openbsd', WIN: 'win' };
+        if (!rt.PlatformNaclArch) rt.PlatformNaclArch = { ARM: 'arm', MIPS: 'mips', MIPS64: 'mips64', X86_32: 'x86-32', X86_64: 'x86-64' };
+        if (!rt.PlatformOs) rt.PlatformOs = { ANDROID: 'android', CROS: 'cros', FUCHSIA: 'fuchsia', LINUX: 'linux', MAC: 'mac', OPENBSD: 'openbsd', WIN: 'win' };
         if (!rt.RequestUpdateCheckStatus) rt.RequestUpdateCheckStatus = { NO_UPDATE: 'no_update', THROTTLED: 'throttled', UPDATE_AVAILABLE: 'update_available' };
 
         // chrome.csi
@@ -219,10 +257,66 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
         } catch {}
 
         // ── SourceBuffer / MediaSource detection (some bots lack these) ──
-        // Ensure they exist to look like a real browser
         try {
           if (typeof MediaSource === 'undefined') {
             window.MediaSource = window.WebKitMediaSource || function () {};
+          }
+        } catch {}
+
+        // ── Prevent CDP detection via Runtime.evaluate artifacts ──
+        // Google/Cloudflare check for stale references left by CDP Runtime.enable
+        try {
+          // Patch Function.prototype.toString to hide native code overrides
+          const origFnToString = Function.prototype.toString;
+          const overrides = new Set();
+          Function.prototype.toString = function () {
+            if (overrides.has(this)) return `function ${this.name || ''}() { [native code] }`;
+            return origFnToString.call(this);
+          };
+          overrides.add(Function.prototype.toString);
+
+          // Mark our overridden functions as "native" to pass toString() checks
+          // This must be called on any function we define that sites may inspect
+          window.__markNative = function (fn) { overrides.add(fn); return fn; };
+        } catch {}
+
+        // ── Patch console.debug to prevent CDP detection ──
+        // Some sites do console.debug('something') and check if the DevTools protocol intercepted it
+        try {
+          const origDebug = console.debug;
+          console.debug = function () { return origDebug.apply(console, arguments); };
+        } catch {}
+
+        // ── Ensure window.clientInformation === navigator ──
+        // Some detection scripts check this alias exists (it does in real Chrome)
+        try {
+          if (!window.clientInformation) {
+            Object.defineProperty(window, 'clientInformation', {
+              get: () => navigator,
+              configurable: true,
+              enumerable: true,
+            });
+          }
+        } catch {}
+
+        // ── Ensure document.hasFocus() returns true ──
+        // Automated browsers sometimes return false because window isn't focused
+        try {
+          Object.defineProperty(document, 'hasFocus', {
+            value: function () { return true; },
+            configurable: true,
+            writable: true,
+          });
+        } catch {}
+
+        // ── Ensure PerformanceObserver exists (Google uses it) ──
+        try {
+          if (typeof PerformanceObserver === 'undefined') {
+            window.PerformanceObserver = function (cb) {
+              this.observe = function () {};
+              this.disconnect = function () {};
+              this.takeRecords = function () { return []; };
+            };
           }
         } catch {}
 
@@ -912,8 +1006,9 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
                   // Copy webdriver override
                   try {
                     Object.defineProperty(iframeNav, 'webdriver', {
-                      get: () => undefined,
+                      get: () => false,
                       configurable: true,
+                      enumerable: true,
                     });
                   } catch {}
                   // Copy chrome object

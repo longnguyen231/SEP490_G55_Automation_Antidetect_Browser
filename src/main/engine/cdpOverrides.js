@@ -1,5 +1,15 @@
 const { chromium } = require('playwright');
 
+function buildSecChUaBrands(major) {
+  const m = Number(major);
+  let notABrand;
+  if (m >= 135) notABrand = { brand: 'Not?A_Brand', version: '99' };
+  else if (m >= 131) notABrand = { brand: 'Not)A;Brand', version: '99' };
+  else if (m >= 125) notABrand = { brand: 'Not/A)Brand', version: '8' };
+  else notABrand = { brand: 'Not_A Brand', version: '24' };
+  return [notABrand, { brand: 'Chromium', version: String(m) }, { brand: 'Google Chrome', version: String(m) }];
+}
+
 function parseResolution(res) {
   try {
     if (!res || typeof res !== 'string') return null;
@@ -86,24 +96,20 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
                              (adv.platform || '').includes('Linux') ? 'Linux' : 'Windows';
             const platformVersion = platform === 'Windows' ? '15.0.0' :
                                     platform === 'macOS' ? '14.0.0' : '6.5.0';
+            const brands = buildSecChUaBrands(major);
             params.userAgentMetadata = {
-              brands: [
-                { brand: 'Not/A)Brand', version: '8' },
-                { brand: 'Chromium', version: major },
-                { brand: 'Google Chrome', version: major },
-              ],
-              fullVersionList: [
-                { brand: 'Not/A)Brand', version: '8.0.0.0' },
-                { brand: 'Chromium', version: full },
-                { brand: 'Google Chrome', version: full },
-              ],
+              brands: brands.map(b => ({ brand: b.brand, version: b.version })),
+              fullVersionList: brands.map(b => ({
+                brand: b.brand,
+                version: (b.brand === 'Chromium' || b.brand === 'Google Chrome') ? full : b.version + '.0.0.0',
+              })),
               fullVersion: full,
               platform: platform,
               platformVersion: platformVersion,
-              architecture: 'x86',
+              architecture: platform === 'macOS' ? 'arm' : 'x86',
               model: '',
               mobile: false,
-              bitness: '64',
+              bitness: platform === 'macOS' ? '' : '64',
               wow64: false,
             };
           }
