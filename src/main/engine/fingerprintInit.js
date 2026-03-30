@@ -341,14 +341,31 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   // ═══════════════════════════════════════════════════════════════════════
   if (applyNavigator) {
     try {
-      await context.addInitScript(({ adv, primaryLang, flags, identity, network }) => {
-        try {
-          if (!adv || typeof adv !== 'object') adv = {};
-
-          // Platform — prefer identity.platform, fall back to adv.platform
-          const platform = (identity && identity.platform) || adv.platform;
-          if (platform) {
-            try { Object.defineProperty(navigator, 'platform', { get: () => platform, configurable: true }); } catch {}
+      await context.addInitScript(({ adv, primaryLang, ua, flags }) => {
+      try {
+          if (flags.applyNavigator && adv && typeof adv === 'object') {
+            if (adv.platform) { try { Object.defineProperty(navigator, 'platform', { get: () => adv.platform }); } catch {} }
+            if (typeof adv.dnt === 'boolean') { try { Object.defineProperty(navigator, 'doNotTrack', { get: () => (adv.dnt ? '1' : '0') }); } catch {} }
+            if (typeof adv.maxTouchPoints === 'number') { try { Object.defineProperty(navigator, 'maxTouchPoints', { get: () => adv.maxTouchPoints }); } catch {} }
+            if (flags.applyLang) {
+              try {
+                const langs = Array.isArray(adv.languages) ? adv.languages : (typeof adv.languages === 'string' ? adv.languages.split(',').map(s=>s.trim()).filter(Boolean) : []);
+                const finalLangs = langs.length ? langs : (primaryLang ? [primaryLang, primaryLang.split('-')[0]].filter((v,i,a)=>a.indexOf(v)===i) : navigator.languages);
+                if (finalLangs && finalLangs.length) {
+                  // Override navigator.language (single) and navigator.languages (array) — must match
+                  try { Object.defineProperty(navigator, 'language', { get: () => finalLangs[0] }); } catch {}
+                  try { Object.defineProperty(navigator, 'languages', { get: () => finalLangs }); } catch {}
+                }
+              } catch {}
+            }
+            if (typeof adv.plugins === 'number') {
+              try {
+                const length = adv.plugins;
+                const fakeArray = { length, item: () => undefined, namedItem: () => undefined };
+                Object.defineProperty(navigator, 'plugins', { get: () => fakeArray });
+                Object.defineProperty(navigator, 'mimeTypes', { get: () => ({ length: 0, item: () => undefined, namedItem: () => undefined }) });
+              } catch {}
+            }
           }
 
           // Do Not Track — prefer network.doNotTrack, fall back to adv.dnt

@@ -139,7 +139,7 @@ function validateProfileInputBasic(p) {
     errors.push('Unsupported browser value');
   }
   const engine = p.settings?.engine;
-  if (engine && !['playwright','cdp'].includes(engine)) errors.push('settings.engine must be playwright or cdp');
+  if (engine && !['playwright','playwright-firefox','cdp','auto'].includes(engine)) errors.push('settings.engine must be playwright, playwright-firefox, cdp, or auto');
   const cpu = p.settings?.cpuCores; if (cpu != null && (!Number.isInteger(cpu) || cpu < 1 || cpu > 64)) errors.push('cpuCores must be 1-64');
   const mem = p.settings?.memoryGB; if (mem != null && (!Number.isInteger(mem) || mem < 1 || mem > 256)) errors.push('memoryGB must be 1-256');
   return errors;
@@ -151,20 +151,16 @@ function normalizeProfileInput(input = {}, existing = null) {
   const name = (input.name != null ? String(input.name) : String(base.name || ''))?.trim();
   const description = input.description != null ? String(input.description) : (base.description || '');
   const startUrl = normalizeStartUrl(input.startUrl || base.startUrl || 'https://www.google.com');
-
-  let fingerprint, settings;
-  if (isNewProfile && !input.fingerprint?.userAgent) {
-    // New profile without explicit fingerprint: generate a unique random one
-    const generated = generateDefaultFingerprint();
-    fingerprint = deepMerge(generated.fingerprint, input.fingerprint || {});
-    settings = deepMerge(DEFAULT_SETTINGS, deepMerge(generated.settings, deepMerge(base.settings || {}, input.settings || {})));
-  } else {
-    // Existing profile or explicit fingerprint provided: merge normally
-    const defaults = isNewProfile ? generateDefaultFingerprint() : { fingerprint: base.fingerprint || FALLBACK_FINGERPRINT, settings: base.settings || FALLBACK_SETTINGS };
-    fingerprint = deepMerge(defaults.fingerprint, deepMerge(base.fingerprint || {}, input.fingerprint || {}));
-    settings = deepMerge(DEFAULT_SETTINGS, deepMerge(defaults.settings, deepMerge(base.settings || {}, input.settings || {})));
+  const fingerprint = deepMerge(DEFAULT_FINGERPRINT, deepMerge(base.fingerprint || {}, input.fingerprint || {}));
+  const settings = deepMerge(DEFAULT_SETTINGS, deepMerge(base.settings || {}, input.settings || {}));
+  if (!settings.engine || settings.engine === 'auto') {
+    const { resolveChromeExecutable } = require('./settings');
+    if (resolveChromeExecutable && resolveChromeExecutable()) {
+      settings.engine = 'cdp';
+    } else {
+      settings.engine = 'playwright';
+    }
   }
-
   const automation = deepMerge(DEFAULT_AUTOMATION, deepMerge(base.automation || {}, input.automation || {}));
   const active = (input.active != null) ? !!input.active : (base.active != null ? !!base.active : true);
   const id = input.id || base.id;

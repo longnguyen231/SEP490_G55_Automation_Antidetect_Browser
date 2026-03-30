@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #00bcd4;
+  --color-background-light: #f5f7f8;
+  --color-background-dark: #080a0c;
+  --font-display: "Inter", sans-serif;
+  
+  --radius-DEFAULT: 0.125rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+  --radius-full: 0.75rem;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-display);
+    @apply bg-background-light text-slate-900;
+  }
+  
+  .dark body {
+    @apply bg-background-dark text-slate-100;
+  }
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}

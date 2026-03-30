@@ -34,8 +34,19 @@ const {
   importProxiesInternal, exportProxiesInternal,
 } = require('../storage/proxies');
 const { checkProxy, checkProxiesBatch } = require('../services/ProxyChecker');
+const { getMachineCode } = require('../services/machineId');
+const { checkBrowserStatus, installBrowser, uninstallBrowser, reinstallBrowser } = require('../services/browserManagerService');
 
 function registerIpcHandlers(extra = {}) {
+  // Machine Code
+  ipcMain.handle('get-machine-code', () => getMachineCode());
+
+  // Browser Runtime Manager
+  ipcMain.handle('browser-runtime-status', async (_e, name) => checkBrowserStatus(name));
+  ipcMain.handle('browser-runtime-install', async (_e, name) => await installBrowser(name));
+  ipcMain.handle('browser-runtime-uninstall', async (_e, name) => await uninstallBrowser(name));
+  ipcMain.handle('browser-runtime-reinstall', async (_e, name) => await reinstallBrowser(name));
+
   ipcMain.handle('get-profiles', async () => await getProfilesInternal());
   ipcMain.handle('save-profile', async (_e, profile) => await saveProfileInternal(profile));
   ipcMain.handle('delete-profile', async (_e, profileId) => {
@@ -106,86 +117,39 @@ function registerIpcHandlers(extra = {}) {
     } catch (e) { return { success: false, error: e?.message || String(e) }; }
   });
 
-  // Fingerprint generator
-  ipcMain.handle('generate-fingerprint', async (_e, opts = {}) => {
+  // Proxy Rotator (from huy branch)
+  ipcMain.handle('proxy-rotate', async (_e, id) => {
     try {
-      const { generateFingerprint } = require('../engine/fingerprintGenerator');
-      return { success: true, ...generateFingerprint(opts) };
-    } catch (e) { return { success: false, error: e?.message || String(e) }; }
-  });
-  ipcMain.handle('generate-fingerprint-batch', async (_e, count = 1, opts = {}) => {
-    try {
-      const { generateBatch } = require('../engine/fingerprintGenerator');
-      const results = generateBatch(Math.min(50, Math.max(1, count)), opts);
-      return { success: true, fingerprints: results };
-    } catch (e) { return { success: false, error: e?.message || String(e) }; }
-  });
-
-  // Section-specific fingerprint generators
-  const sectionGenerators = [
-    'generateIdentity', 'generateDisplay', 'generateHardware',
-    'generateCanvas', 'generateWebGL', 'generateAudio',
-    'generateMedia', 'generateNetwork', 'generateBattery',
-  ];
-  for (const fnName of sectionGenerators) {
-    const channel = 'generate-' + fnName.replace('generate', '').toLowerCase();
-    ipcMain.handle(channel, async (_e, opts = {}) => {
-      try {
-        const gen = require('../engine/fingerprintGenerator');
-        if (typeof gen[fnName] !== 'function') return { success: false, error: `${fnName} not found` };
-        const result = gen[fnName](opts);
-        return { success: true, ...result };
-      } catch (e) { return { success: false, error: e?.message || String(e) }; }
-    });
-  }
-
-  // Behavior simulator (for running Playwright profiles)
-  ipcMain.handle('simulate-behavior', async (_e, profileId, action = 'browse', opts = {}) => {
-    try {
-      const { runningProfiles } = require('../state/runtime');
-      const running = runningProfiles.get(profileId);
-      if (!running) return { success: false, error: 'Profile not running' };
-      if (running.engine !== 'playwright' || !running.context) {
-        return { success: false, error: 'Behavior simulation requires Playwright engine' };
-      }
-      const pages = running.context.pages();
-      const page = pages[opts.pageIndex || 0] || pages[0];
-      if (!page) return { success: false, error: 'No page available' };
-
-      const behavior = require('../engine/behaviorSimulator');
-      const seed = (profileId || '').split('').reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0);
-      const rng = behavior.createRng(Math.abs(seed) + Date.now());
-
-      switch (action) {
-        case 'browse': await behavior.simulateBrowsing(page, rng, opts); break;
-        case 'scroll': await behavior.naturalScroll(page, rng, opts); break;
-        case 'click': await behavior.humanClick(page, rng, opts.selector, opts); break;
-        case 'type': await behavior.humanType(page, rng, opts.selector, opts.text, opts); break;
-        case 'idle': await behavior.simulateIdle(page, rng, opts); break;
-        case 'move': await behavior.moveMouseCurved(page, rng, opts.x || 500, opts.y || 300, opts); break;
-        default: return { success: false, error: `Unknown action: ${action}` };
-      }
-      return { success: true, action };
-    } catch (e) { return { success: false, error: e?.message || String(e) }; }
+      const getRes = await getProxyByIdInternal(id);
+      if (!getRes.success) return getRes;
+      const proxy = getRes.proxy;
+      if (!proxy.rotateUrl) return { success: false, error: 'No rotate URL configured' };
+      
+      const axios = require('axios');
+      const startTime = Date.now();
+      const response = await axios.get(proxy.rotateUrl, { timeout: 15000 });
+      const latency = Date.now() - startTime;
+      
+      await updateProxyInternal(id, {
+        lastRotated: new Date().toISOString()
+      });
+      
+      return { success: true, latency, data: response.data };
+    } catch (e) {
+      return { success: false, error: e?.message || e };
+    }
   });
 
-  // Blocked page detection
-  ipcMain.handle('detect-blocked-page', async (_e, profileId) => {
+  ipcMain.handle('proxy-rotate-url', async (_e, url) => {
     try {
-      const { runningProfiles } = require('../state/runtime');
-      const running = runningProfiles.get(profileId);
-      if (!running) return { success: false, error: 'Profile not running' };
-      let page;
-      if (running.engine === 'playwright' && running.context) {
-        page = running.context.pages()[0];
-      } else if (running.cdpControl?.context) {
-        page = running.cdpControl.context.pages()[0];
-      }
-      if (!page) return { success: false, error: 'No page available' };
-      const { detectBlockedPage } = require('../engine/blockedPageDetector');
-      const result = await detectBlockedPage(page);
-      return { success: true, ...result };
-    } catch (e) { return { success: false, error: e?.message || String(e) }; }
+      if (!url) return { success: false, error: 'No URL provided' };
+      const axios = require('axios');
+      const startTime = Date.now();
+      const response = await axios.get(url, { timeout: 15000 });
+      return { success: true, latency: Date.now() - startTime, data: response.data };
+    } catch (e) {
+      return { success: false, error: e?.message || String(e) };
+    }
   });
 
   // Settings direct save (optional future use)

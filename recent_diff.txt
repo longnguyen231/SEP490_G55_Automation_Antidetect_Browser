@@ -1,0 +1,662 @@
+﻿commit 126305f93734c4411051212f80a0823e56c944d1
+Author: HuyPQHE171509 <huyrongbaolon@gmail.com>
+Date:   Tue Mar 31 01:10:32 2026 +0700
+
+    Playwright browser
+
+diff --git a/package.json b/package.json
+index 5c059e8..f1e930d 100644
+--- a/package.json
++++ b/package.json
+@@ -46,6 +46,9 @@
+     "appId": "com.hlmck.antidetectbrowser",
+     "productName": "HL-MCK Antidetect Browser",
+     "asar": true,
++    "asarUnpack": [
++      "node_modules/playwright-core/**/*"
++    ],
+     "directories": {
+       "output": "release"
+     },
+diff --git a/src/main/bootstrap.js b/src/main/bootstrap.js
+index 9c661f2..a8a6619 100644
+--- a/src/main/bootstrap.js
++++ b/src/main/bootstrap.js
+@@ -9,6 +9,7 @@ const { runningProfiles } = require('./state/runtime');
+ const { isWsAlive } = require('./engine/health');
+ const { appendLog } = require('./logging/logger');
+ const { startAutomationScheduler } = require('./engine/automation');
++const { setMainWindowRef } = require('./services/browserManagerService');
+ 
+ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+ 
+@@ -35,6 +36,7 @@ app.whenReady().then(async () => {
+ 
+   // Create main window
+   const mainWindow = createWindow();
++  setMainWindowRef(mainWindow);
+ 
+   // Start REST API server
+   const settingsProvider = () => loadSettings();
+diff --git a/src/main/ipc/handlers.js b/src/main/ipc/handlers.js
+index 7d0713e..bab2fa1 100644
+--- a/src/main/ipc/handlers.js
++++ b/src/main/ipc/handlers.js
+@@ -32,11 +32,18 @@ const {
+ } = require('../storage/proxies');
+ const { checkProxy, checkProxiesBatch } = require('../services/ProxyChecker');
+ const { getMachineCode } = require('../services/machineId');
++const { checkBrowserStatus, installBrowser, uninstallBrowser, reinstallBrowser } = require('../services/browserManagerService');
+ 
+ function registerIpcHandlers(extra = {}) {
+   // Machine Code
+   ipcMain.handle('get-machine-code', () => getMachineCode());
+ 
++  // Browser Runtime Manager
++  ipcMain.handle('browser-runtime-status', async (_e, name) => checkBrowserStatus(name));
++  ipcMain.handle('browser-runtime-install', async (_e, name) => await installBrowser(name));
++  ipcMain.handle('browser-runtime-uninstall', async (_e, name) => await uninstallBrowser(name));
++  ipcMain.handle('browser-runtime-reinstall', async (_e, name) => await reinstallBrowser(name));
++
+   ipcMain.handle('get-profiles', async () => await getProfilesInternal());
+   ipcMain.handle('save-profile', async (_e, profile) => await saveProfileInternal(profile));
+   ipcMain.handle('delete-profile', async (_e, profileId) => {
+diff --git a/src/main/services/browserManagerService.js b/src/main/services/browserManagerService.js
+new file mode 100644
+index 0000000..0cc914c
+--- /dev/null
++++ b/src/main/services/browserManagerService.js
+@@ -0,0 +1,213 @@
++const { app } = require('electron');
++const path = require('path');
++const fs = require('fs');
++const { spawn } = require('child_process');
++
++let mainWindowRef = null;
++
++function setMainWindowRef(win) {
++    mainWindowRef = win;
++}
++
++function getBrowsersPath() {
++    // userData usually is C:\Users\xxx\AppData\Roaming\YourAppName
++    const userData = app.getPath('userData');
++    return path.join(userData, 'data', '.playwright', 'browsers');
++}
++
++function getExecutableConfig() {
++    return {
++        chromium: process.platform === 'win32' ? 'chrome.exe' : (process.platform === 'darwin' ? 'Chromium.app/Contents/MacOS/Chromium' : 'chrome'),
++        firefox: process.platform === 'win32' ? 'firefox.exe' : (process.platform === 'darwin' ? 'Firefox.app/Contents/MacOS/firefox' : 'firefox')
++    };
++}
++
++/**
++ * Returns: { status: 'installed' | 'missing' | 'broken', path: string | null, version: string | null, size: string | null }
++ */
++function checkBrowserStatus(browserName) {
++    try {
++        const browsersPath = getBrowsersPath();
++        if (!fs.existsSync(browsersPath)) {
++            return { status: 'missing', path: null, version: null, size: null, isInstalling: activeInstalls.has(browserName) };
++        }
++
++        // Playwright creates folders like "chromium-1092" or "firefox-1438"
++        const folders = fs.readdirSync(browsersPath, { withFileTypes: true })
++            .filter(dirent => dirent.isDirectory() && dirent.name.startsWith(browserName + '-'));
++
++        if (folders.length === 0) {
++            return { status: 'missing', path: null, version: null, size: null, isInstalling: activeInstalls.has(browserName) };
++        }
++
++        // Sort by version (latest ID first)
++        folders.sort((a, b) => b.name.localeCompare(a.name));
++        const latestFolder = folders[0].name; // e.g. "chromium-1092"
++        const versionMatch = latestFolder.split('-')[1] || 'unknown';
++
++        const browserDir = path.join(browsersPath, latestFolder);
++        
++        let subFolderName = '';
++        if (browserName === 'chromium') {
++            subFolderName = 'chrome-win';
++            if (process.platform === 'darwin') subFolderName = 'chrome-mac';
++            if (process.platform === 'linux') subFolderName = 'chrome-linux';
++        } else if (browserName === 'firefox') {
++            subFolderName = 'firefox';
++        }
++
++        const exactDir = path.join(browserDir, subFolderName);
++        const exeConfig = getExecutableConfig()[browserName];
++        if (!exeConfig) return { status: 'missing', path: null, version: null, size: null, isInstalling: activeInstalls.has(browserName) };
++
++        const exePath = path.join(exactDir, exeConfig);
++
++        let status = 'broken';
++        let sizeStr = '0 MB';
++
++        if (fs.existsSync(exePath)) {
++            status = 'installed';
++            try {
++                // Calculate size of the whole browserDir
++                const sizeBytes = getFolderSize(browserDir);
++                sizeStr = (sizeBytes / (1024 * 1024)).toFixed(2) + ' MB';
++            } catch (e) {
++                // Ignore size error
++            }
++        }
++
++        return {
++            status,
++            path: exePath,
++            version: versionMatch,
++            size: sizeStr,
++            isInstalling: activeInstalls.has(browserName),
++            lastLog: lastLogs[browserName] || ''
++        };
++
++    } catch (error) {
++        console.error('Error checking browser status:', error);
++        return { status: 'broken', path: null, version: null, size: null, isInstalling: activeInstalls.has(browserName) };
++    }
++}
++
++function getFolderSize(dirPath) {
++    let totalSize = 0;
++    const files = fs.readdirSync(dirPath, { withFileTypes: true });
++    for (const file of files) {
++        const fullPath = path.join(dirPath, file.name);
++        if (file.isDirectory()) {
++            totalSize += getFolderSize(fullPath);
++        } else {
++            totalSize += fs.statSync(fullPath).size;
++        }
++    }
++    return totalSize;
++}
++
++// Global active installs to avoid overlaps
++const activeInstalls = new Set();
++const lastLogs = { chromium: '', firefox: '' };
++
++async function installBrowser(browserName) {
++    if (activeInstalls.has(browserName)) {
++        return { success: false, error: `${browserName} is already installing.` };
++    }
++    
++    activeInstalls.add(browserName);
++
++    return new Promise((resolve) => {
++        try {
++            const browsersPath = getBrowsersPath();
++            
++            // To ensure playwright installs at browsersPath, we set PLAYWRIGHT_BROWSERS_PATH
++            const env = Object.assign({}, process.env, {
++                PLAYWRIGHT_BROWSERS_PATH: browsersPath,
++                ELECTRON_RUN_AS_NODE: '1',
++                // Boot tß╗æc ─æß╗Ö tß║úi bß║▒ng CDN Mirror d├ánh cho Ch├óu ├ü (tr├ính nghß║╜n Azure cß╗ºa nh├ính gß╗æc)
++                PLAYWRIGHT_DOWNLOAD_HOST: 'https://npmmirror.com/mirrors/playwright/'
++            });
++
++            // Resolve playwright CLI (bypass Package exports restriction)
++            const pwCorePath = require.resolve('playwright-core');
++            const playwrightCliPath = path.join(path.dirname(pwCorePath), 'cli.js');
++
++            const child = spawn(process.execPath, [playwrightCliPath, 'install', browserName], {
++                env,
++                stdio: ['ignore', 'pipe', 'pipe']
++            });
++
++            let combinedOutput = '';
++
++            const parseProgress = (data) => {
++                const text = data.toString();
++                combinedOutput += text;
++                lastLogs[browserName] = text.trim().split('\n').pop(); // Store only the last line
++                
++                // Playwright CLI outputs bytes like "15.0 Mb / 120.5 Mb" or percentages
++                // Or simply emits downloading chunks.
++                if (mainWindowRef && !mainWindowRef.isDestroyed()) {
++                    mainWindowRef.webContents.send('browser-runtime-progress', {
++                        browserName,
++                        log: text
++                    });
++                }
++            };
++
++            child.stdout.on('data', parseProgress);
++            child.stderr.on('data', parseProgress);
++
++            child.on('close', (code) => {
++                activeInstalls.delete(browserName);
++                if (code === 0) {
++                    resolve({ success: true });
++                } else {
++                    resolve({ success: false, error: `Process exited with code ${code}. Log: ${combinedOutput.substring(0, 500)}` });
++                }
++            });
++
++            child.on('error', (err) => {
++                activeInstalls.delete(browserName);
++                resolve({ success: false, error: err.message });
++            });
++
++        } catch (error) {
++            activeInstalls.delete(browserName);
++            resolve({ success: false, error: error.message });
++        }
++    });
++}
++
++async function uninstallBrowser(browserName) {
++    try {
++        const browsersPath = getBrowsersPath();
++        if (!fs.existsSync(browsersPath)) return { success: true };
++
++        const folders = fs.readdirSync(browsersPath, { withFileTypes: true })
++            .filter(dirent => dirent.isDirectory() && dirent.name.startsWith(browserName + '-'));
++
++        for (const f of folders) {
++            const targetPath = path.join(browsersPath, f.name);
++            fs.rmSync(targetPath, { recursive: true, force: true });
++        }
++
++        return { success: true };
++    } catch (err) {
++        return { success: false, error: err.message };
++    }
++}
++
++async function reinstallBrowser(browserName) {
++    const un = await uninstallBrowser(browserName);
++    if (!un.success) return un;
++    return await installBrowser(browserName);
++}
++
++module.exports = {
++    setMainWindowRef,
++    checkBrowserStatus,
++    installBrowser,
++    uninstallBrowser,
++    reinstallBrowser,
++    getBrowsersPath
++};
+diff --git a/src/preload/index.js b/src/preload/index.js
+index cd6dfbc..32b0ead 100644
+--- a/src/preload/index.js
++++ b/src/preload/index.js
+@@ -75,4 +75,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
+   checkAllProxies: () => ipcRenderer.invoke('proxy-check-all'),
+   rotateProxy: (id) => ipcRenderer.invoke('proxy-rotate', id),
+   rotateProxyByUrl: (url) => ipcRenderer.invoke('proxy-rotate-url', url),
++
++  // Browser Runtimes
++  checkBrowserStatus: (name) => ipcRenderer.invoke('browser-runtime-status', name),
++  installBrowser: (name) => ipcRenderer.invoke('browser-runtime-install', name),
++  uninstallBrowser: (name) => ipcRenderer.invoke('browser-runtime-uninstall', name),
++  reinstallBrowser: (name) => ipcRenderer.invoke('browser-runtime-reinstall', name),
++  onBrowserProgress: (callback) => {
++    const listener = (_e, data) => callback(data);
++    ipcRenderer.on('browser-runtime-progress', listener);
++    return () => ipcRenderer.removeListener('browser-runtime-progress', listener);
++  },
++  removeAllBrowserProgress: () => ipcRenderer.removeAllListeners('browser-runtime-progress'),
+ });
+diff --git a/src/renderer/components/BrowserRuntimes.css b/src/renderer/components/BrowserRuntimes.css
+new file mode 100644
+index 0000000..1fc633a
+--- /dev/null
++++ b/src/renderer/components/BrowserRuntimes.css
+@@ -0,0 +1,27 @@
++.browser-manager-card {
++    border-radius: 12px;
++    border: none;
++    transition: all 0.2s ease;
++}
++
++.browser-manager-card:hover {
++    transform: translateY(-2px);
++    box-shadow: 0 4px 15px rgba(0,0,0,0.08) !important;
++}
++
++.browser-icon-container {
++    padding: 1rem;
++    border-radius: 12px;
++    display: flex;
++    align-items: center;
++    justify-content: center;
++}
++
++.browser-manager-page .badge {
++    position: relative;
++    top: -2px;
++    font-size: 0.75rem;
++    font-weight: 600;
++    padding: 0.35em 0.65em;
++    border-radius: 20px;
++}
+diff --git a/src/renderer/components/BrowserRuntimes.jsx b/src/renderer/components/BrowserRuntimes.jsx
+new file mode 100644
+index 0000000..1ddc49b
+--- /dev/null
++++ b/src/renderer/components/BrowserRuntimes.jsx
+@@ -0,0 +1,222 @@
++import React, { useState, useEffect } from 'react';
++import { DownloadCloud, Trash2, RefreshCw, CheckCircle, AlertTriangle, AlertCircle, HardDrive } from 'lucide-react';
++import './BrowserRuntimes.css';
++
++export default function BrowserRuntimes() {
++    const [browsers, setBrowsers] = useState({
++        chromium: { status: 'loading', path: null, version: null, size: null },
++        firefox: { status: 'loading', path: null, version: null, size: null }
++    });
++    
++    const [installing, setInstalling] = useState({
++        chromium: false,
++        firefox: false
++    });
++    const [progressLogs, setProgressLogs] = useState({
++        chromium: '',
++        firefox: ''
++    });
++
++    useEffect(() => {
++        loadBrowserStatus();
++        
++        let unsub = () => {};
++        if (window.electronAPI && window.electronAPI.onBrowserProgress) {
++            unsub = window.electronAPI.onBrowserProgress(({ browserName, log }) => {
++                setProgressLogs(prev => ({ ...prev, [browserName]: log }));
++            });
++        }
++        return () => {
++             if (window.electronAPI && window.electronAPI.removeAllBrowserProgress) {
++                 window.electronAPI.removeAllBrowserProgress();
++             }
++             if (unsub) unsub();
++        };
++    }, []);
++
++    const loadBrowserStatus = async () => {
++        if (!window.electronAPI || !window.electronAPI.checkBrowserStatus) return;
++        try {
++            const chromiumData = await window.electronAPI.checkBrowserStatus('chromium');
++            const firefoxData = await window.electronAPI.checkBrowserStatus('firefox');
++            setBrowsers({
++                chromium: chromiumData,
++                firefox: firefoxData
++            });
++
++            // Restore installing states
++            setInstalling({
++                chromium: !!chromiumData.isInstalling,
++                firefox: !!firefoxData.isInstalling
++            });
++            setProgressLogs({
++                chromium: chromiumData.lastLog || '',
++                firefox: firefoxData.lastLog || ''
++            });
++        } catch (e) {
++            console.error("Failed to load browser status", e);
++        }
++    };
++
++    const handleInstall = async (name) => {
++        setInstalling(prev => ({ ...prev, [name]: true }));
++        setProgressLogs(prev => ({ ...prev, [name]: 'Starting download...' }));
++        try {
++            const res = await window.electronAPI.installBrowser(name);
++            if (!res.success) {
++                alert(`Failed to install ${name}:\n${res.error}`);
++            }
++        } catch (err) {
++            alert(`Error installing ${name}: ${err.message}`);
++        } finally {
++            setInstalling(prev => ({ ...prev, [name]: false }));
++            setProgressLogs(prev => ({ ...prev, [name]: '' }));
++            await loadBrowserStatus();
++        }
++    };
++
++    const handleReinstall = async (name) => {
++        if (!window.confirm(`Are you sure you want to reinstall ${name}? This will delete the current data.`)) return;
++        setInstalling(prev => ({ ...prev, [name]: true }));
++        setProgressLogs(prev => ({ ...prev, [name]: 'Uninstalling old version...' }));
++        try {
++            const res = await window.electronAPI.reinstallBrowser(name);
++            if (!res.success) {
++                alert(`Failed to reinstall ${name}:\n${res.error}`);
++            }
++        } catch (err) {
++            alert(`Error reinstalling ${name}: ${err.message}`);
++        } finally {
++            setInstalling(prev => ({ ...prev, [name]: false }));
++            setProgressLogs(prev => ({ ...prev, [name]: '' }));
++            await loadBrowserStatus();
++        }
++    };
++
++    const handleUninstall = async (name) => {
++        if (!window.confirm(`Are you sure you want to completely uninstall ${name}?`)) return;
++        try {
++            const res = await window.electronAPI.uninstallBrowser(name);
++            if (!res.success) {
++                alert(`Failed to uninstall ${name}:\n${res.error}`);
++            }
++            await loadBrowserStatus();
++        } catch (err) {
++            alert(`Error uninstalling ${name}: ${err.message}`);
++        }
++    };
++
++    const renderCard = (name, title, iconClass, description) => {
++        const info = browsers[name];
++        const isInstalling = installing[name];
++        const log = progressLogs[name];
++
++        let statusBadge = null;
++        if (info.status === 'loading') {
++            statusBadge = <span className="badge bg-secondary">Checking...</span>;
++        } else if (info.status === 'installed') {
++            statusBadge = <span className="badge bg-success"><CheckCircle size={14} className="me-1" /> Installed</span>;
++        } else if (info.status === 'broken') {
++            statusBadge = <span className="badge bg-warning text-dark"><AlertTriangle size={14} className="me-1" /> Broken Installation</span>;
++        } else {
++            statusBadge = <span className="badge bg-danger"><AlertCircle size={14} className="me-1" /> Not Installed</span>;
++        }
++
++        return (
++            <div className="card browser-manager-card shadow-sm mb-4">
++                <div className="card-body">
++                    <div className="d-flex justify-content-between align-items-start mb-3">
++                        <div className="d-flex align-items-center gap-3">
++                            <div className={`browser-icon-container ${iconClass}`}>
++                                {name === 'chromium' ? (
++                                    <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
++                                        <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,6.46C15.06,6.46 17.54,8.94 17.54,12C17.54,15.06 15.06,17.54 12,17.54C8.94,17.54 6.46,15.06 6.46,12C6.46,8.94 8.94,6.46 12,6.46Z" />
++                                    </svg>
++                                ) : (
++                                    <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
++                                        <path d="M12,2A10,10 0 0,0 2,12C2,17.5 6.5,22 12,22C17.5,22 22,17.5 22,12C22,6.5 17.5,2 12,2M16.5,18.25C15.1,19.34 13.5,20 12,20C7.58,20 4,16.42 4,12C4,9.2 5.42,6.72 7.5,5.25C7.2,6.33 7.25,7.75 8,9C8.95,10.6 11,11 11.5,13C11.95,14.77 10.5,16.5 10.5,16.5C10.5,16.5 13.5,17 15,14.5C15.39,13.82 15.5,12.91 15.2,12C14.75,10.64 13.25,9.5 12,9.5C10.75,9.5 9.75,10.14 9.38,11.25C9.38,11.25 10,10.5 11.5,10.5C12.5,10.5 13,11.5 13,12C13,12.5 12.38,13 11.5,13C10.6,13 9.75,12.5 9,11C8.25,9.5 8.35,7.25 9,5.75C10,5.27 11,5 12,5C15.86,5 19,8.14 19,12C19,14.4 18,16.63 16.5,18.25Z" />
++                                    </svg>
++                                )}
++                            </div>
++                            <div>
++                                <h4 className="mb-1 text-bold d-flex align-items-center gap-2">
++                                    {title} {statusBadge}
++                                </h4>
++                                <p className="text-muted mb-0 small">{description}</p>
++                            </div>
++                        </div>
++                        <div className="btn-group">
++                            {(info.status === 'missing' || info.status === 'broken') && !isInstalling && (
++                                <button className="btn btn-primary btn-sm d-flex align-items-center gap-1" onClick={() => handleInstall(name)}>
++                                    <DownloadCloud size={16} /> Install
++                                </button>
++                            )}
++                            {info.status === 'installed' && !isInstalling && (
++                                <>
++                                    <button className="btn btn-outline-primary btn-sm d-flex align-items-center gap-1" onClick={() => handleReinstall(name)}>
++                                        <RefreshCw size={16} /> Reinstall
++                                    </button>
++                                    <button className="btn btn-outline-danger btn-sm d-flex align-items-center gap-1" onClick={() => handleUninstall(name)}>
++                                        <Trash2 size={16} /> Uninstall
++                                    </button>
++                                </>
++                            )}
++                            {info.status === 'broken' && !isInstalling && (
++                                <button className="btn btn-outline-danger btn-sm d-flex align-items-center gap-1" onClick={() => handleUninstall(name)}>
++                                    <Trash2 size={16} /> Delete Leftovers
++                                </button>
++                            )}
++                        </div>
++                    </div>
++
++                    <div className="mt-3 bg-light p-3 rounded-3 border">
++                        <div className="row gc-2 gy-2">
++                            <div className="col-md-12 text-truncate">
++                                <span className="text-secondary small fw-bold">Executable Path:</span><br/>
++                                <code className="bg-white px-2 py-1 rounded border user-select-all font-monospace mt-1 d-inline-block text-body" style={{fontSize: '0.8rem', wordBreak: 'break-all'}}>
++                                    {info.path || 'Not setup'}
++                                </code>
++                            </div>
++                            <div className="col-md-6 mt-3">
++                                <span className="text-secondary small fw-bold">Runtime Version:</span><br/>
++                                <span className="font-monospace fw-medium">{info.version || 'v----'}</span>
++                            </div>
++                            <div className="col-md-6 mt-3">
++                                <span className="text-secondary small fw-bold"><HardDrive size={12} className="me-1 mb-1"/>Storage Size:</span><br/>
++                                <span className="font-monospace fw-medium">{info.size || '0 MB'}</span>
++                            </div>
++                        </div>
++                    </div>
++
++                    {isInstalling && (
++                        <div className="mt-3 p-3 bg-white border border-primary rounded border-opacity-50">
++                            <h6 className="text-primary mb-2 d-flex align-items-center gap-2">
++                                <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
++                                Downloading & Extracting {title}...
++                            </h6>
++                            <div className="progress mb-2" style={{ height: '8px' }}>
++                                <div className="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style={{ width: '100%' }}></div>
++                            </div>
++                            <div className="small font-monospace text-muted text-truncate" style={{maxHeight: '40px', overflow: 'hidden'}}>
++                                {log || 'Initializing...'}
++                            </div>
++                        </div>
++                    )}
++                </div>
++            </div>
++        );
++    };
++
++    return (
++        <div className="browser-manager-page w-[100%]">
++            <h3 className="text-[0.85rem] font-bold text-[var(--fg)] mb-2 mt-4">Browser Runtimes Engine</h3>
++            
++            <div className="row gc-2">
++                <div className="col-12">
++                    {renderCard('chromium', 'Playwright Chromium', 'text-emerald-500', 'High-performance engine built on Chrome architecture. Recommended for 90% of profiles.')}
++                    {renderCard('firefox', 'Playwright Firefox', 'text-amber-500', 'Isolated Mozilla engine. Excellent for deeply obfuscating hardware fingerprints.')}
++                </div>
++            </div>
++        </div>
++    );
++}
+diff --git a/src/renderer/components/SettingsTab.jsx b/src/renderer/components/SettingsTab.jsx
+index 6ec6709..8f59edf 100644
+--- a/src/renderer/components/SettingsTab.jsx
++++ b/src/renderer/components/SettingsTab.jsx
+@@ -1,5 +1,6 @@
+ import React, { useState, useEffect } from 'react';
+ import { useI18n } from '../i18n/index';
++import BrowserRuntimes from './BrowserRuntimes';
+ 
+ export default function SettingsTab({
+     apiStatus,
+@@ -119,33 +120,9 @@ export default function SettingsTab({
+                     <p className="text-[0.7rem] text-[var(--muted)]">Exposes REST API for automation scripting. Swagger docs available at /api-docs when running.</p>
+                 </div>
+ 
+-                {/* Playwright Chromium */}
+-                <div className="card relative p-4 mb-6 mt-4">
+-                    <div className="absolute -top-3 left-4 bg-[var(--card)] px-2 text-[0.85rem] font-bold text-[var(--fg)]">Playwright Chromium</div>
+-                    <div className="flex items-center gap-2 mb-3 pt-1">
+-                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+-                        <span className="text-[0.85rem] font-medium text-[var(--fg)]">Installed</span>
+-                    </div>
+-                    <p className="text-[0.7rem] text-[var(--muted)] font-mono break-all mb-3">Path: C:\Users\ManhZizou\AppData\Local\Programs\ObtBrowser\data\.playwright\browsers\chromium-1208\chrome-win64\chrome.exe</p>
+-                    <p className="text-[0.7rem] text-[var(--muted)] mb-3">Playwright Chromium is required for headless and visible browser profiles.</p>
+-                    <div className="flex gap-2">
+-                        <button className="btn btn-success px-3 py-1.5 text-[0.75rem]">Reinstall Chromium</button>
+-                        <button className="btn btn-danger px-3 py-1.5 text-[0.75rem]">Uninstall Chromium</button>
+-                    </div>
+-                </div>
+-
+-                {/* Playwright Firefox */}
+-                <div className="card relative p-4 mb-6 mt-4">
+-                    <div className="absolute -top-3 left-4 bg-[var(--card)] px-2 text-[0.85rem] font-bold text-[var(--fg)]">Playwright Firefox</div>
+-                    <div className="flex items-center gap-2 mb-3 pt-1">
+-                        <div className="w-2 h-2 rounded-full bg-red-500"></div>
+-                        <span className="text-[0.85rem] font-medium text-[var(--fg)]">Not installed</span>
+-                    </div>
+-                    <p className="text-[0.7rem] text-[var(--muted)] mb-3">Playwright Firefox is required for profiles using the Firefox engine. Firefox doesn't need stealth patches ΓÇö naturally stealthier than Chromium.</p>
+-                    <div className="flex gap-2">
+-                        <button className="btn btn-success px-3 py-1.5 text-[0.75rem]">Install Firefox</button>
+-                        <button className="btn btn-danger px-3 py-1.5 text-[0.75rem]" disabled>Uninstall Firefox</button>
+-                    </div>
++                {/* Playwright Engines Control */}
++                <div className="mb-6 mt-4">
++                    <BrowserRuntimes />
+                 </div>
+ 
+                 {/* Main Settings Root Options */}
+
+commit c437f1ca713add3a721f03814cb39c48da9240f8
+Author: HuyPQHE171509 <huyrongbaolon@gmail.com>
+Date:   Tue Mar 31 00:31:30 2026 +0700
+
+    Fix Rotate
+
+diff --git a/src/main/storage/proxies.js b/src/main/storage/proxies.js
+index 53862cd..e80aab8 100644
+--- a/src/main/storage/proxies.js
++++ b/src/main/storage/proxies.js
+@@ -112,6 +112,7 @@ async function createProxyInternal(data) {
+             latency: null,
+             country: (data.country || '').trim(),
+             note: (data.note || '').trim(),
++            rotateUrl: (data.rotateUrl || '').trim(),
+             createdAt: nowIso,
+             updatedAt: nowIso,
+         };
+@@ -159,6 +160,7 @@ async function updateProxyInternal(id, data) {
+         if (data.password != null) merged.password = String(data.password).trim();
+         if (data.country != null) merged.country = String(data.country).trim();
+         if (data.note != null) merged.note = String(data.note).trim();
++        if (data.rotateUrl != null) merged.rotateUrl = String(data.rotateUrl).trim();
+         // Allow checker module to update status/latency
+         if (data.status != null) merged.status = data.status;
+         if (data.lastChecked != null) merged.lastChecked = data.lastChecked;
+diff --git a/src/preload/index.js b/src/preload/index.js
+index 8227e28..cd6dfbc 100644
+--- a/src/preload/index.js
++++ b/src/preload/index.js
+@@ -73,4 +73,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
+   exportProxies: (ids) => ipcRenderer.invoke('proxy-export', ids),
+   checkProxy: (cfg) => ipcRenderer.invoke('proxy-check', cfg),
+   checkAllProxies: () => ipcRenderer.invoke('proxy-check-all'),
++  rotateProxy: (id) => ipcRenderer.invoke('proxy-rotate', id),
++  rotateProxyByUrl: (url) => ipcRenderer.invoke('proxy-rotate-url', url),
+ });
+diff --git a/src/renderer/components/ProxyManager.jsx b/src/renderer/components/ProxyManager.jsx
+index 24dc188..8efc72d 100644
+--- a/src/renderer/components/ProxyManager.jsx
++++ b/src/renderer/components/ProxyManager.jsx
+@@ -126,6 +126,7 @@ export default function ProxyManager() {
+                 port: Number(formData.port),
+                 username: formData.username || '',
+                 password: formData.password || '',
++                rotateUrl: formData.rotateUrl || '',
+             });
+             if (res?.success) {
+                 await loadProxies();

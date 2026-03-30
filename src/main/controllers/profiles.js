@@ -62,18 +62,20 @@ async function launchProfileInternal(profileId, options = {}) {
       return { success: true, wsEndpoint: running.wsEndpoint };
     }
     const settings = profile.settings || {};
-    const startUrl = profile.startUrl || 'https://www.google.com';
+    let startUrl = profile.startUrl || 'https://www.google.com/?hl=en';
+    if (startUrl === 'https://www.google.com' || startUrl === 'https://www.google.com/') {
+      startUrl = 'https://www.google.com/?hl=en';
+    }
     const engine = (options && options.engine) ? String(options.engine).toLowerCase() : (settings.engine === 'cdp' ? 'cdp' : 'playwright');
-  // Headless only meaningful for Playwright engine; ignore for CDP
   const requestedHeadless = (options && typeof options.headless === 'boolean') ? options.headless : undefined;
-  const headless = engine === 'playwright' ? ((requestedHeadless !== undefined) ? requestedHeadless : !!settings.headless) : false;
+  const headless = (requestedHeadless !== undefined) ? requestedHeadless : !!settings.headless;
 
     // Persist engine/headless
     try {
       const idx = profiles.findIndex(p => p.id === profileId);
       if (idx !== -1) {
   const persist = { ...(profile.settings || {}), engine: (engine === 'cdp' ? 'cdp' : 'playwright') };
-  if (engine === 'playwright') persist.headless = !!headless; else delete persist.headless;
+  persist.headless = !!headless;
   profiles[idx] = { ...profile, settings: persist };
         writeProfiles(profiles);
       }
@@ -97,13 +99,14 @@ async function launchProfileInternal(profileId, options = {}) {
       const host = options.cdpHost || '127.0.0.1';
       const port = options.cdpPort ? Number(options.cdpPort) : await findFreePort(9222, host);
       const userDataDir = userDataDirFor(profileId);
-      const extraArgs = [];
+      const extraArgs = ['--lang=en-US'];
       // Parity flags with Playwright
       if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
         extraArgs.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
       }
       const fp = profile.fingerprint || {};
       if (settings.webgl === false || fp.webgl === false) { extraArgs.push('--disable-3d-apis'); }
+      if (headless) { extraArgs.push('--headless=new'); }
       // Proxy handling: start local forwarder when auth is present or using SOCKS
       let proxyForChrome = settings.proxy;
       let forwarder = null;
@@ -217,42 +220,30 @@ async function launchProfileInternal(profileId, options = {}) {
     }
 
     // Playwright flow
+    const engineMode = settings.engine || 'playwright';
+    const isFirefox = engineMode === 'playwright-firefox' || engineMode === 'firefox';
+    const { chromium, firefox } = require('playwright-core');
+    const pwEngine = isFirefox ? firefox : chromium;
+
     const fp = profile.fingerprint || {};
-    const args = [
-      // ── Anti-automation detection (CRITICAL) ──
-      '--disable-blink-features=AutomationControlled',
-      '--disable-features=AutomationControlled,TranslateUI',
-
-      // ── Match real Chrome startup flags ──
-      '--disable-infobars',
-      '--disable-background-timer-throttling',
-      '--disable-backgrounding-occluded-windows',
-      '--disable-renderer-backgrounding',
-      '--disable-ipc-flooding-protection',
-      '--disable-hang-monitor',
-      '--disable-prompt-on-repost',
-      '--disable-domain-reliability',
-      '--disable-component-update',
-      '--metrics-recording-only',
-      '--no-service-autorun',
-      '--password-store=basic',
-      '--use-mock-keychain',
-      '--export-tagged-pdf',
-      '--no-first-run',
-      '--no-default-browser-check',
-
-      // ── Prevent detection via Chrome-specific signals ──
-      '--disable-features=IsolateOrigins,site-per-process,CrossSiteDocumentBlockingIfIsolating',
-      '--disable-site-isolation-trials',
-      '--disable-features=BlockInsecurePrivateNetworkRequests',
-    ];
-    if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
-      args.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
+    // Build launch args — separate Chrome-specific flags from Firefox-compatible ones
+    const args = isFirefox ? [] : ['--lang=en-US'];
+    // Window size (Chromium flags only)
+    if (!isFirefox && settings.windowWidth > 0 && settings.windowHeight > 0) {
+      args.push(`--window-size=${settings.windowWidth},${settings.windowHeight}`);
+    } else if (!isFirefox && settings.windowWidth === 0 && settings.windowHeight === 0) {
+      args.push('--start-maximized');
     }
-    if (settings.webgl === false || fp.webgl === false) { args.push('--disable-3d-apis'); }
+    if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
+      if (!isFirefox) args.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
+    }
+    if (settings.webgl === false || fp.webgl === false) { if (!isFirefox) args.push('--disable-3d-apis'); }
     const permissions = [];
-    if (settings.mediaDevices?.audio) permissions.push('microphone');
-    if (settings.mediaDevices?.video) permissions.push('camera');
+    // Firefox only supports 'geolocation' and 'notifications' — skip microphone/camera for Firefox
+    if (!isFirefox) {
+      if (settings.mediaDevices?.audio) permissions.push('microphone');
+      if (settings.mediaDevices?.video) permissions.push('camera');
+    }
     // Grant geolocation permission only when we intend to override and have valid coords
     try {
       const apply = (settings && settings.applyOverrides) || {};
@@ -309,31 +300,41 @@ async function launchProfileInternal(profileId, options = {}) {
       ],
     };
     let server;
-    try { server = await chromium.launchServer(launchOpts); }
+    try { server = await pwEngine.launchServer({ headless, args, proxy }); }
     catch (e) {
       const msg = e?.message || String(e);
       appendLog(profileId, `Playwright launch failed: ${msg}`);
       if (/playwright\s+install|executable|not\s+found|Please run/i.test(msg)) {
-        appendLog(profileId, 'Attempting auto-install playwright browsers (chromium)...');
-        const ok = await runPlaywrightInstall('chromium');
+        const bname = isFirefox ? 'firefox' : 'chromium';
+        appendLog(profileId, `Attempting auto-install playwright browsers (${bname})...`);
+        const ok = await runPlaywrightInstall(bname);
         if (!ok) { try { await forwarder?.stop?.(); } catch {} return { success: false, error: 'Playwright browsers not installed.' }; }
-        server = await chromium.launchServer(launchOpts);
+        server = await pwEngine.launchServer({ headless, args, proxy });
       } else { try { await forwarder?.stop?.(); } catch {} throw e; }
     }
     const wsEndpoint = server.wsEndpoint();
-    const browser = await chromium.connect(wsEndpoint);
-    appendLog(profileId, `Launched Playwright server: ${wsEndpoint}`);
+    const browser = await pwEngine.connect(wsEndpoint);
+    appendLog(profileId, `Launched Playwright ${isFirefox ? 'Firefox' : 'Chromium'} server: ${wsEndpoint}`);
     const apply = (settings && settings.applyOverrides) || {};
     const applyUA = apply.userAgent !== false;
     const applyLang = apply.language !== false;
     const applyTz = apply.timezone !== false;
     const applyViewport = apply.viewport !== false;
     const applyGeo = apply.geolocation !== false;
-    const contextOptions = { proxy };
-    const locale = fp.language || settings.language || 'en-US';
-    const primaryLang = locale.split('-')[0];
-    const acceptLang = locale === primaryLang ? locale : `${locale},${primaryLang};q=0.9`;
-    if (applyLang) contextOptions.locale = locale;
+    const contextOptions = { proxy, extraHTTPHeaders: {} };
+    if (applyLang) {
+      const spoofLang = fp.language || settings.language || 'en-US';
+      // Use fingerprint language as locale — all signals must be consistent:
+      // navigator.language (JS), locale (Playwright), Accept-Language (header) must all match
+      contextOptions.locale = spoofLang;
+      // Accept-Language: primary = fingerprint lang, secondary = en (fallback)
+      const langBase = spoofLang.split('-')[0];
+      if (spoofLang.toLowerCase().startsWith('en')) {
+        contextOptions.extraHTTPHeaders['Accept-Language'] = `${spoofLang},en;q=0.9`;
+      } else {
+        contextOptions.extraHTTPHeaders['Accept-Language'] = `${spoofLang},${langBase};q=0.9,en;q=0.8`;
+      }
+    }
     if (applyTz) contextOptions.timezoneId = fp.timezone || settings.timezone || 'UTC';
 
     // Extra HTTP headers must include Accept-Language to match locale (Google checks this)
@@ -393,17 +394,18 @@ async function launchProfileInternal(profileId, options = {}) {
     } catch {}
 
     const { loadSessionTabs, saveSessionTabs } = require('../storage/sessionTabs');
-    const savedTabs = loadSessionTabs(profileId);
-
-    // Declare page in shared scope so event handlers below can reference it
+    const rawSavedTabs = loadSessionTabs(profileId);
+    // Only restore valid http/https URLs — filter out about:blank, en-us, and other garbage
+    const savedTabs = (rawSavedTabs || []).filter(u => typeof u === 'string' && /^https?:\/\//i.test(u));
+    
     let page;
-
     if (savedTabs && savedTabs.length > 0) {
       appendLog(profileId, `Restoring ${savedTabs.length} saved tabs...`);
       let first = true;
       for (const url of savedTabs) {
         try {
           const p = first ? ((context.pages() || [])[0] || await context.newPage()) : await context.newPage();
+          if (first) { page = p; }
           first = false;
           p.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(err => {
             appendLog(profileId, `Failed to load restored tab ${url}: ${err?.message || err}`);
@@ -413,18 +415,23 @@ async function launchProfileInternal(profileId, options = {}) {
         }
       }
     } else {
-      page = await context.newPage();
-      // Navigate with blocked-page detection and auto-retry
+      // Reuse the default tab that Playwright opens (avoids double-tab on Firefox)
+      const existingPages = context.pages();
+      if (existingPages && existingPages.length > 0) {
+        page = existingPages[0];
+      } else {
+        page = await context.newPage();
+      }
+      // Navigate with timeout and retry for slow proxy connections
       try {
-        const { navigateWithRetry, installBlockDetector } = require('../engine/blockedPageDetector');
-        const navResult = await navigateWithRetry(page, startUrl, profileId, {
-          maxRetries: 2,
-          retryDelayMs: 5000,
-          waitUntil: 'domcontentloaded',
-          timeout: 30000,
-        });
-        if (navResult.blocked) {
-          appendLog(profileId, `Warning: page may be blocked (${navResult.pattern}). Browser is open for manual interaction.`);
+        await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      } catch (navErr) {
+        appendLog(profileId, `First navigation attempt failed: ${navErr?.message || navErr}. Retrying...`);
+        try {
+          await new Promise(r => setTimeout(r, 2000));
+          await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        } catch (retryErr) {
+          appendLog(profileId, `Second navigation attempt failed: ${retryErr?.message || retryErr}. Browser is open but page not loaded.`);
         }
         // Install ongoing block detection for future navigations
         installBlockDetector(page, profileId);
@@ -458,42 +465,12 @@ async function launchProfileInternal(profileId, options = {}) {
         }
       } catch (e) {}
     };
-    // Helper to cleanup Playwright profile when browser is no longer alive
-    let playwrightCleaned = false;
-    const cleanupPlaywright = async (reason) => {
-      if (playwrightCleaned) return;
-      playwrightCleaned = true;
-      await saveState();
-      try { await forwarder?.stop?.(); } catch {}
-      runningProfiles.delete(profileId);
-      appendLog(profileId, reason);
-      try { await context.close(); } catch {}
-      try { await browser?.close?.(); } catch {}
-      try { await server.close(); } catch {}
-      broadcastRunningMap();
-    };
-
-    // Context-level close handles state saving (works regardless of which page triggered it)
-    context.on('close', () => cleanupPlaywright('Context closed'));
-    try { browser.on?.('disconnected', () => cleanupPlaywright('Browser disconnected')); } catch { }
-    try { const proc = server.process?.(); proc && proc.once && proc.once('exit', (code, signal) => cleanupPlaywright(`Browser server exited (${code || ''} ${signal || ''})`)); } catch { }
-
-    // KEY FIX: Detect when user closes all browser tabs/windows via "X" button.
-    // In Playwright launchServer mode, closing all pages does NOT trigger context/browser/server events.
-    // We must listen to page close events and cleanup when no pages remain.
-    const onPageClose = () => {
-      try {
-        const pages = context.pages();
-        if (!pages || pages.length === 0) {
-          appendLog(profileId, 'All browser pages closed by user');
-          cleanupPlaywright('All pages closed — browser stopped');
-        }
-      } catch { cleanupPlaywright('Page close check failed — browser stopped'); }
-    };
-    // Listen on existing pages and any new pages
-    try { for (const p of context.pages()) { p.on('close', onPageClose); } } catch {}
-    context.on('page', (newPage) => { try { newPage.on('close', onPageClose); } catch {} });
-
+    if (page) {
+      page.on('close', async () => { await saveState(); try { await context.close(); } catch { } });
+    }
+    context.on('close', async () => { await saveState(); try { await forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Context closed'); try { await server.close(); } catch { }; broadcastRunningMap(); });
+    try { browser.on?.('disconnected', () => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Browser disconnected'); try { server.close(); } catch { }; broadcastRunningMap(); } }); } catch { }
+    try { const proc = server.process?.(); proc && proc.once && proc.once('exit', (code, signal) => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, `Browser server exited (${code || ''} ${signal || ''})`); broadcastRunningMap(); } }); } catch { }
     runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder });
     broadcastRunningMap();
     // Post-launch automation script (if configured)
@@ -727,6 +704,8 @@ async function clearCookiesInternal(profileId) { try { if (runningProfiles.has(p
 
 async function editCookieInternal(profileId, cookie) { try { if (!cookie || !cookie.name || !cookie.domain) throw new Error('cookie with name and domain is required'); const validated = { name: String(cookie.name), value: String(cookie.value || ''), domain: String(cookie.domain), path: String(cookie.path || '/'), expires: cookie.expires ? Number(cookie.expires) : -1, httpOnly: !!cookie.httpOnly, secure: !!cookie.secure, sameSite: ['Strict','Lax','None'].includes(cookie.sameSite) ? cookie.sameSite : 'Lax' }; if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies([validated]); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; const idx = existing.findIndex(e => e.name === validated.name && e.domain === validated.domain && (e.path || '/') === validated.path); if (idx >= 0) existing[idx] = validated; else existing.push(validated); state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
 
+async function getStorageStateInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const state = await running.context.storageState(); return { success: true, state }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, state }; } return { success: true, state: { cookies: [], origins: [] } }; } catch (error) { return { success: false, error: error.message }; } }
+
 async function getProfileWsInternal(profileId) { try { const running = runningProfiles.get(profileId); if (!running) return { success: true, wsEndpoint: null }; const ws = running.wsEndpoint; if (running.engine === 'playwright' && (running.context?.isClosed?.() || running.browser?.isConnected?.() === false)) { runningProfiles.delete(profileId); appendLog(profileId, 'Heartbeat: context/browser disconnected'); broadcastRunningMap(); return { success: true, wsEndpoint: null }; } const alive = await require('../engine/health').isWsAlive(ws); if (!alive) { runningProfiles.delete(profileId); appendLog(profileId, 'Heartbeat failed; removed stale running state'); broadcastRunningMap(); return { success: true, wsEndpoint: null }; } return { success: true, wsEndpoint: ws }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function getRunningMapInternal() { try { const result = {}; for (const [id, info] of runningProfiles.entries()) { let alive = true; if (info.engine === 'playwright' && (info.context?.isClosed?.() || info.browser?.isConnected?.() === false)) alive = false; else if (!(await require('../engine/health').isWsAlive(info.wsEndpoint))) alive = false; if (!alive) { runningProfiles.delete(id); appendLog(id, 'Bulk heartbeat: stale, clearing'); result[id] = null; } else { result[id] = info.wsEndpoint; } } return { success: true, map: result }; } catch (error) { return { success: false, error: error.message }; } }
@@ -779,9 +758,7 @@ module.exports = {
   getProfileLogInternal,
   getCookiesInternal,
   importCookiesInternal,
-  deleteCookieInternal,
-  clearCookiesInternal,
-  editCookieInternal,
+  getStorageStateInternal,
   getProfileWsInternal,
   getRunningMapInternal,
   getLocalesTimezonesInternal,

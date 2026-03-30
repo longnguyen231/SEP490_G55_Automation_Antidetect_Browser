@@ -5,13 +5,19 @@ import ProfileForm from './components/ProfileForm';
 import CookieManager from './components/CookieManager';
 import LogViewer from './components/LogViewer';
 import Toasts from './components/Toasts';
-import ScriptsTasksPage from './components/ScriptsTasksPage';
+import ScriptsManager from './components/ScriptsManager';
 import ProxyManager from './components/ProxyManager';
+import AppLogsTab from './components/AppLogsTab';
+import SettingsTab from './components/SettingsTab';
+import LicenseModal from './components/LicenseModal';
+import EngineInstallModal from './components/EngineInstallModal';
 import './App.css';
 import { useI18n } from './i18n/index';
-
+ 
 function App() {
   const { t, lang, setLang } = useI18n();
+  // Engine install modal: { profileId, engine, headless } | null
+  const [engineInstallState, setEngineInstallState] = useState(null);
   const [activeNav, setActiveNav] = useState('profiles');
   const [profiles, setProfiles] = useState([]);
   const [selectedProfile, setSelectedProfile] = useState(null);
@@ -23,11 +29,35 @@ function App() {
   const [headlessPrefs, setHeadlessPrefs] = useState({});
   const [toasts, setToasts] = useState([]);
   const [enginePrefs, setEnginePrefs] = useState({});
+  const [errorProfiles, setErrorProfiles] = useState({});
   const [apiStatus, setApiStatus] = useState({ enabled: true, running: false, host: '127.0.0.1', port: 5478, error: null });
   const [apiDesiredPort, setApiDesiredPort] = useState(5478);
   const apiPortTimerRef = useRef(null);
   const [showApiPwdModal, setShowApiPwdModal] = useState(false);
   const [apiPwdInput, setApiPwdInput] = useState('');
+
+  const [showLicenseModal, setShowLicenseModal] = useState(() => {
+    return !sessionStorage.getItem('license-shown');
+  });
+  const handleCloseLicense = () => {
+    sessionStorage.setItem('license-shown', 'true');
+    setShowLicenseModal(false);
+  };
+
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('app-theme') || 'Light';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('app-theme', theme);
+    if (theme === 'Dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'light');
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
 
   // Bridge helper: prefer IPC via preload; fallback to REST API when unavailable
   const api = useMemo(() => {
@@ -97,7 +127,7 @@ function App() {
       const data = await api.getProfiles();
       setProfiles(data);
       setHeadlessPrefs(prev => { const next = { ...prev }; (data || []).forEach(p => { if (next[p.id] === undefined) next[p.id] = !!p?.settings?.headless; }); return next; });
-      setEnginePrefs(prev => { const next = { ...prev }; (data || []).forEach(p => { if (!next[p.id]) next[p.id] = (p?.settings?.engine === 'cdp' ? 'cdp' : 'playwright'); }); return next; });
+      setEnginePrefs(prev => { const next = { ...prev }; (data || []).forEach(p => { next[p.id] = p?.settings?.engine || 'playwright'; }); return next; });
       await refreshRunningStatus(data);
     } catch (e) { console.error('Error loading profiles:', e); }
   };
@@ -122,12 +152,62 @@ function App() {
   const handleDeleteProfile = async (profileId) => { if (!window.confirm('Delete this profile?')) return; try { await api.deleteProfile(profileId); await loadProfiles(); } catch (e) { console.error('Delete error', e); } };
 
   const handleLaunchProfile = async (profileId) => {
-    try { const headless = !!headlessPrefs[profileId]; const engine = enginePrefs[profileId] || 'playwright'; const options = { headless, engine: engine === 'cdp' ? 'cdp' : 'playwright' }; const result = await window.electronAPI.launchProfile(profileId, options); if (!result.success) alert('Error launching profile: ' + result.error); await refreshRunningStatus(profiles.filter(p => p.id === profileId)); } catch (e) { alert('Error launching profile: ' + e.message); }
+    setErrorProfiles(prev => { const n = { ...prev }; delete n[profileId]; return n; });
+    try {
+      const headless = !!headlessPrefs[profileId];
+      const engine = enginePrefs[profileId] || 'playwright';
+
+      // Only check Playwright engines (cdp uses system Chrome, no install needed)
+      if (engine !== 'cdp') {
+        const isFirefox = engine === 'playwright-firefox' || engine === 'firefox';
+        const requiredBrowser = isFirefox ? 'firefox' : 'chromium';
+        try {
+          const status = await window.electronAPI?.checkBrowserStatus?.(requiredBrowser);
+          if (status?.status !== 'installed') {
+            // Pause launch and show install modal
+            setEngineInstallState({ profileId, engine: requiredBrowser, headless });
+            return;
+          }
+        } catch { /* ignore check errors, proceed with launch */ }
+      }
+
+      await doLaunchProfile(profileId, { headless, engine });
+    } catch (e) {
+      setErrorProfiles(prev => ({ ...prev, [profileId]: true }));
+      addToast('Error launching profile: ' + e.message, 'error', 5000);
+    }
+  };
+
+  const doLaunchProfile = async (profileId, { headless, engine } = {}) => {
+    const h = headless !== undefined ? headless : !!headlessPrefs[profileId];
+    const eng = engine || enginePrefs[profileId] || 'playwright';
+    try {
+      const options = { headless: h, engine: eng };
+      const result = await window.electronAPI.launchProfile(profileId, options);
+      if (!result.success) {
+        setErrorProfiles(prev => ({ ...prev, [profileId]: true }));
+        addToast('Error launching profile: ' + result.error, 'error', 5000);
+      }
+      await refreshRunningStatus(profiles.filter(p => p.id === profileId));
+    } catch (e) {
+      setErrorProfiles(prev => ({ ...prev, [profileId]: true }));
+      addToast('Error launching profile: ' + e.message, 'error', 5000);
+    }
   };
   const handleStopProfile = async (profileId) => { try { const res = profileId === '__ALL__' ? await window.electronAPI.stopAllProfiles() : await window.electronAPI.stopProfile(profileId); if (!res.success) alert('Error stopping profile: ' + res.error); await refreshRunningStatus(); } catch (e) { alert('Error stopping profile: ' + e.message); } };
   const handleSetHeadless = async (profileId, value) => { if (runningWs[profileId]) return; setHeadlessPrefs(prev => ({ ...prev, [profileId]: !!value })); try { const p = profiles.find(x => x.id === profileId); if (p) { const updated = { ...p, settings: { ...(p.settings || {}), headless: !!value } }; const res = await window.electronAPI.saveProfile(updated); if (res?.success && res.profile) setProfiles(prev => prev.map(pp => pp.id === profileId ? res.profile : pp)); } } catch { } };
-  const handleSetEngine = async (profileId, value) => { if (runningWs[profileId]) return; const normalized = value === 'cdp' ? 'cdp' : 'playwright'; setEnginePrefs(prev => ({ ...prev, [profileId]: normalized })); try { const p = profiles.find(x => x.id === profileId); if (p) { const updated = { ...p, settings: { ...(p.settings || {}), engine: normalized } }; const res = await window.electronAPI.saveProfile(updated); if (res?.success && res.profile) setProfiles(prev => prev.map(pp => pp.id === profileId ? res.profile : pp)); } } catch { } };
+  const handleSetEngine = async (profileId, value) => { if (runningWs[profileId]) return; setEnginePrefs(prev => ({ ...prev, [profileId]: value })); try { const p = profiles.find(x => x.id === profileId); if (p) { const updated = { ...p, settings: { ...(p.settings || {}), engine: value } }; const res = await window.electronAPI.saveProfile(updated); if (res?.success && res.profile) setProfiles(prev => prev.map(pp => pp.id === profileId ? res.profile : pp)); } } catch { } };
   const handleToggleProfile = async (profileId) => runningWs[profileId] ? handleStopProfile(profileId) : handleLaunchProfile(profileId);
+  const handleLaunchHeadless = async (profileId) => {
+    setErrorProfiles(prev => { const n = { ...prev }; delete n[profileId]; return n; });
+    try {
+      const engine = enginePrefs[profileId] || 'playwright';
+      const options = { headless: true, engine: engine === 'cdp' ? 'cdp' : 'playwright' };
+      const result = await window.electronAPI.launchProfile(profileId, options);
+      if (!result.success) { setErrorProfiles(prev => ({ ...prev, [profileId]: true })); alert('Error launching headless: ' + result.error); }
+      await refreshRunningStatus();
+    } catch (e) { setErrorProfiles(prev => ({ ...prev, [profileId]: true })); alert('Error launching headless: ' + e.message); }
+  };
   const handleSaveProfile = async (profile) => { try { const result = await api.saveProfile(profile); if (result.success) { setShowForm(false); setSelectedProfile(null); await loadProfiles(); } else alert('Error saving profile: ' + result.error); } catch (e) { alert('Error saving profile: ' + e.message); } };
   const handleCancel = () => { setShowForm(false); setSelectedProfile(null); };
   const handleManageCookies = (profile) => setCookieProfile(profile);
@@ -189,6 +269,7 @@ function App() {
             onEditProfile={handleEditProfile}
             onDeleteProfile={handleDeleteProfile}
             onToggleProfile={handleToggleProfile}
+            onLaunchHeadless={handleLaunchHeadless}
             onManageCookies={handleManageCookies}
             runningWs={runningWs}
             onCopyWs={handleCopyWs}
@@ -206,12 +287,19 @@ function App() {
             enginePrefs={enginePrefs}
             onSetEngine={handleSetEngine}
             onDeleteSelected={handleDeleteSelected}
+            errorProfiles={errorProfiles}
           />
         );
 
       case 'scripts':
         return (
-          <ScriptsTasksPage profiles={profiles} />
+          <ScriptsManager
+            open={true}
+            onClose={() => setActiveNav('profiles')}
+            profiles={profiles}
+            onRunScript={(pid, sid) => { }}
+            fullPage={true}
+          />
         );
 
       case 'proxies':
@@ -219,69 +307,63 @@ function App() {
           <ProxyManager />
         );
 
+      case 'logs':
+        return (
+          <AppLogsTab />
+        );
+
       case 'settings':
-        return renderSettingsView();
+        return (
+          <SettingsTab
+            apiStatus={apiStatus}
+            apiDesiredPort={apiDesiredPort}
+            setApiDesiredPort={setApiDesiredPort}
+            applyPortChange={applyPortChange}
+            handleToggleApiRun={handleToggleApiRun}
+            handleRestartApi={handleRestartApi}
+            theme={theme}
+            setTheme={setTheme}
+          />
+        );
 
       default:
         return null;
     }
   };
 
-  const renderSettingsView = () => (
-    <div>
-      <div className="page-header">
-        <h1>{t('settings.title')}</h1>
-      </div>
-      <div className="settings-card">
-        <h3>{t('settings.apiServer')}</h3>
-        <div className="settings-row">
-          <span className="settings-label">{t('settings.status')}</span>
-          <span className={`status-pill ${apiStatus.running ? 'status-running' : 'status-stopped'}`}>
-            {apiStatus.running ? t('settings.running') : (apiStatus.error ? `Error: ${apiStatus.error}` : t('settings.stopped'))}
-          </span>
-        </div>
-        <div className="settings-row">
-          <span className="settings-label">{t('settings.port')}</span>
-          <input
-            type="number" min={1} max={65535} value={apiDesiredPort}
-            onChange={(e) => {
-              const val = e.target.value; setApiDesiredPort(val); const num = Number(val);
-              if (apiPortTimerRef.current) clearTimeout(apiPortTimerRef.current);
-              apiPortTimerRef.current = setTimeout(() => applyPortChange(num), 600);
-            }}
-            style={{ width: 100 }}
-          />
-        </div>
-        <div className="settings-row">
-          <span className="settings-label">{t('settings.control')}</span>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className={`btn ${apiStatus.running ? 'btn-danger' : 'btn-success'}`} onClick={handleToggleApiRun}>
-              {apiStatus.running ? t('settings.stop') : t('settings.start')}
-            </button>
-            <button className="btn btn-secondary" onClick={handleRestartApi}>{t('settings.restart')}</button>
-            <button className="btn" onClick={() => {
-              const host = apiStatus.host || '127.0.0.1';
-              const port = apiStatus.port || 5478;
-              window.electronAPI.openExternal?.(`http://${host}:${port}/api-docs`);
-            }}>{t('settings.apiDocs')}</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="app">
-      <DashboardSidebar
-        activeNav={showForm ? 'profiles' : activeNav}
-        onNavigate={(id) => { setShowForm(false); setSelectedProfile(null); setActiveNav(id); }}
-        onCreateProfile={handleCreateProfile}
-        apiStatus={apiStatus}
-      />
+      {!showForm && (
+        <DashboardSidebar
+          activeNav={activeNav}
+          onNavigate={(id) => { setShowForm(false); setSelectedProfile(null); setActiveNav(id); }}
+          onCreateProfile={handleCreateProfile}
+          apiStatus={apiStatus}
+        />
+      )}
 
       <main className="app-main">
         {renderContent()}
       </main>
+
+      {showLicenseModal && <LicenseModal onClose={handleCloseLicense} />}
+
+      {/* Engine Install Modal */}
+      {engineInstallState && (
+        <EngineInstallModal
+          engine={engineInstallState.engine}
+          onSkip={() => setEngineInstallState(null)}
+          onInstall={() => {
+            const { profileId, engine, headless } = engineInstallState;
+            setEngineInstallState(null);
+            // Relaunch automatically after successful install
+            doLaunchProfile(profileId, {
+              headless,
+              engine: engine === 'firefox' ? 'playwright-firefox' : 'playwright',
+            });
+          }}
+        />
+      )}
 
       {/* Overlays */}
       {cookieProfile && <CookieManager profile={cookieProfile} onClose={() => setCookieProfile(null)} />}

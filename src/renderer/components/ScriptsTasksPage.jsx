@@ -74,7 +74,7 @@ export default function ScriptsTasksPage({ profiles = [] }) {
   const [activeTab, setActiveTab] = useState('scripts');
 
   return (
-    <div className="stp-container">
+    <div className="stp-container p-4">
       <div className="stp-header">
         <div className="stp-tabs">
           <button className={`stp-tab ${activeTab === 'scripts' ? 'active' : ''}`} onClick={() => setActiveTab('scripts')}>

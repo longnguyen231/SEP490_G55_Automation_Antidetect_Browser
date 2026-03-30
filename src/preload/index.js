@@ -52,6 +52,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadSettings: () => ipcRenderer.invoke('load-settings'),
   saveSettings: (partial) => ipcRenderer.invoke('save-settings', partial),
 
+  // Machine License
+  getMachineCode: () => ipcRenderer.invoke('get-machine-code'),
+
   // Scripts
   listScripts: () => ipcRenderer.invoke('scripts-list'),
   getScript: (id) => ipcRenderer.invoke('scripts-get', id),
@@ -73,25 +76,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportProxies: (ids) => ipcRenderer.invoke('proxy-export', ids),
   checkProxy: (cfg) => ipcRenderer.invoke('proxy-check', cfg),
   checkAllProxies: () => ipcRenderer.invoke('proxy-check-all'),
+  rotateProxy: (id) => ipcRenderer.invoke('proxy-rotate', id),
+  rotateProxyByUrl: (url) => ipcRenderer.invoke('proxy-rotate-url', url),
 
-  // Fingerprint generator
-  generateFingerprint: (opts) => ipcRenderer.invoke('generate-fingerprint', opts || {}),
-  generateFingerprintBatch: (count, opts) => ipcRenderer.invoke('generate-fingerprint-batch', count, opts || {}),
-
-  // Section-specific fingerprint generators
-  generateIdentity: (opts) => ipcRenderer.invoke('generate-identity', opts || {}),
-  generateDisplay: (opts) => ipcRenderer.invoke('generate-display', opts || {}),
-  generateHardware: (opts) => ipcRenderer.invoke('generate-hardware', opts || {}),
-  generateCanvas: (opts) => ipcRenderer.invoke('generate-canvas', opts || {}),
-  generateWebGL: (opts) => ipcRenderer.invoke('generate-webgl', opts || {}),
-  generateAudio: (opts) => ipcRenderer.invoke('generate-audio', opts || {}),
-  generateMedia: (opts) => ipcRenderer.invoke('generate-media', opts || {}),
-  generateNetwork: (opts) => ipcRenderer.invoke('generate-network', opts || {}),
-  generateBattery: (opts) => ipcRenderer.invoke('generate-battery', opts || {}),
-
-  // Behavior simulator
-  simulateBehavior: (profileId, action, opts) => ipcRenderer.invoke('simulate-behavior', profileId, action, opts || {}),
-
-  // Blocked page detection
-  detectBlockedPage: (profileId) => ipcRenderer.invoke('detect-blocked-page', profileId),
+  // Browser Runtimes
+  checkBrowserStatus: (name) => ipcRenderer.invoke('browser-runtime-status', name),
+  installBrowser: (name) => ipcRenderer.invoke('browser-runtime-install', name),
+  uninstallBrowser: (name) => ipcRenderer.invoke('browser-runtime-uninstall', name),
+  reinstallBrowser: (name) => ipcRenderer.invoke('browser-runtime-reinstall', name),
+  onBrowserProgress: (callback) => {
+    const listener = (_e, data) => callback(data);
+    ipcRenderer.on('browser-runtime-progress', listener);
+    return () => ipcRenderer.removeListener('browser-runtime-progress', listener);
+  },
+  removeAllBrowserProgress: () => ipcRenderer.removeAllListeners('browser-runtime-progress'),
 });

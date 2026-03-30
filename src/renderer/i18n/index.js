@@ -320,7 +320,7 @@ const messages = {
     'proxies.delete.confirm': 'Bạn có chắc chắn muốn xóa proxy này không?',
   },
   en: {
-    'app.title': 'OBT Automation Antidetect Browser',
+    'app.title': 'HL-MCK Automation Antidetect Browser',
     'app.subtitle': 'Manage browser profiles with fingerprint spoofing',
 
     // Sidebar
@@ -639,10 +639,10 @@ const messages = {
   }
 };
 
-const I18nContext = createContext({ lang: 'vi', setLang: () => { }, t: (k, d) => d || k });
+const I18nContext = createContext({ lang: 'en', setLang: () => { }, t: (k, d) => d || k });
 
 export function I18nProvider({ children }) {
-  const [lang, setLang] = useState('vi');
+  const [lang, setLang] = useState('en');
 
   // Load persisted language from settings
   useEffect(() => {
