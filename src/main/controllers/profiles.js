@@ -39,7 +39,10 @@ async function launchProfileInternal(profileId, options = {}) {
       return { success: true, wsEndpoint: running.wsEndpoint };
     }
     const settings = profile.settings || {};
-    const startUrl = profile.startUrl || 'https://www.google.com';
+    let startUrl = profile.startUrl || 'https://www.google.com/?hl=en';
+    if (startUrl === 'https://www.google.com' || startUrl === 'https://www.google.com/') {
+      startUrl = 'https://www.google.com/?hl=en';
+    }
     const engine = (options && options.engine) ? String(options.engine).toLowerCase() : (settings.engine === 'cdp' ? 'cdp' : 'playwright');
   const requestedHeadless = (options && typeof options.headless === 'boolean') ? options.headless : undefined;
   const headless = (requestedHeadless !== undefined) ? requestedHeadless : !!settings.headless;
@@ -73,7 +76,7 @@ async function launchProfileInternal(profileId, options = {}) {
       const host = options.cdpHost || '127.0.0.1';
       const port = options.cdpPort ? Number(options.cdpPort) : await findFreePort(9222, host);
       const userDataDir = userDataDirFor(profileId);
-      const extraArgs = [];
+      const extraArgs = ['--lang=en-US'];
       // Parity flags with Playwright
       if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
         extraArgs.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
@@ -195,7 +198,7 @@ async function launchProfileInternal(profileId, options = {}) {
 
     // Playwright flow
     const fp = profile.fingerprint || {};
-    const args = [];
+    const args = ['--lang=en-US'];
     if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
       args.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
     }
@@ -300,12 +303,14 @@ async function launchProfileInternal(profileId, options = {}) {
     const { loadSessionTabs, saveSessionTabs } = require('../storage/sessionTabs');
     const savedTabs = loadSessionTabs(profileId);
     
+    let page;
     if (savedTabs && savedTabs.length > 0) {
       appendLog(profileId, `Restoring ${savedTabs.length} saved tabs...`);
       let first = true;
       for (const url of savedTabs) {
         try {
           const p = first ? ((context.pages() || [])[0] || await context.newPage()) : await context.newPage();
+          if (first) { page = p; }
           first = false;
           p.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(err => {
             appendLog(profileId, `Failed to load restored tab ${url}: ${err?.message || err}`);
@@ -315,7 +320,7 @@ async function launchProfileInternal(profileId, options = {}) {
         }
       }
     } else {
-      const page = await context.newPage();
+      page = await context.newPage();
       // Navigate with timeout and retry for slow proxy connections
       try {
         await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -348,7 +353,9 @@ async function launchProfileInternal(profileId, options = {}) {
         }
       } catch (e) {}
     };
-    page.on('close', async () => { await saveState(); try { await context.close(); } catch { } });
+    if (page) {
+      page.on('close', async () => { await saveState(); try { await context.close(); } catch { } });
+    }
     context.on('close', async () => { await saveState(); try { await forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Context closed'); try { await server.close(); } catch { }; broadcastRunningMap(); });
     try { browser.on?.('disconnected', () => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Browser disconnected'); try { server.close(); } catch { }; broadcastRunningMap(); } }); } catch { }
     try { const proc = server.process?.(); proc && proc.once && proc.once('exit', (code, signal) => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, `Browser server exited (${code || ''} ${signal || ''})`); broadcastRunningMap(); } }); } catch { }

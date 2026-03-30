@@ -27,9 +27,6 @@ export default function BrowserRuntimes() {
             });
         }
         return () => {
-             if (window.electronAPI && window.electronAPI.removeAllBrowserProgress) {
-                 window.electronAPI.removeAllBrowserProgress();
-             }
              if (unsub) unsub();
         };
     }, []);

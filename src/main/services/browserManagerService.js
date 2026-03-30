@@ -41,7 +41,11 @@ function checkBrowserStatus(browserName) {
         }
 
         // Sort by version (latest ID first)
-        folders.sort((a, b) => b.name.localeCompare(a.name));
+        folders.sort((a, b) => {
+            const vA = parseInt(a.name.split('-')[1]) || 0;
+            const vB = parseInt(b.name.split('-')[1]) || 0;
+            return vB - vA;
+        });
         const latestFolder = folders[0].name; // e.g. "chromium-1092"
         const versionMatch = latestFolder.split('-')[1] || 'unknown';
 
