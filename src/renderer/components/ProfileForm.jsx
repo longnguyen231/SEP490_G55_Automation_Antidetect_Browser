@@ -517,7 +517,17 @@ function ProfileForm({ profile, onSave, onCancel }) {
         <legend className="pf-legend">Browser Engine</legend>
         <div className="pf-field">
           <label className="pf-label">Engine</label>
-          <select className="pf-select" value={formData.settings.engine || 'playwright'} onChange={e => setS('engine', e.target.value)}>
+          <select className="pf-select" value={formData.settings.engine || 'playwright'} onChange={e => {
+            const val = e.target.value;
+            setS('engine', val);
+            if (val === 'playwright-firefox') {
+              setFp('browser', 'Firefox');
+              setFp('userAgent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0');
+            } else if (val === 'playwright') {
+              setFp('browser', 'Chrome');
+              setFp('userAgent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
+            }
+          }}>
             <option value="playwright" disabled={engineStatus.chromium.status && engineStatus.chromium.status !== 'installed' && engineStatus.chromium.status !== 'loading'}>
                 Playwright Chromium {engineStatus.chromium.status !== 'installed' && engineStatus.chromium.status !== 'loading' ? '(Not Installed)' : ''}
             </option>
