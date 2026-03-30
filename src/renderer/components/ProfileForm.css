@@ -512,3 +512,36 @@
   font-weight: 600;
   color: var(--fg);
 }
+
+/* -- Engine not-installed inline warning -- */
+.pf-engine-warn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 6px;
+  padding: 7px 12px;
+  border-radius: 7px;
+  background: rgba(220, 53, 69, 0.1);
+  border: 1px solid rgba(220, 53, 69, 0.28);
+  font-size: 0.8rem;
+  color: #dc3545;
+}
+
+.pf-engine-install-btn {
+  flex-shrink: 0;
+  padding: 4px 14px;
+  border-radius: 6px;
+  border: 1px solid #3b6fd4;
+  background: #3b6fd4;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+
+.pf-engine-install-btn:hover {
+  background: #2f5cb8;
+}
