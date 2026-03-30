@@ -168,6 +168,32 @@
   box-shadow: 0 0 6px rgba(0, 210, 211, 0.3);
 }
 
+.pf-sidebar-label {
+  flex: 1;
+}
+
+.pf-sidebar-status {
+  font-size: 0.85rem;
+  opacity: 0.4;
+  flex-shrink: 0;
+  transition: opacity 0.15s, color 0.15s;
+  color: var(--muted);
+}
+
+.pf-sidebar-status.on {
+  opacity: 0.85;
+  color: var(--primary);
+}
+
+.pf-sidebar-item.active .pf-sidebar-status {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.pf-sidebar-item.active .pf-sidebar-status.on {
+  color: #fff;
+  opacity: 1;
+}
+
 .pf-sidebar-icon {
   display: flex;
   align-items: center;
@@ -214,6 +240,19 @@
 .pf-toggle-header-left {
   display: flex;
   flex-direction: column;
+}
+
+.pf-toggle-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pf-toggle-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--muted);
+  user-select: none;
 }
 
 /* -- Toggle switch (reusable) -- */

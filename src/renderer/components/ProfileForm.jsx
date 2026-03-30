@@ -182,15 +182,15 @@ function ProfileForm({ profile, onSave, onCancel }) {
 
   /* Section toggles — each toggleable tab can be enabled/disabled */
   const [sectionToggles, setSectionToggles] = useState({
-    identity: true,
-    display: true,
-    hardware: true,
-    canvas: true,
-    webgl: true,
-    audio: true,
-    media: true,
-    network: true,
-    battery: true,
+    identity: false,
+    display: false,
+    hardware: false,
+    canvas: false,
+    webgl: false,
+    audio: false,
+    media: false,
+    network: false,
+    battery: false,
   });
 
   const toggleSection = (id) => setSectionToggles(prev => ({ ...prev, [id]: !prev[id] }));
@@ -717,11 +717,7 @@ function ProfileForm({ profile, onSave, onCancel }) {
     }
   };
 
-  /* Determine sidebar dot color for each tab */
-  const getDotClass = (tab) => {
-    if (tab.id === 'general') return 'neutral';
-    return sectionToggles[tab.id] ? 'enabled' : 'disabled';
-  };
+
 
   return (
     <div className="pf-root">
@@ -753,9 +749,11 @@ function ProfileForm({ profile, onSave, onCancel }) {
               className={`pf-sidebar-item ${activeTab === tab.id ? 'active' : ''}`}
               onClick={() => setActiveTab(tab.id)}
             >
-              <span className={`pf-sidebar-dot ${getDotClass(tab)}`} />
               <span className="pf-sidebar-icon">{tab.icon}</span>
-              {tab.label}
+              <span className="pf-sidebar-label">{tab.label}</span>
+              {tab.toggleable && (
+                <span className={`pf-sidebar-status ${sectionToggles[tab.id] ? 'on' : ''}`}>ⓘ</span>
+              )}
             </button>
           ))}
         </nav>
@@ -777,14 +775,17 @@ function ToggleHeader({ id, label, desc, enabled, onToggle }) {
         <h3 className="pf-section-title">{label}</h3>
         <p className="pf-section-desc" style={{ marginBottom: 0 }}>{desc}</p>
       </div>
-      <div
-        className={`pf-toggle ${enabled ? 'on' : ''}`}
-        onClick={onToggle}
-        role="switch"
-        aria-checked={enabled}
-        title={enabled ? 'Click to disable' : 'Click to enable'}
-      >
-        <div className="pf-toggle-knob" />
+      <div className="pf-toggle-wrapper">
+        <span className="pf-toggle-label">{enabled ? 'Enabled' : 'Disabled'}</span>
+        <div
+          className={`pf-toggle ${enabled ? 'on' : ''}`}
+          onClick={onToggle}
+          role="switch"
+          aria-checked={enabled}
+          title={enabled ? 'Click to disable' : 'Click to enable'}
+        >
+          <div className="pf-toggle-knob" />
+        </div>
       </div>
     </div>
   );
