@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, User, Monitor, Cpu, PenLine, Layers, Volume2, Video, Globe, Battery, RefreshCcw } from 'lucide-react';
+import { Sun, User, Monitor, Cpu, PenLine, Layers, Volume2, Video, Globe, Battery, RefreshCcw, ShieldCheck } from 'lucide-react';
 import './ProfileForm.css';
 
 /* ═══════════════ Default data ═══════════════ */
@@ -166,6 +166,7 @@ const TABS = [
   { id: 'audio',    label: 'Audio',    icon: <Volume2 size={18} />, toggleable: true },
   { id: 'media',    label: 'Media',    icon: <Video size={18} />, toggleable: true },
   { id: 'network',  label: 'Network',  icon: <Globe size={18} />, toggleable: true },
+  { id: 'proxy',    label: 'Proxy',    icon: <ShieldCheck size={18} /> },
   { id: 'battery',  label: 'Battery',  icon: <Battery size={18} />, toggleable: true },
 ];
 
@@ -202,6 +203,11 @@ function ProfileForm({ profile, onSave, onCancel }) {
   const [options, setOptions] = useState({ locales: [], timezones: [] });
   const fallbackLocales = ['vi-VN', 'en-US', 'en-GB', 'fr-FR', 'de-DE', 'es-ES', 'ja-JP', 'ko-KR', 'zh-CN'];
   const fallbackTimezones = ['Asia/Ho_Chi_Minh', 'UTC', 'Asia/Tokyo', 'Asia/Seoul', 'Asia/Singapore', 'Europe/Paris', 'America/New_York'];
+
+  const [proxyChecking, setProxyChecking] = useState(false);
+  const [proxyRotating, setProxyRotating] = useState(false);
+  const [proxyCheckResult, setProxyCheckResult] = useState(null);
+  const [proxyRotateResult, setProxyRotateResult] = useState(null);
 
   useEffect(() => {
     if (profile) {
@@ -242,6 +248,64 @@ function ProfileForm({ profile, onSave, onCancel }) {
   const setAdv = (field, val) => setFormData(prev => ({
     ...prev, settings: { ...prev.settings, advanced: { ...prev.settings.advanced, [field]: val } }
   }));
+
+  const handleCheckProxy = async () => {
+    const proxy = formData.settings.proxy;
+    if (!proxy || proxy.type === 'none' || !proxy.server) {
+      setProxyCheckResult({ alive: false, error: 'Enter proxy details first' });
+      return;
+    }
+    setProxyChecking(true);
+    setProxyCheckResult(null);
+    try {
+      let host = proxy.server;
+      let port = 80;
+      const serverStr = String(proxy.server).replace(/^https?:\/\//, '').replace(/^socks\d?:\/\//, '');
+      if (serverStr.includes(':')) {
+        const parts = serverStr.split(':');
+        host = parts[0];
+        port = parseInt(parts[1], 10) || 80;
+      }
+      const res = await window.electronAPI.checkProxy({
+        type: proxy.type,
+        host,
+        port,
+        username: proxy.username || '',
+        password: proxy.password || '',
+      });
+      if (res) {
+        setProxyCheckResult({ alive: res.alive, latency: res.latency, ip: res.ip, city: res.city, countryCode: res.countryCode, timezone: res.timezone });
+      } else {
+        setProxyCheckResult({ alive: false, error: 'Check failed' });
+      }
+    } catch (e) {
+      setProxyCheckResult({ alive: false, error: e?.message || String(e) });
+    } finally {
+      setProxyChecking(false);
+    }
+  };
+
+  const handleRotateProxy = async () => {
+    const proxy = formData.settings.proxy;
+    if (!proxy || proxy.type === 'none' || !proxy.rotateUrl) {
+      setProxyRotateResult({ success: false, error: 'Enter rotate URL first' });
+      return;
+    }
+    setProxyRotating(true);
+    setProxyRotateResult(null);
+    try {
+      const startTime = Date.now();
+      const res = await window.electronAPI.rotateProxyByUrl(proxy.rotateUrl);
+      const latency = Date.now() - startTime;
+      
+      setProxyRotateResult({ success: res.success, latency, error: res.error });
+      if (res.success) setProxyCheckResult(null); 
+    } catch (e) {
+      setProxyRotateResult({ success: false, error: e?.message || String(e) });
+    } finally {
+      setProxyRotating(false);
+    }
+  };
 
   /* ── Per-section random generators ── */
   const randomFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -774,6 +838,96 @@ function ProfileForm({ profile, onSave, onCancel }) {
     </>
   );
 
+  const renderProxy = () => (
+    <>
+      <h3 className="pf-section-title">Proxy Settings</h3>
+      <p className="pf-section-desc">Configure proxy server and IP rotation specialized for this profile.</p>
+
+      <div className="pf-field pf-mb" style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border1)' }}>
+        <label className="pf-checkbox" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+          <input type="checkbox" checked={formData.settings.proxy?.type !== 'none' && formData.settings.proxy?.type !== undefined} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...p.settings.proxy, type: e.target.checked ? 'http' : 'none' } }}))} style={{ width: '18px', height: '18px' }} />
+          <span style={{ fontSize: '1rem', fontWeight: 500 }}>Enable Proxy</span>
+        </label>
+      </div>
+
+      {formData.settings.proxy?.type !== 'none' && formData.settings.proxy?.type !== undefined && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+          <div className="pf-row">
+            <div className="pf-field">
+              <label className="pf-label">Proxy Type</label>
+              <select className="pf-select" value={formData.settings.proxy.type || 'http'} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...p.settings.proxy, type: e.target.value } }}))}>
+                <option value="http">HTTP Proxy</option>
+                <option value="https">HTTPS Proxy</option>
+                <option value="socks4">SOCKS4 Proxy</option>
+                <option value="socks5">SOCKS5 Proxy</option>
+              </select>
+            </div>
+            <div className="pf-field">
+              <label className="pf-label">Host:Port</label>
+              <input className="pf-input" type="text" placeholder="127.0.0.1:8080" value={formData.settings.proxy.server || ''} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...p.settings.proxy, server: e.target.value } }}))} />
+            </div>
+          </div>
+
+          <div className="pf-row">
+            <div className="pf-field">
+              <label className="pf-label">Username (Optional)</label>
+              <input className="pf-input" type="text" placeholder="user" value={formData.settings.proxy.username || ''} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...p.settings.proxy, username: e.target.value } }}))} />
+            </div>
+            <div className="pf-field">
+              <label className="pf-label">Password (Optional)</label>
+              <input className="pf-input" type="password" placeholder="pass" value={formData.settings.proxy.password || ''} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...p.settings.proxy, password: e.target.value } }}))} />
+            </div>
+          </div>
+
+          <fieldset className="pf-fieldset">
+            <legend className="pf-legend">IP Rotation (Rotator)</legend>
+            <div className="pf-row" style={{ alignItems: 'flex-end' }}>
+              <div className="pf-field" style={{ flex: 1.5 }}>
+                <label className="pf-label">Rotate URL / API Link</label>
+                <input className="pf-input" type="url" placeholder="https://api.proxynetwork.com/rotate?id=..." value={formData.settings.proxy.rotateUrl || ''} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...p.settings.proxy, rotateUrl: e.target.value } }}))} />
+              </div>
+              <div className="pf-field" style={{ flex: 1 }}>
+                <button type="button" className="pf-btn pf-btn-generate" onClick={handleRotateProxy} disabled={proxyRotating || !formData.settings.proxy.rotateUrl} style={{ width: '100%', height: '42px', marginTop: 0 }}>
+                  {proxyRotating ? 'Rotating...' : 'Rotate IP'}
+                </button>
+              </div>
+            </div>
+            <p className="pf-hint">Enter the API URL from your proxy provider to rotate IP address with one click.</p>
+          </fieldset>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <button type="button" className="pf-btn pf-btn-generate" onClick={handleCheckProxy} disabled={proxyChecking} style={{ alignSelf: 'flex-start', padding: '0 2rem' }}>
+              {proxyChecking ? 'Checking...' : 'Check Proxy Status'}
+            </button>
+
+            {proxyRotateResult && (
+              <div style={{ padding: '1rem', borderRadius: '8px', background: proxyRotateResult.success ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', border: `1px solid ${proxyRotateResult.success ? '#10b981' : '#ef4444'}`, color: proxyRotateResult.success ? '#10b981' : '#ef4444' }}>
+                <div style={{ fontWeight: 'bold' }}>{proxyRotateResult.success ? '✅ IP Rotated Successfully' : '❌ Rotation Failed'}</div>
+                {proxyRotateResult.latency != null && <div style={{ fontSize: '0.9rem' }}>Response Time: {proxyRotateResult.latency}ms</div>}
+                {proxyRotateResult.error && <div style={{ fontSize: '0.85rem', marginTop: '4px' }}>{proxyRotateResult.error}</div>}
+              </div>
+            )}
+
+            {proxyCheckResult && (
+              <div style={{ padding: '1rem', borderRadius: '8px', background: proxyCheckResult.alive ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', border: `1px solid ${proxyCheckResult.alive ? '#10b981' : '#ef4444'}`, color: proxyCheckResult.alive ? '#10b981' : '#ef4444' }}>
+                <div style={{ fontWeight: 'bold' }}>{proxyCheckResult.alive ? '✅ Proxy is Stable' : '❌ Proxy Connection Failed'}</div>
+                {proxyCheckResult.latency != null && <div style={{ fontSize: '0.9rem' }}>Latency: {proxyCheckResult.latency}ms</div>}
+                {proxyCheckResult.ip && (
+                  <div style={{ marginTop: '8px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', fontSize: '0.85rem', color: 'var(--fg)' }}>
+                    <div><strong>IP:</strong> {proxyCheckResult.ip}</div>
+                    <div><strong>Loc:</strong> {proxyCheckResult.city && `${proxyCheckResult.city}, `}{proxyCheckResult.countryCode || 'Unknown'}</div>
+                    <div><strong>Timezone:</strong> {proxyCheckResult.timezone || '—'}</div>
+                  </div>
+                )}
+                {proxyCheckResult.error && <div style={{ fontSize: '0.85rem', marginTop: '4px' }}>{proxyCheckResult.error}</div>}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   const renderBattery = () => {
     const isCharging = formData.fingerprint.batteryCharging === 'Yes';
     const statusText = isCharging ? 'Charging' : 'Discharging';
@@ -828,6 +982,7 @@ function ProfileForm({ profile, onSave, onCancel }) {
       case 'audio': return renderAudio();
       case 'media': return renderMedia();
       case 'network': return renderNetwork();
+      case 'proxy': return renderProxy();
       case 'battery': return renderBattery();
       default: return null;
     }
