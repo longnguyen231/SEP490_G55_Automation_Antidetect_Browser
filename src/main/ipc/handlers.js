@@ -81,7 +81,21 @@ function registerIpcHandlers(extra = {}) {
   ipcMain.handle('presets-add', async (_e, preset) => await addPresetInternal(preset || {}));
   ipcMain.handle('presets-delete', async (_e, id) => await deletePresetInternal(String(id)));
 
-  
+  // Scripts management
+  ipcMain.handle('scripts-list', async () => await listScriptsInternal());
+  ipcMain.handle('scripts-get', async (_e, id) => await getScriptInternal(id));
+  ipcMain.handle('scripts-save', async (_e, script) => await saveScriptInternal(script));
+  ipcMain.handle('scripts-delete', async (_e, id) => await deleteScriptInternal(id));
+  ipcMain.handle('scripts-execute', async (_e, profileId, scriptId, opts) => {
+    try { return await executeScript(profileId, scriptId, opts || {}); }
+    catch (e) { return { success: false, error: e?.message || String(e) }; }
+  });
+
+  // Task logs
+  ipcMain.handle('task-logs-list', async () => getTaskLogs());
+  ipcMain.handle('task-logs-get', async (_e, id) => getTaskLogById(id));
+  ipcMain.handle('task-logs-clear', async () => clearTaskLogs());
+
   // Proxy management
   ipcMain.handle('proxy-get-all', async () => await getProxiesInternal());
   ipcMain.handle('proxy-get-by-id', async (_e, id) => await getProxyByIdInternal(id));

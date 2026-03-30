@@ -151,7 +151,7 @@ function normalizeProfileInput(input = {}, existing = null) {
   const name = (input.name != null ? String(input.name) : String(base.name || ''))?.trim();
   const description = input.description != null ? String(input.description) : (base.description || '');
   const startUrl = normalizeStartUrl(input.startUrl || base.startUrl || 'https://www.google.com');
-  const fingerprint = deepMerge(DEFAULT_FINGERPRINT, deepMerge(base.fingerprint || {}, input.fingerprint || {}));
+  const fingerprint = deepMerge(FALLBACK_FINGERPRINT, deepMerge(base.fingerprint || {}, input.fingerprint || {}));
   const settings = deepMerge(DEFAULT_SETTINGS, deepMerge(base.settings || {}, input.settings || {}));
   if (!settings.engine || settings.engine === 'auto') {
     const { resolveChromeExecutable } = require('./settings');

@@ -337,11 +337,6 @@ async function launchProfileInternal(profileId, options = {}) {
     }
     if (applyTz) contextOptions.timezoneId = fp.timezone || settings.timezone || 'UTC';
 
-    // Extra HTTP headers must include Accept-Language to match locale (Google checks this)
-    contextOptions.extraHTTPHeaders = {
-      'Accept-Language': acceptLang,
-    };
-
     if (applyUA && fp.userAgent) {
       contextOptions.userAgent = fp.userAgent;
       try {
@@ -434,9 +429,10 @@ async function launchProfileInternal(profileId, options = {}) {
           appendLog(profileId, `Second navigation attempt failed: ${retryErr?.message || retryErr}. Browser is open but page not loaded.`);
         }
         // Install ongoing block detection for future navigations
-        installBlockDetector(page, profileId);
-      } catch (navErr) {
-        appendLog(profileId, `Navigation failed: ${navErr?.message || navErr}. Browser is open but page not loaded.`);
+        try {
+          const { installBlockDetector } = require('../engine/blockedPageDetector');
+          installBlockDetector(page, profileId);
+        } catch {}
       }
       appendLog(profileId, `Opened page: ${startUrl}`);
     }
