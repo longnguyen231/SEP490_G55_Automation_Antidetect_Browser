@@ -112,6 +112,7 @@ async function createProxyInternal(data) {
             latency: null,
             country: (data.country || '').trim(),
             note: (data.note || '').trim(),
+            rotateUrl: (data.rotateUrl || '').trim(),
             createdAt: nowIso,
             updatedAt: nowIso,
         };
@@ -159,6 +160,7 @@ async function updateProxyInternal(id, data) {
         if (data.password != null) merged.password = String(data.password).trim();
         if (data.country != null) merged.country = String(data.country).trim();
         if (data.note != null) merged.note = String(data.note).trim();
+        if (data.rotateUrl != null) merged.rotateUrl = String(data.rotateUrl).trim();
         // Allow checker module to update status/latency
         if (data.status != null) merged.status = data.status;
         if (data.lastChecked != null) merged.lastChecked = data.lastChecked;
