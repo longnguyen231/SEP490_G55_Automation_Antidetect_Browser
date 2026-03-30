@@ -18,7 +18,7 @@ const defaultFingerprint = {
   colorDepth: 32,
   pixelRatio: 1,
 };
-
+ 
 const defaultSettings = {
   cpuCores: 4,
   memoryGB: 8,

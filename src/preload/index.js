@@ -49,6 +49,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadSettings: () => ipcRenderer.invoke('load-settings'),
   saveSettings: (partial) => ipcRenderer.invoke('save-settings', partial),
 
+  // Machine License
+  getMachineCode: () => ipcRenderer.invoke('get-machine-code'),
+
   // Scripts
   listScripts: () => ipcRenderer.invoke('scripts-list'),
   getScript: (id) => ipcRenderer.invoke('scripts-get', id),

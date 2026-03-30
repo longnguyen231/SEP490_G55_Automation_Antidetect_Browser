@@ -31,8 +31,12 @@ const {
   importProxiesInternal, exportProxiesInternal,
 } = require('../storage/proxies');
 const { checkProxy, checkProxiesBatch } = require('../services/ProxyChecker');
+const { getMachineCode } = require('../services/machineId');
 
 function registerIpcHandlers(extra = {}) {
+  // Machine Code
+  ipcMain.handle('get-machine-code', () => getMachineCode());
+
   ipcMain.handle('get-profiles', async () => await getProfilesInternal());
   ipcMain.handle('save-profile', async (_e, profile) => await saveProfileInternal(profile));
   ipcMain.handle('delete-profile', async (_e, profileId) => {

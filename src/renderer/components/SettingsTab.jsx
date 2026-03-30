@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n/index';
 
 export default function SettingsTab({
@@ -13,9 +13,15 @@ export default function SettingsTab({
 }) {
     const { t } = useI18n();
     const [licenseKey, setLicenseKey] = useState('');
-    const machineCode = "99D6-05C6-6BEC-912C";
+    const [machineCode, setMachineCode] = useState('Loading...');
     const [autoStartApi, setAutoStartApi] = useState(false);
     const [maxBrowsers, setMaxBrowsers] = useState(5);
+
+    useEffect(() => {
+        window.electronAPI.getMachineCode()
+            .then(code => setMachineCode(code || 'UNKNOWN'))
+            .catch(console.error);
+    }, []);
 
     return (
         <div className="w-full h-full flex flex-col p-4 overflow-y-auto">
