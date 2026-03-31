@@ -89,12 +89,12 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
 
   // Browser control endpoints
   // Sample App Aliases mapping requested by user
-  appx.get('/api/browsers/:profileId/context/storage-state', async (req, res) => {
-    const r = await (handlers.getStorageStateInternal ? handlers.getStorageStateInternal(req.params.profileId) : { success: false, error: 'Not implemented' });
+  appx.get('/api/profiles/:id/context/storage-state', async (req, res) => {
+    const r = await (handlers.getStorageStateInternal ? handlers.getStorageStateInternal(req.params.id) : { success: false, error: 'Not implemented' });
     res.json(r);
   });
-  appx.post('/api/browsers/:profileId/context/new-page', async (req, res) => {
-    const r = await handlers.newPageInternal(req.params.profileId, req.body || {});
+  appx.post('/api/profiles/:id/context/new-page', async (req, res) => {
+    const r = await handlers.newPageInternal(req.params.id, req.body || {});
     res.json(r);
   });
   
@@ -103,9 +103,6 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   });
   appx.post('/api/profiles/:id/navigate', async (req, res) => {
     const r = await handlers.navigateInternal(req.params.id, req.body || {}); res.json(r);
-  });
-  appx.post('/api/profiles/:id/new-page', async (req, res) => {
-    const r = await handlers.newPageInternal(req.params.id, req.body || {}); res.json(r);
   });
   appx.post('/api/profiles/:id/close-page', async (req, res) => {
     const r = await handlers.closePageInternal(req.params.id, req.body || {}); res.json(r);

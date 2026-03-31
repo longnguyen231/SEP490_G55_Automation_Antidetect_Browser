@@ -167,15 +167,15 @@
     }
   },
   "paths": {
-    "/api/browsers/{profileId}/context/storage-state": {
+    "/api/profiles/{id}/context/storage-state": {
       "get": {
         "summary": "Export context storage state (cookies + localStorage) for session reuse",
         "tags": [
-          "browsers"
+          "Browser"
         ],
         "parameters": [
           {
-            "name": "profileId",
+            "name": "id",
             "in": "path",
             "required": true,
             "schema": {
@@ -190,15 +190,15 @@
         }
       }
     },
-    "/api/browsers/{profileId}/context/new-page": {
+    "/api/profiles/{id}/context/new-page": {
       "post": {
         "summary": "Open a new page/tab in the browser context",
         "tags": [
-          "browsers"
+          "Browser"
         ],
         "parameters": [
           {
-            "name": "profileId",
+            "name": "id",
             "in": "path",
             "required": true,
             "schema": {
@@ -574,35 +574,7 @@
         }
       }
     },
-    "/api/profiles/{id}/new-page": {
-      "post": {
-        "summary": "New page",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewPageRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
+
     "/api/profiles/{id}/close-page": {
       "post": {
         "summary": "Close page",
