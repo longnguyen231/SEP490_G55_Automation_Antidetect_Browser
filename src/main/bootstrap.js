@@ -1,4 +1,5 @@
 // Clean modular Electron main process entrypoint (bootstrap)
+process.env.REBROWSER_PATCHES_RUNTIME_FIX_MODE = 'addBinding';
 const { app } = require('electron');
 const { createWindow } = require('./window/mainWindow');
 const { initializeDataFiles } = require('./storage/paths');

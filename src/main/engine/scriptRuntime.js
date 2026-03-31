@@ -30,7 +30,7 @@ async function getPageForProfile(profileId) {
 
   // CDP: connect via Playwright for unified API
   try {
-    const { chromium } = require('playwright');
+    const { chromium } = require('./playwrightDriver');
     const browser = await chromium.connectOverCDP(running.wsEndpoint);
     const context = browser.contexts?.()[0];
     if (!context) { try { await browser.close(); } catch {} return null; }

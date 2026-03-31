@@ -10,7 +10,7 @@
 // They all return a structured result: { success: boolean, [data fields], error?: string }
 // and log their execution to the profile's dedicated log file.
 
-const { chromium } = require('playwright');
+const { chromium } = require('./playwrightDriver');
 const fs = require('fs');
 const path = require('path');
 const { runningProfiles } = require('../state/runtime');

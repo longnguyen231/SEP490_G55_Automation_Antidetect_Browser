@@ -13,7 +13,7 @@ function getBrowsersPath() {
     // Use playwright-core's own executablePath() to find the root browsers folder.
     // This is the SAME path playwright uses when launching, so detection always matches.
     try {
-        const { chromium } = require('playwright-core');
+        const { chromium } = require('../engine/playwrightDriver');
         const exePath = chromium.executablePath();
         // exePath: ...\ms-playwright\chromium-1194\chrome-win\chrome.exe
         // Go up 3 levels to get ms-playwright root
@@ -38,7 +38,7 @@ function checkBrowserStatus(browserName) {
     try {
         // Use playwright-core's own executablePath() as source of truth
         // This always matches what Playwright uses when launching
-        const pw = require('playwright-core');
+        const pw = require('../engine/playwrightDriver');
         const engine = browserName === 'firefox' ? pw.firefox : pw.chromium;
         const exePath = engine.executablePath();
         const exists = fs.existsSync(exePath);
@@ -108,7 +108,7 @@ async function installBrowser(browserName) {
             });
 
             // Resolve playwright CLI
-            const pwCorePath = require.resolve('playwright-core');
+            const pwCorePath = require.resolve('rebrowser-playwright');
             const playwrightCliPath = path.join(path.dirname(pwCorePath), 'cli.js');
 
             const child = spawn(process.execPath, [playwrightCliPath, 'install', browserName], {
