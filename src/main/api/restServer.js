@@ -97,6 +97,14 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
     const r = await handlers.newPageInternal(req.params.id, req.body || {});
     res.json(r);
   });
+  appx.post('/api/profiles/:id/context/grant-permissions', async (req, res) => {
+    const r = await handlers.grantPermissionsInternal(req.params.id, req.body || {});
+    res.json(r);
+  });
+  appx.post('/api/profiles/:id/context/clear-permissions', async (req, res) => {
+    const r = await handlers.clearPermissionsInternal(req.params.id);
+    res.json(r);
+  });
   
   appx.get('/api/profiles/:id/pages', async (req, res) => {
     const r = await handlers.listPagesInternal(req.params.id); res.json(r);

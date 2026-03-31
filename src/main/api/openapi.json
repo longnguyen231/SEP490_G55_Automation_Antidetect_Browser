@@ -213,6 +213,73 @@
         }
       }
     },
+    "/api/profiles/{id}/context/grant-permissions": {
+      "post": {
+        "summary": "Grant browser permissions (e.g. geolocation, camera, microphone)",
+        "tags": [
+          "Browser"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "permissions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "origin": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/context/clear-permissions": {
+      "post": {
+        "summary": "Revoke all previously granted browser permissions",
+        "tags": [
+          "Browser"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "summary": "Health",

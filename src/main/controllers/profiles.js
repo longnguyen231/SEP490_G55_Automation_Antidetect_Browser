@@ -580,6 +580,32 @@ async function screenshotInternal(profileId, { index = 0, path: outPath, fullPag
 
 async function evalInternal(profileId, { index = 0, expression } = {}) { if (typeof expression !== 'string') return { success: false, error: 'expression must be a string' }; return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[index] || pages[0] || (await context.newPage()); const value = await page.evaluate(expr => { try { return eval(expr); } catch (e) { return { __error: true, message: e?.message || String(e) }; } }, expression); await cleanup(); if (value && value.__error) return { success: false, error: value.message }; return { success: true, value }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
 
+async function grantPermissionsInternal(profileId, { permissions = [], origin } = {}) {
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      await context.grantPermissions(permissions, origin ? { origin } : undefined);
+      await cleanup();
+      return { success: true };
+    } catch (e) {
+      await cleanup();
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+}
+
+async function clearPermissionsInternal(profileId) {
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      await context.clearPermissions();
+      await cleanup();
+      return { success: true };
+    } catch (e) {
+      await cleanup();
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+}
+
 async function getProfileLogInternal(profileId) { try { const p = require('path').join(getDataRoot(), 'logs', `${profileId}.log`); if (!fs.existsSync(p)) return { success: true, log: '' }; return { success: true, log: fs.readFileSync(p, 'utf8') }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function getCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const cookies = await running.context.cookies(); return { success: true, cookies }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, cookies: state.cookies || [] }; } return { success: true, cookies: [] }; } catch (error) { return { success: false, error: error.message }; } }
@@ -637,6 +663,8 @@ module.exports = {
   closePageInternal,
   screenshotInternal,
   evalInternal,
+  grantPermissionsInternal,
+  clearPermissionsInternal,
   getProfileLogInternal,
   getCookiesInternal,
   importCookiesInternal,
