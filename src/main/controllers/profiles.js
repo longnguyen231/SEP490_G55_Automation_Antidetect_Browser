@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { chromium } = require('playwright');
+const { chromium } = require('../engine/playwrightDriver');
 const { appendLog } = require('../logging/logger');
 const { storageStatePath, getDataRoot } = require('../storage/paths');
 const { loadSettings, resolveChromeExecutable } = require('../storage/settings');
@@ -58,6 +58,36 @@ async function launchProfileInternal(profileId, options = {}) {
       }
     } catch { }
 
+    // -------------------------------------------------------------------------------- //
+    // STEALTH ARGS BUILDER: Applied to both CDP and Playwright Engine modes
+    // -------------------------------------------------------------------------------- //
+    const buildStealthArgs = (fp, settings, isFirefox = false) => {
+      const sf = [
+        '--disable-blink-features=AutomationControlled',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-background-timer-throttling',
+        '--disable-ipc-flooding-protection',
+        '--password-store=basic',
+        '--use-mock-keychain',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--enable-features=OmniboxRichAutocompletion,OptimizationGuideModelExecution'
+      ];
+
+      // Native Window Resolution override WITHOUT CDP emulation flags
+      if (!isFirefox && settings.windowWidth > 0 && settings.windowHeight > 0) {
+        sf.push(`--window-size=${settings.windowWidth},${settings.windowHeight}`);
+      } else if (!isFirefox && settings.windowWidth === 0 && settings.windowHeight === 0) {
+        sf.push('--start-maximized');
+      }
+
+      const spoofLang = fp.language || settings.language || 'en-US';
+      sf.push(`--lang=${spoofLang}`);
+      return isFirefox ? [] : sf;
+    };
+
     if (engine === 'cdp') {
       const chromePath = resolveChromeExecutable();
       if (!chromePath) {
@@ -76,7 +106,7 @@ async function launchProfileInternal(profileId, options = {}) {
       const host = options.cdpHost || '127.0.0.1';
       const port = options.cdpPort ? Number(options.cdpPort) : await findFreePort(9222, host);
       const userDataDir = userDataDirFor(profileId);
-      const extraArgs = ['--lang=en-US'];
+      const extraArgs = buildStealthArgs(profile.fingerprint || {}, settings, false);
       // Parity flags with Playwright
       if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
         extraArgs.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
@@ -199,18 +229,14 @@ async function launchProfileInternal(profileId, options = {}) {
     // Playwright flow
     const engineMode = settings.engine || 'playwright';
     const isFirefox = engineMode === 'playwright-firefox' || engineMode === 'firefox';
-    const { chromium, firefox } = require('playwright-core');
+    const { chromium, firefox } = require('../engine/playwrightDriver');
     const pwEngine = isFirefox ? firefox : chromium;
 
     const fp = profile.fingerprint || {};
     // Build launch args — separate Chrome-specific flags from Firefox-compatible ones
-    const args = isFirefox ? [] : ['--lang=en-US'];
-    // Window size (Chromium flags only)
-    if (!isFirefox && settings.windowWidth > 0 && settings.windowHeight > 0) {
-      args.push(`--window-size=${settings.windowWidth},${settings.windowHeight}`);
-    } else if (!isFirefox && settings.windowWidth === 0 && settings.windowHeight === 0) {
-      args.push('--start-maximized');
-    }
+    const STEALTH_ARGS = buildStealthArgs(fp, settings, isFirefox);
+
+    const args = [...STEALTH_ARGS];
     if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
       if (!isFirefox) args.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
     }
@@ -302,17 +328,11 @@ async function launchProfileInternal(profileId, options = {}) {
     }
     if (applyTz) contextOptions.timezoneId = fp.timezone || settings.timezone || 'UTC';
     if (applyUA && fp.userAgent) contextOptions.userAgent = fp.userAgent;
-    // Apply viewport and device scale like CDP DeviceMetricsOverride
-    try {
-      if (applyViewport) {
-        const m = (fp.screenResolution || '').match(/^(\d+)x(\d+)$/);
-        if (m) {
-          contextOptions.viewport = { width: Math.max(1, parseInt(m[1], 10)), height: Math.max(1, parseInt(m[2], 10)) };
-        }
-        const dpr = Number((settings.advanced || {}).devicePixelRatio || 1);
-        if (dpr > 0) contextOptions.deviceScaleFactor = dpr;
-      }
-    } catch { }
+    // Disable Playwright's forced 1280x720 default viewport, 
+    // letting the window-size argument correctly set the native innerWidth
+    contextOptions.viewport = null;
+    // We also remove deviceScaleFactor as Playwright rejects it when viewport is null
+
     if (applyGeo && settings.geolocation && settings.geolocation.latitude != null && settings.geolocation.longitude != null) {
       contextOptions.geolocation = {
         latitude: Number(settings.geolocation.latitude),
@@ -437,7 +457,7 @@ async function runAutomationPostLaunch(profile, launchCtx) {
           } else if (launchCtx.engine === 'cdp') {
             // Connect over CDP and create a new page (Target.createTarget) – simplified fallback: use navigateInternal via handlers if desired.
             try {
-              const { chromium } = require('playwright');
+              const { chromium } = require('../engine/playwrightDriver');
               const browser = await chromium.connectOverCDP(launchCtx.wsEndpoint);
               const context = browser.contexts()[0];
               const page = context.pages()[0] || await context.newPage();
@@ -460,7 +480,7 @@ async function runAutomationPostLaunch(profile, launchCtx) {
             appendLog(profileId, `Automation eval: ${value.ok ? JSON.stringify(value.value).slice(0,200) : ('ERR ' + value.error)}`);
           } else {
             try {
-              const { chromium } = require('playwright');
+              const { chromium } = require('../engine/playwrightDriver');
               const browser = await chromium.connectOverCDP(launchCtx.wsEndpoint);
               const context = browser.contexts()[0];
               const page = context.pages()[0] || await context.newPage();

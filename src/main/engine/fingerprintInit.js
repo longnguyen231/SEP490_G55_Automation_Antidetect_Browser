@@ -21,73 +21,12 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   const applyNavigator = apply.navigator !== false; // default true
   const applyUA = apply.userAgent !== false; // default true
   const applyWebgl = apply.webgl !== false; // default true
-  const applyLang = apply.language !== false; // for navigator.languages
-  const applyViewport = apply.viewport !== false; // for devicePixelRatio
 
-  // Hardware init script
-  if (applyHardware) {
-    try {
-      await context.addInitScript(({ cores, mem }) => {
-        try { Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => cores }); } catch {}
-        try { Object.defineProperty(navigator, 'deviceMemory', { get: () => mem }); } catch {}
-      }, { cores: cpuCores, mem: deviceMemory });
-    } catch {}
-  }
 
-  // Navigator / WebGL / UA init script
-  if (applyNavigator || applyWebgl || applyUA || applyLang || applyViewport) {
-    try {
-      await context.addInitScript(({ adv, primaryLang, ua, flags }) => {
-      try {
-          if (flags.applyNavigator && adv && typeof adv === 'object') {
-            if (adv.platform) { try { Object.defineProperty(navigator, 'platform', { get: () => adv.platform }); } catch {} }
-            if (typeof adv.dnt === 'boolean') { try { Object.defineProperty(navigator, 'doNotTrack', { get: () => (adv.dnt ? '1' : '0') }); } catch {} }
-            if (typeof adv.maxTouchPoints === 'number') { try { Object.defineProperty(navigator, 'maxTouchPoints', { get: () => adv.maxTouchPoints }); } catch {} }
-            if (flags.applyLang) {
-              try {
-                const langs = Array.isArray(adv.languages) ? adv.languages : (typeof adv.languages === 'string' ? adv.languages.split(',').map(s=>s.trim()).filter(Boolean) : []);
-                const finalLangs = langs.length ? langs : (primaryLang ? [primaryLang, primaryLang.split('-')[0]].filter((v,i,a)=>a.indexOf(v)===i) : navigator.languages);
-                if (finalLangs && finalLangs.length) {
-                  // Override navigator.language (single) and navigator.languages (array) — must match
-                  try { Object.defineProperty(navigator, 'language', { get: () => finalLangs[0] }); } catch {}
-                  try { Object.defineProperty(navigator, 'languages', { get: () => finalLangs }); } catch {}
-                }
-              } catch {}
-            }
-            if (typeof adv.plugins === 'number') {
-              try {
-                const length = adv.plugins;
-                const fakeArray = { length, item: () => undefined, namedItem: () => undefined };
-                Object.defineProperty(navigator, 'plugins', { get: () => fakeArray });
-                Object.defineProperty(navigator, 'mimeTypes', { get: () => ({ length: 0, item: () => undefined, namedItem: () => undefined }) });
-              } catch {}
-            }
-          }
-          if (flags.applyViewport && adv && typeof adv.devicePixelRatio === 'number' && adv.devicePixelRatio > 0) {
-            try { Object.defineProperty(window, 'devicePixelRatio', { get: () => adv.devicePixelRatio }); } catch {}
-          }
-          if (flags.applyWebgl && adv && (adv.webglVendor || adv.webglRenderer)) {
-            try {
-              const patch = (proto) => {
-                if (!proto || !proto.getParameter) return;
-                const OG = proto.getParameter;
-                Object.defineProperty(proto, 'getParameter', {
-                  value: function(param) {
-                    if (param === 0x9245 && adv.webglVendor) return adv.webglVendor;
-                    if (param === 0x9246 && adv.webglRenderer) return adv.webglRenderer;
-                    return OG.apply(this, arguments);
-                  }
-                });
-              };
-              if (window.WebGLRenderingContext) patch(WebGLRenderingContext.prototype);
-              if (window.WebGL2RenderingContext) patch(WebGL2RenderingContext.prototype);
-            } catch {}
-          }
-          if (flags.applyUA && ua) { try { Object.defineProperty(navigator, 'userAgent', { get: () => ua }); } catch {} }
-      } catch {}
-      }, { adv, primaryLang: locale, ua: userAgent || '', flags: { applyNavigator: !!applyNavigator, applyWebgl: !!applyWebgl, applyUA: !!applyUA, applyLang: !!applyLang, applyViewport: !!applyViewport } });
-    } catch {}
-  }
+  // Hardware and Navigator Init Scripts have been completely removed.
+  // JS Monkey-patching of navigator properties (e.g. navigator.hardwareConcurrency, navigator.platform) 
+  // causes 100% detection rate by Cloudflare Turnstile's Object.getOwnPropertyDescriptor checks.
+  // Instead, CDP Native Emulation (in cdpOverrides.js) handles UserAgent, Platform, Language, and Viewport safely at the C++ level.
 }
 
 module.exports = { applyFingerprintInitScripts, parseResolution };

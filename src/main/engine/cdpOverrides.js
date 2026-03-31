@@ -1,4 +1,4 @@
-const { chromium } = require('playwright');
+const { chromium } = require('./playwrightDriver');
 
 function parseResolution(res) {
   try {
@@ -79,16 +79,10 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
         try { await session.send('Emulation.setUserAgentOverride', params); } catch {}
       }
       if (applyViewport && viewport) {
-        try {
-          await session.send('Emulation.setDeviceMetricsOverride', {
-            width: viewport.width,
-            height: viewport.height,
-            deviceScaleFactor: deviceScaleFactor > 0 ? deviceScaleFactor : 1,
-            mobile: false,
-            screenWidth: viewport.width,
-            screenHeight: viewport.height,
-          });
-        } catch {}
+        // [HOTFIX] Explicitly DO NOT send Emulation.setDeviceMetricsOverride.
+        // It injects a mobile/touch interface flag internally and causes 100% failure 
+        // passing Cloudflare Turnstile's Managed Challenge innerWidth checks.
+        // We will rely purely on the --window-size command line argument from now on.
       }
       if (applyGeo && wantGeo) {
         try {
