@@ -10,9 +10,18 @@ function setMainWindowRef(win) {
 }
 
 function getBrowsersPath() {
-    // userData usually is C:\Users\xxx\AppData\Roaming\YourAppName
-    const userData = app.getPath('userData');
-    return path.join(userData, 'data', '.playwright', 'browsers');
+    // Use the same path that playwright uses by default — ms-playwright in LOCALAPPDATA.
+    // Do NOT use a custom userData path; it won't match where playwright installs/looks.
+    try {
+        const { chromium } = require('playwright-core');
+        const exePath = chromium.executablePath();
+        // exePath example: C:\Users\xxx\AppData\Local\ms-playwright\chromium-1194\chrome-win\chrome.exe
+        // Go up 3 levels to get ms-playwright root
+        return path.dirname(path.dirname(path.dirname(exePath)));
+    } catch {
+        const localAppData = process.env.LOCALAPPDATA || path.join(require('os').homedir(), 'AppData', 'Local');
+        return path.join(localAppData, 'ms-playwright');
+    }
 }
 
 function getExecutableConfig() {
@@ -122,13 +131,10 @@ async function installBrowser(browserName) {
 
     return new Promise((resolve) => {
         try {
-            const browsersPath = getBrowsersPath();
-            
-            // To ensure playwright installs at browsersPath, we set PLAYWRIGHT_BROWSERS_PATH
+            // Do NOT set PLAYWRIGHT_BROWSERS_PATH — let Playwright install to its default location
+            // (ms-playwright in LOCALAPPDATA), which is the same place it looks when launching.
             const env = Object.assign({}, process.env, {
-                PLAYWRIGHT_BROWSERS_PATH: browsersPath,
                 ELECTRON_RUN_AS_NODE: '1',
-                // Boot tốc độ tải bằng CDN Mirror dành cho Châu Á (tránh nghẽn Azure của nhánh gốc)
                 PLAYWRIGHT_DOWNLOAD_HOST: 'https://npmmirror.com/mirrors/playwright/'
             });
 
