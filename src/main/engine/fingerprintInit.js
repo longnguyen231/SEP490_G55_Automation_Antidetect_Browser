@@ -150,7 +150,7 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
           if (flags.applyLang) {
             try {
               const langs = Array.isArray(adv.languages) ? adv.languages : (typeof adv.languages === 'string' ? adv.languages.split(',').map(s => s.trim()).filter(Boolean) : []);
-              const finalLangs = langs.length ? langs : (primaryLang ? [primaryLang] : []);
+              const finalLangs = langs.length ? langs : (primaryLang ? [primaryLang, primaryLang.split('-')[0]].filter((v,i,a) => a.indexOf(v) === i) : []);
               if (finalLangs && finalLangs.length) {
                 const frozen = Object.freeze([...finalLangs]);
                 Object.defineProperty(navigator, 'languages', { get: () => frozen, configurable: true });

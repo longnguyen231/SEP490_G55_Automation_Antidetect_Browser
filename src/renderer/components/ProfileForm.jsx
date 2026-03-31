@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Sun, User, Monitor, Cpu, PenLine, Layers, Volume2, Video, Globe, Battery, RefreshCcw, ShieldCheck } from 'lucide-react';
+import EngineInstallModal from './EngineInstallModal';
 import './ProfileForm.css';
 
 /* ═══════════════ Default data ═══════════════ */
@@ -213,6 +214,8 @@ function ProfileForm({ profile, onSave, onCancel }) {
       chromium: { status: 'loading' },
       firefox: { status: 'loading' }
   });
+  // 'chromium' | 'firefox' | null — drives the install modal inside the form
+  const [engineInstallTarget, setEngineInstallTarget] = useState(null);
 
   useEffect(() => {
     const checkEngines = async () => {
@@ -517,23 +520,41 @@ function ProfileForm({ profile, onSave, onCancel }) {
         <legend className="pf-legend">Browser Engine</legend>
         <div className="pf-field">
           <label className="pf-label">Engine</label>
-          <select className="pf-select" value={formData.settings.engine || 'playwright'} onChange={e => setS('engine', e.target.value)}>
-            <option value="playwright" disabled={engineStatus.chromium.status && engineStatus.chromium.status !== 'installed' && engineStatus.chromium.status !== 'loading'}>
-                Playwright Chromium {engineStatus.chromium.status !== 'installed' && engineStatus.chromium.status !== 'loading' ? '(Not Installed)' : ''}
+          <select className="pf-select" value={formData.settings.engine || 'playwright'} onChange={e => {
+            const val = e.target.value;
+            setS('engine', val);
+            if (val === 'playwright-firefox') {
+              setFp('browser', 'Firefox');
+              setFp('userAgent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0');
+            } else if (val === 'playwright') {
+              setFp('browser', 'Chrome');
+              setFp('userAgent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
+            }
+          }}>
+            <option value="playwright">
+              Playwright Chromium {engineStatus.chromium.status !== 'installed' && engineStatus.chromium.status !== 'loading' ? '(Not Installed)' : ''}
             </option>
-            <option value="playwright-firefox" disabled={engineStatus.firefox.status && engineStatus.firefox.status !== 'installed' && engineStatus.firefox.status !== 'loading'}>
-                Playwright Firefox {engineStatus.firefox.status !== 'installed' && engineStatus.firefox.status !== 'loading' ? '(Not Installed)' : ''}
+            <option value="playwright-firefox">
+              Playwright Firefox {engineStatus.firefox.status !== 'installed' && engineStatus.firefox.status !== 'loading' ? '(Not Installed)' : ''}
             </option>
           </select>
+
+          {/* Inline warning + Install button when selected engine is not installed */}
           {(formData.settings.engine === 'playwright' && engineStatus.chromium.status !== 'installed' && engineStatus.chromium.status !== 'loading') && (
-            <p className="pf-hint" style={{color: '#dc3545', marginTop: '4px'}}>
-               ⚠️ Playwright Chromium is not installed. Go to Settings to install it.
-            </p>
+            <div className="pf-engine-warn">
+              <span>⚠️ Playwright Chromium is not installed.</span>
+              <button type="button" className="pf-engine-install-btn" onClick={() => setEngineInstallTarget('chromium')}>
+                Install Now
+              </button>
+            </div>
           )}
           {((formData.settings.engine === 'playwright-firefox' || formData.settings.engine === 'firefox') && engineStatus.firefox.status !== 'installed' && engineStatus.firefox.status !== 'loading') && (
-            <p className="pf-hint" style={{color: '#dc3545', marginTop: '4px'}}>
-               ⚠️ Playwright Firefox is not installed. Go to Settings to install it.
-            </p>
+            <div className="pf-engine-warn">
+              <span>⚠️ Playwright Firefox is not installed.</span>
+              <button type="button" className="pf-engine-install-btn" onClick={() => setEngineInstallTarget('firefox')}>
+                Install Now
+              </button>
+            </div>
           )}
         </div>
       </fieldset>
@@ -1070,6 +1091,24 @@ function ProfileForm({ profile, onSave, onCancel }) {
           {renderTabContent()}
         </div>
       </div>
+      {/* Engine Install Modal triggered from within the form */}
+      {engineInstallTarget && (
+        <EngineInstallModal
+          engine={engineInstallTarget}
+          onSkip={() => setEngineInstallTarget(null)}
+          onInstall={() => {
+            // Refresh engine status after install
+            setEngineInstallTarget(null);
+            (async () => {
+              try {
+                const chromiumData = await window.electronAPI.checkBrowserStatus('chromium');
+                const firefoxData = await window.electronAPI.checkBrowserStatus('firefox');
+                setEngineStatus({ chromium: chromiumData, firefox: firefoxData });
+              } catch { }
+            })();
+          }}
+        />
+      )}
     </div>
   );
 }

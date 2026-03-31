@@ -1,4 +1,4 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const { chromium } = require('playwright');
 const { appendLog } = require('../logging/logger');
 const { storageStatePath, getDataRoot } = require('../storage/paths');
@@ -197,12 +197,18 @@ async function launchProfileInternal(profileId, options = {}) {
       return { success: true, wsEndpoint };
     }
 
-    // Playwright flow — rebrowser-playwright chromium.launch() (pipe mode).
+    // Playwright flow — rebrowser-playwright (pipe mode).
     // rebrowser-playwright patches CDP leak at network level (Runtime.enable, bindings).
     // Combined with safeMode ON (no JS Object.defineProperty overrides), this bypasses
     // Cloudflare enterprise WAF.
+    const engineMode = settings.engine || 'playwright';
+    const isFirefox = engineMode === 'playwright-firefox' || engineMode === 'firefox';
+    const { chromium, firefox } = require('playwright-core');
+    const pwEngine = isFirefox ? firefox : chromium;
+
     const fp = profile.fingerprint || {};
-    const args = [
+    const args = isFirefox ? [] : [
+      '--lang=en-US',
       '--disable-blink-features=AutomationControlled',
       '--disable-features=AutomationControlled',
       '--disable-infobars',
@@ -221,13 +227,23 @@ async function launchProfileInternal(profileId, options = {}) {
       '--export-tagged-pdf',
       '--disable-features=TranslateUI',
     ];
-    if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
-      args.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
+    // Window size (Chromium flags only)
+    if (!isFirefox && settings.windowWidth > 0 && settings.windowHeight > 0) {
+      args.push(`--window-size=${settings.windowWidth},${settings.windowHeight}`);
+    } else if (!isFirefox && settings.windowWidth === 0 && settings.windowHeight === 0) {
+      args.push('--start-maximized');
     }
-    if (settings.webgl === false || fp.webgl === false) { args.push('--disable-3d-apis'); }
+    if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
+      if (!isFirefox) args.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
+    }
+    if (settings.webgl === false || fp.webgl === false) { if (!isFirefox) args.push('--disable-3d-apis'); }
     const permissions = [];
-    if (settings.mediaDevices?.audio) permissions.push('microphone');
-    if (settings.mediaDevices?.video) permissions.push('camera');
+    // Firefox only supports 'geolocation' and 'notifications' — skip microphone/camera for Firefox
+    if (!isFirefox) {
+      if (settings.mediaDevices?.audio) permissions.push('microphone');
+      if (settings.mediaDevices?.video) permissions.push('camera');
+    }
+    // Grant geolocation permission only when we intend to override and have valid coords
     try {
       const apply = (settings && settings.applyOverrides) || {};
       const applyGeo = apply.geolocation !== false;
@@ -262,34 +278,58 @@ async function launchProfileInternal(profileId, options = {}) {
         proxy = { server: serverUrl };
       }
     }
-    // Launch via rebrowser-playwright pipe mode (no external WS server)
+    // Launch via rebrowser-playwright pipe mode (no external WS server) or Firefox
     let browser;
-    try { browser = await chromium.launch({ headless, args, proxy }); }
+    let server;
+    try { 
+      if (isFirefox) {
+        server = await pwEngine.launchServer({ headless, args, proxy });
+        browser = await pwEngine.connect(server.wsEndpoint());
+      } else {
+        browser = await pwEngine.launch({ headless, args, proxy }); 
+      }
+    }
     catch (e) {
       const msg = e?.message || String(e);
       appendLog(profileId, `Playwright launch failed: ${msg}`);
       if (/playwright\s+install|executable|not\s+found|Please run/i.test(msg)) {
-        appendLog(profileId, 'Attempting auto-install playwright browsers (chromium)...');
-        const ok = await runPlaywrightInstall('chromium');
+        const bname = isFirefox ? 'firefox' : 'chromium';
+        appendLog(profileId, `Attempting auto-install playwright browsers (${bname})...`);
+        const ok = await runPlaywrightInstall(bname);
         if (!ok) { try { await forwarder?.stop?.(); } catch {} return { success: false, error: 'Playwright browsers not installed.' }; }
-        browser = await chromium.launch({ headless, args, proxy });
+        if (isFirefox) {
+          server = await pwEngine.launchServer({ headless, args, proxy });
+          browser = await pwEngine.connect(server.wsEndpoint());
+        } else {
+          browser = await pwEngine.launch({ headless, args, proxy });
+        }
       } else { try { await forwarder?.stop?.(); } catch {} throw e; }
     }
-    const wsEndpoint = null; // pipe mode — no external WS endpoint
-    appendLog(profileId, 'Launched Playwright browser (pipe mode, no external WS)');
+    const wsEndpoint = isFirefox ? server.wsEndpoint() : null; // pipe mode for chromium
+    appendLog(profileId, `Launched Playwright ${isFirefox ? 'Firefox server: ' + wsEndpoint : 'browser (pipe mode, no external WS)'}`);
+    
     // safeMode: true (default) → skip CDP emulation commands (userAgent, locale,
     // timezone, geolocation) that Cloudflare enterprise detects.
     // Only viewport and proxy are safe because they don't use CDP Emulation APIs.
     const safeMode = settings?.safeMode !== false; // default ON
-    // Build context options
     const apply = (settings && settings.applyOverrides) || {};
     const applyUA = !safeMode && apply.userAgent !== false;
     const applyLang = !safeMode && apply.language !== false;
     const applyTz = !safeMode && apply.timezone !== false;
     const applyViewport = apply.viewport !== false; // viewport is safe even in safeMode
     const applyGeo = !safeMode && apply.geolocation !== false;
-    const contextOptions = { proxy };
-    if (applyLang) contextOptions.locale = fp.language || settings.language || 'en-US';
+    const contextOptions = { proxy, extraHTTPHeaders: {} };
+    
+    if (applyLang) {
+      const spoofLang = fp.language || settings.language || 'en-US';
+      contextOptions.locale = spoofLang;
+      const langBase = spoofLang.split('-')[0];
+      if (spoofLang.toLowerCase().startsWith('en')) {
+        contextOptions.extraHTTPHeaders['Accept-Language'] = `${spoofLang},en;q=0.9`;
+      } else {
+        contextOptions.extraHTTPHeaders['Accept-Language'] = `${spoofLang},${langBase};q=0.9,en;q=0.8`;
+      }
+    }
     if (applyTz) contextOptions.timezoneId = fp.timezone || settings.timezone || 'UTC';
     if (applyUA && fp.userAgent) {
       contextOptions.userAgent = fp.userAgent;
@@ -337,7 +377,9 @@ async function launchProfileInternal(profileId, options = {}) {
       await injectMouseTracker(context);
     } catch {}
     const { loadSessionTabs, saveSessionTabs } = require('../storage/sessionTabs');
-    const savedTabs = loadSessionTabs(profileId);
+    const rawSavedTabs = loadSessionTabs(profileId);
+    // Only restore valid http/https URLs — filter out about:blank, en-us, and other garbage
+    const savedTabs = (rawSavedTabs || []).filter(u => typeof u === 'string' && /^https?:\/\//i.test(u));
     let page;
     if (savedTabs && savedTabs.length > 0) {
       appendLog(profileId, `Restoring ${savedTabs.length} saved tabs...`);
@@ -354,7 +396,13 @@ async function launchProfileInternal(profileId, options = {}) {
         }
       }
     } else {
-      page = await context.newPage();
+      // Reuse the default tab that Playwright opens (avoids double-tab on Firefox)
+      const existingPages = context.pages();
+      if (existingPages && existingPages.length > 0) {
+        page = existingPages[0];
+      } else {
+        page = await context.newPage();
+      }
       try {
         const { navigateWithRetry, installBlockDetector } = require('../engine/blockedPageDetector');
         const navResult = await navigateWithRetry(page, startUrl, profileId, {
@@ -419,7 +467,7 @@ async function launchProfileInternal(profileId, options = {}) {
     };
     try { for (const p of context.pages()) { p.on('close', onPageClose); } } catch {}
     context.on('page', (newPage) => { try { newPage.on('close', onPageClose); } catch {} });
-    runningProfiles.set(profileId, { engine: 'playwright', browser, context, wsEndpoint, forwarder });
+    runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder });
     broadcastRunningMap();
     // Post-launch automation script (if configured)
     try { await runAutomationPostLaunch(profile, { engine: 'playwright', wsEndpoint, context, browser }); } catch (e) { appendLog(profileId, `Automation post-launch error: ${e?.message || e}`); }
