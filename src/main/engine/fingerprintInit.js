@@ -434,11 +434,97 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
 
   // ═══════════════════════════════════════════════════════════════════════
   // 7. AUDIOCONTEXT fingerprint noise
-  //    DISABLED: Overriding AnalyserNode.prototype and AudioBuffer.prototype
-  //    is detected by Cloudflare enterprise as prototype tampering.
-  //    Audio fingerprinting is a minor vector; not worth the detection risk.
+  //    Seeded noise on AnalyserNode frequency/time data — per-profile stable hash.
+  //    NOTE: Only runs when safeMode=false. Prototype patching detected by
+  //    Cloudflare Enterprise; safe for non-CF sites (YouTube, Facebook, Amazon).
   // ═══════════════════════════════════════════════════════════════════════
-  // if (applyAudio) { ... }
+  if (applyAudio) {
+    try {
+      await context.addInitScript(({ seed }) => {
+        try {
+          function mulberry32(a) {
+            return function () {
+              a |= 0; a = a + 0x6D2B79F5 | 0;
+              let t = Math.imul(a ^ a >>> 15, 1 | a);
+              t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+              return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            };
+          }
+
+          // Perturb Float32Array output — noise cực nhỏ, không nghe được
+          function perturbFloat32(array, rng) {
+            for (let i = 0; i < array.length; i++) {
+              if (array[i] !== 0) array[i] += (rng() - 0.5) * 0.0001;
+            }
+          }
+
+          // Perturb Uint8Array output — ±1 trên một số phần tử thưa
+          function perturbUint8(array, rng) {
+            for (let i = 0; i < array.length; i += 4) {
+              const delta = rng() < 0.5 ? -1 : 1;
+              const v = array[i] + delta;
+              array[i] = v < 0 ? 0 : v > 255 ? 255 : v;
+            }
+          }
+
+          if (typeof AnalyserNode !== 'undefined') {
+            const rng = mulberry32(seed + 9001);
+
+            const origGFFD = AnalyserNode.prototype.getFloatFrequencyData;
+            Object.defineProperty(AnalyserNode.prototype, 'getFloatFrequencyData', {
+              value: function (array) { origGFFD.apply(this, arguments); perturbFloat32(array, rng); },
+              configurable: true,
+            });
+
+            const origGBFD = AnalyserNode.prototype.getByteFrequencyData;
+            Object.defineProperty(AnalyserNode.prototype, 'getByteFrequencyData', {
+              value: function (array) { origGBFD.apply(this, arguments); perturbUint8(array, rng); },
+              configurable: true,
+            });
+
+            const origGFTD = AnalyserNode.prototype.getFloatTimeDomainData;
+            Object.defineProperty(AnalyserNode.prototype, 'getFloatTimeDomainData', {
+              value: function (array) { origGFTD.apply(this, arguments); perturbFloat32(array, rng); },
+              configurable: true,
+            });
+
+            const origGBTD = AnalyserNode.prototype.getByteTimeDomainData;
+            Object.defineProperty(AnalyserNode.prototype, 'getByteTimeDomainData', {
+              value: function (array) { origGBTD.apply(this, arguments); perturbUint8(array, rng); },
+              configurable: true,
+            });
+          }
+
+          // Spoof AudioContext.sampleRate — headless Chrome luôn là 44100,
+          // real hardware thường 48000. Seed quyết định mỗi profile ra giá trị nào.
+          if (typeof AudioContext !== 'undefined') {
+            const rng2 = mulberry32(seed + 9002);
+            const spoofRate = rng2() > 0.5 ? 48000 : 44100;
+            const OrigAC = window.AudioContext;
+            const OrigOAC = window.OfflineAudioContext;
+
+            function PatchedAudioContext(opts) {
+              const inst = opts ? new OrigAC(opts) : new OrigAC();
+              Object.defineProperty(inst, 'sampleRate', { get: () => spoofRate, configurable: true });
+              return inst;
+            }
+            PatchedAudioContext.prototype = OrigAC.prototype;
+            try { Object.defineProperty(window, 'AudioContext', { value: PatchedAudioContext, configurable: true, writable: true }); } catch {}
+
+            if (OrigOAC) {
+              function PatchedOfflineAudioContext(ch, len, sr) {
+                const inst = new OrigOAC(ch, len, sr);
+                Object.defineProperty(inst, 'sampleRate', { get: () => sr || spoofRate, configurable: true });
+                return inst;
+              }
+              PatchedOfflineAudioContext.prototype = OrigOAC.prototype;
+              try { Object.defineProperty(window, 'OfflineAudioContext', { value: PatchedOfflineAudioContext, configurable: true, writable: true }); } catch {}
+            }
+          }
+        } catch {}
+      }, { seed: profileSeed });
+    } catch {}
+  }
 
   // ═══════════════════════════════════════════════════════════════════════
   // 8. CLIENTRECTS noise (element dimension fingerprinting)
