@@ -12,6 +12,9 @@ const {
   getProfileLogInternal,
   getCookiesInternal,
   importCookiesInternal,
+  deleteCookieInternal,
+  clearCookiesInternal,
+  editCookieInternal,
   getProfileWsInternal,
   getRunningMapInternal,
   getLocalesTimezonesInternal,
@@ -56,6 +59,9 @@ function registerIpcHandlers(extra = {}) {
   ipcMain.handle('get-profile-log', async (_e, profileId) => await getProfileLogInternal(profileId));
   ipcMain.handle('get-cookies', async (_e, profileId) => await getCookiesInternal(profileId));
   ipcMain.handle('import-cookies', async (_e, profileId, cookies) => await importCookiesInternal(profileId, cookies));
+  ipcMain.handle('delete-cookie', async (_e, profileId, cookie) => await deleteCookieInternal(profileId, cookie));
+  ipcMain.handle('clear-cookies', async (_e, profileId) => await clearCookiesInternal(profileId));
+  ipcMain.handle('edit-cookie', async (_e, profileId, cookie) => await editCookieInternal(profileId, cookie));
   ipcMain.handle('get-profile-ws', async (_e, profileId) => await getProfileWsInternal(profileId));
   ipcMain.handle('get-running-map', async () => await getRunningMapInternal());
   ipcMain.handle('get-locales-timezones', async () => await getLocalesTimezonesInternal());
@@ -75,48 +81,20 @@ function registerIpcHandlers(extra = {}) {
   ipcMain.handle('presets-add', async (_e, preset) => await addPresetInternal(preset || {}));
   ipcMain.handle('presets-delete', async (_e, id) => await deletePresetInternal(String(id)));
 
-  // Scripts CRUD
+  // Scripts management
   ipcMain.handle('scripts-list', async () => await listScriptsInternal());
-  ipcMain.handle('scripts-get', async (_e, id) => await getScriptInternal(String(id)));
-  ipcMain.handle('scripts-save', async (_e, script) => await saveScriptInternal(script || {}));
-  ipcMain.handle('scripts-delete', async (_e, id) => await deleteScriptInternal(String(id)));
-  ipcMain.handle('scripts-execute', async (_e, profileId, scriptId, opts = {}) => {
-    try {
-      const g = await getScriptInternal(String(scriptId));
-      if (!g.success) return g;
-      const startedAt = new Date().toISOString();
-      const result = await executeScript(String(profileId), String(g.script.code || ''), { timeoutMs: Number(opts.timeoutMs || 120000) });
-      const finishedAt = new Date().toISOString();
-      // Save task log
-      try {
-        await addTaskLog({
-          scriptId: String(scriptId),
-          scriptName: g.script.name || '(untitled)',
-          profileId: String(profileId),
-          status: result.success ? 'completed' : 'error',
-          startedAt,
-          finishedAt,
-          logs: result.logs || [],
-          error: result.error || null,
-        });
-      } catch {}
-      return result;
-    } catch (e) { return { success: false, error: e?.message || String(e) }; }
+  ipcMain.handle('scripts-get', async (_e, id) => await getScriptInternal(id));
+  ipcMain.handle('scripts-save', async (_e, script) => await saveScriptInternal(script));
+  ipcMain.handle('scripts-delete', async (_e, id) => await deleteScriptInternal(id));
+  ipcMain.handle('scripts-execute', async (_e, profileId, scriptId, opts) => {
+    try { return await executeScript(profileId, scriptId, opts || {}); }
+    catch (e) { return { success: false, error: e?.message || String(e) }; }
   });
 
   // Task logs
-  ipcMain.handle('task-logs-list', async () => {
-    try { return await getTaskLogs(); }
-    catch (e) { return []; }
-  });
-  ipcMain.handle('task-logs-get', async (_e, id) => {
-    try { return await getTaskLogById(String(id)); }
-    catch (e) { return { success: false, error: e?.message || String(e) }; }
-  });
-  ipcMain.handle('task-logs-clear', async () => {
-    try { return await clearTaskLogs(); }
-    catch (e) { return { success: false, error: e?.message || String(e) }; }
-  });
+  ipcMain.handle('task-logs-list', async () => getTaskLogs());
+  ipcMain.handle('task-logs-get', async (_e, id) => getTaskLogById(id));
+  ipcMain.handle('task-logs-clear', async () => clearTaskLogs());
 
   // Proxy management
   ipcMain.handle('proxy-get-all', async () => await getProxiesInternal());

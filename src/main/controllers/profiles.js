@@ -8,6 +8,29 @@ const { applyCdpOverrides } = require('../engine/cdpOverrides');
 const { findFreePort, fetchJsonVersion, killProcessTreeWin, userDataDirFor, launchChromeCdp } = require('../engine/cdp');
 const { readProfiles, writeProfiles } = require('../storage/profiles');
 
+// Build correct Sec-CH-UA brands for a given Chrome major version.
+// Chrome rotates the "Not A Brand" string every few versions.
+function buildSecChUaBrands(major) {
+  const m = Number(major);
+  // Brand rotation pattern based on real Chrome releases
+  let notABrand;
+  if (m >= 135) notABrand = { brand: 'Not?A_Brand', version: '99' };
+  else if (m >= 131) notABrand = { brand: 'Not)A;Brand', version: '99' };
+  else if (m >= 125) notABrand = { brand: 'Not/A)Brand', version: '8' };
+  else notABrand = { brand: 'Not_A Brand', version: '24' };
+  return {
+    brands: [notABrand, { brand: 'Chromium', version: String(m) }, { brand: 'Google Chrome', version: String(m) }],
+    header: `"${notABrand.brand}";v="${notABrand.version}", "Chromium";v="${m}", "Google Chrome";v="${m}"`,
+  };
+}
+
+function buildPlatformFromAdvanced(advSettings) {
+  const p = (advSettings?.platform || '');
+  if (p.includes('Mac')) return 'macOS';
+  if (p.includes('Linux')) return 'Linux';
+  return 'Windows';
+}
+
 async function runPlaywrightInstall(browser = 'chromium') {
   appendLog('system', `Running Playwright install for ${browser}...`);
   return new Promise((resolve) => {
@@ -264,6 +287,18 @@ async function launchProfileInternal(profileId, options = {}) {
         proxy = { server: serverUrl };
       }
     }
+    const launchOpts = {
+      headless,
+      args,
+      proxy,
+      // Remove Playwright's default flags that expose automation
+      ignoreDefaultArgs: [
+        '--enable-automation',           // Sets navigator.webdriver=true
+        '--disable-extensions',          // Real Chrome has extensions enabled
+        '--disable-default-apps',        // Real Chrome has default apps
+        '--disable-component-extensions-with-background-pages',
+      ],
+    };
     let server;
     try { server = await pwEngine.launchServer({ headless, args, proxy }); }
     catch (e) {
@@ -301,7 +336,25 @@ async function launchProfileInternal(profileId, options = {}) {
       }
     }
     if (applyTz) contextOptions.timezoneId = fp.timezone || settings.timezone || 'UTC';
-    if (applyUA && fp.userAgent) contextOptions.userAgent = fp.userAgent;
+
+    if (applyUA && fp.userAgent) {
+      contextOptions.userAgent = fp.userAgent;
+      try {
+        const vMatch = fp.userAgent.match(/Chrome\/(\d+)\.(\d+)\.(\d+)\.(\d+)/);
+        if (vMatch) {
+          const major = vMatch[1];
+          const full = `${vMatch[1]}.${vMatch[2]}.${vMatch[3]}.${vMatch[4]}`;
+          const plat = buildPlatformFromAdvanced(settings.advanced);
+          const chUa = buildSecChUaBrands(major);
+          Object.assign(contextOptions.extraHTTPHeaders, {
+            'sec-ch-ua': chUa.header,
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': `"${plat}"`,
+            'sec-ch-ua-full-version-list': chUa.brands.map(b => `"${b.brand}";v="${b.brand === 'Chromium' || b.brand === 'Google Chrome' ? full : b.version + '.0.0.0'}"`).join(', '),
+          });
+        }
+      } catch {}
+    }
     // Apply viewport and device scale like CDP DeviceMetricsOverride
     try {
       if (applyViewport) {
@@ -328,6 +381,13 @@ async function launchProfileInternal(profileId, options = {}) {
       const { applyFingerprintInitScripts } = require('../engine/fingerprintInit');
       await applyFingerprintInitScripts(context, profile, settings);
     } catch {}
+
+    // Inject mouse position tracker for behavior simulator
+    try {
+      const { injectMouseTracker } = require('../engine/behaviorSimulator');
+      await injectMouseTracker(context);
+    } catch {}
+
     const { loadSessionTabs, saveSessionTabs } = require('../storage/sessionTabs');
     const rawSavedTabs = loadSessionTabs(profileId);
     // Only restore valid http/https URLs — filter out about:blank, en-us, and other garbage
@@ -368,9 +428,22 @@ async function launchProfileInternal(profileId, options = {}) {
         } catch (retryErr) {
           appendLog(profileId, `Second navigation attempt failed: ${retryErr?.message || retryErr}. Browser is open but page not loaded.`);
         }
+        // Install ongoing block detection for future navigations
+        try {
+          const { installBlockDetector } = require('../engine/blockedPageDetector');
+          installBlockDetector(page, profileId);
+        } catch {}
       }
       appendLog(profileId, `Opened page: ${startUrl}`);
     }
+
+    // Install block detector on all new pages opened in this context
+    context.on('page', (newPage) => {
+      try {
+        const { installBlockDetector } = require('../engine/blockedPageDetector');
+        installBlockDetector(newPage, profileId);
+      } catch {}
+    });
 
     const saveState = async () => {
       try {
@@ -474,6 +547,41 @@ async function runAutomationPostLaunch(profile, launchCtx) {
         case 'screenshot': {
           // Optional future implementation; currently no-op except log
           appendLog(profileId, 'Automation: screenshot step (not yet implemented)');
+          break;
+        }
+        case 'behavior': {
+          // Human-like behavior simulation step
+          // Supported types: browse, scroll, idle, click, type
+          try {
+            const behavior = require('../engine/behaviorSimulator');
+            const seed = (profileId || '').split('').reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0);
+            const rng = behavior.createRng(Math.abs(seed) + Date.now());
+            let page;
+            if (launchCtx.engine === 'playwright' && launchCtx.context) {
+              page = launchCtx.context.pages()[0];
+            } else if (launchCtx.engine === 'cdp') {
+              const { chromium } = require('playwright');
+              const browser = await chromium.connectOverCDP(launchCtx.wsEndpoint);
+              const ctx = browser.contexts()[0];
+              page = ctx?.pages()[0];
+            }
+            if (page) {
+              const behaviorType = step.behaviorType || 'browse';
+              switch (behaviorType) {
+                case 'browse': await behavior.simulateBrowsing(page, rng, step); break;
+                case 'scroll': await behavior.naturalScroll(page, rng, step); break;
+                case 'idle': await behavior.simulateIdle(page, rng, step); break;
+                case 'click': if (step.selector) await behavior.humanClick(page, rng, step.selector, step); break;
+                case 'type': if (step.selector && step.text) await behavior.humanType(page, rng, step.selector, step.text, step); break;
+                default: await behavior.simulateBrowsing(page, rng, step);
+              }
+              appendLog(profileId, `Automation: behavior simulation (${behaviorType})`);
+            } else {
+              appendLog(profileId, 'Automation: behavior step skipped — no page available');
+            }
+          } catch (e) {
+            appendLog(profileId, `Automation: behavior step failed: ${e?.message || e}`);
+          }
           break;
         }
         default:
@@ -584,7 +692,13 @@ async function getProfileLogInternal(profileId) { try { const p = require('path'
 
 async function getCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const cookies = await running.context.cookies(); return { success: true, cookies }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, cookies: state.cookies || [] }; } return { success: true, cookies: [] }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function importCookiesInternal(profileId, cookies) { try { if (!Array.isArray(cookies)) throw new Error('Invalid cookies payload'); if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies(cookies); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } state.cookies = cookies; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
+async function importCookiesInternal(profileId, cookies) { try { if (!Array.isArray(cookies)) throw new Error('Invalid cookies payload'); const validated = cookies.map(c => { if (!c.name || !c.value || !c.domain) throw new Error('Each cookie must have name, value, and domain'); return { name: String(c.name), value: String(c.value), domain: String(c.domain), path: String(c.path || '/'), expires: c.expires ? Number(c.expires) : -1, httpOnly: !!c.httpOnly, secure: !!c.secure, sameSite: ['Strict','Lax','None'].includes(c.sameSite) ? c.sameSite : 'Lax' }; }); if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies(validated); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true, count: validated.length }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; for (const nc of validated) { const idx = existing.findIndex(e => e.name === nc.name && e.domain === nc.domain && e.path === nc.path); if (idx >= 0) existing[idx] = nc; else existing.push(nc); } state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true, count: validated.length }; } catch (error) { return { success: false, error: error.message }; } }
+
+async function deleteCookieInternal(profileId, { name, domain, path: cookiePath }) { try { if (!name || !domain) throw new Error('name and domain are required'); const targetPath = cookiePath || '/'; if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies([{ name, domain, path: targetPath, value: '', expires: 0 }]); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); if (!fs.existsSync(statePath)) return { success: true }; const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); state.cookies = (state.cookies || []).filter(c => !(c.name === name && c.domain === domain && (c.path || '/') === targetPath)); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
+
+async function clearCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.clearCookies(); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); state.cookies = []; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); } return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
+
+async function editCookieInternal(profileId, cookie) { try { if (!cookie || !cookie.name || !cookie.domain) throw new Error('cookie with name and domain is required'); const validated = { name: String(cookie.name), value: String(cookie.value || ''), domain: String(cookie.domain), path: String(cookie.path || '/'), expires: cookie.expires ? Number(cookie.expires) : -1, httpOnly: !!cookie.httpOnly, secure: !!cookie.secure, sameSite: ['Strict','Lax','None'].includes(cookie.sameSite) ? cookie.sameSite : 'Lax' }; if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies([validated]); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; const idx = existing.findIndex(e => e.name === validated.name && e.domain === validated.domain && (e.path || '/') === validated.path); if (idx >= 0) existing[idx] = validated; else existing.push(validated); state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function getStorageStateInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const state = await running.context.storageState(); return { success: true, state }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, state }; } return { success: true, state: { cookies: [], origins: [] } }; } catch (error) { return { success: false, error: error.message }; } }
 

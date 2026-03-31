@@ -102,9 +102,10 @@ async function installBrowser(browserName) {
         try {
             // Do NOT set PLAYWRIGHT_BROWSERS_PATH — let Playwright install to its default location
             // (C:\Users\...\AppData\Local\ms-playwright) which is the same place it looks when launching.
+            // Do NOT set PLAYWRIGHT_DOWNLOAD_HOST — Playwright v1.58+ uses cdn.playwright.dev with
+            // a new URL format (cft/ builds) that third-party mirrors don't support.
             const env = Object.assign({}, process.env, {
                 ELECTRON_RUN_AS_NODE: '1',
-                PLAYWRIGHT_DOWNLOAD_HOST: 'https://npmmirror.com/mirrors/playwright/'
             });
 
             // Resolve playwright CLI

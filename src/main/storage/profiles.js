@@ -4,33 +4,48 @@ const crypto = require('crypto');
 const { profilesFilePath, storageStatePath, getDataRoot } = require('./paths');
 const { appendLog } = require('../logging/logger');
 
-// Minimal defaults to prevent wiping nested structures on partial saves
-const DEFAULT_FINGERPRINT = {
+// Generate a fresh random fingerprint for each new profile
+function generateDefaultFingerprint() {
+  try {
+    const { generateFingerprint } = require('../engine/fingerprintGenerator');
+    const result = generateFingerprint();
+    return { fingerprint: result.fingerprint, settings: result.settings };
+  } catch (e) {
+    appendLog('system', `Fingerprint generator fallback: ${e.message}`);
+    // Fallback if generator fails
+    return { fingerprint: FALLBACK_FINGERPRINT, settings: FALLBACK_SETTINGS };
+  }
+}
+
+// Static fallback only used if fingerprintGenerator.js fails to load
+const FALLBACK_FINGERPRINT = {
   os: 'Windows',
   browser: 'Chrome',
-  browserVersion: '120.0.0.0',
-  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  language: 'vi-VN',
+  browserVersion: '136.0.7103.93',
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.7103.93 Safari/537.36',
+  language: 'en-US',
   screenResolution: '1920x1080',
-  timezone: 'Asia/Ho_Chi_Minh',
+  timezone: 'America/New_York',
   webgl: true,
   canvas: true,
   audio: true,
 };
 
-const DEFAULT_SETTINGS = {
-  cpuCores: 4,
-  memoryGB: 8,
+const FALLBACK_SETTINGS = {
+  cpuCores: 8,
+  memoryGB: 16,
   proxy: { server: '', username: '', password: '' },
-  language: 'vi-VN',
-  timezone: 'Asia/Ho_Chi_Minh',
+  language: 'en-US',
+  timezone: 'America/New_York',
   webrtc: 'default',
   geolocation: { enabled: false, latitude: 0, longitude: 0, accuracy: 50 },
   mediaDevices: { audio: true, video: true },
   webgl: true,
   headless: false,
   engine: 'playwright',
-  // Explicit default override toggles (default: on)
+  network: {
+    antiDetection: false,
+  },
   applyOverrides: {
     hardware: true,
     navigator: true,
@@ -40,19 +55,44 @@ const DEFAULT_SETTINGS = {
     timezone: true,
     viewport: true,
     geolocation: true,
+    antiDetection: false,
   },
-  // CDP init script toggle (default on)
   cdpApplyInitScript: true,
   advanced: {
     platform: 'Win32',
     dnt: false,
     devicePixelRatio: 1,
     maxTouchPoints: 0,
-    webglVendor: '',
-    webglRenderer: '',
-    plugins: 3,
-    languages: '',
+    webglVendor: 'Google Inc. (NVIDIA)',
+    webglRenderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)',
+    plugins: 5,
+    languages: 'en-US,en',
   },
+};
+
+const DEFAULT_SETTINGS = {
+  proxy: { server: '', username: '', password: '' },
+  webrtc: 'default',
+  geolocation: { enabled: false, latitude: 0, longitude: 0, accuracy: 50 },
+  mediaDevices: { audio: true, video: true },
+  webgl: true,
+  headless: false,
+  engine: 'playwright',
+  network: {
+    antiDetection: false,
+  },
+  applyOverrides: {
+    hardware: true,
+    navigator: true,
+    userAgent: true,
+    webgl: true,
+    language: true,
+    timezone: true,
+    viewport: true,
+    geolocation: true,
+    antiDetection: false,
+  },
+  cdpApplyInitScript: true,
 };
 
 // Automation defaults: simple, explicit opt-in
@@ -107,10 +147,11 @@ function validateProfileInputBasic(p) {
 
 function normalizeProfileInput(input = {}, existing = null) {
   const base = existing || {};
+  const isNewProfile = !existing || !existing.id;
   const name = (input.name != null ? String(input.name) : String(base.name || ''))?.trim();
   const description = input.description != null ? String(input.description) : (base.description || '');
   const startUrl = normalizeStartUrl(input.startUrl || base.startUrl || 'https://www.google.com');
-  const fingerprint = deepMerge(DEFAULT_FINGERPRINT, deepMerge(base.fingerprint || {}, input.fingerprint || {}));
+  const fingerprint = deepMerge(FALLBACK_FINGERPRINT, deepMerge(base.fingerprint || {}, input.fingerprint || {}));
   const settings = deepMerge(DEFAULT_SETTINGS, deepMerge(base.settings || {}, input.settings || {}));
   if (!settings.engine || settings.engine === 'auto') {
     const { resolveChromeExecutable } = require('./settings');
@@ -122,7 +163,7 @@ function normalizeProfileInput(input = {}, existing = null) {
   }
   const automation = deepMerge(DEFAULT_AUTOMATION, deepMerge(base.automation || {}, input.automation || {}));
   const active = (input.active != null) ? !!input.active : (base.active != null ? !!base.active : true);
-  const id = input.id || base.id; // do not generate here
+  const id = input.id || base.id;
   return { id, name, description, startUrl, active, fingerprint, settings, automation };
 }
 

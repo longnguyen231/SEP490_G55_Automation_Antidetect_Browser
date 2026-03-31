@@ -78,6 +78,17 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   appx.post('/api/profiles/:id/cookies', async (req, res) => {
     const r = await handlers.importCookiesInternal(req.params.id, req.body || []); res.json(r);
   });
+  appx.put('/api/profiles/:id/cookies', async (req, res) => {
+    const r = await handlers.editCookieInternal(req.params.id, req.body || {}); res.json(r);
+  });
+  appx.delete('/api/profiles/:id/cookies', async (req, res) => {
+    const { name, domain, path: p } = req.query || {};
+    if (name && domain) {
+      const r = await handlers.deleteCookieInternal(req.params.id, { name, domain, path: p }); res.json(r);
+    } else {
+      const r = await handlers.clearCookiesInternal(req.params.id); res.json(r);
+    }
+  });
 
   // Logs and clone
   appx.get('/api/profiles/:id/log', async (req, res) => {
@@ -228,6 +239,122 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   // Locales/timezones
   appx.get('/api/locales-timezones', async (_req, res) => {
     const r = await handlers.getLocalesTimezonesInternal(); res.json(r);
+  });
+
+  // ── Fingerprint Generator ──
+  // Generate a random fingerprint (optionally constrained by os/language/timezone)
+  appx.post('/api/fingerprint/generate', async (req, res) => {
+    try {
+      const { generateFingerprint } = require('../engine/fingerprintGenerator');
+      const opts = req.body || {};
+      const result = generateFingerprint({
+        os: opts.os,
+        language: opts.language,
+        timezone: opts.timezone,
+        seed: opts.seed ? Number(opts.seed) : undefined,
+      });
+      res.json({ success: true, ...result });
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+
+  // Generate multiple fingerprints at once
+  appx.post('/api/fingerprint/generate-batch', async (req, res) => {
+    try {
+      const { generateBatch } = require('../engine/fingerprintGenerator');
+      const count = Math.min(50, Math.max(1, Number(req.body?.count || 1)));
+      const opts = req.body || {};
+      const results = generateBatch(count, { os: opts.os, language: opts.language, timezone: opts.timezone });
+      res.json({ success: true, count: results.length, fingerprints: results });
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+
+  // ── Behavior Simulator ──
+  // Execute a behavior simulation on a running profile
+  appx.post('/api/profiles/:id/behavior/simulate', async (req, res) => {
+    try {
+      const profileId = req.params.id;
+      const { runningProfiles } = require('../state/runtime');
+      const running = runningProfiles.get(profileId);
+      if (!running) return res.status(404).json({ success: false, error: 'Profile not running' });
+      if (running.engine !== 'playwright' || !running.context) {
+        return res.status(400).json({ success: false, error: 'Behavior simulation requires Playwright engine with active context' });
+      }
+      const pages = running.context.pages();
+      const pageIndex = Number(req.body?.pageIndex || 0);
+      const page = pages[pageIndex] || pages[0];
+      if (!page) return res.status(400).json({ success: false, error: 'No page available' });
+
+      const behavior = require('../engine/behaviorSimulator');
+      const seed = (profileId || 'default').split('').reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0);
+      const rng = behavior.createRng(Math.abs(seed) + Date.now());
+
+      const action = req.body?.action || 'browse';
+      const opts = req.body?.options || {};
+
+      switch (action) {
+        case 'browse':
+          await behavior.simulateBrowsing(page, rng, opts);
+          break;
+        case 'scroll':
+          await behavior.naturalScroll(page, rng, opts);
+          break;
+        case 'move':
+          await behavior.moveMouseCurved(page, rng, opts.x || 500, opts.y || 300, opts);
+          break;
+        case 'click':
+          if (!opts.selector) return res.status(400).json({ success: false, error: 'selector is required for click action' });
+          await behavior.humanClick(page, rng, opts.selector, opts);
+          break;
+        case 'type':
+          if (!opts.selector || !opts.text) return res.status(400).json({ success: false, error: 'selector and text are required for type action' });
+          await behavior.humanType(page, rng, opts.selector, opts.text, opts);
+          break;
+        case 'idle':
+          await behavior.simulateIdle(page, rng, opts);
+          break;
+        default:
+          return res.status(400).json({ success: false, error: `Unknown action: ${action}` });
+      }
+
+      res.json({ success: true, action });
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+
+  // ── Blocked Page Detection ──
+  // Check if a running profile's current page is blocked
+  appx.get('/api/profiles/:id/blocked', async (req, res) => {
+    try {
+      const profileId = req.params.id;
+      const { runningProfiles } = require('../state/runtime');
+      const running = runningProfiles.get(profileId);
+      if (!running) return res.status(404).json({ success: false, error: 'Profile not running' });
+
+      const { detectBlockedPage } = require('../engine/blockedPageDetector');
+      let page;
+
+      if (running.engine === 'playwright' && running.context) {
+        const pages = running.context.pages();
+        page = pages[0];
+      } else if (running.engine === 'cdp' && running.cdpControl?.context) {
+        const pages = running.cdpControl.context.pages();
+        page = pages[0];
+      }
+
+      if (!page) return res.status(400).json({ success: false, error: 'No page available' });
+      const detection = await detectBlockedPage(page);
+      res.json({ success: true, ...detection });
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+
+  // ── Proxy Checker ──
+  appx.post('/api/proxy/check', async (req, res) => {
+    try {
+      const { checkProxy } = require('../services/ProxyChecker');
+      const cfg = req.body || {};
+      if (!cfg.host || !cfg.port) return res.status(400).json({ success: false, error: 'host and port are required' });
+      const result = await checkProxy(cfg);
+      res.json(result);
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
   });
 
   // OpenAPI + Swagger UI
