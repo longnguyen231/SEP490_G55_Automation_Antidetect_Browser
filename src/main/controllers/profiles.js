@@ -653,6 +653,105 @@ async function screenshotInternal(profileId, { index = 0, path: outPath, fullPag
 
 async function evalInternal(profileId, { index = 0, expression } = {}) { if (typeof expression !== 'string') return { success: false, error: 'expression must be a string' }; return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[index] || pages[0] || (await context.newPage()); const value = await page.evaluate(expr => { try { return eval(expr); } catch (e) { return { __error: true, message: e?.message || String(e) }; } }, expression); await cleanup(); if (value && value.__error) return { success: false, error: value.message }; return { success: true, value }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
 
+async function reloadPageInternal(profileId, { index = 0, timeout, waitUntil = 'load' } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[index] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const opts = { waitUntil }; if (timeout != null) opts.timeout = Number(timeout); await page.reload(opts); const title = await page.title().catch(() => ''); await cleanup(); return { success: true, url: page.url(), title }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
+
+async function goBackInternal(profileId, { index = 0, waitUntil = 'load' } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[index] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const response = await page.goBack({ waitUntil }); await cleanup(); return { success: true, url: page.url(), navigated: !!response }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
+
+async function goForwardInternal(profileId, { index = 0, waitUntil = 'load' } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[index] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const response = await page.goForward({ waitUntil }); await cleanup(); return { success: true, url: page.url(), navigated: !!response }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
+
+async function getPageInfoInternal(profileId, { index = 0 } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[Number(index)] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const [title, url] = await Promise.all([page.title().catch(() => ''), Promise.resolve(page.url())]); await cleanup(); return { success: true, url, title }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
+
+async function getPageContentInternal(profileId, { index = 0 } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[Number(index)] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const content = await page.content(); await cleanup(); return { success: true, content }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
+
+async function clickElementInternal(profileId, { selector, index = 0, button = 'left', clickCount = 1, delay } = {}) {
+  if (!selector) return { success: false, error: 'selector is required' };
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      const pages = context.pages();
+      const page = pages[Number(index)] || pages[0];
+      if (!page) { await cleanup(); return { success: false, error: 'No page available' }; }
+      const opts = { button, clickCount };
+      if (delay != null) opts.delay = Number(delay);
+      await page.click(selector, opts);
+      await cleanup();
+      return { success: true };
+    } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; }
+  });
+}
+
+async function doubleClickElementInternal(profileId, { selector, index = 0, delay } = {}) {
+  if (!selector) return { success: false, error: 'selector is required' };
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      const pages = context.pages();
+      const page = pages[Number(index)] || pages[0];
+      if (!page) { await cleanup(); return { success: false, error: 'No page available' }; }
+      const opts = {};
+      if (delay != null) opts.delay = Number(delay);
+      await page.dblclick(selector, opts);
+      await cleanup();
+      return { success: true };
+    } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; }
+  });
+}
+
+async function grantPermissionsInternal(profileId, { permissions = [], origin } = {}) {
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      await context.grantPermissions(permissions, origin ? { origin } : undefined);
+      await cleanup();
+      return { success: true };
+    } catch (e) {
+      await cleanup();
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+}
+
+async function clearPermissionsInternal(profileId) {
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      await context.clearPermissions();
+      await cleanup();
+      return { success: true };
+    } catch (e) {
+      await cleanup();
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+}
+
+async function setExtraHTTPHeadersInternal(profileId, { headers } = {}) {
+  if (!headers || typeof headers !== 'object') return { success: false, error: 'headers must be an object' };
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      await context.setExtraHTTPHeaders(headers);
+      await cleanup();
+      return { success: true };
+    } catch (e) {
+      await cleanup();
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+}
+
+async function setGeolocationInternal(profileId, { latitude, longitude, accuracy } = {}) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { success: false, error: 'latitude and longitude are required numbers' };
+  const geo = { latitude: lat, longitude: lng, accuracy: Number(accuracy ?? 50) };
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      await context.setGeolocation(geo);
+      await cleanup();
+      return { success: true, geolocation: geo };
+    } catch (e) {
+      await cleanup();
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+}
+
 async function getProfileLogInternal(profileId) { try { const p = require('path').join(getDataRoot(), 'logs', `${profileId}.log`); if (!fs.existsSync(p)) return { success: true, log: '' }; return { success: true, log: fs.readFileSync(p, 'utf8') }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function getCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const cookies = await running.context.cookies(); return { success: true, cookies }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, cookies: state.cookies || [] }; } return { success: true, cookies: [] }; } catch (error) { return { success: false, error: error.message }; } }
@@ -710,6 +809,17 @@ module.exports = {
   closePageInternal,
   screenshotInternal,
   evalInternal,
+  reloadPageInternal,
+  goBackInternal,
+  goForwardInternal,
+  getPageInfoInternal,
+  getPageContentInternal,
+  clickElementInternal,
+  doubleClickElementInternal,
+  grantPermissionsInternal,
+  clearPermissionsInternal,
+  setExtraHTTPHeadersInternal,
+  setGeolocationInternal,
   getProfileLogInternal,
   getCookiesInternal,
   importCookiesInternal,

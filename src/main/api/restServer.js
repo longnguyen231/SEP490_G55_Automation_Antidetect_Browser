@@ -89,29 +89,12 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
 
   // Browser control endpoints
   // Sample App Aliases mapping requested by user
-  appx.get('/api/browsers/:profileId/context/storage-state', async (req, res) => {
-    const r = await (handlers.getStorageStateInternal ? handlers.getStorageStateInternal(req.params.profileId) : { success: false, error: 'Not implemented' });
-    res.json(r);
-  });
-  appx.post('/api/browsers/:profileId/context/new-page', async (req, res) => {
-    const r = await handlers.newPageInternal(req.params.profileId, req.body || {});
-    res.json(r);
-  });
-  
-  appx.get('/api/profiles/:id/pages', async (req, res) => {
-    const r = await handlers.listPagesInternal(req.params.id); res.json(r);
-  });
+
   appx.post('/api/profiles/:id/navigate', async (req, res) => {
     const r = await handlers.navigateInternal(req.params.id, req.body || {}); res.json(r);
   });
-  appx.post('/api/profiles/:id/new-page', async (req, res) => {
-    const r = await handlers.newPageInternal(req.params.id, req.body || {}); res.json(r);
-  });
   appx.post('/api/profiles/:id/close-page', async (req, res) => {
     const r = await handlers.closePageInternal(req.params.id, req.body || {}); res.json(r);
-  });
-  appx.post('/api/profiles/:id/screenshot', async (req, res) => {
-    const r = await handlers.screenshotInternal(req.params.id, req.body || {}); res.json(r);
   });
   appx.post('/api/profiles/:id/eval', async (req, res) => {
     const r = await handlers.evalInternal(req.params.id, req.body || {}); res.json(r);
@@ -159,6 +142,68 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
       const result = await mouseWheel(req.params.id, req.body || {});
       res.status(result.success ? 200 : 500).json(result);
     } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+  appx.post('/api/profiles/:id/actions/reload', async (req, res) => {
+    const r = await handlers.reloadPageInternal(req.params.id, req.body || {});
+    res.status(r.success ? 200 : 500).json(r);
+  });
+  appx.post('/api/profiles/:id/actions/go-back', async (req, res) => {
+    const r = await handlers.goBackInternal(req.params.id, req.body || {});
+    res.status(r.success ? 200 : 500).json(r);
+  });
+  appx.post('/api/profiles/:id/actions/go-forward', async (req, res) => {
+    const r = await handlers.goForwardInternal(req.params.id, req.body || {});
+    res.status(r.success ? 200 : 500).json(r);
+  });
+  appx.get('/api/profiles/:id/actions/page-info', async (req, res) => {
+    const r = await handlers.getPageInfoInternal(req.params.id, req.query || {});
+    res.status(r.success ? 200 : 500).json(r);
+  });
+  appx.get('/api/profiles/:id/actions/content', async (req, res) => {
+    const r = await handlers.getPageContentInternal(req.params.id, req.query || {});
+    res.status(r.success ? 200 : 500).json(r);
+  });
+  appx.post('/api/profiles/:id/actions/screenshot', async (req, res) => {
+    const r = await handlers.screenshotInternal(req.params.id, req.body || {});
+    res.status(r.success ? 200 : 500).json(r);
+  });
+  appx.post('/api/profiles/:id/actions/click', async (req, res) => {
+    const r = await handlers.clickElementInternal(req.params.id, req.body || {});
+    res.status(r.success ? 200 : 500).json(r);
+  });
+  appx.post('/api/profiles/:id/actions/double-click', async (req, res) => {
+    const r = await handlers.doubleClickElementInternal(req.params.id, req.body || {});
+    res.status(r.success ? 200 : 500).json(r);
+  });
+
+  // Browser context actions
+  appx.get('/api/profiles/:id/context/storage-state', async (req, res) => {
+    const r = await (handlers.getStorageStateInternal ? handlers.getStorageStateInternal(req.params.id) : { success: false, error: 'Not implemented' });
+    res.json(r);
+  });
+  appx.post('/api/profiles/:id/context/new-page', async (req, res) => {
+    const r = await handlers.newPageInternal(req.params.id, req.body || {});
+    res.json(r);
+  });
+  appx.post('/api/profiles/:id/context/grant-permissions', async (req, res) => {
+    const r = await handlers.grantPermissionsInternal(req.params.id, req.body || {});
+    res.json(r);
+  });
+  appx.post('/api/profiles/:id/context/clear-permissions', async (req, res) => {
+    const r = await handlers.clearPermissionsInternal(req.params.id);
+    res.json(r);
+  });
+  appx.get('/api/profiles/:id/context/pages', async (req, res) => {
+    const r = await handlers.listPagesInternal(req.params.id);
+    res.json(r);
+  });
+  appx.post('/api/profiles/:id/context/extra-http-headers', async (req, res) => {
+    const r = await handlers.setExtraHTTPHeadersInternal(req.params.id, req.body || {});
+    res.json(r);
+  });
+  appx.post('/api/profiles/:id/context/geolocation', async (req, res) => {
+    const r = await handlers.setGeolocationInternal(req.params.id, req.body || {});
+    res.json(r);
   });
 
   // Generic action dispatcher and helpers
