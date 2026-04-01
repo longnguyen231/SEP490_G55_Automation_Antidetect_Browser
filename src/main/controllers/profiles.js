@@ -7,6 +7,7 @@ const { runningProfiles } = require('../state/runtime');
 const { applyCdpOverrides } = require('../engine/cdpOverrides');
 const { findFreePort, fetchJsonVersion, killProcessTreeWin, userDataDirFor, launchChromeCdp } = require('../engine/cdp');
 const { readProfiles, writeProfiles } = require('../storage/profiles');
+const { generateSecChUaString, resolvePlatformName } = require('../engine/client-hints-utils');
 
 async function runPlaywrightInstall(browser = 'chromium') {
   appendLog('system', `Running Playwright install for ${browser}...`);
@@ -196,15 +197,36 @@ async function launchProfileInternal(profileId, options = {}) {
       return { success: true, wsEndpoint };
     }
 
-    // Playwright flow
+    // Playwright flow — rebrowser-playwright (pipe mode).
+    // rebrowser-playwright patches CDP leak at network level (Runtime.enable, bindings).
+    // Combined with safeMode ON (no JS Object.defineProperty overrides), this bypasses
+    // Cloudflare enterprise WAF.
     const engineMode = settings.engine || 'playwright';
     const isFirefox = engineMode === 'playwright-firefox' || engineMode === 'firefox';
     const { chromium, firefox } = require('playwright-core');
     const pwEngine = isFirefox ? firefox : chromium;
 
     const fp = profile.fingerprint || {};
-    // Build launch args — separate Chrome-specific flags from Firefox-compatible ones
-    const args = isFirefox ? [] : ['--lang=en-US'];
+    const args = isFirefox ? [] : [
+      '--lang=en-US',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-features=AutomationControlled',
+      '--disable-infobars',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--disable-ipc-flooding-protection',
+      '--disable-hang-monitor',
+      '--disable-prompt-on-repost',
+      '--disable-domain-reliability',
+      '--disable-component-update',
+      '--metrics-recording-only',
+      '--no-service-autorun',
+      '--password-store=basic',
+      '--use-mock-keychain',
+      '--export-tagged-pdf',
+      '--disable-features=TranslateUI',
+    ];
     // Window size (Chromium flags only)
     if (!isFirefox && settings.windowWidth > 0 && settings.windowHeight > 0) {
       args.push(`--window-size=${settings.windowWidth},${settings.windowHeight}`);
@@ -229,16 +251,14 @@ async function launchProfileInternal(profileId, options = {}) {
       const wantGeo = Number.isFinite(Number(g.latitude)) && Number.isFinite(Number(g.longitude));
       if (applyGeo && wantGeo) permissions.push('geolocation');
     } catch {}
+    // Proxy handling
     let proxy;
     let forwarder = null;
     if (settings.proxy?.server) {
-      // Determine proxy type from settings
       const proxyType = (settings.proxy.type || '').toLowerCase();
       const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(settings.proxy.server);
       const hasAuth = !!(settings.proxy.username || settings.proxy.password);
-
       if (hasAuth || isSocks) {
-        // Use local forwarder for SOCKS or authenticated proxies
         try {
           const { startProxyForwarder } = require('../engine/proxyForwarder');
           forwarder = await startProxyForwarder(settings.proxy, { appendLog, profileId });
@@ -246,26 +266,29 @@ async function launchProfileInternal(profileId, options = {}) {
           appendLog(profileId, `Playwright using proxy forwarder: ${forwarder.url}`);
         } catch (e) {
           appendLog(profileId, `Proxy forwarder failed, falling back to direct: ${e?.message || e}`);
-          // Fallback: build proxy URL with correct scheme
           let serverUrl = settings.proxy.server;
-          if (!/^(https?|socks\d?):\/\//i.test(serverUrl)) {
-            serverUrl = `${isSocks ? 'socks5' : 'http'}://${serverUrl}`;
-          }
+          if (!/^(https?|socks\d?):\/\//i.test(serverUrl)) serverUrl = `${isSocks ? 'socks5' : 'http'}://${serverUrl}`;
           proxy = { server: serverUrl };
           if (settings.proxy.username) proxy.username = settings.proxy.username;
           if (settings.proxy.password) proxy.password = settings.proxy.password;
         }
       } else {
-        // Simple HTTP/HTTPS proxy without auth
         let serverUrl = settings.proxy.server;
-        if (!/^(https?|socks\d?):\/\//i.test(serverUrl)) {
-          serverUrl = `http://${serverUrl}`;
-        }
+        if (!/^(https?|socks\d?):\/\//i.test(serverUrl)) serverUrl = `http://${serverUrl}`;
         proxy = { server: serverUrl };
       }
     }
+    // Launch via rebrowser-playwright pipe mode (no external WS server) or Firefox
+    let browser;
     let server;
-    try { server = await pwEngine.launchServer({ headless, args, proxy }); }
+    try { 
+      if (isFirefox) {
+        server = await pwEngine.launchServer({ headless, args, proxy });
+        browser = await pwEngine.connect(server.wsEndpoint());
+      } else {
+        browser = await pwEngine.launch({ headless, args, proxy }); 
+      }
+    }
     catch (e) {
       const msg = e?.message || String(e);
       appendLog(profileId, `Playwright launch failed: ${msg}`);
@@ -274,25 +297,32 @@ async function launchProfileInternal(profileId, options = {}) {
         appendLog(profileId, `Attempting auto-install playwright browsers (${bname})...`);
         const ok = await runPlaywrightInstall(bname);
         if (!ok) { try { await forwarder?.stop?.(); } catch {} return { success: false, error: 'Playwright browsers not installed.' }; }
-        server = await pwEngine.launchServer({ headless, args, proxy });
+        if (isFirefox) {
+          server = await pwEngine.launchServer({ headless, args, proxy });
+          browser = await pwEngine.connect(server.wsEndpoint());
+        } else {
+          browser = await pwEngine.launch({ headless, args, proxy });
+        }
       } else { try { await forwarder?.stop?.(); } catch {} throw e; }
     }
-    const wsEndpoint = server.wsEndpoint();
-    const browser = await pwEngine.connect(wsEndpoint);
-    appendLog(profileId, `Launched Playwright ${isFirefox ? 'Firefox' : 'Chromium'} server: ${wsEndpoint}`);
+    const wsEndpoint = isFirefox ? server.wsEndpoint() : null; // pipe mode for chromium
+    appendLog(profileId, `Launched Playwright ${isFirefox ? 'Firefox server: ' + wsEndpoint : 'browser (pipe mode, no external WS)'}`);
+    
+    // safeMode: true (default) → skip CDP emulation commands (userAgent, locale,
+    // timezone, geolocation) that Cloudflare enterprise detects.
+    // Only viewport and proxy are safe because they don't use CDP Emulation APIs.
+    const safeMode = settings?.safeMode !== false; // default ON
     const apply = (settings && settings.applyOverrides) || {};
-    const applyUA = apply.userAgent !== false;
-    const applyLang = apply.language !== false;
-    const applyTz = apply.timezone !== false;
-    const applyViewport = apply.viewport !== false;
-    const applyGeo = apply.geolocation !== false;
+    const applyUA = !safeMode && apply.userAgent !== false;
+    const applyLang = !safeMode && apply.language !== false;
+    const applyTz = !safeMode && apply.timezone !== false;
+    const applyViewport = apply.viewport !== false; // viewport is safe even in safeMode
+    const applyGeo = !safeMode && apply.geolocation !== false;
     const contextOptions = { proxy, extraHTTPHeaders: {} };
+    
     if (applyLang) {
       const spoofLang = fp.language || settings.language || 'en-US';
-      // Use fingerprint language as locale — all signals must be consistent:
-      // navigator.language (JS), locale (Playwright), Accept-Language (header) must all match
       contextOptions.locale = spoofLang;
-      // Accept-Language: primary = fingerprint lang, secondary = en (fallback)
       const langBase = spoofLang.split('-')[0];
       if (spoofLang.toLowerCase().startsWith('en')) {
         contextOptions.extraHTTPHeaders['Accept-Language'] = `${spoofLang},en;q=0.9`;
@@ -301,18 +331,30 @@ async function launchProfileInternal(profileId, options = {}) {
       }
     }
     if (applyTz) contextOptions.timezoneId = fp.timezone || settings.timezone || 'UTC';
-    if (applyUA && fp.userAgent) contextOptions.userAgent = fp.userAgent;
-    // Apply viewport and device scale like CDP DeviceMetricsOverride
+    if (applyUA && fp.userAgent) {
+      contextOptions.userAgent = fp.userAgent;
+      try {
+        const vMatch = fp.userAgent.match(/Chrome\/(\d+)\.(\d+)\.(\d+)\.(\d+)/);
+        if (vMatch) {
+          const major = parseInt(vMatch[1], 10);
+          const advSettings = settings.advanced || {};
+          const plat = resolvePlatformName(advSettings.platform || '');
+          contextOptions.extraHTTPHeaders = Object.assign({}, contextOptions.extraHTTPHeaders || {}, {
+            'sec-ch-ua': generateSecChUaString(major),
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': `"${plat}"`,
+          });
+        }
+      } catch {}
+    }
     try {
       if (applyViewport) {
         const m = (fp.screenResolution || '').match(/^(\d+)x(\d+)$/);
-        if (m) {
-          contextOptions.viewport = { width: Math.max(1, parseInt(m[1], 10)), height: Math.max(1, parseInt(m[2], 10)) };
-        }
+        if (m) contextOptions.viewport = { width: Math.max(1, parseInt(m[1], 10)), height: Math.max(1, parseInt(m[2], 10)) };
         const dpr = Number((settings.advanced || {}).devicePixelRatio || 1);
         if (dpr > 0) contextOptions.deviceScaleFactor = dpr;
       }
-    } catch { }
+    } catch {}
     if (applyGeo && settings.geolocation && settings.geolocation.latitude != null && settings.geolocation.longitude != null) {
       contextOptions.geolocation = {
         latitude: Number(settings.geolocation.latitude),
@@ -321,18 +363,23 @@ async function launchProfileInternal(profileId, options = {}) {
       };
     }
     const statePath = storageStatePath(profileId);
-    if (fs.existsSync(statePath)) { try { contextOptions.storageState = statePath; } catch { } }
+    if (fs.existsSync(statePath)) { try { contextOptions.storageState = statePath; } catch {} }
     const context = await browser.newContext(contextOptions);
     if (permissions.length) { await context.grantPermissions(permissions); }
+    // Apply fingerprint init scripts (reuse safeMode from context options above)
     try {
       const { applyFingerprintInitScripts } = require('../engine/fingerprintInit');
-      await applyFingerprintInitScripts(context, profile, settings);
+      await applyFingerprintInitScripts(context, profile, settings, { safeMode });
+    } catch {}
+    // Inject mouse position tracker for behavior simulator
+    try {
+      const { injectMouseTracker } = require('../engine/behaviorSimulator');
+      await injectMouseTracker(context);
     } catch {}
     const { loadSessionTabs, saveSessionTabs } = require('../storage/sessionTabs');
     const rawSavedTabs = loadSessionTabs(profileId);
     // Only restore valid http/https URLs — filter out about:blank, en-us, and other garbage
     const savedTabs = (rawSavedTabs || []).filter(u => typeof u === 'string' && /^https?:\/\//i.test(u));
-    
     let page;
     if (savedTabs && savedTabs.length > 0) {
       appendLog(profileId, `Restoring ${savedTabs.length} saved tabs...`);
@@ -340,7 +387,6 @@ async function launchProfileInternal(profileId, options = {}) {
       for (const url of savedTabs) {
         try {
           const p = first ? ((context.pages() || [])[0] || await context.newPage()) : await context.newPage();
-          if (first) { page = p; }
           first = false;
           p.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(err => {
             appendLog(profileId, `Failed to load restored tab ${url}: ${err?.message || err}`);
@@ -357,21 +403,28 @@ async function launchProfileInternal(profileId, options = {}) {
       } else {
         page = await context.newPage();
       }
-      // Navigate with timeout and retry for slow proxy connections
       try {
-        await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      } catch (navErr) {
-        appendLog(profileId, `First navigation attempt failed: ${navErr?.message || navErr}. Retrying...`);
-        try {
-          await new Promise(r => setTimeout(r, 2000));
-          await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        } catch (retryErr) {
-          appendLog(profileId, `Second navigation attempt failed: ${retryErr?.message || retryErr}. Browser is open but page not loaded.`);
+        const { navigateWithRetry, installBlockDetector } = require('../engine/blockedPageDetector');
+        const navResult = await navigateWithRetry(page, startUrl, profileId, {
+          maxRetries: 2, retryDelayMs: 5000, waitUntil: 'domcontentloaded', timeout: 30000,
+        });
+        if (navResult.blocked) {
+          appendLog(profileId, `Warning: page may be blocked (${navResult.pattern}). Browser is open for manual interaction.`);
         }
+        installBlockDetector(page, profileId);
+      } catch (navErr) {
+        appendLog(profileId, `Navigation failed: ${navErr?.message || navErr}. Browser is open but page not loaded.`);
       }
       appendLog(profileId, `Opened page: ${startUrl}`);
     }
-
+    // Install block detector on all new pages
+    context.on('page', (newPage) => {
+      try {
+        const { installBlockDetector } = require('../engine/blockedPageDetector');
+        installBlockDetector(newPage, profileId);
+      } catch {}
+    });
+    // State saving helper
     const saveState = async () => {
       try {
         const state = await context.storageState();
@@ -379,21 +432,41 @@ async function launchProfileInternal(profileId, options = {}) {
         appendLog(profileId, `Saved storage state (${(state.cookies || []).length} cookies)`);
       } catch (e) {
         const msg = e?.message || String(e);
-        if (/has been closed/i.test(msg)) appendLog(profileId, 'Storage save skipped: context closed'); else appendLog(profileId, `Error saving storage state: ${msg}`);
+        if (/has been closed/i.test(msg)) appendLog(profileId, 'Storage save skipped: context closed');
+        else appendLog(profileId, `Error saving storage state: ${msg}`);
       }
       try {
         const pages = context.pages();
-        if (pages && pages.length > 0) {
-          saveSessionTabs(profileId, pages.map(p => p.url()));
-        }
-      } catch (e) {}
+        if (pages && pages.length > 0) saveSessionTabs(profileId, pages.map(p => p.url()));
+      } catch {}
     };
-    if (page) {
-      page.on('close', async () => { await saveState(); try { await context.close(); } catch { } });
-    }
-    context.on('close', async () => { await saveState(); try { await forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Context closed'); try { await server.close(); } catch { }; broadcastRunningMap(); });
-    try { browser.on?.('disconnected', () => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Browser disconnected'); try { server.close(); } catch { }; broadcastRunningMap(); } }); } catch { }
-    try { const proc = server.process?.(); proc && proc.once && proc.once('exit', (code, signal) => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, `Browser server exited (${code || ''} ${signal || ''})`); broadcastRunningMap(); } }); } catch { }
+    // Cleanup helper
+    let playwrightCleaned = false;
+    const cleanupPlaywright = async (reason) => {
+      if (playwrightCleaned) return;
+      playwrightCleaned = true;
+      await saveState();
+      try { await forwarder?.stop?.(); } catch {}
+      runningProfiles.delete(profileId);
+      appendLog(profileId, reason);
+      try { await context.close(); } catch {}
+      try { await browser?.close?.(); } catch {}
+      broadcastRunningMap();
+    };
+    context.on('close', () => cleanupPlaywright('Context closed'));
+    try { browser.on?.('disconnected', () => cleanupPlaywright('Browser disconnected')); } catch {}
+    // Detect when user closes all browser tabs via "X" button
+    const onPageClose = () => {
+      try {
+        const pages = context.pages();
+        if (!pages || pages.length === 0) {
+          appendLog(profileId, 'All browser pages closed by user');
+          cleanupPlaywright('All pages closed — browser stopped');
+        }
+      } catch { cleanupPlaywright('Page close check failed — browser stopped'); }
+    };
+    try { for (const p of context.pages()) { p.on('close', onPageClose); } } catch {}
+    context.on('page', (newPage) => { try { newPage.on('close', onPageClose); } catch {} });
     runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder });
     broadcastRunningMap();
     // Post-launch automation script (if configured)

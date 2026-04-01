@@ -1,4 +1,5 @@
 const { chromium } = require('playwright');
+const { buildUserAgentMetadata } = require('./client-hints-utils');
 
 function parseResolution(res) {
   try {
@@ -11,7 +12,7 @@ function parseResolution(res) {
   } catch { return null; }
 }
 
-async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, startUrl, { appendLog, runningProfiles, broadcastRunningMap } = {}) {
+async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, startUrl, { appendLog, runningProfiles, broadcastRunningMap, savedTabs } = {}) {
   const fp = profile?.fingerprint || {};
   const adv = (settings && settings.advanced) || {};
   const locale = fp.language || settings?.language || 'en-US';
@@ -57,7 +58,8 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
   if (shouldApplyInitScript) {
     try {
       const { applyFingerprintInitScripts } = require('./fingerprintInit');
-      await applyFingerprintInitScripts(context, profile, settings, { overrideUserAgent: userAgent });
+      const safeMode = settings?.safeMode !== false; // default ON
+      await applyFingerprintInitScripts(context, profile, settings, { overrideUserAgent: userAgent, safeMode });
     } catch (e) {
       appendLog && appendLog(profileId, `CDP: addInitScript failed: ${e?.message || e}`);
     }
@@ -76,6 +78,14 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
           const langs = (typeof adv.languages === 'string' && adv.languages.trim()) ? adv.languages : locale;
           params.acceptLanguage = String(langs || locale);
         }
+        // Build User-Agent Client Hints (Sec-CH-UA) — Cloudflare checks these
+        try {
+          const versionMatch = userAgent.match(/Chrome\/(\d+)\.(\d+)\.(\d+)\.(\d+)/);
+          if (versionMatch) {
+            const full = `${versionMatch[1]}.${versionMatch[2]}.${versionMatch[3]}.${versionMatch[4]}`;
+            params.userAgentMetadata = buildUserAgentMetadata(full, adv.platform || '');
+          }
+        } catch {}
         try { await session.send('Emulation.setUserAgentOverride', params); } catch {}
       }
       if (applyViewport && viewport) {
@@ -111,9 +121,9 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
     }
     // Restore session tabs or navigate to startUrl
     const isHttpUrl = (u) => { try { const url = new URL(u); return url.protocol === 'http:' || url.protocol === 'https:'; } catch { return false; } };
-    const savedTabs = arguments[5]?.savedTabs || [];
+    const restoredTabs = Array.isArray(savedTabs) ? savedTabs : [];
     
-    if (savedTabs && savedTabs.length > 0) {
+    if (restoredTabs.length > 0) {
       appendLog && appendLog(profileId, `CDP: Restoring ${savedTabs.length} saved tabs...`);
       let first = true;
       for (const url of savedTabs) {

@@ -10,17 +10,17 @@ function setMainWindowRef(win) {
 }
 
 function getBrowsersPath() {
-    // Use playwright-core's own executablePath() to find the root browsers folder.
-    // This is the SAME path playwright uses when launching, so detection always matches.
+    // Use the same path that playwright uses by default — ms-playwright in LOCALAPPDATA.
+    // Do NOT use a custom userData path; it won't match where playwright installs/looks.
     try {
         const { chromium } = require('playwright-core');
         const exePath = chromium.executablePath();
-        // exePath: ...\ms-playwright\chromium-1194\chrome-win\chrome.exe
+        // exePath example: C:\Users\xxx\AppData\Local\ms-playwright\chromium-1194\chrome-win\chrome.exe
         // Go up 3 levels to get ms-playwright root
-        return require('path').dirname(require('path').dirname(require('path').dirname(exePath)));
+        return path.dirname(path.dirname(path.dirname(exePath)));
     } catch {
-        const localAppData = process.env.LOCALAPPDATA || require('path').join(require('os').homedir(), 'AppData', 'Local');
-        return require('path').join(localAppData, 'ms-playwright');
+        const localAppData = process.env.LOCALAPPDATA || path.join(require('os').homedir(), 'AppData', 'Local');
+        return path.join(localAppData, 'ms-playwright');
     }
 }
 
@@ -101,7 +101,7 @@ async function installBrowser(browserName) {
     return new Promise((resolve) => {
         try {
             // Do NOT set PLAYWRIGHT_BROWSERS_PATH — let Playwright install to its default location
-            // (C:\Users\...\AppData\Local\ms-playwright) which is the same place it looks when launching.
+            // (ms-playwright in LOCALAPPDATA), which is the same place it looks when launching.
             const env = Object.assign({}, process.env, {
                 ELECTRON_RUN_AS_NODE: '1',
                 PLAYWRIGHT_DOWNLOAD_HOST: 'https://npmmirror.com/mirrors/playwright/'
