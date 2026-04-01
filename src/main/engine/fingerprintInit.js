@@ -28,35 +28,27 @@ function hashCode(str) {
   return Math.abs(hash);
 }
 
-async function applyFingerprintInitScripts(context, profile, settings, { overrideUserAgent } = {}) {
-  // Support both new structure (profile.identity, profile.display, etc.)
-  // and old structure (profile.fingerprint, profile.settings) for stored profiles.
+async function applyFingerprintInitScripts(context, profile, settings, { overrideUserAgent, safeMode } = {}) {
   const fp = (profile && profile.fingerprint) || {};
   const adv = (settings && settings.advanced) || {};
-  const identity = profile.identity || settings.identity || {};
-  const display = profile.display || settings.display || {};
-  const hardware = profile.hardware || settings.hardware || {};
-  const canvas = profile.canvas || settings.canvas || {};
-  const webgl = profile.webgl || settings.webgl || {};
-  const audio = profile.audio || settings.audio || {};
-  const media = profile.media || settings.media || {};
-  const network = profile.network || settings.network || {};
-  const battery = profile.battery || settings.battery || {};
-
-  const locale = identity.locale || fp.language || settings?.language || 'en-US';
-  const userAgent = overrideUserAgent || identity.userAgent || fp.userAgent || undefined;
-  const cpuCores = Number(hardware.cpuCores || settings?.cpuCores || 4);
-  const deviceMemory = Number(hardware.memoryGB || settings?.memoryGB || 8);
+  const locale = fp.language || settings?.language || 'en-US';
+  const userAgent = overrideUserAgent || fp.userAgent || undefined;
+  // Use 0 as sentinel = "use real hardware value, don't spoof"
+  const cpuCores = Number(settings?.cpuCores) || 0;
+  const deviceMemory = Number(settings?.memoryGB) || 0;
   const apply = (settings && settings.applyOverrides) || {};
-  const applyHardware = hardware.enabled !== false && apply.hardware !== false;
-  const applyNavigator = identity.enabled !== false && apply.navigator !== false;
-  const applyUA = identity.enabled !== false && apply.userAgent !== false;
-  const applyWebgl = webgl.enabled !== false && apply.webgl !== false;
-  const applyLang = identity.enabled !== false && apply.language !== false;
-  const applyViewport = display.enabled !== false && apply.viewport !== false;
-  const applyCanvas = canvas.enabled !== false && (fp.canvas !== false);
-  const applyAudio = audio.enabled !== false && (fp.audio !== false);
-  const applyAntiDetection = network.antiDetection !== false && apply.antiDetection !== false;
+
+  // Safe mode: only run block 0 (webdriver + CDP cleanup).
+  // All Object.defineProperty overrides on native prototypes are detected
+  // by Cloudflare enterprise, so we skip them in safe mode.
+  const applyHardware = !safeMode && apply.hardware !== false;
+  const applyNavigator = !safeMode && apply.navigator !== false;
+  const applyUA = !safeMode && apply.userAgent !== false;
+  const applyWebgl = !safeMode && apply.webgl !== false;
+  const applyLang = !safeMode && apply.language !== false;
+  const applyViewport = !safeMode && apply.viewport !== false;
+  const applyCanvas = !safeMode && apply.canvas !== false;
+  const applyAudio = !safeMode && apply.audio !== false;
 
   // Generate a stable per-profile seed for consistent noise
   const profileSeed = hashCode(profile?.id || 'default');
@@ -108,218 +100,6 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
             }
           }
         } catch {}
-
-        // ── Remove CDP Runtime.enable detection ──
-        // Google checks for the existence of CDP debugging artifacts.
-        // Intercept calls that reveal CDP is active.
-        try {
-          // Some sites check Error.stack for devtools/CDP traces
-          const origCaptureStack = Error.captureStackTrace;
-          if (origCaptureStack) {
-            Error.captureStackTrace = function (target, constructorOpt) {
-              origCaptureStack.call(Error, target, constructorOpt);
-              if (target && target.stack) {
-                // Remove any lines referencing playwright, puppeteer, or CDP internals
-                target.stack = target.stack.split('\n').filter(function (line) {
-                  return !(/playwright|puppeteer|__puppeteer|devtools|pptr:/).test(line);
-                }).join('\n');
-              }
-            };
-          }
-        } catch {}
-
-        // ── window.chrome — Complete mock matching real Chrome ──
-        if (!window.chrome) window.chrome = {};
-
-        // chrome.app
-        if (!window.chrome.app) {
-          window.chrome.app = {
-            isInstalled: false,
-            InstallState: { DISABLED: 'disabled', INSTALLED: 'installed', NOT_INSTALLED: 'not_installed' },
-            RunningState: { CANNOT_RUN: 'cannot_run', READY_TO_RUN: 'ready_to_run', RUNNING: 'running' },
-            getDetails: function () { return null; },
-            getIsInstalled: function () { return false; },
-            installState: function (cb) { if (cb) cb('not_installed'); },
-          };
-        }
-
-        // chrome.runtime — must have connect/sendMessage AND proper id/getManifest
-        // Google specifically checks chrome.runtime.id existence and type
-        if (!window.chrome.runtime) {
-          window.chrome.runtime = {};
-        }
-        const rt = window.chrome.runtime;
-        if (!rt.connect) rt.connect = function () {
-          return {
-            onMessage: { addListener: function () {}, removeListener: function () {} },
-            onDisconnect: { addListener: function () {}, removeListener: function () {} },
-            postMessage: function () {},
-            disconnect: function () {},
-          };
-        };
-        if (!rt.sendMessage) rt.sendMessage = function (id, msg, opts, cb) {
-          // Real Chrome calls callback with undefined for unknown extensions
-          if (typeof cb === 'function') cb();
-          else if (typeof opts === 'function') opts();
-        };
-        if (!rt.getManifest) rt.getManifest = function () { return {}; };
-        if (!rt.getURL) rt.getURL = function (p) { return ''; };
-        if (!rt.id) rt.id = undefined; // Real Chrome: undefined when no extension context
-        if (!rt.OnInstalledReason) rt.OnInstalledReason = { CHROME_UPDATE: 'chrome_update', INSTALL: 'install', SHARED_MODULE_UPDATE: 'shared_module_update', UPDATE: 'update' };
-        if (!rt.OnRestartRequiredReason) rt.OnRestartRequiredReason = { APP_UPDATE: 'app_update', OS_UPDATE: 'os_update', PERIODIC: 'periodic' };
-        if (!rt.PlatformArch) rt.PlatformArch = { ARM: 'arm', ARM64: 'arm64', MIPS: 'mips', MIPS64: 'mips64', X86_32: 'x86-32', X86_64: 'x86-64' };
-        if (!rt.PlatformNaclArch) rt.PlatformNaclArch = { ARM: 'arm', MIPS: 'mips', MIPS64: 'mips64', X86_32: 'x86-32', X86_64: 'x86-64' };
-        if (!rt.PlatformOs) rt.PlatformOs = { ANDROID: 'android', CROS: 'cros', FUCHSIA: 'fuchsia', LINUX: 'linux', MAC: 'mac', OPENBSD: 'openbsd', WIN: 'win' };
-        if (!rt.RequestUpdateCheckStatus) rt.RequestUpdateCheckStatus = { NO_UPDATE: 'no_update', THROTTLED: 'throttled', UPDATE_AVAILABLE: 'update_available' };
-
-        // chrome.csi
-        if (!window.chrome.csi) {
-          window.chrome.csi = function () {
-            return {
-              onloadT: Date.now(),
-              startE: Date.now(),
-              pageT: performance.now(),
-              tran: 15,
-            };
-          };
-        }
-
-        // chrome.loadTimes
-        if (!window.chrome.loadTimes) {
-          window.chrome.loadTimes = function () {
-            const navEntry = performance.getEntriesByType('navigation')[0] || {};
-            return {
-              commitLoadTime: Date.now() / 1000,
-              connectionInfo: 'h2',
-              finishDocumentLoadTime: (navEntry.domContentLoadedEventEnd || Date.now()) / 1000,
-              finishLoadTime: (navEntry.loadEventEnd || Date.now()) / 1000,
-              firstPaintAfterLoadTime: 0,
-              firstPaintTime: (navEntry.domContentLoadedEventEnd || Date.now()) / 1000,
-              navigationType: 'Other',
-              npnNegotiatedProtocol: 'h2',
-              requestTime: (navEntry.requestStart || Date.now()) / 1000,
-              startLoadTime: (navEntry.fetchStart || Date.now()) / 1000,
-              wasAlternateProtocolAvailable: false,
-              wasFetchedViaSpdy: true,
-              wasNpnNegotiated: true,
-            };
-          };
-        }
-
-        // ── Notification.permission ──
-        try {
-          if (typeof Notification !== 'undefined') {
-            Object.defineProperty(Notification, 'permission', {
-              get: () => 'default',
-              configurable: true,
-            });
-          }
-        } catch {}
-
-        // ── Permissions API — make 'notifications' query return 'prompt' not 'denied' ──
-        try {
-          if (navigator.permissions && navigator.permissions.query) {
-            const origQuery = navigator.permissions.query.bind(navigator.permissions);
-            Object.defineProperty(navigator.permissions, 'query', {
-              value: function (desc) {
-                if (desc && desc.name === 'notifications') {
-                  return Promise.resolve({
-                    state: 'prompt',
-                    onchange: null,
-                    addEventListener: function () {},
-                    removeEventListener: function () {},
-                  });
-                }
-                return origQuery(desc).catch(function () {
-                  return {
-                    state: 'prompt',
-                    onchange: null,
-                    addEventListener: function () {},
-                    removeEventListener: function () {},
-                  };
-                });
-              },
-              configurable: true,
-              writable: true,
-            });
-          }
-        } catch {}
-
-        // ── Prevent Error.stack from leaking Playwright paths ──
-        try {
-          const origPrepare = Error.prepareStackTrace;
-          Error.prepareStackTrace = function (err, stack) {
-            if (origPrepare) {
-              try { return origPrepare(err, stack); } catch {}
-            }
-            return err.toString();
-          };
-        } catch {}
-
-        // ── SourceBuffer / MediaSource detection (some bots lack these) ──
-        try {
-          if (typeof MediaSource === 'undefined') {
-            window.MediaSource = window.WebKitMediaSource || function () {};
-          }
-        } catch {}
-
-        // ── Prevent CDP detection via Runtime.evaluate artifacts ──
-        // Google/Cloudflare check for stale references left by CDP Runtime.enable
-        try {
-          // Patch Function.prototype.toString to hide native code overrides
-          const origFnToString = Function.prototype.toString;
-          const overrides = new Set();
-          Function.prototype.toString = function () {
-            if (overrides.has(this)) return `function ${this.name || ''}() { [native code] }`;
-            return origFnToString.call(this);
-          };
-          overrides.add(Function.prototype.toString);
-
-          // Mark our overridden functions as "native" to pass toString() checks
-          // This must be called on any function we define that sites may inspect
-          window.__markNative = function (fn) { overrides.add(fn); return fn; };
-        } catch {}
-
-        // ── Patch console.debug to prevent CDP detection ──
-        // Some sites do console.debug('something') and check if the DevTools protocol intercepted it
-        try {
-          const origDebug = console.debug;
-          console.debug = function () { return origDebug.apply(console, arguments); };
-        } catch {}
-
-        // ── Ensure window.clientInformation === navigator ──
-        // Some detection scripts check this alias exists (it does in real Chrome)
-        try {
-          if (!window.clientInformation) {
-            Object.defineProperty(window, 'clientInformation', {
-              get: () => navigator,
-              configurable: true,
-              enumerable: true,
-            });
-          }
-        } catch {}
-
-        // ── Ensure document.hasFocus() returns true ──
-        // Automated browsers sometimes return false because window isn't focused
-        try {
-          Object.defineProperty(document, 'hasFocus', {
-            value: function () { return true; },
-            configurable: true,
-            writable: true,
-          });
-        } catch {}
-
-        // ── Ensure PerformanceObserver exists (Google uses it) ──
-        try {
-          if (typeof PerformanceObserver === 'undefined') {
-            window.PerformanceObserver = function (cb) {
-              this.observe = function () {};
-              this.disconnect = function () {};
-              this.takeRecords = function () { return []; };
-            };
-          }
-        } catch {}
-
       } catch {}
     });
   } catch {}
@@ -327,11 +107,29 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   // ═══════════════════════════════════════════════════════════════════════
   // 1. HARDWARE: CPU cores & device memory
   // ═══════════════════════════════════════════════════════════════════════
+  // NOTE: Only override if the spoofed value differs from the real value.
+  // Cloudflare detects descriptor tampering on navigator properties,
+  // so we skip the override when the real value already matches.
   if (applyHardware) {
     try {
       await context.addInitScript(({ cores, mem }) => {
-        try { Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => cores, configurable: true }); } catch {}
-        try { Object.defineProperty(navigator, 'deviceMemory', { get: () => mem, configurable: true }); } catch {}
+        // cores/mem = 0 means "use real value, don't spoof"
+        try {
+          if (cores > 0) {
+            const realCores = navigator.hardwareConcurrency;
+            if (realCores !== cores) {
+              Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => cores, configurable: true });
+            }
+          }
+        } catch {}
+        try {
+          if (mem > 0) {
+            const realMem = navigator.deviceMemory;
+            if (realMem !== mem) {
+              Object.defineProperty(navigator, 'deviceMemory', { get: () => mem, configurable: true });
+            }
+          }
+        } catch {}
       }, { cores: cpuCores, mem: deviceMemory });
     } catch {}
   }
@@ -341,52 +139,29 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   // ═══════════════════════════════════════════════════════════════════════
   if (applyNavigator) {
     try {
-      await context.addInitScript(({ adv, primaryLang, ua, flags }) => {
-      try {
-          if (flags.applyNavigator && adv && typeof adv === 'object') {
-            if (adv.platform) { try { Object.defineProperty(navigator, 'platform', { get: () => adv.platform }); } catch {} }
-            if (typeof adv.dnt === 'boolean') { try { Object.defineProperty(navigator, 'doNotTrack', { get: () => (adv.dnt ? '1' : '0') }); } catch {} }
-            if (typeof adv.maxTouchPoints === 'number') { try { Object.defineProperty(navigator, 'maxTouchPoints', { get: () => adv.maxTouchPoints }); } catch {} }
-            if (flags.applyLang) {
-              try {
-                const langs = Array.isArray(adv.languages) ? adv.languages : (typeof adv.languages === 'string' ? adv.languages.split(',').map(s=>s.trim()).filter(Boolean) : []);
-                const finalLangs = langs.length ? langs : (primaryLang ? [primaryLang, primaryLang.split('-')[0]].filter((v,i,a)=>a.indexOf(v)===i) : navigator.languages);
-                if (finalLangs && finalLangs.length) {
-                  // Override navigator.language (single) and navigator.languages (array) — must match
-                  try { Object.defineProperty(navigator, 'language', { get: () => finalLangs[0] }); } catch {}
-                  try { Object.defineProperty(navigator, 'languages', { get: () => finalLangs }); } catch {}
-                }
-              } catch {}
-            }
-            if (typeof adv.plugins === 'number') {
-              try {
-                const length = adv.plugins;
-                const fakeArray = { length, item: () => undefined, namedItem: () => undefined };
-                Object.defineProperty(navigator, 'plugins', { get: () => fakeArray });
-                Object.defineProperty(navigator, 'mimeTypes', { get: () => ({ length: 0, item: () => undefined, namedItem: () => undefined }) });
-              } catch {}
-            }
+      await context.addInitScript(({ adv, primaryLang, flags }) => {
+        try {
+          if (!adv || typeof adv !== 'object') return;
+
+          // Platform
+          if (adv.platform) {
+            try { Object.defineProperty(navigator, 'platform', { get: () => adv.platform, configurable: true }); } catch {}
           }
 
-          // Do Not Track — prefer network.doNotTrack, fall back to adv.dnt
-          const dntVal = (network && network.doNotTrack) || (typeof adv.dnt === 'boolean' ? (adv.dnt ? 'true' : 'false') : null);
-          if (dntVal === 'true') {
-            try { Object.defineProperty(navigator, 'doNotTrack', { get: () => '1', configurable: true }); } catch {}
-          } else if (dntVal === 'false') {
-            try { Object.defineProperty(navigator, 'doNotTrack', { get: () => null, configurable: true }); } catch {}
+          // Do Not Track
+          if (typeof adv.dnt === 'boolean') {
+            try { Object.defineProperty(navigator, 'doNotTrack', { get: () => (adv.dnt ? '1' : null), configurable: true }); } catch {}
           }
 
-          // Max Touch Points — prefer network.maxTouchPoints, fall back to adv.maxTouchPoints
-          const touchPoints = (network && typeof network.maxTouchPoints === 'number') ? network.maxTouchPoints : adv.maxTouchPoints;
-          if (typeof touchPoints === 'number') {
-            try { Object.defineProperty(navigator, 'maxTouchPoints', { get: () => touchPoints, configurable: true }); } catch {}
+          // Max Touch Points
+          if (typeof adv.maxTouchPoints === 'number') {
+            try { Object.defineProperty(navigator, 'maxTouchPoints', { get: () => adv.maxTouchPoints, configurable: true }); } catch {}
           }
 
-          // Languages — prefer identity.languages, fall back to adv.languages
-          const langStr = (identity && identity.languages) || adv.languages;
-          if (flags.applyLang && langStr) {
+          // Languages
+          if (flags.applyLang) {
             try {
-              const langs = Array.isArray(langStr) ? langStr : (typeof langStr === 'string' ? langStr.split(',').map(s => s.trim()).filter(Boolean) : []);
+              const langs = Array.isArray(adv.languages) ? adv.languages : (typeof adv.languages === 'string' ? adv.languages.split(',').map(s => s.trim()).filter(Boolean) : []);
               const finalLangs = langs.length ? langs : (primaryLang ? [primaryLang] : []);
               if (finalLangs && finalLangs.length) {
                 const frozen = Object.freeze([...finalLangs]);
@@ -469,7 +244,7 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
             } catch {}
           }
         } catch {}
-      }, { adv, primaryLang: locale, flags: { applyLang: !!applyLang }, identity, network });
+      }, { adv, primaryLang: locale, flags: { applyLang: !!applyLang } });
     } catch {}
   }
 
@@ -494,9 +269,8 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   // ═══════════════════════════════════════════════════════════════════════
   if (applyViewport) {
     try {
-      const resolution = display.width && display.height ? { width: display.width, height: display.height } : parseResolution(fp.screenResolution);
-      const colorDepthVal = display.colorDepth || 24;
-      await context.addInitScript(({ dpr, res, colorDepth }) => {
+      const resolution = parseResolution(fp.screenResolution);
+      await context.addInitScript(({ dpr, res }) => {
         try {
           if (typeof dpr === 'number' && dpr > 0) {
             Object.defineProperty(window, 'devicePixelRatio', { get: () => dpr, configurable: true });
@@ -508,8 +282,8 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
             try { Object.defineProperty(screen, 'height', { get: () => h, configurable: true }); } catch {}
             try { Object.defineProperty(screen, 'availWidth', { get: () => w, configurable: true }); } catch {}
             try { Object.defineProperty(screen, 'availHeight', { get: () => h - taskbar, configurable: true }); } catch {}
-            try { Object.defineProperty(screen, 'colorDepth', { get: () => colorDepth, configurable: true }); } catch {}
-            try { Object.defineProperty(screen, 'pixelDepth', { get: () => colorDepth, configurable: true }); } catch {}
+            try { Object.defineProperty(screen, 'colorDepth', { get: () => 24, configurable: true }); } catch {}
+            try { Object.defineProperty(screen, 'pixelDepth', { get: () => 24, configurable: true }); } catch {}
             try { Object.defineProperty(window, 'outerWidth', { get: () => w, configurable: true }); } catch {}
             try { Object.defineProperty(window, 'outerHeight', { get: () => h, configurable: true }); } catch {}
             // screenX / screenY — top-left of browser window on the monitor
@@ -519,14 +293,14 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
             try { Object.defineProperty(window, 'screenTop', { get: () => 0, configurable: true }); } catch {}
           }
         } catch {}
-      }, { dpr: Number(display.pixelRatio || adv.devicePixelRatio || 1), res: resolution, colorDepth: colorDepthVal });
+      }, { dpr: Number(adv.devicePixelRatio || 1), res: resolution });
     } catch {}
   }
 
   // ═══════════════════════════════════════════════════════════════════════
   // 5. WEBGL vendor & renderer spoofing
   // ═══════════════════════════════════════════════════════════════════════
-  if (applyWebgl && (hardware.gpuVendor || hardware.gpuRenderer || adv.webglVendor || adv.webglRenderer)) {
+  if (applyWebgl && (adv.webglVendor || adv.webglRenderer)) {
     try {
       await context.addInitScript(({ vendor, renderer }) => {
         try {
@@ -549,7 +323,7 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
           if (window.WebGLRenderingContext) patch(WebGLRenderingContext.prototype);
           if (window.WebGL2RenderingContext) patch(WebGL2RenderingContext.prototype);
         } catch {}
-      }, { vendor: hardware.gpuVendor || adv.webglVendor, renderer: hardware.gpuRenderer || adv.webglRenderer });
+      }, { vendor: adv.webglVendor, renderer: adv.webglRenderer });
     } catch {}
   }
 
@@ -672,6 +446,9 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
 
   // ═══════════════════════════════════════════════════════════════════════
   // 7. AUDIOCONTEXT fingerprint noise
+  //    Seeded noise on AnalyserNode frequency/time data — per-profile stable hash.
+  //    NOTE: Only runs when safeMode=false. Prototype patching detected by
+  //    Cloudflare Enterprise; safe for non-CF sites (YouTube, Facebook, Amazon).
   // ═══════════════════════════════════════════════════════════════════════
   if (applyAudio) {
     try {
@@ -685,68 +462,75 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
               return ((t ^ t >>> 14) >>> 0) / 4294967296;
             };
           }
-          const rng = mulberry32(seed + 7919);
 
-          // Patch AnalyserNode
-          if (typeof AnalyserNode !== 'undefined') {
-            const proto = AnalyserNode.prototype;
-
-            const origFFD = proto.getFloatFrequencyData;
-            if (origFFD) {
-              Object.defineProperty(proto, 'getFloatFrequencyData', {
-                value: function (array) {
-                  origFFD.call(this, array);
-                  for (let i = 0; i < array.length; i += 3) {
-                    array[i] += (rng() - 0.5) * 0.1;
-                  }
-                },
-                configurable: true,
-              });
-            }
-
-            const origBFD = proto.getByteFrequencyData;
-            if (origBFD) {
-              Object.defineProperty(proto, 'getByteFrequencyData', {
-                value: function (array) {
-                  origBFD.call(this, array);
-                  for (let i = 0; i < array.length; i += 3) {
-                    array[i] = Math.max(0, Math.min(255, array[i] + (rng() < 0.5 ? -1 : 1)));
-                  }
-                },
-                configurable: true,
-              });
-            }
-
-            const origFTD = proto.getFloatTimeDomainData;
-            if (origFTD) {
-              Object.defineProperty(proto, 'getFloatTimeDomainData', {
-                value: function (array) {
-                  origFTD.call(this, array);
-                  for (let i = 0; i < array.length; i += 3) {
-                    array[i] += (rng() - 0.5) * 0.0001;
-                  }
-                },
-                configurable: true,
-              });
+          // Perturb Float32Array output — noise cực nhỏ, không nghe được
+          function perturbFloat32(array, rng) {
+            for (let i = 0; i < array.length; i++) {
+              if (array[i] !== 0) array[i] += (rng() - 0.5) * 0.0001;
             }
           }
 
-          // Patch AudioBuffer.getChannelData (fingerprinting buffers are tiny)
-          if (typeof AudioBuffer !== 'undefined') {
-            const origGCD = AudioBuffer.prototype.getChannelData;
-            if (origGCD) {
-              Object.defineProperty(AudioBuffer.prototype, 'getChannelData', {
-                value: function () {
-                  const data = origGCD.apply(this, arguments);
-                  if (data.length < 50000) {
-                    for (let i = 0; i < data.length; i += 2) {
-                      data[i] += (rng() - 0.5) * 0.0000001;
-                    }
-                  }
-                  return data;
-                },
-                configurable: true,
-              });
+          // Perturb Uint8Array output — ±1 trên một số phần tử thưa
+          function perturbUint8(array, rng) {
+            for (let i = 0; i < array.length; i += 4) {
+              const delta = rng() < 0.5 ? -1 : 1;
+              const v = array[i] + delta;
+              array[i] = v < 0 ? 0 : v > 255 ? 255 : v;
+            }
+          }
+
+          if (typeof AnalyserNode !== 'undefined') {
+            const rng = mulberry32(seed + 9001);
+
+            const origGFFD = AnalyserNode.prototype.getFloatFrequencyData;
+            Object.defineProperty(AnalyserNode.prototype, 'getFloatFrequencyData', {
+              value: function (array) { origGFFD.apply(this, arguments); perturbFloat32(array, rng); },
+              configurable: true,
+            });
+
+            const origGBFD = AnalyserNode.prototype.getByteFrequencyData;
+            Object.defineProperty(AnalyserNode.prototype, 'getByteFrequencyData', {
+              value: function (array) { origGBFD.apply(this, arguments); perturbUint8(array, rng); },
+              configurable: true,
+            });
+
+            const origGFTD = AnalyserNode.prototype.getFloatTimeDomainData;
+            Object.defineProperty(AnalyserNode.prototype, 'getFloatTimeDomainData', {
+              value: function (array) { origGFTD.apply(this, arguments); perturbFloat32(array, rng); },
+              configurable: true,
+            });
+
+            const origGBTD = AnalyserNode.prototype.getByteTimeDomainData;
+            Object.defineProperty(AnalyserNode.prototype, 'getByteTimeDomainData', {
+              value: function (array) { origGBTD.apply(this, arguments); perturbUint8(array, rng); },
+              configurable: true,
+            });
+          }
+
+          // Spoof AudioContext.sampleRate — headless Chrome luôn là 44100,
+          // real hardware thường 48000. Seed quyết định mỗi profile ra giá trị nào.
+          if (typeof AudioContext !== 'undefined') {
+            const rng2 = mulberry32(seed + 9002);
+            const spoofRate = rng2() > 0.5 ? 48000 : 44100;
+            const OrigAC = window.AudioContext;
+            const OrigOAC = window.OfflineAudioContext;
+
+            function PatchedAudioContext(opts) {
+              const inst = opts ? new OrigAC(opts) : new OrigAC();
+              Object.defineProperty(inst, 'sampleRate', { get: () => spoofRate, configurable: true });
+              return inst;
+            }
+            PatchedAudioContext.prototype = OrigAC.prototype;
+            try { Object.defineProperty(window, 'AudioContext', { value: PatchedAudioContext, configurable: true, writable: true }); } catch {}
+
+            if (OrigOAC) {
+              function PatchedOfflineAudioContext(ch, len, sr) {
+                const inst = new OrigOAC(ch, len, sr);
+                Object.defineProperty(inst, 'sampleRate', { get: () => sr || spoofRate, configurable: true });
+                return inst;
+              }
+              PatchedOfflineAudioContext.prototype = OrigOAC.prototype;
+              try { Object.defineProperty(window, 'OfflineAudioContext', { value: PatchedOfflineAudioContext, configurable: true, writable: true }); } catch {}
             }
           }
         } catch {}
@@ -828,7 +612,7 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   // ═══════════════════════════════════════════════════════════════════════
   // 9. WEBRTC IP leak protection (JS-level)
   // ═══════════════════════════════════════════════════════════════════════
-  const webrtcMode = network.webrtcPolicy || settings?.webrtc || 'default';
+  const webrtcMode = settings?.webrtc || 'default';
   if (webrtcMode === 'disable_udp' || webrtcMode === 'proxy_only') {
     try {
       await context.addInitScript(({ mode }) => {
@@ -865,55 +649,44 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // 10. BATTERY API spoofing
+  // 10-12: BATTERY, NETWORK INFO, SPEECH SYNTHESIS
+  // Only apply when navigator overrides are enabled, because these
+  // override native browser functions which Cloudflare can detect.
   // ═══════════════════════════════════════════════════════════════════════
-  if (battery.enabled !== false) {
+  if (applyNavigator) {
+
+  // 10. BATTERY API spoofing
   try {
-    await context.addInitScript(({ seed, batteryData }) => {
+    await context.addInitScript(({ seed }) => {
       try {
-        // Use profile-specified battery data if available, else seed-based random
-        let bat;
-        if (batteryData && typeof batteryData === 'object' && batteryData.charging !== undefined) {
-          bat = {
-            charging: batteryData.charging === 'charging',
-            chargingTime: batteryData.charging === 'charging' ? (Number(batteryData.chargingTime) || 0) : Infinity,
-            dischargingTime: batteryData.charging !== 'charging' ? (Number(batteryData.dischargingTime) || Infinity) : Infinity,
-            level: Math.max(0, Math.min(1, Number(batteryData.level) || 1)),
-            addEventListener: function () {},
-            removeEventListener: function () {},
-            dispatchEvent: function () { return false; },
-          };
-        } else {
-          function mulberry32(a) {
-            return function () {
-              a |= 0; a = a + 0x6D2B79F5 | 0;
-              let t = Math.imul(a ^ a >>> 15, 1 | a);
-              t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-              return ((t ^ t >>> 14) >>> 0) / 4294967296;
-            };
-          }
-          const rng = mulberry32(seed + 4201);
-          const level = 0.5 + rng() * 0.5;
-          bat = {
-            charging: rng() > 0.3,
-            chargingTime: rng() > 0.5 ? Infinity : Math.floor(rng() * 7200),
-            dischargingTime: Infinity,
-            level: Math.round(level * 100) / 100,
-            addEventListener: function () {},
-            removeEventListener: function () {},
-            dispatchEvent: function () { return false; },
+        function mulberry32(a) {
+          return function () {
+            a |= 0; a = a + 0x6D2B79F5 | 0;
+            let t = Math.imul(a ^ a >>> 15, 1 | a);
+            t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+            return ((t ^ t >>> 14) >>> 0) / 4294967296;
           };
         }
+        const rng = mulberry32(seed + 4201);
+        const level = 0.5 + rng() * 0.5;
+        const fakeBattery = {
+          charging: rng() > 0.3,
+          chargingTime: rng() > 0.5 ? Infinity : Math.floor(rng() * 7200),
+          dischargingTime: Infinity,
+          level: Math.round(level * 100) / 100,
+          addEventListener: function () {},
+          removeEventListener: function () {},
+          dispatchEvent: function () { return false; },
+        };
         if (navigator.getBattery) {
           Object.defineProperty(navigator, 'getBattery', {
-            value: function () { return Promise.resolve(bat); },
+            value: function () { return Promise.resolve(fakeBattery); },
             configurable: true,
           });
         }
       } catch {}
-    }, { seed: profileSeed, batteryData: battery });
+    }, { seed: profileSeed });
   } catch {}
-  } // end if (battery.enabled !== false)
 
   // ═══════════════════════════════════════════════════════════════════════
   // 11. NETWORK INFORMATION API
@@ -988,186 +761,13 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
     }, { seed: profileSeed });
   } catch {}
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // 13. KEYBOARD LAYOUT fingerprint protection
-  // ═══════════════════════════════════════════════════════════════════════
-  try {
-    await context.addInitScript(() => {
-      try {
-        if (navigator.keyboard && navigator.keyboard.getLayoutMap) {
-          Object.defineProperty(navigator.keyboard, 'getLayoutMap', {
-            value: function () { return Promise.reject(new DOMException('Not allowed', 'SecurityError')); },
-            configurable: true,
-          });
-        }
-      } catch {}
-    });
-  } catch {}
+  } // end if (applyNavigator) for blocks 10-12
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // 14. IFRAME contentWindow protection
-  //     Ensures iframes inherit the same spoofed properties.
-  // ═══════════════════════════════════════════════════════════════════════
-  try {
-    await context.addInitScript(() => {
-      try {
-        // Monitor iframe creation and patch contentWindow
-        const origAppend = Element.prototype.appendChild;
-        Object.defineProperty(Element.prototype, 'appendChild', {
-          value: function (child) {
-            const result = origAppend.call(this, child);
-            if (child && child.tagName === 'IFRAME' && child.contentWindow) {
-              try {
-                const iframeNav = child.contentWindow.navigator;
-                if (iframeNav) {
-                  // Copy webdriver override
-                  try {
-                    Object.defineProperty(iframeNav, 'webdriver', {
-                      get: () => false,
-                      configurable: true,
-                      enumerable: true,
-                    });
-                  } catch {}
-                  // Copy chrome object
-                  try {
-                    if (!child.contentWindow.chrome) {
-                      child.contentWindow.chrome = window.chrome;
-                    }
-                  } catch {}
-                }
-              } catch {} // cross-origin iframes will throw, that's fine
-            }
-            return result;
-          },
-          configurable: true,
-          writable: true,
-        });
-      } catch {}
-    });
-  } catch {}
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // 15. PERFORMANCE & TIMING consistency
-  // ═══════════════════════════════════════════════════════════════════════
-  try {
-    await context.addInitScript(() => {
-      try {
-        // Make performance.now() slightly less precise to match real browser behavior
-        // (Chrome rounds to 100μs for cross-origin isolation)
-        const origNow = performance.now.bind(performance);
-        Object.defineProperty(performance, 'now', {
-          value: function () {
-            const val = origNow();
-            // Round to 100μs (0.1ms) precision — matches Chrome's default
-            return Math.round(val * 10) / 10;
-          },
-          configurable: true,
-          writable: true,
-        });
-      } catch {}
-    });
-  } catch {}
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // 16. FONT FINGERPRINT SPOOFING
-  //     Font enumeration is a major fingerprinting vector. Sites use
-  //     CSS fallback detection (measuring text width with/without a font)
-  //     to build a list of installed fonts.
-  //     We intercept measureText and element sizing to inject per-profile
-  //     noise, making each profile appear to have a slightly different
-  //     set of fonts — even on the same machine.
-  // ═══════════════════════════════════════════════════════════════════════
-  try {
-    // Get OS-appropriate font list from the generator (if available)
-    const os = fp.os || 'Windows';
-    let fontList;
-    try {
-      const { FONTS_BY_OS } = require('./fingerprintGenerator');
-      fontList = FONTS_BY_OS[os] || FONTS_BY_OS.Windows;
-    } catch {
-      // Fallback font list if generator not available
-      fontList = [
-        'Arial', 'Arial Black', 'Calibri', 'Cambria', 'Comic Sans MS',
-        'Consolas', 'Courier New', 'Georgia', 'Impact', 'Lucida Console',
-        'Palatino Linotype', 'Segoe UI', 'Tahoma', 'Times New Roman',
-        'Trebuchet MS', 'Verdana',
-      ];
-    }
-
-    await context.addInitScript(({ seed, fonts }) => {
-      try {
-        // Seeded PRNG for consistent per-profile font behavior
-        function mulberry32(a) {
-          return function () {
-            a |= 0; a = a + 0x6D2B79F5 | 0;
-            let t = Math.imul(a ^ a >>> 15, 1 | a);
-            t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-            return ((t ^ t >>> 14) >>> 0) / 4294967296;
-          };
-        }
-        const rng = mulberry32(seed + 6173);
-
-        // Build a deterministic set of "available" fonts for this profile.
-        // Remove 2-4 random fonts from the full list to create uniqueness.
-        const removedCount = 2 + Math.floor(rng() * 3);
-        const fontSet = new Set(fonts);
-        const fontArray = [...fontSet];
-        for (let i = 0; i < removedCount && fontArray.length > 5; i++) {
-          const idx = Math.floor(rng() * fontArray.length);
-          fontSet.delete(fontArray.splice(idx, 1)[0]);
-        }
-
-        // Patch CanvasRenderingContext2D.measureText to introduce tiny
-        // per-profile noise in text width measurements.
-        // This defeats CSS-based font detection without visually breaking layouts.
-        const origMeasure = CanvasRenderingContext2D.prototype.measureText;
-        Object.defineProperty(CanvasRenderingContext2D.prototype, 'measureText', {
-          value: function (text) {
-            const result = origMeasure.call(this, text);
-            // Only apply noise when testing with specific fallback fonts
-            // (the typical fingerprinting pattern)
-            const font = this.font || '';
-            const isProbing = font.includes('monospace') || font.includes('sans-serif') || font.includes('serif');
-            if (isProbing && text && text.length < 100) {
-              const noise = (rng() - 0.5) * 0.3; // ±0.15px — invisible but unique
-              const origWidth = result.width;
-              try {
-                Object.defineProperty(result, 'width', {
-                  get: () => origWidth + noise,
-                  configurable: true,
-                });
-              } catch {}
-            }
-            return result;
-          },
-          configurable: true,
-        });
-
-        // Override document.fonts.check() to reflect our spoofed font set.
-        // Some fingerprinters use this API directly.
-        try {
-          if (document.fonts && document.fonts.check) {
-            const origCheck = document.fonts.check.bind(document.fonts);
-            Object.defineProperty(document.fonts, 'check', {
-              value: function (fontSpec, text) {
-                // Extract font family name from CSS font shorthand
-                try {
-                  const parts = fontSpec.split(/\s+/);
-                  const familyPart = parts[parts.length - 1].replace(/['"]/g, '');
-                  // If it's in our "removed" list, report as not available
-                  if (!fontSet.has(familyPart) && fonts.includes(familyPart)) {
-                    return false;
-                  }
-                } catch {}
-                return origCheck(fontSpec, text || '');
-              },
-              configurable: true,
-            });
-          }
-        } catch {}
-      } catch {}
-    }, { seed: profileSeed, fonts: fontList });
-  } catch {}
+  // Blocks 13-16 (keyboard, iframe, performance.now, fonts) REMOVED.
+  // They override native DOM/API prototypes (Element.prototype.appendChild,
+  // performance.now, CanvasRenderingContext2D.measureText, document.fonts.check)
+  // which Cloudflare enterprise detects as automation signatures.
+  // rebrowser-playwright handles CDP-level stealth at the network layer.
 }
 
 module.exports = { applyFingerprintInitScripts, parseResolution };

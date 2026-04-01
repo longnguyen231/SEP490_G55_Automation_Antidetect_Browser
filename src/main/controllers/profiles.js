@@ -8,29 +8,6 @@ const { applyCdpOverrides } = require('../engine/cdpOverrides');
 const { findFreePort, fetchJsonVersion, killProcessTreeWin, userDataDirFor, launchChromeCdp } = require('../engine/cdp');
 const { readProfiles, writeProfiles } = require('../storage/profiles');
 
-// Build correct Sec-CH-UA brands for a given Chrome major version.
-// Chrome rotates the "Not A Brand" string every few versions.
-function buildSecChUaBrands(major) {
-  const m = Number(major);
-  // Brand rotation pattern based on real Chrome releases
-  let notABrand;
-  if (m >= 135) notABrand = { brand: 'Not?A_Brand', version: '99' };
-  else if (m >= 131) notABrand = { brand: 'Not)A;Brand', version: '99' };
-  else if (m >= 125) notABrand = { brand: 'Not/A)Brand', version: '8' };
-  else notABrand = { brand: 'Not_A Brand', version: '24' };
-  return {
-    brands: [notABrand, { brand: 'Chromium', version: String(m) }, { brand: 'Google Chrome', version: String(m) }],
-    header: `"${notABrand.brand}";v="${notABrand.version}", "Chromium";v="${m}", "Google Chrome";v="${m}"`,
-  };
-}
-
-function buildPlatformFromAdvanced(advSettings) {
-  const p = (advSettings?.platform || '');
-  if (p.includes('Mac')) return 'macOS';
-  if (p.includes('Linux')) return 'Linux';
-  return 'Windows';
-}
-
 async function runPlaywrightInstall(browser = 'chromium') {
   appendLog('system', `Running Playwright install for ${browser}...`);
   return new Promise((resolve) => {
@@ -219,15 +196,36 @@ async function launchProfileInternal(profileId, options = {}) {
       return { success: true, wsEndpoint };
     }
 
-    // Playwright flow
+    // Playwright flow — rebrowser-playwright (pipe mode).
+    // rebrowser-playwright patches CDP leak at network level (Runtime.enable, bindings).
+    // Combined with safeMode ON (no JS Object.defineProperty overrides), this bypasses
+    // Cloudflare enterprise WAF.
     const engineMode = settings.engine || 'playwright';
     const isFirefox = engineMode === 'playwright-firefox' || engineMode === 'firefox';
     const { chromium, firefox } = require('playwright-core');
     const pwEngine = isFirefox ? firefox : chromium;
 
     const fp = profile.fingerprint || {};
-    // Build launch args — separate Chrome-specific flags from Firefox-compatible ones
-    const args = isFirefox ? [] : ['--lang=en-US'];
+    const args = isFirefox ? [] : [
+      '--lang=en-US',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-features=AutomationControlled',
+      '--disable-infobars',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--disable-ipc-flooding-protection',
+      '--disable-hang-monitor',
+      '--disable-prompt-on-repost',
+      '--disable-domain-reliability',
+      '--disable-component-update',
+      '--metrics-recording-only',
+      '--no-service-autorun',
+      '--password-store=basic',
+      '--use-mock-keychain',
+      '--export-tagged-pdf',
+      '--disable-features=TranslateUI',
+    ];
     // Window size (Chromium flags only)
     if (!isFirefox && settings.windowWidth > 0 && settings.windowHeight > 0) {
       args.push(`--window-size=${settings.windowWidth},${settings.windowHeight}`);
@@ -252,16 +250,14 @@ async function launchProfileInternal(profileId, options = {}) {
       const wantGeo = Number.isFinite(Number(g.latitude)) && Number.isFinite(Number(g.longitude));
       if (applyGeo && wantGeo) permissions.push('geolocation');
     } catch {}
+    // Proxy handling
     let proxy;
     let forwarder = null;
     if (settings.proxy?.server) {
-      // Determine proxy type from settings
       const proxyType = (settings.proxy.type || '').toLowerCase();
       const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(settings.proxy.server);
       const hasAuth = !!(settings.proxy.username || settings.proxy.password);
-
       if (hasAuth || isSocks) {
-        // Use local forwarder for SOCKS or authenticated proxies
         try {
           const { startProxyForwarder } = require('../engine/proxyForwarder');
           forwarder = await startProxyForwarder(settings.proxy, { appendLog, profileId });
@@ -269,38 +265,27 @@ async function launchProfileInternal(profileId, options = {}) {
           appendLog(profileId, `Playwright using proxy forwarder: ${forwarder.url}`);
         } catch (e) {
           appendLog(profileId, `Proxy forwarder failed, falling back to direct: ${e?.message || e}`);
-          // Fallback: build proxy URL with correct scheme
           let serverUrl = settings.proxy.server;
-          if (!/^(https?|socks\d?):\/\//i.test(serverUrl)) {
-            serverUrl = `${isSocks ? 'socks5' : 'http'}://${serverUrl}`;
-          }
+          if (!/^(https?|socks\d?):\/\//i.test(serverUrl)) serverUrl = `${isSocks ? 'socks5' : 'http'}://${serverUrl}`;
           proxy = { server: serverUrl };
           if (settings.proxy.username) proxy.username = settings.proxy.username;
           if (settings.proxy.password) proxy.password = settings.proxy.password;
         }
       } else {
-        // Simple HTTP/HTTPS proxy without auth
         let serverUrl = settings.proxy.server;
-        if (!/^(https?|socks\d?):\/\//i.test(serverUrl)) {
-          serverUrl = `http://${serverUrl}`;
-        }
+        if (!/^(https?|socks\d?):\/\//i.test(serverUrl)) serverUrl = `http://${serverUrl}`;
         proxy = { server: serverUrl };
       }
     }
-    const launchOpts = {
-      headless,
-      args,
-      proxy,
-      // Remove Playwright's default flags that expose automation
-      ignoreDefaultArgs: [
-        '--enable-automation',           // Sets navigator.webdriver=true
-        '--disable-extensions',          // Real Chrome has extensions enabled
-        '--disable-default-apps',        // Real Chrome has default apps
-        '--disable-component-extensions-with-background-pages',
-      ],
-    };
     let server;
-    try { server = await pwEngine.launchServer({ headless, args, proxy }); }
+    try { 
+      if (isFirefox) {
+        server = await pwEngine.launchServer({ headless, args, proxy });
+        browser = await pwEngine.connect(server.wsEndpoint());
+      } else {
+        browser = await pwEngine.launch({ headless, args, proxy }); 
+      }
+    }
     catch (e) {
       const msg = e?.message || String(e);
       appendLog(profileId, `Playwright launch failed: ${msg}`);
@@ -309,25 +294,32 @@ async function launchProfileInternal(profileId, options = {}) {
         appendLog(profileId, `Attempting auto-install playwright browsers (${bname})...`);
         const ok = await runPlaywrightInstall(bname);
         if (!ok) { try { await forwarder?.stop?.(); } catch {} return { success: false, error: 'Playwright browsers not installed.' }; }
-        server = await pwEngine.launchServer({ headless, args, proxy });
+        if (isFirefox) {
+          server = await pwEngine.launchServer({ headless, args, proxy });
+          browser = await pwEngine.connect(server.wsEndpoint());
+        } else {
+          browser = await pwEngine.launch({ headless, args, proxy });
+        }
       } else { try { await forwarder?.stop?.(); } catch {} throw e; }
     }
-    const wsEndpoint = server.wsEndpoint();
-    const browser = await pwEngine.connect(wsEndpoint);
-    appendLog(profileId, `Launched Playwright ${isFirefox ? 'Firefox' : 'Chromium'} server: ${wsEndpoint}`);
+    const wsEndpoint = isFirefox ? server.wsEndpoint() : null; // pipe mode for chromium
+    appendLog(profileId, `Launched Playwright ${isFirefox ? 'Firefox server: ' + wsEndpoint : 'browser (pipe mode, no external WS)'}`);
+    
+    // safeMode: true (default) → skip CDP emulation commands (userAgent, locale,
+    // timezone, geolocation) that Cloudflare enterprise detects.
+    // Only viewport and proxy are safe because they don't use CDP Emulation APIs.
+    const safeMode = settings?.safeMode !== false; // default ON
     const apply = (settings && settings.applyOverrides) || {};
-    const applyUA = apply.userAgent !== false;
-    const applyLang = apply.language !== false;
-    const applyTz = apply.timezone !== false;
-    const applyViewport = apply.viewport !== false;
-    const applyGeo = apply.geolocation !== false;
+    const applyUA = !safeMode && apply.userAgent !== false;
+    const applyLang = !safeMode && apply.language !== false;
+    const applyTz = !safeMode && apply.timezone !== false;
+    const applyViewport = apply.viewport !== false; // viewport is safe even in safeMode
+    const applyGeo = !safeMode && apply.geolocation !== false;
     const contextOptions = { proxy, extraHTTPHeaders: {} };
+    
     if (applyLang) {
       const spoofLang = fp.language || settings.language || 'en-US';
-      // Use fingerprint language as locale — all signals must be consistent:
-      // navigator.language (JS), locale (Playwright), Accept-Language (header) must all match
       contextOptions.locale = spoofLang;
-      // Accept-Language: primary = fingerprint lang, secondary = en (fallback)
       const langBase = spoofLang.split('-')[0];
       if (spoofLang.toLowerCase().startsWith('en')) {
         contextOptions.extraHTTPHeaders['Accept-Language'] = `${spoofLang},en;q=0.9`;
@@ -336,36 +328,16 @@ async function launchProfileInternal(profileId, options = {}) {
       }
     }
     if (applyTz) contextOptions.timezoneId = fp.timezone || settings.timezone || 'UTC';
-
-    if (applyUA && fp.userAgent) {
-      contextOptions.userAgent = fp.userAgent;
-      try {
-        const vMatch = fp.userAgent.match(/Chrome\/(\d+)\.(\d+)\.(\d+)\.(\d+)/);
-        if (vMatch) {
-          const major = vMatch[1];
-          const full = `${vMatch[1]}.${vMatch[2]}.${vMatch[3]}.${vMatch[4]}`;
-          const plat = buildPlatformFromAdvanced(settings.advanced);
-          const chUa = buildSecChUaBrands(major);
-          Object.assign(contextOptions.extraHTTPHeaders, {
-            'sec-ch-ua': chUa.header,
-            'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': `"${plat}"`,
-            'sec-ch-ua-full-version-list': chUa.brands.map(b => `"${b.brand}";v="${b.brand === 'Chromium' || b.brand === 'Google Chrome' ? full : b.version + '.0.0.0'}"`).join(', '),
-          });
-        }
-      } catch {}
-    }
+    if (applyUA && fp.userAgent) contextOptions.userAgent = fp.userAgent;
     // Apply viewport and device scale like CDP DeviceMetricsOverride
     try {
       if (applyViewport) {
         const m = (fp.screenResolution || '').match(/^(\d+)x(\d+)$/);
-        if (m) {
-          contextOptions.viewport = { width: Math.max(1, parseInt(m[1], 10)), height: Math.max(1, parseInt(m[2], 10)) };
-        }
+        if (m) contextOptions.viewport = { width: Math.max(1, parseInt(m[1], 10)), height: Math.max(1, parseInt(m[2], 10)) };
         const dpr = Number((settings.advanced || {}).devicePixelRatio || 1);
         if (dpr > 0) contextOptions.deviceScaleFactor = dpr;
       }
-    } catch { }
+    } catch {}
     if (applyGeo && settings.geolocation && settings.geolocation.latitude != null && settings.geolocation.longitude != null) {
       contextOptions.geolocation = {
         latitude: Number(settings.geolocation.latitude),
@@ -374,12 +346,18 @@ async function launchProfileInternal(profileId, options = {}) {
       };
     }
     const statePath = storageStatePath(profileId);
-    if (fs.existsSync(statePath)) { try { contextOptions.storageState = statePath; } catch { } }
+    if (fs.existsSync(statePath)) { try { contextOptions.storageState = statePath; } catch {} }
     const context = await browser.newContext(contextOptions);
     if (permissions.length) { await context.grantPermissions(permissions); }
+    // Apply fingerprint init scripts (reuse safeMode from context options above)
     try {
       const { applyFingerprintInitScripts } = require('../engine/fingerprintInit');
-      await applyFingerprintInitScripts(context, profile, settings);
+      await applyFingerprintInitScripts(context, profile, settings, { safeMode });
+    } catch {}
+    // Inject mouse position tracker for behavior simulator
+    try {
+      const { injectMouseTracker } = require('../engine/behaviorSimulator');
+      await injectMouseTracker(context);
     } catch {}
 
     // Inject mouse position tracker for behavior simulator
@@ -392,7 +370,6 @@ async function launchProfileInternal(profileId, options = {}) {
     const rawSavedTabs = loadSessionTabs(profileId);
     // Only restore valid http/https URLs — filter out about:blank, en-us, and other garbage
     const savedTabs = (rawSavedTabs || []).filter(u => typeof u === 'string' && /^https?:\/\//i.test(u));
-    
     let page;
     if (savedTabs && savedTabs.length > 0) {
       appendLog(profileId, `Restoring ${savedTabs.length} saved tabs...`);
@@ -400,7 +377,6 @@ async function launchProfileInternal(profileId, options = {}) {
       for (const url of savedTabs) {
         try {
           const p = first ? ((context.pages() || [])[0] || await context.newPage()) : await context.newPage();
-          if (first) { page = p; }
           first = false;
           p.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(err => {
             appendLog(profileId, `Failed to load restored tab ${url}: ${err?.message || err}`);
@@ -417,9 +393,15 @@ async function launchProfileInternal(profileId, options = {}) {
       } else {
         page = await context.newPage();
       }
-      // Navigate with timeout and retry for slow proxy connections
       try {
-        await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        const { navigateWithRetry, installBlockDetector } = require('../engine/blockedPageDetector');
+        const navResult = await navigateWithRetry(page, startUrl, profileId, {
+          maxRetries: 2, retryDelayMs: 5000, waitUntil: 'domcontentloaded', timeout: 30000,
+        });
+        if (navResult.blocked) {
+          appendLog(profileId, `Warning: page may be blocked (${navResult.pattern}). Browser is open for manual interaction.`);
+        }
+        installBlockDetector(page, profileId);
       } catch (navErr) {
         appendLog(profileId, `First navigation attempt failed: ${navErr?.message || navErr}. Retrying...`);
         try {
@@ -428,22 +410,9 @@ async function launchProfileInternal(profileId, options = {}) {
         } catch (retryErr) {
           appendLog(profileId, `Second navigation attempt failed: ${retryErr?.message || retryErr}. Browser is open but page not loaded.`);
         }
-        // Install ongoing block detection for future navigations
-        try {
-          const { installBlockDetector } = require('../engine/blockedPageDetector');
-          installBlockDetector(page, profileId);
-        } catch {}
       }
       appendLog(profileId, `Opened page: ${startUrl}`);
     }
-
-    // Install block detector on all new pages opened in this context
-    context.on('page', (newPage) => {
-      try {
-        const { installBlockDetector } = require('../engine/blockedPageDetector');
-        installBlockDetector(newPage, profileId);
-      } catch {}
-    });
 
     const saveState = async () => {
       try {
@@ -452,21 +421,41 @@ async function launchProfileInternal(profileId, options = {}) {
         appendLog(profileId, `Saved storage state (${(state.cookies || []).length} cookies)`);
       } catch (e) {
         const msg = e?.message || String(e);
-        if (/has been closed/i.test(msg)) appendLog(profileId, 'Storage save skipped: context closed'); else appendLog(profileId, `Error saving storage state: ${msg}`);
+        if (/has been closed/i.test(msg)) appendLog(profileId, 'Storage save skipped: context closed');
+        else appendLog(profileId, `Error saving storage state: ${msg}`);
       }
       try {
         const pages = context.pages();
-        if (pages && pages.length > 0) {
-          saveSessionTabs(profileId, pages.map(p => p.url()));
-        }
-      } catch (e) {}
+        if (pages && pages.length > 0) saveSessionTabs(profileId, pages.map(p => p.url()));
+      } catch {}
     };
-    if (page) {
-      page.on('close', async () => { await saveState(); try { await context.close(); } catch { } });
-    }
-    context.on('close', async () => { await saveState(); try { await forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Context closed'); try { await server.close(); } catch { }; broadcastRunningMap(); });
-    try { browser.on?.('disconnected', () => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, 'Browser disconnected'); try { server.close(); } catch { }; broadcastRunningMap(); } }); } catch { }
-    try { const proc = server.process?.(); proc && proc.once && proc.once('exit', (code, signal) => { if (runningProfiles.has(profileId)) { try { forwarder?.stop?.(); } catch {} runningProfiles.delete(profileId); appendLog(profileId, `Browser server exited (${code || ''} ${signal || ''})`); broadcastRunningMap(); } }); } catch { }
+    // Cleanup helper
+    let playwrightCleaned = false;
+    const cleanupPlaywright = async (reason) => {
+      if (playwrightCleaned) return;
+      playwrightCleaned = true;
+      await saveState();
+      try { await forwarder?.stop?.(); } catch {}
+      runningProfiles.delete(profileId);
+      appendLog(profileId, reason);
+      try { await context.close(); } catch {}
+      try { await browser?.close?.(); } catch {}
+      broadcastRunningMap();
+    };
+    context.on('close', () => cleanupPlaywright('Context closed'));
+    try { browser.on?.('disconnected', () => cleanupPlaywright('Browser disconnected')); } catch {}
+    // Detect when user closes all browser tabs via "X" button
+    const onPageClose = () => {
+      try {
+        const pages = context.pages();
+        if (!pages || pages.length === 0) {
+          appendLog(profileId, 'All browser pages closed by user');
+          cleanupPlaywright('All pages closed — browser stopped');
+        }
+      } catch { cleanupPlaywright('Page close check failed — browser stopped'); }
+    };
+    try { for (const p of context.pages()) { p.on('close', onPageClose); } } catch {}
+    context.on('page', (newPage) => { try { newPage.on('close', onPageClose); } catch {} });
     runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder });
     broadcastRunningMap();
     // Post-launch automation script (if configured)
@@ -688,6 +677,105 @@ async function screenshotInternal(profileId, { index = 0, path: outPath, fullPag
 
 async function evalInternal(profileId, { index = 0, expression } = {}) { if (typeof expression !== 'string') return { success: false, error: 'expression must be a string' }; return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[index] || pages[0] || (await context.newPage()); const value = await page.evaluate(expr => { try { return eval(expr); } catch (e) { return { __error: true, message: e?.message || String(e) }; } }, expression); await cleanup(); if (value && value.__error) return { success: false, error: value.message }; return { success: true, value }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
 
+async function reloadPageInternal(profileId, { index = 0, timeout, waitUntil = 'load' } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[index] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const opts = { waitUntil }; if (timeout != null) opts.timeout = Number(timeout); await page.reload(opts); const title = await page.title().catch(() => ''); await cleanup(); return { success: true, url: page.url(), title }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
+
+async function goBackInternal(profileId, { index = 0, waitUntil = 'load' } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[index] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const response = await page.goBack({ waitUntil }); await cleanup(); return { success: true, url: page.url(), navigated: !!response }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
+
+async function goForwardInternal(profileId, { index = 0, waitUntil = 'load' } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[index] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const response = await page.goForward({ waitUntil }); await cleanup(); return { success: true, url: page.url(), navigated: !!response }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
+
+async function getPageInfoInternal(profileId, { index = 0 } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[Number(index)] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const [title, url] = await Promise.all([page.title().catch(() => ''), Promise.resolve(page.url())]); await cleanup(); return { success: true, url, title }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
+
+async function getPageContentInternal(profileId, { index = 0 } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[Number(index)] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const content = await page.content(); await cleanup(); return { success: true, content }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
+
+async function clickElementInternal(profileId, { selector, index = 0, button = 'left', clickCount = 1, delay } = {}) {
+  if (!selector) return { success: false, error: 'selector is required' };
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      const pages = context.pages();
+      const page = pages[Number(index)] || pages[0];
+      if (!page) { await cleanup(); return { success: false, error: 'No page available' }; }
+      const opts = { button, clickCount };
+      if (delay != null) opts.delay = Number(delay);
+      await page.click(selector, opts);
+      await cleanup();
+      return { success: true };
+    } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; }
+  });
+}
+
+async function doubleClickElementInternal(profileId, { selector, index = 0, delay } = {}) {
+  if (!selector) return { success: false, error: 'selector is required' };
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      const pages = context.pages();
+      const page = pages[Number(index)] || pages[0];
+      if (!page) { await cleanup(); return { success: false, error: 'No page available' }; }
+      const opts = {};
+      if (delay != null) opts.delay = Number(delay);
+      await page.dblclick(selector, opts);
+      await cleanup();
+      return { success: true };
+    } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; }
+  });
+}
+
+async function grantPermissionsInternal(profileId, { permissions = [], origin } = {}) {
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      await context.grantPermissions(permissions, origin ? { origin } : undefined);
+      await cleanup();
+      return { success: true };
+    } catch (e) {
+      await cleanup();
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+}
+
+async function clearPermissionsInternal(profileId) {
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      await context.clearPermissions();
+      await cleanup();
+      return { success: true };
+    } catch (e) {
+      await cleanup();
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+}
+
+async function setExtraHTTPHeadersInternal(profileId, { headers } = {}) {
+  if (!headers || typeof headers !== 'object') return { success: false, error: 'headers must be an object' };
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      await context.setExtraHTTPHeaders(headers);
+      await cleanup();
+      return { success: true };
+    } catch (e) {
+      await cleanup();
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+}
+
+async function setGeolocationInternal(profileId, { latitude, longitude, accuracy } = {}) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { success: false, error: 'latitude and longitude are required numbers' };
+  const geo = { latitude: lat, longitude: lng, accuracy: Number(accuracy ?? 50) };
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      await context.setGeolocation(geo);
+      await cleanup();
+      return { success: true, geolocation: geo };
+    } catch (e) {
+      await cleanup();
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+}
+
 async function getProfileLogInternal(profileId) { try { const p = require('path').join(getDataRoot(), 'logs', `${profileId}.log`); if (!fs.existsSync(p)) return { success: true, log: '' }; return { success: true, log: fs.readFileSync(p, 'utf8') }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function getCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const cookies = await running.context.cookies(); return { success: true, cookies }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, cookies: state.cookies || [] }; } return { success: true, cookies: [] }; } catch (error) { return { success: false, error: error.message }; } }
@@ -751,6 +839,17 @@ module.exports = {
   closePageInternal,
   screenshotInternal,
   evalInternal,
+  reloadPageInternal,
+  goBackInternal,
+  goForwardInternal,
+  getPageInfoInternal,
+  getPageContentInternal,
+  clickElementInternal,
+  doubleClickElementInternal,
+  grantPermissionsInternal,
+  clearPermissionsInternal,
+  setExtraHTTPHeadersInternal,
+  setGeolocationInternal,
   getProfileLogInternal,
   getCookiesInternal,
   importCookiesInternal,

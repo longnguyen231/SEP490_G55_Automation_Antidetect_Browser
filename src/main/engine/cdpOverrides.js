@@ -1,4 +1,5 @@
 const { chromium } = require('playwright');
+const { buildUserAgentMetadata } = require('./client-hints-utils');
 
 function buildSecChUaBrands(major) {
   const m = Number(major);
@@ -67,7 +68,8 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
   if (shouldApplyInitScript) {
     try {
       const { applyFingerprintInitScripts } = require('./fingerprintInit');
-      await applyFingerprintInitScripts(context, profile, settings, { overrideUserAgent: userAgent });
+      const safeMode = settings?.safeMode !== false; // default ON
+      await applyFingerprintInitScripts(context, profile, settings, { overrideUserAgent: userAgent, safeMode });
     } catch (e) {
       appendLog && appendLog(profileId, `CDP: addInitScript failed: ${e?.message || e}`);
     }
@@ -90,28 +92,8 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
         try {
           const versionMatch = userAgent.match(/Chrome\/(\d+)\.(\d+)\.(\d+)\.(\d+)/);
           if (versionMatch) {
-            const major = versionMatch[1];
             const full = `${versionMatch[1]}.${versionMatch[2]}.${versionMatch[3]}.${versionMatch[4]}`;
-            const platform = (adv.platform || '').includes('Mac') ? 'macOS' :
-                             (adv.platform || '').includes('Linux') ? 'Linux' : 'Windows';
-            const platformVersion = platform === 'Windows' ? '15.0.0' :
-                                    platform === 'macOS' ? '14.0.0' : '6.5.0';
-            const brands = buildSecChUaBrands(major);
-            params.userAgentMetadata = {
-              brands: brands.map(b => ({ brand: b.brand, version: b.version })),
-              fullVersionList: brands.map(b => ({
-                brand: b.brand,
-                version: (b.brand === 'Chromium' || b.brand === 'Google Chrome') ? full : b.version + '.0.0.0',
-              })),
-              fullVersion: full,
-              platform: platform,
-              platformVersion: platformVersion,
-              architecture: platform === 'macOS' ? 'arm' : 'x86',
-              model: '',
-              mobile: false,
-              bitness: platform === 'macOS' ? '' : '64',
-              wow64: false,
-            };
+            params.userAgentMetadata = buildUserAgentMetadata(full, adv.platform || '');
           }
         } catch {}
         try { await session.send('Emulation.setUserAgentOverride', params); } catch {}
@@ -152,7 +134,7 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
     const restoredTabs = Array.isArray(savedTabs) ? savedTabs : [];
     
     if (restoredTabs.length > 0) {
-      appendLog && appendLog(profileId, `CDP: Restoring ${restoredTabs.length} saved tabs...`);
+      appendLog && appendLog(profileId, `CDP: Restoring ${savedTabs.length} saved tabs...`);
       let first = true;
       for (const url of restoredTabs) {
         if (!isHttpUrl(url)) continue;

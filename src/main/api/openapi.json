@@ -167,52 +167,6 @@
     }
   },
   "paths": {
-    "/api/browsers/{profileId}/context/storage-state": {
-      "get": {
-        "summary": "Export context storage state (cookies + localStorage) for session reuse",
-        "tags": [
-          "browsers"
-        ],
-        "parameters": [
-          {
-            "name": "profileId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/api/browsers/{profileId}/context/new-page": {
-      "post": {
-        "summary": "Open a new page/tab in the browser context",
-        "tags": [
-          "browsers"
-        ],
-        "parameters": [
-          {
-            "name": "profileId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
-    },
     "/api/health": {
       "get": {
         "summary": "Health",
@@ -517,33 +471,6 @@
         }
       }
     },
-    "/api/profiles/{id}/pages": {
-      "get": {
-        "summary": "List pages",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PagesResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/profiles/{id}/navigate": {
       "post": {
         "summary": "Navigate",
@@ -574,35 +501,6 @@
         }
       }
     },
-    "/api/profiles/{id}/new-page": {
-      "post": {
-        "summary": "New page",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewPageRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/api/profiles/{id}/close-page": {
       "post": {
         "summary": "Close page",
@@ -621,35 +519,6 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ClosePageRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/profiles/{id}/screenshot": {
-      "post": {
-        "summary": "Screenshot",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ScreenshotRequest"
               }
             }
           }
@@ -1192,6 +1061,609 @@
                     "default": 0
                   },
                   "deltaY": {
+                    "type": "number",
+                    "default": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/actions/reload": {
+      "post": {
+        "summary": "Reload the current page",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "timeout": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "waitUntil": {
+                    "type": "string",
+                    "default": "load",
+                    "enum": [
+                      "load",
+                      "domcontentloaded",
+                      "networkidle",
+                      "commit"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/actions/go-back": {
+      "post": {
+        "summary": "Navigate back",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "waitUntil": {
+                    "type": "string",
+                    "default": "load",
+                    "enum": [
+                      "load",
+                      "domcontentloaded",
+                      "networkidle",
+                      "commit"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/actions/go-forward": {
+      "post": {
+        "summary": "Navigate forward",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "waitUntil": {
+                    "type": "string",
+                    "default": "load",
+                    "enum": [
+                      "load",
+                      "domcontentloaded",
+                      "networkidle",
+                      "commit"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/actions/page-info": {
+      "get": {
+        "summary": "Get current URL and page title",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "description": "Page index (0-based)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/actions/content": {
+      "get": {
+        "summary": "Get full page HTML content",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "description": "Page index (0-based)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/actions/screenshot": {
+      "post": {
+        "summary": "Take a screenshot (returns base64 PNG)",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "fullPage": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "Optional: save to file path on server"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/actions/click": {
+      "post": {
+        "summary": "Click an element",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "selector"
+                ],
+                "properties": {
+                  "selector": {
+                    "type": "string"
+                  },
+                  "index": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "button": {
+                    "type": "string",
+                    "default": "left",
+                    "enum": [
+                      "left",
+                      "right",
+                      "middle"
+                    ]
+                  },
+                  "clickCount": {
+                    "type": "integer",
+                    "default": 1
+                  },
+                  "delay": {
+                    "type": "integer",
+                    "description": "ms between mousedown and mouseup"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/actions/double-click": {
+      "post": {
+        "summary": "Double-click an element",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "selector"
+                ],
+                "properties": {
+                  "selector": {
+                    "type": "string"
+                  },
+                  "index": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "delay": {
+                    "type": "integer",
+                    "description": "ms between clicks"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/context/storage-state": {
+      "get": {
+        "summary": "Export context storage state (cookies + localStorage) for session reuse",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/context/new-page": {
+      "post": {
+        "summary": "Open a new page/tab in the browser context",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/context/grant-permissions": {
+      "post": {
+        "summary": "Grant browser permissions (e.g. geolocation, camera, microphone)",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "permissions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "origin": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/context/clear-permissions": {
+      "post": {
+        "summary": "Revoke all previously granted browser permissions",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/context/pages": {
+      "get": {
+        "summary": "List all open pages/tabs in the browser context",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/context/extra-http-headers": {
+      "post": {
+        "summary": "Set extra HTTP headers for all pages in the context",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/context/geolocation": {
+      "post": {
+        "summary": "Override GPS geolocation for the browser context",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "latitude",
+                  "longitude"
+                ],
+                "properties": {
+                  "latitude": {
+                    "type": "number",
+                    "default": 90
+                  },
+                  "longitude": {
+                    "type": "number",
+                    "default": 180
+                  },
+                  "accuracy": {
                     "type": "number",
                     "default": 0
                   }
