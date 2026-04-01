@@ -1281,6 +1281,57 @@
           }
         }
       }
+    },
+    "/api/profiles/{id}/context/geolocation": {
+      "post": {
+        "summary": "Override GPS geolocation for the browser context",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "latitude",
+                  "longitude"
+                ],
+                "properties": {
+                  "latitude": {
+                    "type": "number",
+                    "default": 90
+                  },
+                  "longitude": {
+                    "type": "number",
+                    "default": 180
+                  },
+                  "accuracy": {
+                    "type": "number",
+                    "default": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
     }
   }
 }

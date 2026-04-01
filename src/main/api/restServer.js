@@ -172,6 +172,10 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
     const r = await handlers.setExtraHTTPHeadersInternal(req.params.id, req.body || {});
     res.json(r);
   });
+  appx.post('/api/profiles/:id/context/geolocation', async (req, res) => {
+    const r = await handlers.setGeolocationInternal(req.params.id, req.body || {});
+    res.json(r);
+  });
 
   // Generic action dispatcher and helpers
   appx.get('/api/actions', async (_req, res) => {

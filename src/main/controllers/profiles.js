@@ -620,6 +620,23 @@ async function setExtraHTTPHeadersInternal(profileId, { headers } = {}) {
   });
 }
 
+async function setGeolocationInternal(profileId, { latitude, longitude, accuracy } = {}) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { success: false, error: 'latitude and longitude are required numbers' };
+  const geo = { latitude: lat, longitude: lng, accuracy: Number(accuracy ?? 50) };
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      await context.setGeolocation(geo);
+      await cleanup();
+      return { success: true, geolocation: geo };
+    } catch (e) {
+      await cleanup();
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+}
+
 async function getProfileLogInternal(profileId) { try { const p = require('path').join(getDataRoot(), 'logs', `${profileId}.log`); if (!fs.existsSync(p)) return { success: true, log: '' }; return { success: true, log: fs.readFileSync(p, 'utf8') }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function getCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const cookies = await running.context.cookies(); return { success: true, cookies }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, cookies: state.cookies || [] }; } return { success: true, cookies: [] }; } catch (error) { return { success: false, error: error.message }; } }
@@ -680,6 +697,7 @@ module.exports = {
   grantPermissionsInternal,
   clearPermissionsInternal,
   setExtraHTTPHeadersInternal,
+  setGeolocationInternal,
   getProfileLogInternal,
   getCookiesInternal,
   importCookiesInternal,
