@@ -586,6 +586,10 @@ async function goBackInternal(profileId, { index = 0, waitUntil = 'load' } = {})
 
 async function goForwardInternal(profileId, { index = 0, waitUntil = 'load' } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[index] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const response = await page.goForward({ waitUntil }); await cleanup(); return { success: true, url: page.url(), navigated: !!response }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
 
+async function getPageInfoInternal(profileId, { index = 0 } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[Number(index)] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const [title, url] = await Promise.all([page.title().catch(() => ''), Promise.resolve(page.url())]); await cleanup(); return { success: true, url, title }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
+
+async function getPageContentInternal(profileId, { index = 0 } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[Number(index)] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const content = await page.content(); await cleanup(); return { success: true, content }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
+
 async function grantPermissionsInternal(profileId, { permissions = [], origin } = {}) {
   return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
     try {
@@ -703,6 +707,8 @@ module.exports = {
   reloadPageInternal,
   goBackInternal,
   goForwardInternal,
+  getPageInfoInternal,
+  getPageContentInternal,
   grantPermissionsInternal,
   clearPermissionsInternal,
   setExtraHTTPHeadersInternal,

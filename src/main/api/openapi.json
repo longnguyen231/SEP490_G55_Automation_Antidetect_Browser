@@ -1256,6 +1256,119 @@
         }
       }
     },
+    "/api/profiles/{id}/actions/page-info": {
+      "get": {
+        "summary": "Get current URL and page title",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "description": "Page index (0-based)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/actions/content": {
+      "get": {
+        "summary": "Get full page HTML content",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "description": "Page index (0-based)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/actions/screenshot": {
+      "post": {
+        "summary": "Take a screenshot (returns base64 PNG)",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "fullPage": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "Optional: save to file path on server"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/profiles/{id}/context/storage-state": {
       "get": {
         "summary": "Export context storage state (cookies + localStorage) for session reuse",

@@ -158,6 +158,18 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
     const r = await handlers.goForwardInternal(req.params.id, req.body || {});
     res.status(r.success ? 200 : 500).json(r);
   });
+  appx.get('/api/profiles/:id/actions/page-info', async (req, res) => {
+    const r = await handlers.getPageInfoInternal(req.params.id, req.query || {});
+    res.status(r.success ? 200 : 500).json(r);
+  });
+  appx.get('/api/profiles/:id/actions/content', async (req, res) => {
+    const r = await handlers.getPageContentInternal(req.params.id, req.query || {});
+    res.status(r.success ? 200 : 500).json(r);
+  });
+  appx.post('/api/profiles/:id/actions/screenshot', async (req, res) => {
+    const r = await handlers.screenshotInternal(req.params.id, req.body || {});
+    res.status(r.success ? 200 : 500).json(r);
+  });
 
   // Browser context actions
   appx.get('/api/profiles/:id/context/storage-state', async (req, res) => {
