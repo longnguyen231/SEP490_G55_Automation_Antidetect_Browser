@@ -96,9 +96,6 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   appx.post('/api/profiles/:id/close-page', async (req, res) => {
     const r = await handlers.closePageInternal(req.params.id, req.body || {}); res.json(r);
   });
-  appx.post('/api/profiles/:id/screenshot', async (req, res) => {
-    const r = await handlers.screenshotInternal(req.params.id, req.body || {}); res.json(r);
-  });
   appx.post('/api/profiles/:id/eval', async (req, res) => {
     const r = await handlers.evalInternal(req.params.id, req.body || {}); res.json(r);
   });
@@ -168,6 +165,14 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   });
   appx.post('/api/profiles/:id/actions/screenshot', async (req, res) => {
     const r = await handlers.screenshotInternal(req.params.id, req.body || {});
+    res.status(r.success ? 200 : 500).json(r);
+  });
+  appx.post('/api/profiles/:id/actions/click', async (req, res) => {
+    const r = await handlers.clickElementInternal(req.params.id, req.body || {});
+    res.status(r.success ? 200 : 500).json(r);
+  });
+  appx.post('/api/profiles/:id/actions/double-click', async (req, res) => {
+    const r = await handlers.doubleClickElementInternal(req.params.id, req.body || {});
     res.status(r.success ? 200 : 500).json(r);
   });
 

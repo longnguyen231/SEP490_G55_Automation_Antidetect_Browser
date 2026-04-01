@@ -590,6 +590,38 @@ async function getPageInfoInternal(profileId, { index = 0 } = {}) { return await
 
 async function getPageContentInternal(profileId, { index = 0 } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[Number(index)] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const content = await page.content(); await cleanup(); return { success: true, content }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
 
+async function clickElementInternal(profileId, { selector, index = 0, button = 'left', clickCount = 1, delay } = {}) {
+  if (!selector) return { success: false, error: 'selector is required' };
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      const pages = context.pages();
+      const page = pages[Number(index)] || pages[0];
+      if (!page) { await cleanup(); return { success: false, error: 'No page available' }; }
+      const opts = { button, clickCount };
+      if (delay != null) opts.delay = Number(delay);
+      await page.click(selector, opts);
+      await cleanup();
+      return { success: true };
+    } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; }
+  });
+}
+
+async function doubleClickElementInternal(profileId, { selector, index = 0, delay } = {}) {
+  if (!selector) return { success: false, error: 'selector is required' };
+  return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
+    try {
+      const pages = context.pages();
+      const page = pages[Number(index)] || pages[0];
+      if (!page) { await cleanup(); return { success: false, error: 'No page available' }; }
+      const opts = {};
+      if (delay != null) opts.delay = Number(delay);
+      await page.dblclick(selector, opts);
+      await cleanup();
+      return { success: true };
+    } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; }
+  });
+}
+
 async function grantPermissionsInternal(profileId, { permissions = [], origin } = {}) {
   return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
     try {
@@ -709,6 +741,8 @@ module.exports = {
   goForwardInternal,
   getPageInfoInternal,
   getPageContentInternal,
+  clickElementInternal,
+  doubleClickElementInternal,
   grantPermissionsInternal,
   clearPermissionsInternal,
   setExtraHTTPHeadersInternal,

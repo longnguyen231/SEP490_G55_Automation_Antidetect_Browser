@@ -530,35 +530,6 @@
         }
       }
     },
-    "/api/profiles/{id}/screenshot": {
-      "post": {
-        "summary": "Screenshot",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ScreenshotRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/api/profiles/{id}/eval": {
       "post": {
         "summary": "Eval JS",
@@ -1356,6 +1327,117 @@
                   "path": {
                     "type": "string",
                     "description": "Optional: save to file path on server"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/actions/click": {
+      "post": {
+        "summary": "Click an element",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "selector"
+                ],
+                "properties": {
+                  "selector": {
+                    "type": "string"
+                  },
+                  "index": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "button": {
+                    "type": "string",
+                    "default": "left",
+                    "enum": [
+                      "left",
+                      "right",
+                      "middle"
+                    ]
+                  },
+                  "clickCount": {
+                    "type": "integer",
+                    "default": 1
+                  },
+                  "delay": {
+                    "type": "integer",
+                    "description": "ms between mousedown and mouseup"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/actions/double-click": {
+      "post": {
+        "summary": "Double-click an element",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "selector"
+                ],
+                "properties": {
+                  "selector": {
+                    "type": "string"
+                  },
+                  "index": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "delay": {
+                    "type": "integer",
+                    "description": "ms between clicks"
                   }
                 }
               }
