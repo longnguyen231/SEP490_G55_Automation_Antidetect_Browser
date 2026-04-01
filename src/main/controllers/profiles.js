@@ -580,6 +580,12 @@ async function screenshotInternal(profileId, { index = 0, path: outPath, fullPag
 
 async function evalInternal(profileId, { index = 0, expression } = {}) { if (typeof expression !== 'string') return { success: false, error: 'expression must be a string' }; return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[index] || pages[0] || (await context.newPage()); const value = await page.evaluate(expr => { try { return eval(expr); } catch (e) { return { __error: true, message: e?.message || String(e) }; } }, expression); await cleanup(); if (value && value.__error) return { success: false, error: value.message }; return { success: true, value }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
 
+async function reloadPageInternal(profileId, { index = 0, timeout, waitUntil = 'load' } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[index] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const opts = { waitUntil }; if (timeout != null) opts.timeout = Number(timeout); await page.reload(opts); const title = await page.title().catch(() => ''); await cleanup(); return { success: true, url: page.url(), title }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
+
+async function goBackInternal(profileId, { index = 0, waitUntil = 'load' } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[index] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const response = await page.goBack({ waitUntil }); await cleanup(); return { success: true, url: page.url(), navigated: !!response }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
+
+async function goForwardInternal(profileId, { index = 0, waitUntil = 'load' } = {}) { return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => { try { const pages = context.pages(); const page = pages[index] || pages[0]; if (!page) { await cleanup(); return { success: false, error: 'No page available' }; } const response = await page.goForward({ waitUntil }); await cleanup(); return { success: true, url: page.url(), navigated: !!response }; } catch (e) { await cleanup(); return { success: false, error: e?.message || String(e) }; } }); }
+
 async function grantPermissionsInternal(profileId, { permissions = [], origin } = {}) {
   return await withConnectedBrowserForProfile(profileId, async ({ context, cleanup }) => {
     try {
@@ -694,6 +700,9 @@ module.exports = {
   closePageInternal,
   screenshotInternal,
   evalInternal,
+  reloadPageInternal,
+  goBackInternal,
+  goForwardInternal,
   grantPermissionsInternal,
   clearPermissionsInternal,
   setExtraHTTPHeadersInternal,

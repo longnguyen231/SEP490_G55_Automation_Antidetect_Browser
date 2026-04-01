@@ -146,6 +146,18 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
       res.status(result.success ? 200 : 500).json(result);
     } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
   });
+  appx.post('/api/profiles/:id/actions/reload', async (req, res) => {
+    const r = await handlers.reloadPageInternal(req.params.id, req.body || {});
+    res.status(r.success ? 200 : 500).json(r);
+  });
+  appx.post('/api/profiles/:id/actions/go-back', async (req, res) => {
+    const r = await handlers.goBackInternal(req.params.id, req.body || {});
+    res.status(r.success ? 200 : 500).json(r);
+  });
+  appx.post('/api/profiles/:id/actions/go-forward', async (req, res) => {
+    const r = await handlers.goForwardInternal(req.params.id, req.body || {});
+    res.status(r.success ? 200 : 500).json(r);
+  });
 
   // Browser context actions
   appx.get('/api/profiles/:id/context/storage-state', async (req, res) => {

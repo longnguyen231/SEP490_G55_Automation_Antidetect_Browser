@@ -1105,6 +1105,157 @@
         }
       }
     },
+    "/api/profiles/{id}/actions/reload": {
+      "post": {
+        "summary": "Reload the current page",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "timeout": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "waitUntil": {
+                    "type": "string",
+                    "default": "load",
+                    "enum": [
+                      "load",
+                      "domcontentloaded",
+                      "networkidle",
+                      "commit"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/actions/go-back": {
+      "post": {
+        "summary": "Navigate back",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "waitUntil": {
+                    "type": "string",
+                    "default": "load",
+                    "enum": [
+                      "load",
+                      "domcontentloaded",
+                      "networkidle",
+                      "commit"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/profiles/{id}/actions/go-forward": {
+      "post": {
+        "summary": "Navigate forward",
+        "tags": [
+          "Browser Actions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "waitUntil": {
+                    "type": "string",
+                    "default": "load",
+                    "enum": [
+                      "load",
+                      "domcontentloaded",
+                      "networkidle",
+                      "commit"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/profiles/{id}/context/storage-state": {
       "get": {
         "summary": "Export context storage state (cookies + localStorage) for session reuse",
