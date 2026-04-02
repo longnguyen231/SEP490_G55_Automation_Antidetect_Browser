@@ -46,7 +46,9 @@ async function runPlaywrightInstall(browser = 'chromium') {
 
 function broadcastRunningMap() {
   const { BrowserWindow } = require('electron');
-  const payload = { map: Object.fromEntries([...runningProfiles.entries()].map(([id, info]) => [id, info.wsEndpoint || null])) };
+  // Playwright Chromium pipe-mode: wsEndpoint=null → dùng 'pipe' làm giá trị truthy
+  // để frontend biết profile đang chạy (!!runningWs[id] === true)
+  const payload = { map: Object.fromEntries([...runningProfiles.entries()].map(([id, info]) => [id, info.wsEndpoint || 'pipe'])) };
   for (const w of BrowserWindow.getAllWindows()) {
     try { w.webContents.send('running-map-changed', payload); } catch { }
   }
@@ -875,9 +877,58 @@ async function editCookieInternal(profileId, cookie) { try { if (!cookie || !coo
 
 async function getStorageStateInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const state = await running.context.storageState(); return { success: true, state }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, state }; } return { success: true, state: { cookies: [], origins: [] } }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function getProfileWsInternal(profileId) { try { const running = runningProfiles.get(profileId); if (!running) return { success: true, wsEndpoint: null }; const ws = running.wsEndpoint; if (running.engine === 'playwright' && (running.context?.isClosed?.() || running.browser?.isConnected?.() === false)) { runningProfiles.delete(profileId); appendLog(profileId, 'Heartbeat: context/browser disconnected'); broadcastRunningMap(); return { success: true, wsEndpoint: null }; } const alive = await require('../engine/health').isWsAlive(ws); if (!alive) { runningProfiles.delete(profileId); appendLog(profileId, 'Heartbeat failed; removed stale running state'); broadcastRunningMap(); return { success: true, wsEndpoint: null }; } return { success: true, wsEndpoint: ws }; } catch (error) { return { success: false, error: error.message }; } }
+async function getProfileWsInternal(profileId) {
+  try {
+    const running = runningProfiles.get(profileId);
+    if (!running) return { success: true, wsEndpoint: null };
+    // Playwright: check context/browser state (KHÔNG gọi isWsAlive vì wsEndpoint có thể null)
+    if (running.engine === 'playwright') {
+      if (running.context?.isClosed?.() || running.browser?.isConnected?.() === false) {
+        runningProfiles.delete(profileId);
+        appendLog(profileId, 'Heartbeat: context/browser disconnected');
+        broadcastRunningMap();
+        return { success: true, wsEndpoint: null };
+      }
+      // Profile đang chạy → trả 'pipe' nếu wsEndpoint null (pipe mode)
+      return { success: true, wsEndpoint: running.wsEndpoint || 'pipe' };
+    }
+    // CDP: check bằng isWsAlive 
+    const ws = running.wsEndpoint;
+    const alive = await require('../engine/health').isWsAlive(ws);
+    if (!alive) {
+      runningProfiles.delete(profileId);
+      appendLog(profileId, 'Heartbeat failed; removed stale running state');
+      broadcastRunningMap();
+      return { success: true, wsEndpoint: null };
+    }
+    return { success: true, wsEndpoint: ws };
+  } catch (error) { return { success: false, error: error.message }; }
+}
 
-async function getRunningMapInternal() { try { const result = {}; for (const [id, info] of runningProfiles.entries()) { let alive = true; if (info.engine === 'playwright') { if (info.context?.isClosed?.() || info.browser?.isConnected?.() === false) alive = false; } else { if (!(await require('../engine/health').isWsAlive(info.wsEndpoint))) alive = false; } if (!alive) { runningProfiles.delete(id); appendLog(id, 'Bulk heartbeat: stale, clearing'); broadcastRunningMap(); } else { result[id] = info.wsEndpoint; } } return { success: true, map: result }; } catch (error) { return { success: false, error: error.message }; } }
+async function getRunningMapInternal() {
+  try {
+    const result = {};
+    for (const [id, info] of runningProfiles.entries()) {
+      let alive = true;
+      if (info.engine === 'playwright') {
+        // Playwright: chỉ check context/browser state
+        if (info.context?.isClosed?.() || info.browser?.isConnected?.() === false) alive = false;
+      } else {
+        // CDP: check bằng WebSocket health
+        if (!(await require('../engine/health').isWsAlive(info.wsEndpoint))) alive = false;
+      }
+      if (!alive) {
+        runningProfiles.delete(id);
+        appendLog(id, 'Bulk heartbeat: stale, clearing');
+        result[id] = null;
+      } else {
+        // 'pipe' = giá trị truthy cho Playwright pipe-mode (wsEndpoint=null)
+        result[id] = info.wsEndpoint || 'pipe';
+      }
+    }
+    return { success: true, map: result };
+  } catch (error) { return { success: false, error: error.message }; }
+}
 
 async function getLocalesTimezonesInternal() { try { const locales = ['en-US', 'en-GB', 'en-CA', 'en-AU', 'vi-VN', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 'pt-BR', 'pt-PT', 'ru-RU', 'ja-JP', 'ko-KR', 'zh-CN', 'zh-TW', 'th-TH', 'id-ID', 'ms-MY', 'hi-IN', 'tr-TR', 'nl-NL', 'pl-PL']; const timezones = ['UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Rome', 'Europe/Amsterdam', 'Europe/Warsaw', 'Asia/Tokyo', 'Asia/Seoul', 'Asia/Shanghai', 'Asia/Taipei', 'Asia/Bangkok', 'Asia/Jakarta', 'Asia/Kuala_Lumpur', 'Asia/Ho_Chi_Minh', 'Asia/Singapore', 'Asia/Kolkata', 'Australia/Sydney']; return { success: true, locales, timezones }; } catch (error) { return { success: false, error: error.message }; } }
 
