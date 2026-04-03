@@ -181,8 +181,10 @@
 }
 
 .pf-sidebar-status.on {
-  opacity: 0.85;
-  color: var(--primary);
+  opacity: 1;
+  color: #10b981 !important; /* Xanh lá cây */
+  font-weight: 900;
+  text-shadow: 0 0 1px #10b981; /* Tăng độ đậm của viền chữ */
 }
 
 .pf-sidebar-item.active .pf-sidebar-status {
@@ -190,8 +192,9 @@
 }
 
 .pf-sidebar-item.active .pf-sidebar-status.on {
-  color: #fff;
+  color: #10b981 !important;
   opacity: 1;
+  font-weight: 900;
 }
 
 .pf-sidebar-icon {

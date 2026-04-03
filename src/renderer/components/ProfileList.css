@@ -233,6 +233,18 @@
   color: var(--fg);
 }
 
+/* WARN state: orange highlight */
+.pl-fp-badge-warn {
+  background: rgba(255, 159, 67, 0.15);
+  border-color: rgba(255, 159, 67, 0.4);
+  color: #ff9f43;
+}
+
+.pl-fp-badge-warn:hover {
+  background: rgba(255, 159, 67, 0.25);
+  border-color: #ff9f43;
+}
+
 @media (max-width: 900px) {
   .pl-card {
     flex-wrap: wrap;

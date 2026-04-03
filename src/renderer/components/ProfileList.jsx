@@ -143,6 +143,7 @@ export default function ProfileList({
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                     {BADGE_MAP.map(({ key, label, section, title }) => {
                       const isEnabled = !!profile?.settings?.[section]?.enabled;
+                      const isWarn = key === 'DSP' && isEnabled; // Display spoofing triggers warning
                       return (
                         <button
                           key={key}
@@ -151,9 +152,9 @@ export default function ProfileList({
                             e.stopPropagation();
                             onToggleFp && onToggleFp(profile, section, !isEnabled);
                           }}
-                          className={`pl-fp-badge ${isEnabled ? 'pl-fp-badge-on' : 'pl-fp-badge-off'}`}
+                          className={`pl-fp-badge ${isWarn ? 'pl-fp-badge-warn' : isEnabled ? 'pl-fp-badge-on' : 'pl-fp-badge-off'}`}
                         >
-                          {label}
+                          {label}{isWarn && '!'}
                         </button>
                       );
                     })}
