@@ -221,15 +221,62 @@ function ScriptsTab({ profiles }) {
                                 </div>
                             </div>
 
-                            {/* Config Row 2 */}
-                            <div className="p-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
-                                <span className="text-[0.75rem] font-medium" style={{ color: 'var(--fg)' }}>Auto-run schedule</span>
-                                <label className="flex flex-col items-center cursor-pointer">
-                                    <input type="checkbox" className="hidden" />
-                                    <div className="w-9 h-5 rounded-full relative transition-colors" style={{ background: 'var(--border2)' }}>
-                                        <div className="w-3.5 h-3.5 bg-white rounded-full shadow absolute left-[3px] top-[3px] transition-transform"></div>
+                            {/* Config Row 2 (Auto-run) */}
+                            <div className="flex flex-col">
+                                <div className="p-3 flex items-center justify-between" style={{ borderBottom: editing.autoRun ? 'none' : '1px solid var(--border)' }}>
+                                    <span className="text-[0.75rem] font-medium" style={{ color: 'var(--fg)' }}>Auto-run schedule</span>
+                                    <label className="flex flex-col items-center cursor-pointer">
+                                        <input type="checkbox" className="hidden" checked={!!editing.autoRun} onChange={e => setEditing(p => ({ ...p, autoRun: e.target.checked }))} />
+                                        <div className="w-9 h-5 rounded-full relative transition-colors" style={{ background: editing.autoRun ? '#3b82f6' : 'var(--border2)' }}>
+                                            <div className={`w-3.5 h-3.5 bg-white rounded-full shadow absolute top-[3px] transition-transform ${editing.autoRun ? 'translate-x-[19px]' : 'translate-x-[3px]'}`}></div>
+                                        </div>
+                                    </label>
+                                </div>
+                                
+                                {/* Expanded Auto-run Config */}
+                                {editing.autoRun && (
+                                    <div className="px-4 pb-4 pt-1" style={{ borderBottom: '1px solid var(--border)' }}>
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <span className="text-[0.7rem]" style={{ color: 'var(--fg)' }}>Profile:</span>
+                                            <select className="flex-1 rounded px-2 py-1.5 text-[0.75rem]" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}>
+                                                <option value="">Select profile...</option>
+                                                {profiles.map(p => <option key={p.id} value={p.id}>{p.name || p.id}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="flex gap-1.5 flex-wrap mb-3">
+                                            {['Every 5m', 'Every 15m', 'Every 30m', 'Hourly', 'Daily 9am', 'Midnight', 'Mon 9am'].map(label => (
+                                                <button key={label} className="px-2 py-1 rounded hover:bg-slate-200 transition text-[0.65rem] border" style={{ background: 'var(--glass-strong)', borderColor: 'var(--border2)', color: 'var(--fg)' }}>
+                                                    {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="flex gap-2 mb-3">
+                                            {[
+                                                { label: 'Minute', bg: 'var(--glass-input)' },
+                                                { label: 'Hour', bg: 'var(--glass-strong)' },
+                                                { label: 'Day', bg: 'var(--glass-input)' },
+                                                { label: 'Month', bg: 'var(--glass-input)' },
+                                                { label: 'Weekday', bg: 'var(--glass-strong)' }
+                                            ].map(col => (
+                                                <div key={col.label} className="flex-1">
+                                                    <div className="text-[0.65rem] mb-1" style={{ color: 'var(--muted)' }}>{col.label}</div>
+                                                    <select className="w-full rounded px-1 py-1 text-[0.7rem] border" style={{ background: col.bg, borderColor: 'var(--border2)', color: 'var(--fg)' }}>
+                                                        <option>* (eve...</option>
+                                                    </select>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="flex gap-3 items-center">
+                                            <input 
+                                                className="w-[120px] rounded px-3 py-1.5 text-[0.75rem] font-mono tracking-widest border text-center" 
+                                                readOnly 
+                                                value="* * * * *" 
+                                                style={{ background: 'var(--glass-input)', borderColor: 'var(--border2)', color: 'var(--fg)' }} 
+                                            />
+                                            <span className="text-[0.75rem]" style={{ color: 'var(--muted)' }}>Every minute</span>
+                                        </div>
                                     </div>
-                                </label>
+                                )}
                             </div>
 
                             {/* Config Row 3 */}
