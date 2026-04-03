@@ -73,7 +73,7 @@ export default function ProfileList({
           </div>
         ) : (
           profiles.map(profile => {
-            const isRunning = !!runningWs[profile.id];
+            const isRunning = profile.id in runningWs;
             const hasError = !!errorProfiles[profile.id] && !isRunning;
             const osInfo = getOsInfo(profile);
             const browser = profile?.fingerprint?.browser || 'Chrome';

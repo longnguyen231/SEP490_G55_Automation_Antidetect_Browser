@@ -25,6 +25,42 @@ function saveSettings(newSettings) {
   } catch (e) { return false; }
 }
 
+/**
+ * Resolves ONLY the vendor-bundled Chrome binary (packaged extraResources or dev vendor/ folder).
+ * Returns null if no vendor binary exists — never falls back to system Chrome.
+ * Used by the Playwright engine to guarantee the correct binary is launched.
+ */
+function resolveVendorChromePath() {
+  const cand = [];
+  try {
+    const resRoot = process.resourcesPath || '';
+    if (process.platform === 'win32') {
+      cand.push(path.join(resRoot, 'chrome', 'App', 'Chrome-bin', 'chrome.exe'));
+      cand.push(path.join(resRoot, 'chrome', 'Chrome-bin', 'chrome.exe'));
+    } else if (process.platform === 'darwin') {
+      cand.push(path.join(resRoot, 'Chromium.app', 'Contents', 'MacOS', 'Chromium'));
+    } else {
+      cand.push(path.join(resRoot, 'chrome', 'chrome'));
+    }
+  } catch {}
+  try {
+    const vendorRoot = path.join(__dirname, '../../../vendor');
+    if (process.platform === 'win32') {
+      cand.push(path.join(vendorRoot, 'chrome-win', 'App', 'Chrome-bin', 'chrome.exe'));
+      cand.push(path.join(vendorRoot, 'chrome-win', 'Chrome-bin', 'chrome.exe'));
+      cand.push(path.join(vendorRoot, 'chrome-win', 'chrome.exe'));
+    } else if (process.platform === 'darwin') {
+      cand.push(path.join(vendorRoot, 'chromium-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'));
+    } else {
+      cand.push(path.join(vendorRoot, 'chrome-linux', 'chrome'));
+    }
+  } catch {}
+  for (const p of cand) {
+    try { if (p && fs.existsSync(p)) return p; } catch {}
+  }
+  return null;
+}
+
 // Prioritize vendor portable Chrome before explicit overrides, then system installs.
 function resolveChromeExecutable() {
   const envChrome = process.env.CHROME_PATH;
@@ -103,4 +139,4 @@ function resolveChromeExecutable() {
   return null;
 }
 
-module.exports = { loadSettings, saveSettings, resolveChromeExecutable };
+module.exports = { loadSettings, saveSettings, resolveChromeExecutable, resolveVendorChromePath };

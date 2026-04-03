@@ -80,6 +80,14 @@
   margin: 0 0 8px;
 }
 
+.eim-progress-pct {
+  font-size: 0.82rem;
+  color: #3b6fd4;
+  font-weight: 600;
+  margin: 5px 0 0;
+  text-align: right;
+}
+
 .eim-progress-bar-bg {
   height: 8px;
   background: #e9ecef;
@@ -92,6 +100,16 @@
   background: linear-gradient(90deg, #4a90d9, #3b6fd4);
   border-radius: 8px;
   transition: width 0.3s ease;
+}
+
+.eim-progress-bar-fill.indeterminate {
+  width: 40% !important;
+  animation: eim-indeterminate 1.4s ease-in-out infinite;
+}
+
+@keyframes eim-indeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
 }
 
 /* Success */

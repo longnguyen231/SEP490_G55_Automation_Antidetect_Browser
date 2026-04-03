@@ -89,5 +89,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('browser-runtime-progress', listener);
     return () => ipcRenderer.removeListener('browser-runtime-progress', listener);
   },
+  onBrowserInstallProgress: (callback) => {
+    const listener = (_e, data) => callback(data);
+    ipcRenderer.on('browser-runtime-progress', listener);
+    return () => ipcRenderer.removeListener('browser-runtime-progress', listener);
+  },
   removeAllBrowserProgress: () => ipcRenderer.removeAllListeners('browser-runtime-progress'),
 });
