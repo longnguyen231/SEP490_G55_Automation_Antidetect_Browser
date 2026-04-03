@@ -535,37 +535,6 @@ function ProfileForm({ profile, onSave, onCancel }) {
       ...formData,
       settings: finalSettings,
       sectionToggles,
-      fingerprint: {
-        os: formData.quickGenerate.os,
-        browser: formData.quickGenerate.browser || 'Chrome',
-        browserVersion: '136.0.7103.93',
-        userAgent: formData.identity.userAgent,
-        language: formData.identity.locale,
-        screenResolution: `${formData.display.width}x${formData.display.height}`,
-        timezone: formData.identity.timezone,
-        webgl: formData.webgl.enabled,
-        canvas: formData.canvas.enabled,
-        audio: formData.audio.enabled,
-      },
-      settings: {
-        engine: formData.engine,
-        cpuCores: formData.hardware.cpuCores,
-        memoryGB: formData.hardware.memoryGB,
-        language: formData.identity.locale,
-        timezone: formData.identity.timezone,
-        webrtc: formData.network.webrtcPolicy,
-        proxy: formData.proxy,
-        advanced: {
-          platform: formData.identity.platform,
-          dnt: formData.network.doNotTrack === 'true',
-          devicePixelRatio: formData.display.pixelRatio,
-          maxTouchPoints: formData.network.maxTouchPoints,
-          webglVendor: formData.hardware.gpuVendor,
-          webglRenderer: formData.hardware.gpuRenderer,
-          plugins: 5,
-          languages: formData.identity.languages,
-        },
-      },
     };
     onSave(payload);
   };

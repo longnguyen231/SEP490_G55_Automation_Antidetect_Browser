@@ -32,13 +32,20 @@ function pickWeighted(rng, items) {
 // DATA POOLS — Realistic values observed from real browsers
 // ═══════════════════════════════════════════════════════════════════════
 
+// CHROME_VERSIONS — reflects real-world Chrome distribution in 2026.
+// UA is synced to actual binary version at launch (getChromeVersion in profiles.js).
 const CHROME_VERSIONS = [
-  // Recent stable Chrome versions (high weight = more common in 2026)
-  { major: 138, full: '138.0.7204.62', weight: 10 },
-  { major: 137, full: '137.0.7151.89', weight: 9 },
-  { major: 136, full: '136.0.7103.113', weight: 7 },
-  { major: 135, full: '135.0.6998.127', weight: 4 },
-  { major: 134, full: '134.0.6998.72', weight: 2 },
+  { major: 146, full: '146.0.7680.165', weight: 14 },
+  { major: 145, full: '145.0.7595.75',  weight: 11 },
+  { major: 144, full: '144.0.7539.110', weight: 9  },
+  { major: 143, full: '143.0.7472.155', weight: 7  },
+  { major: 142, full: '142.0.7450.190', weight: 5  },
+  { major: 141, full: '141.0.7390.37',  weight: 5  },
+  { major: 140, full: '140.0.7316.115', weight: 4  },
+  { major: 139, full: '139.0.7258.100', weight: 3  },
+  { major: 138, full: '138.0.7204.62',  weight: 3  },
+  { major: 137, full: '137.0.7151.89',  weight: 2  },
+  { major: 136, full: '136.0.7103.113', weight: 2  },
 ];
 
 const OS_CONFIGS = {

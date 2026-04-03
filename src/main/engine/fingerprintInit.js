@@ -49,6 +49,9 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   const applyViewport = !safeMode && apply.viewport !== false;
   const applyCanvas = !safeMode && apply.canvas !== false;
   const applyAudio = !safeMode && apply.audio !== false;
+  // Always run anti-automation cleanup regardless of safeMode — removing webdriver/CDP artifacts
+  // is safe and necessary. Can be disabled only via explicit applyOverrides.antiDetection=false.
+  const applyAntiDetection = apply.antiDetection !== false;
 
   // Generate a stable per-profile seed for consistent noise
   const profileSeed = hashCode(profile?.id || 'default');

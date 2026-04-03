@@ -10,13 +10,12 @@ function setMainWindowRef(win) {
 }
 
 function getBrowsersPath() {
-    // Use the same path that playwright uses by default — ms-playwright in LOCALAPPDATA.
-    // Do NOT use a custom userData path; it won't match where playwright installs/looks.
+    // Must use rebrowser-playwright (aliased as 'playwright') — NOT standard playwright-core.
+    // rebrowser-playwright installs chromium revision 1169 (Chrome 136), while
+    // standard playwright-core@1.58.2 targets revision 1194 (Chrome 141) — different paths.
     try {
-        const { chromium } = require('playwright-core');
+        const { chromium } = require('playwright');
         const exePath = chromium.executablePath();
-        // exePath example: C:\Users\xxx\AppData\Local\ms-playwright\chromium-1194\chrome-win\chrome.exe
-        // Go up 3 levels to get ms-playwright root
         return path.dirname(path.dirname(path.dirname(exePath)));
     } catch {
         const localAppData = process.env.LOCALAPPDATA || path.join(require('os').homedir(), 'AppData', 'Local');
@@ -36,9 +35,8 @@ function getExecutableConfig() {
  */
 function checkBrowserStatus(browserName) {
     try {
-        // Use playwright-core's own executablePath() as source of truth
-        // This always matches what Playwright uses when launching
-        const pw = require('playwright-core');
+        // Use rebrowser-playwright (aliased as 'playwright') — must match the engine used for launching.
+        const pw = require('playwright');
         const engine = browserName === 'firefox' ? pw.firefox : pw.chromium;
         const exePath = engine.executablePath();
         const exists = fs.existsSync(exePath);
@@ -122,14 +120,30 @@ async function installBrowser(browserName) {
             const parseProgress = (data) => {
                 const text = data.toString();
                 combinedOutput += text;
-                lastLogs[browserName] = text.trim().split('\n').pop(); // Store only the last line
-                
-                // Playwright CLI outputs bytes like "15.0 Mb / 120.5 Mb" or percentages
-                // Or simply emits downloading chunks.
+                const lastLine = text.trim().split('\n').pop() || '';
+                lastLogs[browserName] = lastLine;
+
+                // Parse percent from Playwright CLI output formats:
+                // "136.8 Mb [====================] 100% 0.0s"
+                // "XX.X Mb / YYY.Y Mb" → calculate percent from sizes
+                let percent = null;
+                const pctMatch = lastLine.match(/(\d+)%/);
+                if (pctMatch) {
+                    percent = Math.min(100, Math.max(0, parseInt(pctMatch[1], 10)));
+                } else {
+                    const mbMatch = lastLine.match(/([\d.]+)\s*Mb\s*\/\s*([\d.]+)\s*Mb/i);
+                    if (mbMatch) {
+                        const done = parseFloat(mbMatch[1]);
+                        const total = parseFloat(mbMatch[2]);
+                        if (total > 0) percent = Math.min(100, Math.round((done / total) * 100));
+                    }
+                }
+
                 if (mainWindowRef && !mainWindowRef.isDestroyed()) {
                     mainWindowRef.webContents.send('browser-runtime-progress', {
                         browserName,
-                        log: text
+                        log: lastLine,
+                        percent,
                     });
                 }
             };

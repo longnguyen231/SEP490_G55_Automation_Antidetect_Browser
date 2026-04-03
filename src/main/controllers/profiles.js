@@ -1,12 +1,35 @@
 const fs = require('fs');
+const { execFile } = require('child_process');
 const { chromium } = require('playwright');
 const { appendLog } = require('../logging/logger');
 const { storageStatePath, getDataRoot } = require('../storage/paths');
 const { loadSettings, resolveChromeExecutable, resolveVendorChromePath } = require('../storage/settings');
-const { runningProfiles } = require('../state/runtime');
+const { runningProfiles, launchingProfiles } = require('../state/runtime');
 const { applyCdpOverrides } = require('../engine/cdpOverrides');
 const { findFreePort, fetchJsonVersion, killProcessTreeWin, userDataDirFor, launchChromeCdp } = require('../engine/cdp');
 const { readProfiles, writeProfiles } = require('../storage/profiles');
+
+/**
+ * Reads the actual Chrome version from a binary by running `chrome --version`.
+ * Returns full version string e.g. "136.0.7103.113" or null on failure.
+ * Result is cached per path to avoid repeated spawns.
+ */
+const _chromeVersionCache = new Map();
+function getChromeVersion(chromePath) {
+  if (_chromeVersionCache.has(chromePath)) return Promise.resolve(_chromeVersionCache.get(chromePath));
+  return new Promise((resolve) => {
+    try {
+      execFile(chromePath, ['--version'], { timeout: 5000, windowsHide: true }, (err, stdout) => {
+        if (err) { resolve(null); return; }
+        // stdout: "Google Chrome 136.0.7103.113" or "Chromium 136.0.7103.113"
+        const m = String(stdout).match(/(\d+\.\d+\.\d+\.\d+)/);
+        const version = m ? m[1] : null;
+        _chromeVersionCache.set(chromePath, version);
+        resolve(version);
+      });
+    } catch { resolve(null); }
+  });
+}
 
 async function runPlaywrightInstall(browser = 'chromium') {
   appendLog('system', `Running Playwright install for ${browser}...`);
@@ -30,14 +53,17 @@ function broadcastRunningMap() {
 }
 
 async function launchProfileInternal(profileId, options = {}) {
+  if (runningProfiles.has(profileId)) {
+    return { success: true, wsEndpoint: runningProfiles.get(profileId).wsEndpoint };
+  }
+  if (launchingProfiles.has(profileId)) {
+    return { success: false, error: 'Profile is already starting up' };
+  }
+  launchingProfiles.add(profileId);
   try {
     const profiles = readProfiles();
     const profile = profiles.find(p => p.id === profileId);
     if (!profile) return { success: false, error: 'Profile not found' };
-    if (runningProfiles.has(profileId)) {
-      const running = runningProfiles.get(profileId);
-      return { success: true, wsEndpoint: running.wsEndpoint };
-    }
     const settings = profile.settings || {};
     let startUrl = profile.startUrl || 'https://www.google.com/?hl=en';
     if (startUrl === 'https://www.google.com' || startUrl === 'https://www.google.com/') {
@@ -202,21 +228,26 @@ async function launchProfileInternal(profileId, options = {}) {
     // Cloudflare enterprise WAF.
     const engineMode = settings.engine || 'playwright';
     const isFirefox = engineMode === 'playwright-firefox' || engineMode === 'firefox';
-    const { chromium, firefox } = require('playwright-core');
+    const { chromium, firefox } = require('playwright'); // rebrowser-playwright — must NOT use playwright-core (standard, unpatched)
     const pwEngine = isFirefox ? firefox : chromium;
 
     const fp = profile.fingerprint || {};
     const args = isFirefox ? [] : [
       '--lang=en-US',
+      // ── Core anti-detect: hide automation signals ──
       '--disable-blink-features=AutomationControlled',
-      '--disable-features=AutomationControlled',
+      // Single --disable-features flag — Chrome only honours the last occurrence, so all values must be merged here
+      '--disable-features=AutomationControlled,ChromeWhatsNewUI,AutofillServerCommunication,TranslateUI',
       '--disable-infobars',
+      '--exclude-switches=enable-automation',
+      // ── Performance / background throttling ──
       '--disable-background-timer-throttling',
       '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding',
       '--disable-ipc-flooding-protection',
       '--disable-hang-monitor',
       '--disable-prompt-on-repost',
+      // ── Privacy / noise reduction ──
       '--disable-domain-reliability',
       '--disable-component-update',
       '--metrics-recording-only',
@@ -224,7 +255,9 @@ async function launchProfileInternal(profileId, options = {}) {
       '--password-store=basic',
       '--use-mock-keychain',
       '--export-tagged-pdf',
-      '--disable-features=TranslateUI',
+      // ── Misc ──
+      '--no-default-browser-check',
+      '--no-first-run',
     ];
     // Window size (Chromium flags only)
     if (!isFirefox && settings.windowWidth > 0 && settings.windowHeight > 0) {
@@ -277,16 +310,32 @@ async function launchProfileInternal(profileId, options = {}) {
         proxy = { server: serverUrl };
       }
     }
-    // Resolve vendor Chrome binary for Chromium engine — must not use bundled Playwright Chromium.
-    // executablePath is always set explicitly; fallback to bundled only if no vendor binary found.
+    // Resolve Chrome binary for Chromium engine.
+    // Priority: 1) vendor folder  2) system-installed Chrome/Edge  3) bundled Playwright Chromium (last resort).
     let executablePath;
+    let binarySource = 'bundled';
+    let detectedChromeVersion = null;
     if (!isFirefox) {
       const vendorPath = resolveVendorChromePath();
       if (vendorPath) {
         executablePath = vendorPath;
-        appendLog(profileId, `[binary] source=vendor path=${executablePath}`);
+        binarySource = 'vendor';
       } else {
-        appendLog(profileId, `[binary] WARNING: vendor Chrome not found — falling back to bundled Playwright Chromium. Icon will show Chromium (blue). Place Chrome in vendor/chrome-win to fix.`);
+        const systemPath = resolveChromeExecutable();
+        if (systemPath) {
+          executablePath = systemPath;
+          binarySource = 'system';
+        }
+      }
+      if (executablePath) {
+        appendLog(profileId, `[binary] source=${binarySource} path=${executablePath}`);
+        // Detect actual Chrome version from binary to ensure UA matches
+        try {
+          detectedChromeVersion = await getChromeVersion(executablePath);
+          if (detectedChromeVersion) appendLog(profileId, `[binary] detected version=${detectedChromeVersion}`);
+        } catch {}
+      } else {
+        appendLog(profileId, `[binary] source=bundled WARNING: no vendor or system Chrome found — icon will appear blue Chromium. Place Chrome at vendor/chrome-win/Chrome-bin/chrome.exe`);
       }
     }
 
@@ -299,6 +348,7 @@ async function launchProfileInternal(profileId, options = {}) {
     };
 
     let server;
+    let browser;
     try {
       if (isFirefox) {
         server = await pwEngine.launchServer({ headless, args, proxy });
@@ -339,7 +389,17 @@ async function launchProfileInternal(profileId, options = {}) {
     const applyViewport = apply.viewport !== false; // viewport is safe even in safeMode
     const applyGeo = !safeMode && apply.geolocation !== false;
     const contextOptions = { proxy, extraHTTPHeaders: {} };
-    
+
+    // Force UA to match the actual binary version — prevents binary/UA mismatch detection.
+    // If detectedChromeVersion is available, rebuild the UA with the real version number.
+    if (!isFirefox && detectedChromeVersion && fp.userAgent) {
+      const fixedUA = fp.userAgent.replace(/Chrome\/[\d.]+/, `Chrome/${detectedChromeVersion}`);
+      if (fixedUA !== fp.userAgent) {
+        fp.userAgent = fixedUA;
+        appendLog(profileId, `[binary] UA synced to binary version: Chrome/${detectedChromeVersion}`);
+      }
+    }
+
     if (applyLang) {
       const spoofLang = fp.language || settings.language || 'en-US';
       contextOptions.locale = spoofLang;
@@ -487,6 +547,8 @@ async function launchProfileInternal(profileId, options = {}) {
   } catch (error) {
     appendLog(profileId, `Launch error: ${error.message}`);
     return { success: false, error: error.message };
+  } finally {
+    launchingProfiles.delete(profileId);
   }
 }
 
@@ -815,7 +877,7 @@ async function getStorageStateInternal(profileId) { try { if (runningProfiles.ha
 
 async function getProfileWsInternal(profileId) { try { const running = runningProfiles.get(profileId); if (!running) return { success: true, wsEndpoint: null }; const ws = running.wsEndpoint; if (running.engine === 'playwright' && (running.context?.isClosed?.() || running.browser?.isConnected?.() === false)) { runningProfiles.delete(profileId); appendLog(profileId, 'Heartbeat: context/browser disconnected'); broadcastRunningMap(); return { success: true, wsEndpoint: null }; } const alive = await require('../engine/health').isWsAlive(ws); if (!alive) { runningProfiles.delete(profileId); appendLog(profileId, 'Heartbeat failed; removed stale running state'); broadcastRunningMap(); return { success: true, wsEndpoint: null }; } return { success: true, wsEndpoint: ws }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function getRunningMapInternal() { try { const result = {}; for (const [id, info] of runningProfiles.entries()) { let alive = true; if (info.engine === 'playwright' && (info.context?.isClosed?.() || info.browser?.isConnected?.() === false)) alive = false; else if (!(await require('../engine/health').isWsAlive(info.wsEndpoint))) alive = false; if (!alive) { runningProfiles.delete(id); appendLog(id, 'Bulk heartbeat: stale, clearing'); result[id] = null; } else { result[id] = info.wsEndpoint; } } return { success: true, map: result }; } catch (error) { return { success: false, error: error.message }; } }
+async function getRunningMapInternal() { try { const result = {}; for (const [id, info] of runningProfiles.entries()) { let alive = true; if (info.engine === 'playwright') { if (info.context?.isClosed?.() || info.browser?.isConnected?.() === false) alive = false; } else { if (!(await require('../engine/health').isWsAlive(info.wsEndpoint))) alive = false; } if (!alive) { runningProfiles.delete(id); appendLog(id, 'Bulk heartbeat: stale, clearing'); broadcastRunningMap(); } else { result[id] = info.wsEndpoint; } } return { success: true, map: result }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function getLocalesTimezonesInternal() { try { const locales = ['en-US', 'en-GB', 'en-CA', 'en-AU', 'vi-VN', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 'pt-BR', 'pt-PT', 'ru-RU', 'ja-JP', 'ko-KR', 'zh-CN', 'zh-TW', 'th-TH', 'id-ID', 'ms-MY', 'hi-IN', 'tr-TR', 'nl-NL', 'pl-PL']; const timezones = ['UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Rome', 'Europe/Amsterdam', 'Europe/Warsaw', 'Asia/Tokyo', 'Asia/Seoul', 'Asia/Shanghai', 'Asia/Taipei', 'Asia/Bangkok', 'Asia/Jakarta', 'Asia/Kuala_Lumpur', 'Asia/Ho_Chi_Minh', 'Asia/Singapore', 'Asia/Kolkata', 'Australia/Sydney']; return { success: true, locales, timezones }; } catch (error) { return { success: false, error: error.message }; } }
 

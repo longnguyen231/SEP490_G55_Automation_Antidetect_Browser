@@ -27,18 +27,8 @@ export default function EngineInstallModal({ engine = 'chromium', onInstall, onS
     let unsub;
     try {
       unsub = window.electronAPI?.onBrowserInstallProgress?.((data) => {
-        if (data?.browser !== engine) return;
-        if (data.status === 'done') {
-          setProgress({ percent: 100, status: 'Installed!' });
-          setDone(true);
-          setInstalling(false);
-          setTimeout(() => onInstall?.(), 800);
-        } else if (data.status === 'error') {
-          setError(data.message || 'Installation failed.');
-          setInstalling(false);
-        } else {
-          setProgress({ percent: data.percent ?? null, status: data.message || 'Installing…' });
-        }
+        if (data?.browserName !== engine) return;
+        setProgress({ percent: data.percent ?? null, status: data.log || 'Installing…' });
       });
     } catch { /* ignore */ }
     return () => { try { unsub?.(); } catch { } };
@@ -90,13 +80,15 @@ export default function EngineInstallModal({ engine = 'chromium', onInstall, onS
         {/* Progress */}
         {installing && (
           <div className="eim-progress-wrap">
-            <p className="eim-progress-status">{progress?.status || 'Installing…'}</p>
             <div className="eim-progress-bar-bg">
               <div
-                className="eim-progress-bar-fill"
-                style={{ width: progress?.percent != null ? `${progress.percent}%` : '100%' }}
+                className={`eim-progress-bar-fill${progress?.percent == null ? ' indeterminate' : ''}`}
+                style={{ width: progress?.percent != null ? `${progress.percent}%` : undefined }}
               />
             </div>
+            {progress?.percent != null && (
+              <p className="eim-progress-pct">{progress.percent}%</p>
+            )}
           </div>
         )}
 

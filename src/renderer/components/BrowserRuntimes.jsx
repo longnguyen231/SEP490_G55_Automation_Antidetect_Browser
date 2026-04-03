@@ -16,14 +16,21 @@ export default function BrowserRuntimes() {
         chromium: '',
         firefox: ''
     });
+    const [progressPercent, setProgressPercent] = useState({
+        chromium: null,
+        firefox: null
+    });
 
     useEffect(() => {
         loadBrowserStatus();
         
         let unsub = () => {};
         if (window.electronAPI && window.electronAPI.onBrowserProgress) {
-            unsub = window.electronAPI.onBrowserProgress(({ browserName, log }) => {
+            unsub = window.electronAPI.onBrowserProgress(({ browserName, log, percent }) => {
                 setProgressLogs(prev => ({ ...prev, [browserName]: log }));
+                if (percent !== null && percent !== undefined) {
+                    setProgressPercent(prev => ({ ...prev, [browserName]: percent }));
+                }
             });
         }
         return () => {
@@ -58,6 +65,7 @@ export default function BrowserRuntimes() {
     const handleInstall = async (name) => {
         setInstalling(prev => ({ ...prev, [name]: true }));
         setProgressLogs(prev => ({ ...prev, [name]: 'Starting download...' }));
+        setProgressPercent(prev => ({ ...prev, [name]: 0 }));
         try {
             const res = await window.electronAPI.installBrowser(name);
             if (!res.success) {
@@ -68,6 +76,7 @@ export default function BrowserRuntimes() {
         } finally {
             setInstalling(prev => ({ ...prev, [name]: false }));
             setProgressLogs(prev => ({ ...prev, [name]: '' }));
+            setProgressPercent(prev => ({ ...prev, [name]: null }));
             await loadBrowserStatus();
         }
     };
@@ -116,6 +125,7 @@ export default function BrowserRuntimes() {
         const info = browsers[name];
         const isInstalling = installing[name];
         const log = progressLogs[name];
+        const percent = progressPercent[name];
 
         let statusBadge = null;
         if (info.status === 'loading') {
@@ -199,9 +209,18 @@ export default function BrowserRuntimes() {
                             <h6 className="text-primary mb-2 d-flex align-items-center gap-2">
                                 <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                                 Downloading & Extracting {title}...
+                                {percent !== null && <span className="ms-auto fw-bold">{percent}%</span>}
                             </h6>
                             <div className="progress mb-2" style={{ height: '8px' }}>
-                                <div className="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style={{ width: '100%' }}></div>
+                                {percent !== null ? (
+                                    <div
+                                        className="progress-bar bg-primary"
+                                        role="progressbar"
+                                        style={{ width: `${percent}%`, transition: 'width 0.3s ease' }}
+                                    />
+                                ) : (
+                                    <div className="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style={{ width: '100%' }} />
+                                )}
                             </div>
                             <div className="small font-monospace text-muted text-truncate" style={{maxHeight: '40px', overflow: 'hidden'}}>
                                 {log || 'Initializing...'}

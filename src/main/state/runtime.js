@@ -1,6 +1,7 @@
 // Central runtime state holder
 
 const runningProfiles = new Map(); // { profileId -> { engine, wsEndpoint, childProc, server, browser, context, cdpControl? } }
+const launchingProfiles = new Set(); // profileIds currently starting up (not yet in runningProfiles)
 
 function buildRunningMap() {
   const map = {};
@@ -10,4 +11,4 @@ function buildRunningMap() {
   return map;
 }
 
-module.exports = { runningProfiles, buildRunningMap };
+module.exports = { runningProfiles, launchingProfiles, buildRunningMap };
