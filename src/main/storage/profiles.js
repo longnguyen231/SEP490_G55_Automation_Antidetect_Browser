@@ -202,34 +202,54 @@ function readProfiles() {
   }
 }
 
+// In-process mutex — serializes all profile writes without blocking the event loop.
+// Much faster than file locking: no disk I/O for the lock itself.
+let _writeLockPromise = Promise.resolve();
+
+function withWriteLock(fn) {
+  // Chain onto the existing lock promise so writes queue up without spinning
+  _writeLockPromise = _writeLockPromise.then(() => fn()).catch(() => {});
+  return _writeLockPromise;
+}
+
 function writeProfiles(list) {
-  try {
-    const p = profilesFilePath();
-    const lockPath = p + '.lock';
-    // Acquire simple lock (best-effort). Remove stale (>20s) lock.
+  // Fire-and-forget async write; returns immediately so callers don't block
+  withWriteLock(async () => {
     try {
-      if (fs.existsSync(lockPath)) {
-        const stat = fs.statSync(lockPath);
-        const age = Date.now() - stat.mtimeMs;
-        if (age > 20000) { try { fs.unlinkSync(lockPath); } catch {} }
-      }
-      fs.writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
+      const p = profilesFilePath();
+      const tmp = p + '.tmp';
+      await fs.promises.writeFile(tmp, JSON.stringify(list, null, 2));
+      await fs.promises.rename(tmp, p);
     } catch (e) {
-      // If cannot acquire lock quickly, abort to avoid corruption
+      appendLog('system', `writeProfiles error: ${e.message}`);
+    }
+  });
+  return true;
+}
+
+/**
+ * Atomically update settings fields of a single profile.
+ * Queued behind in-process mutex — no blocking, no busy-wait.
+ */
+async function updateProfileSettings(profileId, settingsPatch) {
+  return withWriteLock(async () => {
+    try {
+      const p = profilesFilePath();
+      const raw = await fs.promises.readFile(p, 'utf8').catch(() => '[]');
+      let list; try { list = JSON.parse(raw); } catch { list = []; }
+      if (!Array.isArray(list)) list = [];
+      const idx = list.findIndex(pr => pr.id === profileId);
+      if (idx === -1) return false;
+      list[idx] = { ...list[idx], settings: { ...(list[idx].settings || {}), ...settingsPatch } };
+      const tmp = p + '.tmp';
+      await fs.promises.writeFile(tmp, JSON.stringify(list, null, 2));
+      await fs.promises.rename(tmp, p);
+      return true;
+    } catch (e) {
+      appendLog('system', `updateProfileSettings error: ${e.message}`);
       return false;
     }
-    try {
-      const tmp = p + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(list, null, 2));
-      fs.renameSync(tmp, p);
-    } finally {
-      try { fs.unlinkSync(lockPath); } catch {}
-    }
-    return true;
-  } catch (e) {
-    appendLog('system', `writeProfiles error: ${e.message}`);
-    return false;
-  }
+  });
 }
 
 async function getProfilesInternal() { return readProfiles(); }
@@ -357,4 +377,5 @@ module.exports = {
   cloneProfileInternal,
   readProfiles,
   writeProfiles,
+  updateProfileSettings,
 };

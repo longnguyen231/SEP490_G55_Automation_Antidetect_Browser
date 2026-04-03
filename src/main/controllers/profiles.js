@@ -7,7 +7,7 @@ const { loadSettings, resolveChromeExecutable, resolveVendorChromePath } = requi
 const { runningProfiles, launchingProfiles } = require('../state/runtime');
 const { applyCdpOverrides } = require('../engine/cdpOverrides');
 const { findFreePort, fetchJsonVersion, killProcessTreeWin, userDataDirFor, launchChromeCdp } = require('../engine/cdp');
-const { readProfiles, writeProfiles } = require('../storage/profiles');
+const { readProfiles, writeProfiles, updateProfileSettings } = require('../storage/profiles');
 
 /**
  * Reads the actual Chrome version from a binary by running `chrome --version`.
@@ -73,15 +73,13 @@ async function launchProfileInternal(profileId, options = {}) {
   const requestedHeadless = (options && typeof options.headless === 'boolean') ? options.headless : undefined;
   const headless = (requestedHeadless !== undefined) ? requestedHeadless : !!settings.headless;
 
-    // Persist engine/headless
+    // Persist engine/headless — use atomic single-profile update to avoid
+    // race conditions when multiple profiles are launched concurrently.
     try {
-      const idx = profiles.findIndex(p => p.id === profileId);
-      if (idx !== -1) {
-  const persist = { ...(profile.settings || {}), engine: (engine === 'cdp' ? 'cdp' : 'playwright') };
-  persist.headless = !!headless;
-  profiles[idx] = { ...profile, settings: persist };
-        writeProfiles(profiles);
-      }
+      updateProfileSettings(profileId, {
+        engine: engine === 'cdp' ? 'cdp' : 'playwright',
+        headless: !!headless,
+      });
     } catch { }
 
     if (engine === 'cdp') {
@@ -207,9 +205,9 @@ async function launchProfileInternal(profileId, options = {}) {
               } catch {}
             }
           } catch { }
-        }, 2500);
+        }, 8000);
       } catch { }
-  runningProfiles.set(profileId, { engine: 'cdp', childProc: child, wsEndpoint, host, port, forwarder, heartbeat });
+  runningProfiles.set(profileId, { engine: 'cdp', childProc: child, wsEndpoint, host, port, forwarder, heartbeat, startedAt: Date.now() });
       broadcastRunningMap();
       // Load saved tabs
       const { loadSessionTabs } = require('../storage/sessionTabs');
@@ -344,6 +342,7 @@ async function launchProfileInternal(profileId, options = {}) {
       args,
       proxy,
       ignoreDefaultArgs: ['--enable-automation'],
+      // channel: undefined — never use installed Chrome channel, always use executablePath or bundled
       ...(executablePath ? { executablePath } : {}),
     };
 
@@ -565,7 +564,7 @@ async function launchProfileInternal(profileId, options = {}) {
     };
     try { for (const p of context.pages()) { p.on('close', onPageClose); } } catch {}
     context.on('page', (newPage) => { try { newPage.on('close', onPageClose); } catch {} });
-    runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder });
+    runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder, startedAt: Date.now() });
     broadcastRunningMap();
     // Post-launch automation script (if configured)
     try { await runAutomationPostLaunch(profile, { engine: 'playwright', wsEndpoint, context, browser }); } catch (e) { appendLog(profileId, `Automation post-launch error: ${e?.message || e}`); }
@@ -901,9 +900,62 @@ async function editCookieInternal(profileId, cookie) { try { if (!cookie || !coo
 
 async function getStorageStateInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const state = await running.context.storageState(); return { success: true, state }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, state }; } return { success: true, state: { cookies: [], origins: [] } }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function getProfileWsInternal(profileId) { try { const running = runningProfiles.get(profileId); if (!running) return { success: true, wsEndpoint: null }; const ws = running.wsEndpoint; if (running.engine === 'playwright' && (running.context?.isClosed?.() || running.browser?.isConnected?.() === false)) { runningProfiles.delete(profileId); appendLog(profileId, 'Heartbeat: context/browser disconnected'); broadcastRunningMap(); return { success: true, wsEndpoint: null }; } const alive = await require('../engine/health').isWsAlive(ws); if (!alive) { runningProfiles.delete(profileId); appendLog(profileId, 'Heartbeat failed; removed stale running state'); broadcastRunningMap(); return { success: true, wsEndpoint: null }; } return { success: true, wsEndpoint: ws }; } catch (error) { return { success: false, error: error.message }; } }
+async function getProfileWsInternal(profileId) {
+  try {
+    const running = runningProfiles.get(profileId);
+    if (!running) return { success: true, wsEndpoint: null };
 
-async function getRunningMapInternal() { try { const result = {}; for (const [id, info] of runningProfiles.entries()) { let alive = true; if (info.engine === 'playwright') { if (info.context?.isClosed?.() || info.browser?.isConnected?.() === false) alive = false; } else { if (!(await require('../engine/health').isWsAlive(info.wsEndpoint))) alive = false; } if (!alive) { runningProfiles.delete(id); appendLog(id, 'Bulk heartbeat: stale, clearing'); broadcastRunningMap(); } else { result[id] = info.wsEndpoint; } } return { success: true, map: result }; } catch (error) { return { success: false, error: error.message }; } }
+    // Skip health check for recently-started profiles
+    const age = running.startedAt ? (Date.now() - running.startedAt) : Infinity;
+    if (age < 20000) return { success: true, wsEndpoint: running.wsEndpoint };
+
+    if (running.engine === 'playwright') {
+      if (running.context?.isClosed?.() || running.browser?.isConnected?.() === false) {
+        runningProfiles.delete(profileId);
+        appendLog(profileId, 'getProfileWs: Playwright browser disconnected');
+        broadcastRunningMap();
+        return { success: true, wsEndpoint: null };
+      }
+      return { success: true, wsEndpoint: running.wsEndpoint };
+    }
+
+    const alive = await require('../engine/health').isWsAlive(running.wsEndpoint);
+    if (!alive) {
+      runningProfiles.delete(profileId);
+      appendLog(profileId, 'getProfileWs: CDP heartbeat failed, removed');
+      broadcastRunningMap();
+      return { success: true, wsEndpoint: null };
+    }
+    return { success: true, wsEndpoint: running.wsEndpoint };
+  } catch (error) { return { success: false, error: error.message }; }
+}
+
+async function getRunningMapInternal() {
+  try {
+    const GRACE_MS = 15000;
+    const result = {};
+    for (const [id, info] of runningProfiles.entries()) {
+      // Always include recently-started profiles regardless of health check
+      const age = info.startedAt ? (Date.now() - info.startedAt) : Infinity;
+      if (age < GRACE_MS) { result[id] = info.wsEndpoint; continue; }
+
+      let alive = true;
+      if (info.engine === 'playwright') {
+        if (info.context?.isClosed?.() || info.browser?.isConnected?.() === false) alive = false;
+      } else {
+        if (!(await require('../engine/health').isWsAlive(info.wsEndpoint))) alive = false;
+      }
+      if (!alive) {
+        runningProfiles.delete(id);
+        appendLog(id, 'Bulk heartbeat: stale, clearing');
+        broadcastRunningMap();
+      } else {
+        result[id] = info.wsEndpoint;
+      }
+    }
+    return { success: true, map: result };
+  } catch (error) { return { success: false, error: error.message }; }
+}
 
 async function getLocalesTimezonesInternal() { try { const locales = ['en-US', 'en-GB', 'en-CA', 'en-AU', 'vi-VN', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 'pt-BR', 'pt-PT', 'ru-RU', 'ja-JP', 'ko-KR', 'zh-CN', 'zh-TW', 'th-TH', 'id-ID', 'ms-MY', 'hi-IN', 'tr-TR', 'nl-NL', 'pl-PL']; const timezones = ['UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Rome', 'Europe/Amsterdam', 'Europe/Warsaw', 'Asia/Tokyo', 'Asia/Seoul', 'Asia/Shanghai', 'Asia/Taipei', 'Asia/Bangkok', 'Asia/Jakarta', 'Asia/Kuala_Lumpur', 'Asia/Ho_Chi_Minh', 'Asia/Singapore', 'Asia/Kolkata', 'Australia/Sydney']; return { success: true, locales, timezones }; } catch (error) { return { success: false, error: error.message }; } }
 

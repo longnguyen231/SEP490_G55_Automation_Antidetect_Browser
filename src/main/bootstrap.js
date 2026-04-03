@@ -13,18 +13,37 @@ const { setMainWindowRef } = require('./services/browserManagerService');
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
+const HEARTBEAT_GRACE_MS = 20000; // don't check profiles started less than 20s ago
+
 function startBackgroundHeartbeat(intervalMs = 30000) {
   setInterval(async () => {
     let changed = false;
     for (const [id, info] of [...runningProfiles.entries()]) {
       try {
+        // Skip recently-started profiles — process may still be initializing
+        const age = info.startedAt ? (Date.now() - info.startedAt) : Infinity;
+        if (age < HEARTBEAT_GRACE_MS) continue;
+
+        // Playwright pipe mode has no WS endpoint — use context/browser state instead
+        if (info.engine === 'playwright') {
+          const dead = info.context?.isClosed?.() || info.browser?.isConnected?.() === false;
+          if (dead) {
+            try { info?.forwarder?.stop?.(); } catch {}
+            runningProfiles.delete(id);
+            appendLog(id, 'Heartbeat: Playwright browser disconnected, removing');
+            changed = true;
+          }
+          continue;
+        }
+
+        // CDP engine — check WS endpoint
         const ws = info.wsEndpoint;
         const alive = ws ? await isWsAlive(ws) : false;
         if (!alive) {
           try { info?.heartbeat && clearInterval(info.heartbeat); } catch {}
           try { await info?.forwarder?.stop?.(); } catch {}
           runningProfiles.delete(id);
-          appendLog(id, 'Heartbeat: stale profile removed');
+          appendLog(id, 'Heartbeat: stale CDP profile removed');
           changed = true;
         }
       } catch (e) {

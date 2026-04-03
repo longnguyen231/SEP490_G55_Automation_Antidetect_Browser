@@ -33,15 +33,13 @@ function getExecutableConfig() {
 /**
  * Returns: { status: 'installed' | 'missing' | 'broken', path: string | null, version: string | null, size: string | null }
  */
-function checkBrowserStatus(browserName) {
+async function checkBrowserStatus(browserName) {
     try {
-        // Use rebrowser-playwright (aliased as 'playwright') — must match the engine used for launching.
         const pw = require('playwright');
         const engine = browserName === 'firefox' ? pw.firefox : pw.chromium;
         const exePath = engine.executablePath();
         const exists = fs.existsSync(exePath);
 
-        // Extract version from folder name (e.g. chromium-1194 or firefox-1495)
         const parts = exePath.split(path.sep);
         const folderPart = parts.find(p => p.startsWith(browserName + '-'));
         const versionMatch = folderPart ? (folderPart.split('-')[1] || 'unknown') : 'unknown';
@@ -49,9 +47,8 @@ function checkBrowserStatus(browserName) {
         let sizeStr = '0 MB';
         if (exists) {
             try {
-                // Go up 2 levels from exe to get browser folder (e.g. firefox-1495)
                 const browserDir = path.dirname(path.dirname(exePath));
-                const sizeBytes = getFolderSize(browserDir);
+                const sizeBytes = await getFolderSize(browserDir);
                 sizeStr = (sizeBytes / (1024 * 1024)).toFixed(2) + ' MB';
             } catch {}
         }
@@ -71,17 +68,22 @@ function checkBrowserStatus(browserName) {
     }
 }
 
-function getFolderSize(dirPath) {
+async function getFolderSize(dirPath) {
     let totalSize = 0;
-    const files = fs.readdirSync(dirPath, { withFileTypes: true });
-    for (const file of files) {
-        const fullPath = path.join(dirPath, file.name);
-        if (file.isDirectory()) {
-            totalSize += getFolderSize(fullPath);
-        } else {
-            totalSize += fs.statSync(fullPath).size;
-        }
-    }
+    try {
+        const files = await fs.promises.readdir(dirPath, { withFileTypes: true });
+        await Promise.all(files.map(async (file) => {
+            try {
+                const fullPath = path.join(dirPath, file.name);
+                if (file.isDirectory()) {
+                    totalSize += await getFolderSize(fullPath);
+                } else {
+                    const stat = await fs.promises.stat(fullPath);
+                    totalSize += stat.size;
+                }
+            } catch {}
+        }));
+    } catch {}
     return totalSize;
 }
 

@@ -173,7 +173,13 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   //     These differ between real Firefox and Chrome. Must match Firefox values.
   // ═══════════════════════════════════════════════════════════════════════
   if (isFirefox && applyAntiDetection) try {
-    await context.addInitScript(() => {
+    const ffOscpu = (() => {
+      const plat = adv.platform || 'Win32';
+      if (plat === 'Win32') return 'Windows NT 10.0; Win64; x64';
+      if (plat === 'MacIntel') return 'Intel Mac OS X 10.15';
+      return 'Linux x86_64';
+    })();
+    await context.addInitScript(({ oscpu }) => {
       try {
         // navigator.vendor — real Firefox always returns "" (empty string)
         try {
@@ -188,6 +194,11 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
         // navigator.buildID — Firefox-specific property (Chrome doesn't have it)
         try {
           Object.defineProperty(navigator, 'buildID', { get: () => '20181001000000', configurable: true });
+        } catch {}
+
+        // navigator.oscpu — Firefox-specific, shows OS string
+        try {
+          Object.defineProperty(navigator, 'oscpu', { get: () => oscpu, configurable: true });
         } catch {}
 
         // navigator.plugins — real Firefox 85+ returns empty PluginArray
@@ -212,14 +223,41 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
           Object.defineProperty(navigator, 'pdfViewerEnabled', { get: () => true, configurable: true });
         } catch {}
 
-        // window.Components — Firefox-specific XPConnect object, should exist in real FF
-        // In Playwright Firefox it may be stripped; leave it if present, don't add if missing
+        // window.InstallTrigger — most important Firefox identity marker
+        // Nearly every bot detection script checks: typeof InstallTrigger !== 'undefined'
+        try {
+          if (typeof window.InstallTrigger === 'undefined') {
+            Object.defineProperty(window, 'InstallTrigger', {
+              get: () => ({}),
+              configurable: true,
+              enumerable: true,
+            });
+          }
+        } catch {}
+
+        // window.sidebar — Firefox sidebar API (absent in Chrome)
+        try {
+          if (typeof window.sidebar === 'undefined') {
+            Object.defineProperty(window, 'sidebar', {
+              get: () => ({ addPanel: () => {}, addPersistentPanel: () => {} }),
+              configurable: true,
+            });
+          }
+        } catch {}
+
+        // document.mozFullScreen — Firefox fullscreen API
+        try {
+          if (typeof document.mozFullScreen === 'undefined') {
+            Object.defineProperty(document, 'mozFullScreen', { get: () => false, configurable: true });
+            Object.defineProperty(document, 'mozFullScreenEnabled', { get: () => true, configurable: true });
+          }
+        } catch {}
 
         // Remove Chrome-only window properties that leak browser identity
         try { delete window.chrome; } catch {}
         try { delete window.google; } catch {}
       } catch {}
-    });
+    }, { oscpu: ffOscpu });
   } catch {}
 
   // ═══════════════════════════════════════════════════════════════════════

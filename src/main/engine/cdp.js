@@ -116,10 +116,13 @@ async function launchChromeCdp({ profileId, chromePath, host, port, userDataDir,
     '--no-default-browser-check',
     `--remote-debugging-port=${port}`,
     `--remote-allow-origins=*`,
+    // ── Prevent opening extra Chrome windows / reusing existing Chrome process ──
+    '--disable-session-crashed-bubble',
+    '--disable-infobars',
+    '--hide-crash-restore-bubble',
     // ── Stealth / anti-detection flags ──
     '--disable-blink-features=AutomationControlled',
-    '--disable-features=AutomationControlled',
-    '--disable-infobars',
+    '--disable-features=AutomationControlled,TranslateUI',
     '--disable-background-timer-throttling',
     '--disable-backgrounding-occluded-windows',
     '--disable-renderer-backgrounding',
@@ -133,7 +136,6 @@ async function launchChromeCdp({ profileId, chromePath, host, port, userDataDir,
     '--password-store=basic',
     '--use-mock-keychain',
     '--export-tagged-pdf',
-    '--disable-features=TranslateUI',
     '--lang=en-US,en',
   ];
   // On macOS, omitting remote-debugging-address improves reliability; let Chrome choose the bind address (localhost)
@@ -189,7 +191,11 @@ async function launchChromeCdp({ profileId, chromePath, host, port, userDataDir,
     throw e;
   }
   appendLog && appendLog(profileId, `Spawning Chrome for CDP: ${chromePath} ${logArgs.join(' ')}`);
-  const child = spawn(chromePath, chromeArgs, { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
+  const child = spawn(chromePath, chromeArgs, {
+    stdio: ['ignore', 'ignore', 'pipe'],
+    windowsHide: false, // windowsHide hides console window but Chrome's GUI window must be shown
+    detached: false,    // keep Chrome as child so it's killed when Electron exits
+  });
   // Promise that resolves when Chrome logs the DevTools WS endpoint
   let resolveWs;
   let rejectWs;
