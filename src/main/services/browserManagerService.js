@@ -60,9 +60,9 @@ function checkBrowserStatus(browserName) {
 
         return {
             status: exists ? 'installed' : 'missing',
-            path: exePath,
-            version: versionMatch,
-            size: sizeStr,
+            path: exists ? exePath : null,
+            version: exists ? versionMatch : null,
+            size: exists ? sizeStr : '0 MB',
             isInstalling: activeInstalls.has(browserName),
             lastLog: lastLogs[browserName] || ''
         };

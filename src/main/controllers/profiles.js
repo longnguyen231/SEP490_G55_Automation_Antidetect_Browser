@@ -2,7 +2,7 @@ const fs = require('fs');
 const { chromium } = require('playwright');
 const { appendLog } = require('../logging/logger');
 const { storageStatePath, getDataRoot } = require('../storage/paths');
-const { loadSettings, resolveChromeExecutable } = require('../storage/settings');
+const { loadSettings, resolveChromeExecutable, resolveVendorChromePath } = require('../storage/settings');
 const { runningProfiles } = require('../state/runtime');
 const { applyCdpOverrides } = require('../engine/cdpOverrides');
 const { findFreePort, fetchJsonVersion, killProcessTreeWin, userDataDirFor, launchChromeCdp } = require('../engine/cdp');
@@ -277,13 +277,34 @@ async function launchProfileInternal(profileId, options = {}) {
         proxy = { server: serverUrl };
       }
     }
+    // Resolve vendor Chrome binary for Chromium engine — must not use bundled Playwright Chromium.
+    // executablePath is always set explicitly; fallback to bundled only if no vendor binary found.
+    let executablePath;
+    if (!isFirefox) {
+      const vendorPath = resolveVendorChromePath();
+      if (vendorPath) {
+        executablePath = vendorPath;
+        appendLog(profileId, `[binary] source=vendor path=${executablePath}`);
+      } else {
+        appendLog(profileId, `[binary] WARNING: vendor Chrome not found — falling back to bundled Playwright Chromium. Icon will show Chromium (blue). Place Chrome in vendor/chrome-win to fix.`);
+      }
+    }
+
+    const chromiumLaunchOpts = {
+      headless,
+      args,
+      proxy,
+      ignoreDefaultArgs: ['--enable-automation'],
+      ...(executablePath ? { executablePath } : {}),
+    };
+
     let server;
-    try { 
+    try {
       if (isFirefox) {
         server = await pwEngine.launchServer({ headless, args, proxy });
         browser = await pwEngine.connect(server.wsEndpoint());
       } else {
-        browser = await pwEngine.launch({ headless, args, proxy }); 
+        browser = await pwEngine.launch(chromiumLaunchOpts);
       }
     }
     catch (e) {
@@ -298,10 +319,12 @@ async function launchProfileInternal(profileId, options = {}) {
           server = await pwEngine.launchServer({ headless, args, proxy });
           browser = await pwEngine.connect(server.wsEndpoint());
         } else {
-          browser = await pwEngine.launch({ headless, args, proxy });
+          browser = await pwEngine.launch(chromiumLaunchOpts);
         }
       } else { try { await forwarder?.stop?.(); } catch {} throw e; }
     }
+    // Log actual binary version for verification — should show Chrome/1xx not HeadlessChrome
+    try { appendLog(profileId, `[binary] version=${browser.version()}`); } catch {}
     const wsEndpoint = isFirefox ? server.wsEndpoint() : null; // pipe mode for chromium
     appendLog(profileId, `Launched Playwright ${isFirefox ? 'Firefox server: ' + wsEndpoint : 'browser (pipe mode, no external WS)'}`);
     
