@@ -299,10 +299,23 @@ function ProfileForm({ profile, onSave, onCancel }) {
           settings: { ...randomConfig.settings, quantity: 1, injectFingerprint: true },
         });
       } else {
+        const s = { ...JSON.parse(JSON.stringify(defaultSettings)), ...(profile.settings || {}) };
         setFormData({
           ...profile, cookie: profile.cookie || '',
           fingerprint: { ...defaultFingerprint, ...profile.fingerprint },
-          settings: { ...JSON.parse(JSON.stringify(defaultSettings)), ...(profile.settings || {}) },
+          settings: s,
+        });
+        // Restore section toggles from settings.[section].enabled
+        setSectionToggles({
+          identity: !!s.identity?.enabled,
+          display:  !!s.display?.enabled,
+          hardware: !!s.hardware?.enabled,
+          canvas:   !!s.canvas?.enabled,
+          webgl:    !!s.webgl?.enabled,
+          audio:    !!s.audio?.enabled,
+          media:    !!s.media?.enabled,
+          network:  !!s.network?.enabled,
+          battery:  !!s.battery?.enabled,
         });
       }
     }

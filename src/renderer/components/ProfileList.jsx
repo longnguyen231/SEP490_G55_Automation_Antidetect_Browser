@@ -38,13 +38,26 @@ const WindowsIcon = () => (
   </svg>
 );
 
+// Mapping badge label -> path in profile.settings (sub-object with .enabled)
+const BADGE_MAP = [
+  { key: 'ID',  label: 'ID',  section: 'identity', title: 'Identity (UA/platform/locale)' },
+  { key: 'DSP', label: 'DSP', section: 'display',  title: 'Display & Screen' },
+  { key: 'HW',  label: 'HW',  section: 'hardware', title: 'Hardware (CPU/RAM/GPU)' },
+  { key: 'CVS', label: 'CVS', section: 'canvas',   title: 'Canvas Fingerprint' },
+  { key: 'GL',  label: 'GL',  section: 'webgl',    title: 'WebGL Fingerprint' },
+  { key: 'AUD', label: 'AUD', section: 'audio',    title: 'Audio Fingerprint' },
+  { key: 'MED', label: 'MED', section: 'media',    title: 'Media Devices' },
+  { key: 'NET', label: 'NET', section: 'network',  title: 'Network & WebRTC' },
+  { key: 'BAT', label: 'BAT', section: 'battery',  title: 'Battery API' },
+];
+
 export default function ProfileList({
   profiles, onCreateProfile, onEditProfile, onDeleteProfile, onToggleProfile,
   onLaunchHeadless, onManageCookies, runningWs = {}, onCopyWs, onStopProfile, onViewLogs,
   selectedIds = {}, onToggleSelect, onSelectAll, onClearSelection,
   onStartSelected, onStopSelected, onCloneProfile,
   headlessPrefs = {}, onSetHeadless, enginePrefs = {}, onSetEngine, onDeleteSelected,
-  errorProfiles = {}
+  errorProfiles = {}, onToggleFp,
 }) {
   const shortId = (id) => (id || '').substring(0, 6);
 
@@ -126,18 +139,24 @@ export default function ProfileList({
                     </span>
                   </div>
 
-                  {/* Row 3: Fingerprint section badges */}
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    {['ID', 'DSP', 'HW', 'CVS', 'GL', 'AUD', 'MED', 'NET', 'BAT'].map(badge => (
-                      <span key={badge} style={{
-                        fontSize: '0.6rem', fontWeight: 700, padding: '1px 5px',
-                        borderRadius: '3px', textTransform: 'uppercase',
-                        background: 'var(--glass-strong)', border: '1px solid var(--border)',
-                        color: 'var(--muted)',
-                      }}>
-                        {badge}
-                      </span>
-                    ))}
+                  {/* Row 3: Fingerprint section toggle badges */}
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    {BADGE_MAP.map(({ key, label, section, title }) => {
+                      const isEnabled = !!profile?.settings?.[section]?.enabled;
+                      return (
+                        <button
+                          key={key}
+                          title={`${title} — click to ${isEnabled ? 'disable' : 'enable'}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleFp && onToggleFp(profile, section, !isEnabled);
+                          }}
+                          className={`pl-fp-badge ${isEnabled ? 'pl-fp-badge-on' : 'pl-fp-badge-off'}`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

@@ -215,6 +215,29 @@ function App() {
   const handleCloneProfile = async (profileId) => { try { const res = await window.electronAPI.cloneProfile(profileId, {}); if (!res.success) throw new Error(res.error || 'Clone failed'); await loadProfiles(); } catch (e) { alert('Clone error: ' + e.message); } };
   const handleCopyWs = async (profileId) => { try { const res = await window.electronAPI.getProfileWs(profileId); const ws = res?.wsEndpoint; if (!ws) { alert('Profile is not running. Launch first.'); return; } await navigator.clipboard.writeText(ws); addToast('WS endpoint copied!', 'success', 2000); } catch (e) { alert('Failed to copy WS endpoint: ' + e.message); } };
 
+  // Toggle a fingerprint section (e.g. display, hardware) on/off directly from the profile card badge
+  const handleToggleFp = async (profile, section, newValue) => {
+    try {
+      const updated = {
+        ...profile,
+        settings: {
+          ...(profile.settings || {}),
+          [section]: {
+            ...(profile.settings?.[section] || {}),
+            enabled: newValue,
+          },
+        },
+      };
+      const res = await api.saveProfile(updated);
+      if (res?.success) {
+        // Update local state optimistically for instant feedback
+        setProfiles(prev => prev.map(p => p.id === profile.id ? (res.profile || updated) : p));
+      }
+    } catch (e) {
+      addToast('Error: ' + e.message, 'error', 3000);
+    }
+  };
+
   // Bulk selection helpers
   const toggleSelect = (profileId) => setSelectedIds(prev => ({ ...prev, [profileId]: !prev[profileId] }));
   const clearSelection = () => setSelectedIds({});
@@ -288,6 +311,7 @@ function App() {
             onSetEngine={handleSetEngine}
             onDeleteSelected={handleDeleteSelected}
             errorProfiles={errorProfiles}
+            onToggleFp={handleToggleFp}
           />
         );
 
