@@ -225,9 +225,9 @@ const TABS = [
 ];
 
 /* ═══════════════ Main Component ═══════════════ */
-function ProfileForm({ profile, onSave, onCancel }) {
+function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
   const isEdit = !!profile?.id;
-  const [activeTab, setActiveTab] = useState('general');
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   const [formData, setFormData] = useState({
     name: '',

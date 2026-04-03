@@ -22,6 +22,7 @@ function App() {
   const [profiles, setProfiles] = useState([]);
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [formInitialTab, setFormInitialTab] = useState('general');
   const [cookieProfile, setCookieProfile] = useState(null);
   const [runningWs, setRunningWs] = useState({});
   const [logProfile, setLogProfile] = useState(null);
@@ -146,9 +147,9 @@ function App() {
   const handleCreateProfile = () => {
     const base = 'Profile'; const existing = new Set((profiles || []).map(p => (p.name || '').trim()));
     let name = `${base} ${(profiles || []).length + 1}`; for (let i = 1; i <= (profiles || []).length + 100; i++) { const c = `${base} ${i}`; if (!existing.has(c)) { name = c; break; } }
-    setSelectedProfile({ name }); setShowForm(true);
+    setSelectedProfile({ name }); setFormInitialTab('general'); setShowForm(true);
   };
-  const handleEditProfile = (profile) => { setSelectedProfile(profile); setShowForm(true); };
+  const handleEditProfile = (profile, tab = 'general') => { setSelectedProfile(profile); setFormInitialTab(tab); setShowForm(true); };
   const handleDeleteProfile = async (profileId) => { if (!window.confirm('Delete this profile?')) return; try { await api.deleteProfile(profileId); await loadProfiles(); } catch (e) { console.error('Delete error', e); } };
 
   const handleLaunchProfile = async (profileId) => {
@@ -277,6 +278,7 @@ function App() {
       return (
         <ProfileForm
           profile={selectedProfile}
+          initialTab={formInitialTab}
           onSave={handleSaveProfile}
           onCancel={handleCancel}
         />

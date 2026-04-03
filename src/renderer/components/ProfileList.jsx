@@ -171,7 +171,7 @@ export default function ProfileList({
                       <button className="pl-btn pl-btn-headless" onClick={() => onLaunchHeadless(profile.id)}>Headless</button>
                     </>
                   )}
-                  <button className="pl-btn pl-btn-proxy" onClick={() => onEditProfile(profile)}>Proxy</button>
+                  <button className="pl-btn pl-btn-proxy" onClick={() => onEditProfile(profile, 'proxy')}>Proxy</button>
                   <button className="pl-btn pl-btn-clone" onClick={() => onCloneProfile(profile.id)}>Clone</button>
                   <button className="pl-btn pl-btn-edit" onClick={() => onEditProfile(profile)}>Edit</button>
                   <button className="pl-btn pl-btn-delete" onClick={() => onDeleteProfile(profile.id)}>Delete</button>
