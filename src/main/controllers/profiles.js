@@ -347,11 +347,34 @@ async function launchProfileInternal(profileId, options = {}) {
       ...(executablePath ? { executablePath } : {}),
     };
 
+    // Firefox about:config prefs to disable automation signals
+    const firefoxUserPrefs = isFirefox ? {
+      'dom.webdriver.enabled': false,
+      'useAutomationExtension': false,
+      // NOTE: do NOT set marionette.enabled=false — Playwright needs Marionette to control Firefox
+      'toolkit.telemetry.enabled': false,
+      'toolkit.telemetry.unified': false,
+      'datareporting.policy.dataSubmissionEnabled': false,
+      'datareporting.healthreport.uploadEnabled': false,
+      'browser.newtabpage.activity-stream.telemetry': false,
+      'browser.ping-centre.telemetry': false,
+      'browser.send_pings': false,
+      'media.peerconnection.ice.no_host': false,
+      'privacy.resistFingerprinting': false,   // leave off — causes inconsistent FP values
+      'privacy.trackingprotection.enabled': false,
+      'geo.enabled': false,
+      'browser.safebrowsing.enabled': false,
+      'browser.safebrowsing.malware.enabled': false,
+      'network.cookie.cookieBehavior': 0,
+      'browser.aboutConfig.showWarning': false,
+      'general.warnOnAboutConfig': false,
+    } : undefined;
+
     let server;
     let browser;
     try {
       if (isFirefox) {
-        server = await pwEngine.launchServer({ headless, args, proxy });
+        server = await pwEngine.launchServer({ headless, args, proxy, firefoxUserPrefs });
         browser = await pwEngine.connect(server.wsEndpoint());
       } else {
         browser = await pwEngine.launch(chromiumLaunchOpts);
@@ -366,7 +389,7 @@ async function launchProfileInternal(profileId, options = {}) {
         const ok = await runPlaywrightInstall(bname);
         if (!ok) { try { await forwarder?.stop?.(); } catch {} return { success: false, error: 'Playwright browsers not installed.' }; }
         if (isFirefox) {
-          server = await pwEngine.launchServer({ headless, args, proxy });
+          server = await pwEngine.launchServer({ headless, args, proxy, firefoxUserPrefs });
           browser = await pwEngine.connect(server.wsEndpoint());
         } else {
           browser = await pwEngine.launch(chromiumLaunchOpts);
@@ -381,7 +404,10 @@ async function launchProfileInternal(profileId, options = {}) {
     // safeMode: true (default) → skip CDP emulation commands (userAgent, locale,
     // timezone, geolocation) that Cloudflare enterprise detects.
     // Only viewport and proxy are safe because they don't use CDP Emulation APIs.
-    const safeMode = settings?.safeMode !== false; // default ON
+    // safeMode: skip Object.defineProperty overrides to bypass Cloudflare Enterprise (Chrome only).
+    // Firefox can't bypass Cloudflare regardless (TLS fingerprint), so force safeMode=false
+    // to enable full fingerprint injection on Firefox.
+    const safeMode = isFirefox ? false : (settings?.safeMode !== false);
     const apply = (settings && settings.applyOverrides) || {};
     const applyUA = !safeMode && apply.userAgent !== false;
     const applyLang = !safeMode && apply.language !== false;
@@ -435,7 +461,7 @@ async function launchProfileInternal(profileId, options = {}) {
     // Apply fingerprint init scripts (reuse safeMode from context options above)
     try {
       const { applyFingerprintInitScripts } = require('../engine/fingerprintInit');
-      await applyFingerprintInitScripts(context, profile, settings, { safeMode });
+      await applyFingerprintInitScripts(context, profile, settings, { safeMode, isFirefox });
     } catch {}
     // Inject mouse position tracker for behavior simulator
     try {

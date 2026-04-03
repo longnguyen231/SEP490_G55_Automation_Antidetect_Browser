@@ -28,7 +28,7 @@ function hashCode(str) {
   return Math.abs(hash);
 }
 
-async function applyFingerprintInitScripts(context, profile, settings, { overrideUserAgent, safeMode } = {}) {
+async function applyFingerprintInitScripts(context, profile, settings, { overrideUserAgent, safeMode, isFirefox } = {}) {
   const fp = (profile && profile.fingerprint) || {};
   const adv = (settings && settings.advanced) || {};
   const locale = fp.language || settings?.language || 'en-US';
@@ -108,6 +108,121 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   } catch {}
 
   // ═══════════════════════════════════════════════════════════════════════
+  // 0b. FIREFOX-SPECIFIC: Remove Marionette/Selenium/GeckoDriver traces
+  //     These globals are injected by Geckodriver/Marionette and are checked
+  //     by bot detection tools specifically for Firefox automation.
+  // ═══════════════════════════════════════════════════════════════════════
+  if (isFirefox && applyAntiDetection) try {
+    await context.addInitScript(() => {
+      try {
+        // Marionette / GeckoDriver traces
+        try { delete window._selenium; } catch {}
+        try { delete window.__selenium_evaluate; } catch {}
+        try { delete window.__selenium_unwrapped; } catch {}
+        try { delete window.__selenium_async_script; } catch {}
+        try { delete window.__selenium_async_script_timeout; } catch {}
+        try { delete window.__webdriver_evaluate; } catch {}
+        try { delete window.__webdriver_script_fn; } catch {}
+        try { delete window.__webdriver_script_timeout; } catch {}
+        try { delete window.__webdriverAsyncExecutor; } catch {}
+        try { delete window.__$webdriverAsyncExecutor; } catch {}
+        try { delete window.__fxdriver_evaluate; } catch {}
+        try { delete window.__fxdriver_unwrapped; } catch {}
+        try { delete window.__webdriverFunc; } catch {}
+        try { delete window.__lastWatirAlert; } catch {}
+        try { delete window.__lastWatirConfirm; } catch {}
+        try { delete window.__lastWatirPrompt; } catch {}
+        // Playwright BiDi markers
+        try { delete window.__playwright; } catch {}
+        try { delete window.__pw_manual; } catch {}
+
+        // navigator.webdriver — Firefox sets this to true under automation
+        try {
+          const proto = Object.getPrototypeOf(navigator);
+          if (proto) {
+            try {
+              delete proto.webdriver;
+              Object.defineProperty(proto, 'webdriver', {
+                get: () => undefined,
+                configurable: true,
+                enumerable: false,
+              });
+            } catch {}
+          }
+          Object.defineProperty(navigator, 'webdriver', {
+            get: () => undefined,
+            configurable: true,
+            enumerable: false,
+          });
+        } catch {}
+
+        // Hide automation from document.documentElement attributes
+        try {
+          const obs = new MutationObserver(() => {
+            try { document.documentElement.removeAttribute('webdriver'); } catch {}
+          });
+          obs.observe(document.documentElement, { attributes: true });
+          try { document.documentElement.removeAttribute('webdriver'); } catch {}
+        } catch {}
+      } catch {}
+    });
+  } catch {}
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 0c. FIREFOX navigator properties — vendor, productSub, buildID, plugins
+  //     These differ between real Firefox and Chrome. Must match Firefox values.
+  // ═══════════════════════════════════════════════════════════════════════
+  if (isFirefox && applyAntiDetection) try {
+    await context.addInitScript(() => {
+      try {
+        // navigator.vendor — real Firefox always returns "" (empty string)
+        try {
+          Object.defineProperty(navigator, 'vendor', { get: () => '', configurable: true });
+        } catch {}
+
+        // navigator.productSub — Firefox: "20100101", Chrome: "20030107"
+        try {
+          Object.defineProperty(navigator, 'productSub', { get: () => '20100101', configurable: true });
+        } catch {}
+
+        // navigator.buildID — Firefox-specific property (Chrome doesn't have it)
+        try {
+          Object.defineProperty(navigator, 'buildID', { get: () => '20181001000000', configurable: true });
+        } catch {}
+
+        // navigator.plugins — real Firefox 85+ returns empty PluginArray
+        try {
+          const emptyPluginArray = Object.create(PluginArray.prototype);
+          Object.defineProperty(emptyPluginArray, 'length', { get: () => 0, enumerable: true });
+          emptyPluginArray.item = () => null;
+          emptyPluginArray.namedItem = () => null;
+          emptyPluginArray.refresh = () => {};
+          emptyPluginArray[Symbol.iterator] = function* () {};
+          Object.defineProperty(navigator, 'plugins', { get: () => emptyPluginArray, configurable: true });
+        } catch {}
+
+        // navigator.mimeTypes — empty in real Firefox 85+
+        try {
+          const emptyMimeArray = Object.create(MimeTypeArray.prototype);
+          Object.defineProperty(emptyMimeArray, 'length', { get: () => 0, enumerable: true });
+          emptyMimeArray.item = () => null;
+          emptyMimeArray.namedItem = () => null;
+          emptyMimeArray[Symbol.iterator] = function* () {};
+          Object.defineProperty(navigator, 'mimeTypes', { get: () => emptyMimeArray, configurable: true });
+          Object.defineProperty(navigator, 'pdfViewerEnabled', { get: () => true, configurable: true });
+        } catch {}
+
+        // window.Components — Firefox-specific XPConnect object, should exist in real FF
+        // In Playwright Firefox it may be stripped; leave it if present, don't add if missing
+
+        // Remove Chrome-only window properties that leak browser identity
+        try { delete window.chrome; } catch {}
+        try { delete window.google; } catch {}
+      } catch {}
+    });
+  } catch {}
+
+  // ═══════════════════════════════════════════════════════════════════════
   // 1. HARDWARE: CPU cores & device memory
   // ═══════════════════════════════════════════════════════════════════════
   // NOTE: Only override if the spoofed value differs from the real value.
@@ -174,8 +289,8 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
             } catch {}
           }
 
-          // ── Realistic Plugins (matching real Chrome 120+) ──
-          if (typeof adv.plugins === 'number' && adv.plugins >= 0) {
+          // ── Realistic Plugins (Chrome only — Firefox 85+ has empty plugins, handled separately) ──
+          if (!flags.isFirefox && typeof adv.plugins === 'number' && adv.plugins >= 0) {
             try {
               const pluginDefs = [
                 { name: 'PDF Viewer', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
@@ -247,7 +362,7 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
             } catch {}
           }
         } catch {}
-      }, { adv, primaryLang: locale, flags: { applyLang: !!applyLang } });
+      }, { adv, primaryLang: locale, flags: { applyLang: !!applyLang, isFirefox: !!isFirefox } });
     } catch {}
   }
 
