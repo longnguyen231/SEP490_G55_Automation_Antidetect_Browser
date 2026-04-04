@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Play, Plus, Trash2, Search, FileCode, RefreshCw, ChevronRight, X, Download, Upload, Copy, Edit2, MoreVertical } from 'lucide-react';
+import { Play, Plus, Trash2, Search, FileCode, RefreshCw, ChevronRight, X, Download, Upload, Edit2 } from 'lucide-react';
 import Editor from '@monaco-editor/react';
 
 /* ═══════════════ API Reference Data ═══════════════ */
@@ -241,23 +241,6 @@ function ScriptsTab({ profiles }) {
         } catch (e2) { alert(e2?.message || String(e2)); }
     };
 
-    const handleDuplicate = async (s, e) => {
-        e && e.stopPropagation();
-        try {
-            const res = await window.electronAPI.saveScript({
-                name: (s.name || 'Script') + ' (copy)',
-                description: s.description || '',
-                code: s.code || '',
-                schedule: { enabled: false },
-                browserMode: s.browserMode || 'visible',
-            });
-            if (res?.success) {
-                await load();
-                handleSelect(res.script);
-            } else { alert(res?.error || 'Duplicate failed'); }
-        } catch (err) { alert(err?.message || String(err)); }
-    };
-
     const handleRun = async (scriptId) => {
         const pid = runProfileId || (profiles[0]?.id || '');
         if (!pid) { alert('Select a profile to run this script first.'); return; }
@@ -398,24 +381,14 @@ function ScriptsTab({ profiles }) {
                                         <Edit2 size={10} /> Edit
                                     </button>
 
-                                    {/* Duplicate button */}
-                                    <button
-                                        className="p-1 rounded transition-all duration-150 opacity-0 group-hover:opacity-70 hover:!opacity-100"
-                                        style={{ color: 'var(--muted)' }}
-                                        title="Duplicate script"
-                                        onClick={e => handleDuplicate(s, e)}
-                                    >
-                                        <Copy size={11} />
-                                    </button>
-
                                     {/* Delete button */}
                                     <button
-                                        className="p-1 rounded transition-all duration-150 opacity-0 group-hover:opacity-70 hover:!opacity-100"
-                                        style={{ color: '#ef4444' }}
+                                        className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[0.62rem] font-medium transition-all duration-150 opacity-0 group-hover:opacity-80 hover:!opacity-100 hover:brightness-110"
+                                        style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}
                                         title="Delete script"
                                         onClick={e => handleDeleteWithConfirm(s.id, e)}
                                     >
-                                        <X size={11} />
+                                        <Trash2 size={12} /> Del
                                     </button>
 
                                     {/* State badge */}
@@ -440,31 +413,6 @@ function ScriptsTab({ profiles }) {
                     <button className="btn btn-secondary flex-1 text-[0.68rem] flex items-center justify-center gap-1 py-1" onClick={handleImportJson}><Upload size={11} /> Import</button>
                 </div>
 
-                {/* Delete Confirmation Modal */}
-                {deleteConfirmId && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setDeleteConfirmId(null)}>
-                        <div className="rounded-xl p-5 w-[340px] shadow-2xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
-                            <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.1)' }}>
-                                    <Trash2 size={20} className="text-red-500" />
-                                </div>
-                                <div>
-                                    <h3 className="text-[0.9rem] font-semibold" style={{ color: 'var(--fg)' }}>Delete Script</h3>
-                                    <p className="text-[0.72rem]" style={{ color: 'var(--muted)' }}>
-                                        "{scripts.find(s => s.id === deleteConfirmId)?.name || 'Script'}"
-                                    </p>
-                                </div>
-                            </div>
-                            <p className="text-[0.75rem] mb-4" style={{ color: 'var(--muted)' }}>This action cannot be undone. The script and its schedule will be permanently deleted.</p>
-                            <div className="flex gap-2 justify-end">
-                                <button className="btn btn-secondary text-[0.75rem] px-4" onClick={() => setDeleteConfirmId(null)}>Cancel</button>
-                                <button className="px-4 py-1.5 rounded-md text-[0.75rem] font-medium text-white transition-all duration-150 hover:brightness-110"
-                                    style={{ background: '#ef4444' }}
-                                    onClick={confirmDelete}>Delete</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
 
             {/* ═══ Center Editor Area ═══ */}
@@ -780,6 +728,34 @@ function ScriptsTab({ profiles }) {
 
             {/* ═══ Right API Reference ═══ */}
             <ApiReferencePanel onInsert={editing ? handleInsertSnippet : null} />
+
+            {/* Delete Confirmation Modal — rendered at root level so it's not clipped by overflow */}
+            {deleteConfirmId && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setDeleteConfirmId(null)}>
+                    <div className="rounded-xl p-5 w-[360px] shadow-2xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(239,68,68,0.1)' }}>
+                                <Trash2 size={20} className="text-red-500" />
+                            </div>
+                            <div>
+                                <h3 className="text-[0.9rem] font-semibold" style={{ color: 'var(--fg)' }}>Delete Script</h3>
+                                <p className="text-[0.72rem]" style={{ color: 'var(--muted)' }}>
+                                    "{scripts.find(s => s.id === deleteConfirmId)?.name || 'Script'}"
+                                </p>
+                            </div>
+                        </div>
+                        <p className="text-[0.75rem] mb-4" style={{ color: 'var(--muted)' }}>
+                            This action cannot be undone. The script and its schedule will be permanently deleted.
+                        </p>
+                        <div className="flex gap-2 justify-end">
+                            <button className="btn btn-secondary text-[0.75rem] px-4" onClick={() => setDeleteConfirmId(null)}>Cancel</button>
+                            <button className="px-4 py-1.5 rounded-md text-[0.75rem] font-medium text-white transition-all duration-150 hover:brightness-110"
+                                style={{ background: '#ef4444' }}
+                                onClick={confirmDelete}>Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
