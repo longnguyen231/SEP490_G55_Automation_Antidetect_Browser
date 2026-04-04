@@ -4,9 +4,12 @@ const { chromium } = require('playwright');
 const { appendLog } = require('../logging/logger');
 const { storageStatePath, getDataRoot } = require('../storage/paths');
 const { loadSettings, resolveChromeExecutable, resolveVendorChromePath } = require('../storage/settings');
-const { runningProfiles, launchingProfiles,setProfileStatus, generateInstanceId, buildStatusMap } = require('../state/runtime');
-const { applyCdpOverrides } = require('../engine/cdpOverrides');
-const { findFreePort, fetchJsonVersion, killProcessTreeWin, userDataDirFor, launchChromeCdp } = require('../engine/cdp');
+const { runningProfiles, launchingProfiles, setProfileStatus, generateInstanceId, buildStatusMap } = require('../state/runtime');
+
+const { appendLog } = require('../logging/logger');
+const { storageStatePath, getDataRoot } = require('../storage/paths');
+const { loadSettings } = require('../storage/settings'); // used by automation
+const { runningProfiles, setProfileStatus, generateInstanceId, buildStatusMap } = require('../state/runtime');
 const { readProfiles, writeProfiles } = require('../storage/profiles');
 
 /**
@@ -81,161 +84,20 @@ async function launchProfileInternal(profileId, options = {}) {
     if (startUrl === 'https://www.google.com' || startUrl === 'https://www.google.com/') {
       startUrl = 'https://www.google.com/?hl=en';
     }
-    const engine = (options && options.engine) ? String(options.engine).toLowerCase() : (settings.engine === 'cdp' ? 'cdp' : 'playwright');
-  const requestedHeadless = (options && typeof options.headless === 'boolean') ? options.headless : undefined;
-  const headless = (requestedHeadless !== undefined) ? requestedHeadless : !!settings.headless;
+    const requestedHeadless = (options && typeof options.headless === 'boolean') ? options.headless : undefined;
+    const headless = (requestedHeadless !== undefined) ? requestedHeadless : !!settings.headless;
 
-    // Persist engine/headless
+    // Persist headless
     try {
       const idx = profiles.findIndex(p => p.id === profileId);
       if (idx !== -1) {
-  const persist = { ...(profile.settings || {}), engine: (engine === 'cdp' ? 'cdp' : 'playwright') };
-  persist.headless = !!headless;
-  profiles[idx] = { ...profile, settings: persist };
+        const persist = { ...(profile.settings || {}), engine: 'playwright', headless: !!headless };
+        profiles[idx] = { ...profile, settings: persist };
         writeProfiles(profiles);
       }
     } catch { }
 
-    if (engine === 'cdp') {
-      const chromePath = resolveChromeExecutable();
-      if (!chromePath) {
-        const msg = 'Chrome/Edge executable not found. Set CHROME_PATH or configure settings.json.';
-        appendLog(profileId, msg);
-        return { success: false, error: msg };
-      }
-      // Debug paths to help vendor portable troubleshooting
-      try {
-        const vendorRoot = require('path').join(__dirname, '../../vendor');
-        const exists = fs.existsSync(vendorRoot);
-        appendLog(profileId, `Vendor root: ${vendorRoot} (exists: ${exists})`);
-        appendLog(profileId, `resourcesPath: ${process.resourcesPath || ''}`);
-        appendLog(profileId, `Resolved Chrome path: ${chromePath}`);
-      } catch { }
-      const host = options.cdpHost || '127.0.0.1';
-      const port = options.cdpPort ? Number(options.cdpPort) : await findFreePort(9222, host);
-      const userDataDir = userDataDirFor(profileId);
-      const extraArgs = ['--lang=en-US'];
-      // Parity flags with Playwright
-      if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
-        extraArgs.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
-      }
-      const fp = profile.fingerprint || {};
-      if (settings.webgl === false || fp.webgl === false) { extraArgs.push('--disable-3d-apis'); }
-      if (headless) { extraArgs.push('--headless=new'); }
-      // Proxy handling: start local forwarder when auth is present or using SOCKS
-      let proxyForChrome = settings.proxy;
-      let forwarder = null;
-      try {
-        const serverStr = (settings.proxy && settings.proxy.server) ? String(settings.proxy.server) : '';
-        const hasAuth = !!(settings.proxy && (settings.proxy.username || settings.proxy.password));
-        const proxyType = (settings.proxy?.type || '').toLowerCase();
-        const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(serverStr);
-        if (settings.proxy && (hasAuth || isSocks)) {
-          const { startProxyForwarder } = require('../engine/proxyForwarder');
-          forwarder = await startProxyForwarder(settings.proxy, { appendLog, profileId });
-          proxyForChrome = { server: forwarder.url };
-        }
-      } catch (e) {
-        appendLog(profileId, `Proxy forwarder failed, falling back to direct proxy: ${e?.message || e}`);
-      }
-
-  const { child, wsPromise } = await launchChromeCdp({ profileId, chromePath, host, port, userDataDir, startUrl, proxy: proxyForChrome, appendLog, extraArgs });
-      // Add periodic vendor path log for troubleshooting
-      try {
-        const vendorRoot = require('path').join(__dirname, '../../vendor');
-        appendLog(profileId, `CDP launch vendorRoot check: ${vendorRoot} exists=${fs.existsSync(vendorRoot)}`);
-        appendLog(profileId, `Using chromePath: ${chromePath}`);
-      } catch {}
-      const onChildExit = async (code, signal) => {
-        if (runningProfiles.has(profileId)) {
-          try { const info = runningProfiles.get(profileId); info?.heartbeat && clearInterval(info.heartbeat); } catch {}
-          try { const info = runningProfiles.get(profileId); await info?.forwarder?.stop?.(); } catch {}
-          runningProfiles.delete(profileId);
-          appendLog(profileId, `Chrome exited (${code || ''} ${signal || ''}); clearing running state`);
-          broadcastRunningMap();
-        }
-      };
-      child.once('exit', onChildExit);
-      try { child.once('close', onChildExit); } catch { }
-      try { child.once('error', (e) => { appendLog(profileId, `Chrome process error: ${e?.message || e}`); onChildExit('ERR', 'error'); }); } catch { }
-      let wsEndpoint = null;
-      try {
-        const json = await fetchJsonVersion(host, port, 12000);
-        wsEndpoint = json.webSocketDebuggerUrl || null;
-      } catch (e) {
-        appendLog(profileId, `DevTools version fetch failed, trying stderr-parsed WS: ${e?.message || e}`);
-      }
-      if (!wsEndpoint) {
-        try {
-          wsEndpoint = await Promise.race([
-            wsPromise,
-            (async () => { await new Promise(r => setTimeout(r, 8000)); throw new Error('timeout waiting for DevTools WS on stderr'); })(),
-          ]);
-        } catch (e) {
-          await killProcessTreeWin(child.pid);
-          const msg = 'DevTools WS endpoint not found';
-          appendLog(profileId, `${msg}: ${e?.message || e}`);
-          return { success: false, error: msg };
-        }
-      }
-      if (!wsEndpoint) {
-        await killProcessTreeWin(child.pid);
-        const msg = 'DevTools WS endpoint not found';
-        appendLog(profileId, msg);
-        return { success: false, error: msg };
-      }
-      appendLog(profileId, `Chrome DevTools WS: ${wsEndpoint}`);
-      // Setup heartbeat to detect abrupt disconnects if events miss
-      let heartbeat = null;
-      try {
-        const { isWsAlive, pruneDeadCdp } = require('../engine/health');
-        heartbeat = setInterval(async () => {
-          try {
-            const ok = await isWsAlive(wsEndpoint);
-            if (!ok) {
-              clearInterval(heartbeat);
-              heartbeat = null;
-              if (runningProfiles.has(profileId)) {
-                try { await runningProfiles.get(profileId)?.forwarder?.stop?.(); } catch { }
-                runningProfiles.delete(profileId);
-                appendLog(profileId, 'Heartbeat: CDP endpoint down; clearing running state');
-                broadcastRunningMap();
-              }
-            }
-            // Periodically prune other dead CDP sessions as well
-            else { 
-              await pruneDeadCdp(runningProfiles, appendLog, broadcastRunningMap); 
-              
-              // Periodically save open tabs for session restore
-              try {
-                const info = runningProfiles.get(profileId);
-                if (info && info.cdpControl && info.cdpControl.context) {
-                  const pages = info.cdpControl.context.pages();
-                  if (pages && pages.length > 0) {
-                    const { saveSessionTabs } = require('../storage/sessionTabs');
-                    saveSessionTabs(profileId, pages.map(p => p.url()));
-                  }
-                }
-              } catch {}
-            }
-          } catch { }
-        }, 2500);
-      } catch { }
-  runningProfiles.set(profileId, { engine: 'cdp', childProc: child, wsEndpoint, host, port, forwarder, heartbeat });
-      setProfileStatus(profileId, 'RUNNING', instanceId);
-      broadcastRunningMap();
-      // Load saved tabs
-      const { loadSessionTabs } = require('../storage/sessionTabs');
-      const savedTabs = loadSessionTabs(profileId);
-
-      // Always apply CDP overrides; InitScript can be toggled inside cdpOverrides based on settings.cdpApplyInitScript
-      try { await applyCdpOverrides(profileId, wsEndpoint, profile, settings, startUrl, { appendLog, runningProfiles, broadcastRunningMap, savedTabs }); } catch (e) { appendLog(profileId, `CDP overrides failed: ${e?.message || e}`); }
-      // Post-launch automation script (if configured)
-      try { await runAutomationPostLaunch(profile, { engine: 'cdp', wsEndpoint }); } catch (e) { appendLog(profileId, `Automation post-launch error (CDP): ${e?.message || e}`); }
-      return { success: true, wsEndpoint };
-    }
-
-    // Playwright flow — rebrowser-playwright (pipe mode).
+    // Playwright flow.
     // rebrowser-playwright patches CDP leak at network level (Runtime.enable, bindings).
     // Combined with safeMode ON (no JS Object.defineProperty overrides), this bypasses
     // Cloudflare enterprise WAF.
@@ -295,7 +157,7 @@ async function launchProfileInternal(profileId, options = {}) {
       const g = settings?.geolocation || {};
       const wantGeo = Number.isFinite(Number(g.latitude)) && Number.isFinite(Number(g.longitude));
       if (applyGeo && wantGeo) permissions.push('geolocation');
-    } catch {}
+    } catch { }
     // Proxy handling
     let proxy;
     let forwarder = null;
@@ -346,7 +208,7 @@ async function launchProfileInternal(profileId, options = {}) {
         try {
           detectedChromeVersion = await getChromeVersion(executablePath);
           if (detectedChromeVersion) appendLog(profileId, `[binary] detected version=${detectedChromeVersion}`);
-        } catch {}
+        } catch { }
       } else {
         appendLog(profileId, `[binary] source=bundled WARNING: no vendor or system Chrome found — icon will appear blue Chromium. Place Chrome at vendor/chrome-win/Chrome-bin/chrome.exe`);
       }
@@ -377,20 +239,20 @@ async function launchProfileInternal(profileId, options = {}) {
         const bname = isFirefox ? 'firefox' : 'chromium';
         appendLog(profileId, `Attempting auto-install playwright browsers (${bname})...`);
         const ok = await runPlaywrightInstall(bname);
-        if (!ok) { try { await forwarder?.stop?.(); } catch {} return { success: false, error: 'Playwright browsers not installed.' }; }
+        if (!ok) { try { await forwarder?.stop?.(); } catch { } return { success: false, error: 'Playwright browsers not installed.' }; }
         if (isFirefox) {
           server = await pwEngine.launchServer({ headless, args, proxy });
           browser = await pwEngine.connect(server.wsEndpoint());
         } else {
           browser = await pwEngine.launch(chromiumLaunchOpts);
         }
-      } else { try { await forwarder?.stop?.(); } catch {} throw e; }
+      } else { try { await forwarder?.stop?.(); } catch { } throw e; }
     }
     // Log actual binary version for verification — should show Chrome/1xx not HeadlessChrome
-    try { appendLog(profileId, `[binary] version=${browser.version()}`); } catch {}
+    try { appendLog(profileId, `[binary] version=${browser.version()}`); } catch { }
     const wsEndpoint = isFirefox ? server.wsEndpoint() : null; // pipe mode for chromium
     appendLog(profileId, `Launched Playwright ${isFirefox ? 'Firefox server: ' + wsEndpoint : 'browser (pipe mode, no external WS)'}`);
-    
+
     // safeMode: true (default) → skip CDP emulation commands (userAgent, locale,
     // timezone, geolocation) that Cloudflare enterprise detects.
     // Only viewport and proxy are safe because they don't use CDP Emulation APIs.
@@ -433,7 +295,7 @@ async function launchProfileInternal(profileId, options = {}) {
         const dpr = Number((settings.advanced || {}).devicePixelRatio || 1);
         if (dpr > 0) contextOptions.deviceScaleFactor = dpr;
       }
-    } catch {}
+    } catch { }
     if (applyGeo && settings.geolocation && settings.geolocation.latitude != null && settings.geolocation.longitude != null) {
       contextOptions.geolocation = {
         latitude: Number(settings.geolocation.latitude),
@@ -442,25 +304,25 @@ async function launchProfileInternal(profileId, options = {}) {
       };
     }
     const statePath = storageStatePath(profileId);
-    if (fs.existsSync(statePath)) { try { contextOptions.storageState = statePath; } catch {} }
+    if (fs.existsSync(statePath)) { try { contextOptions.storageState = statePath; } catch { } }
     const context = await browser.newContext(contextOptions);
     if (permissions.length) { await context.grantPermissions(permissions); }
     // Apply fingerprint init scripts (reuse safeMode from context options above)
     try {
       const { applyFingerprintInitScripts } = require('../engine/fingerprintInit');
       await applyFingerprintInitScripts(context, profile, settings, { safeMode });
-    } catch {}
+    } catch { }
     // Inject mouse position tracker for behavior simulator
     try {
       const { injectMouseTracker } = require('../engine/behaviorSimulator');
       await injectMouseTracker(context);
-    } catch {}
+    } catch { }
 
     // Inject mouse position tracker for behavior simulator
     try {
       const { injectMouseTracker } = require('../engine/behaviorSimulator');
       await injectMouseTracker(context);
-    } catch {}
+    } catch { }
 
     const { loadSessionTabs, saveSessionTabs } = require('../storage/sessionTabs');
     const rawSavedTabs = loadSessionTabs(profileId);
@@ -523,7 +385,7 @@ async function launchProfileInternal(profileId, options = {}) {
       try {
         const pages = context.pages();
         if (pages && pages.length > 0) saveSessionTabs(profileId, pages.map(p => p.url()));
-      } catch {}
+      } catch { }
     };
     // Cleanup helper
     let playwrightCleaned = false;
@@ -531,16 +393,16 @@ async function launchProfileInternal(profileId, options = {}) {
       if (playwrightCleaned) return;
       playwrightCleaned = true;
       await saveState();
-      try { await forwarder?.stop?.(); } catch {}
+      try { await forwarder?.stop?.(); } catch { }
       runningProfiles.delete(profileId);
       setProfileStatus(profileId, 'STOPPED');
       appendLog(profileId, reason);
-      try { await context.close(); } catch {}
-      try { await browser?.close?.(); } catch {}
+      try { await context.close(); } catch { }
+      try { await browser?.close?.(); } catch { }
       broadcastRunningMap();
     };
     context.on('close', () => cleanupPlaywright('Context closed'));
-    try { browser.on?.('disconnected', () => cleanupPlaywright('Browser disconnected')); } catch {}
+    try { browser.on?.('disconnected', () => cleanupPlaywright('Browser disconnected')); } catch { }
     // Detect when user closes all browser tabs via "X" button
     const onPageClose = () => {
       try {
@@ -551,8 +413,8 @@ async function launchProfileInternal(profileId, options = {}) {
         }
       } catch { cleanupPlaywright('Page close check failed — browser stopped'); }
     };
-    try { for (const p of context.pages()) { p.on('close', onPageClose); } } catch {}
-    context.on('page', (newPage) => { try { newPage.on('close', onPageClose); } catch {} });
+    try { for (const p of context.pages()) { p.on('close', onPageClose); } } catch { }
+    context.on('page', (newPage) => { try { newPage.on('close', onPageClose); } catch { } });
     runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder });
     setProfileStatus(profileId, 'RUNNING', instanceId);
     broadcastRunningMap();
@@ -593,21 +455,11 @@ async function runAutomationPostLaunch(profile, launchCtx) {
         }
         case 'navigate': {
           const url = step.url || step.href;
-            if (!url) { appendLog(profileId, 'Automation: navigate step missing url'); break; }
-          if (launchCtx.engine === 'playwright') {
+          if (!url) { appendLog(profileId, 'Automation: navigate step missing url'); break; }
+          {
             const context = launchCtx.context;
             const page = context.pages()[0] || await context.newPage();
             await page.goto(url, { waitUntil: step.waitUntil || 'domcontentloaded' });
-          } else if (launchCtx.engine === 'cdp') {
-            // Connect over CDP and create a new page (Target.createTarget) – simplified fallback: use navigateInternal via handlers if desired.
-            try {
-              const { chromium } = require('playwright');
-              const browser = await chromium.connectOverCDP(launchCtx.wsEndpoint);
-              const context = browser.contexts()[0];
-              const page = context.pages()[0] || await context.newPage();
-              await page.goto(url, { waitUntil: step.waitUntil || 'domcontentloaded' });
-              await browser.close();
-            } catch (e) { appendLog(profileId, `Automation navigate (CDP) failed: ${e?.message || e}`); }
           }
           appendLog(profileId, `Automation: navigated to ${url}`);
           break;
@@ -615,23 +467,13 @@ async function runAutomationPostLaunch(profile, launchCtx) {
         case 'eval': {
           const expression = step.expression || step.code;
           if (!expression) { appendLog(profileId, 'Automation: eval step missing expression'); break; }
-          if (launchCtx.engine === 'playwright') {
+          {
             const context = launchCtx.context;
             const page = context.pages()[0] || await context.newPage();
             const value = await page.evaluate(expr => {
               try { return { ok: true, value: eval(expr) }; } catch (e) { return { ok: false, error: e?.message || String(e) }; }
             }, expression);
-            appendLog(profileId, `Automation eval: ${value.ok ? JSON.stringify(value.value).slice(0,200) : ('ERR ' + value.error)}`);
-          } else {
-            try {
-              const { chromium } = require('playwright');
-              const browser = await chromium.connectOverCDP(launchCtx.wsEndpoint);
-              const context = browser.contexts()[0];
-              const page = context.pages()[0] || await context.newPage();
-              const value = await page.evaluate(expr => { try { return { ok: true, value: eval(expr) }; } catch (e) { return { ok: false, error: e?.message || String(e) }; } }, expression);
-              appendLog(profileId, `Automation eval (CDP): ${value.ok ? JSON.stringify(value.value).slice(0,200) : ('ERR ' + value.error)}`);
-              await browser.close();
-            } catch (e) { appendLog(profileId, `Automation eval (CDP) failed: ${e?.message || e}`); }
+            appendLog(profileId, `Automation eval: ${value.ok ? JSON.stringify(value.value).slice(0, 200) : ('ERR ' + value.error)}`);
           }
           break;
         }
@@ -648,13 +490,8 @@ async function runAutomationPostLaunch(profile, launchCtx) {
             const seed = (profileId || '').split('').reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0);
             const rng = behavior.createRng(Math.abs(seed) + Date.now());
             let page;
-            if (launchCtx.engine === 'playwright' && launchCtx.context) {
+            if (launchCtx.context) {
               page = launchCtx.context.pages()[0];
-            } else if (launchCtx.engine === 'cdp') {
-              const { chromium } = require('playwright');
-              const browser = await chromium.connectOverCDP(launchCtx.wsEndpoint);
-              const ctx = browser.contexts()[0];
-              page = ctx?.pages()[0];
             }
             if (page) {
               const behaviorType = step.behaviorType || 'browse';
@@ -694,17 +531,6 @@ async function stopProfileInternal(profileId) {
     }
     setProfileStatus(profileId, 'STOPPING');
     broadcastRunningMap();
-    if (running.engine === 'cdp') {
-      try { running.heartbeat && clearInterval(running.heartbeat); } catch { }
-      try { await running.forwarder?.stop?.(); } catch { }
-      try { await running.cdpControl?.browser?.close?.(); } catch { }
-      const pid = running.childProc?.pid; if (pid) await killProcessTreeWin(pid); else { try { running.childProc?.kill?.('SIGKILL'); } catch { } }
-      runningProfiles.delete(profileId);
-      setProfileStatus(profileId, 'STOPPED');
-      appendLog(profileId, 'Stopped CDP profile');
-      broadcastRunningMap();
-      return { success: true };
-    }
     const { server, context, browser } = running;
     try {
       const statePath = storageStatePath(profileId);
@@ -735,21 +561,12 @@ async function stopAllProfilesInternal() {
     try {
       const running = runningProfiles.get(id);
       if (!running) continue;
-      if (running.engine === 'cdp') {
-        try { running.heartbeat && clearInterval(running.heartbeat); } catch { }
-        try { await running.forwarder?.stop?.(); } catch { }
-        const pid = running.childProc?.pid; if (pid) await killProcessTreeWin(pid);
-        runningProfiles.delete(id);
-        setProfileStatus(id, 'STOPPED');
-        appendLog(id, 'Stopped CDP by stop-all');
-      } else {
-        const { server, context, browser } = running;
-        try { const state = await context.storageState(); fs.writeFileSync(storageStatePath(id), JSON.stringify(state, null, 2)); appendLog(id, 'Saved storage state before stop-all'); } catch (e) { appendLog(id, `Failed save state on stop-all: ${e.message}`); }
-        try { await context.close(); } catch { }
-        try { await browser?.close?.(); } catch { }
-        try { await server.close(); } catch { }
-        runningProfiles.delete(id); setProfileStatus(id, 'STOPPED'); appendLog(id, 'Stopped by stop-all');
-      }
+      const { server, context, browser } = running;
+      try { const state = await context.storageState(); fs.writeFileSync(storageStatePath(id), JSON.stringify(state, null, 2)); appendLog(id, 'Saved storage state before stop-all'); } catch (e) { appendLog(id, `Failed save state on stop-all: ${e.message}`); }
+      try { await context.close(); } catch { }
+      try { await browser?.close?.(); } catch { }
+      try { await server?.close?.(); } catch { }
+      runningProfiles.delete(id); setProfileStatus(id, 'STOPPED'); appendLog(id, 'Stopped by stop-all');
       stopped++;
     } catch (e) { appendLog(id, `Stop-all error: ${e.message}`); }
   }
@@ -761,19 +578,10 @@ async function stopAllProfilesInternal() {
 async function withConnectedBrowserForProfile(profileId, fn) {
   const running = runningProfiles.get(profileId);
   if (!running) return { success: false, error: 'Profile not running' };
-  if (running.engine === 'playwright') {
-    try {
-      const browser = running.browser; const context = running.context;
-      if (!browser || !context || context.isClosed?.()) return { success: false, error: 'Browser context not available' };
-      const r = await fn({ engine: 'playwright', browser, context, cleanup: async () => { } });
-      return r;
-    } catch (e) { return { success: false, error: e?.message || String(e) }; }
-  }
   try {
-    const ws = running.wsEndpoint; const browser = await chromium.connectOverCDP(ws); const context = browser.contexts?.()[0];
-    if (!context) { try { await browser.close(); } catch { }; return { success: false, error: 'No browser context found (CDP)' }; }
-    const r = await fn({ engine: 'cdp', browser, context, cleanup: async () => { try { await browser.close(); } catch { } } });
-    try { await browser.close(); } catch { }
+    const browser = running.browser; const context = running.context;
+    if (!browser || !context || context.isClosed?.()) return { success: false, error: 'Browser context not available' };
+    const r = await fn({ browser, context, cleanup: async () => { } });
     return r;
   } catch (e) { return { success: false, error: e?.message || String(e) }; }
 }
@@ -893,41 +701,28 @@ async function getProfileLogInternal(profileId) { try { const p = require('path'
 
 async function getCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const cookies = await running.context.cookies(); return { success: true, cookies }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, cookies: state.cookies || [] }; } return { success: true, cookies: [] }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function importCookiesInternal(profileId, cookies) { try { if (!Array.isArray(cookies)) throw new Error('Invalid cookies payload'); const validated = cookies.map(c => { if (!c.name || !c.value || !c.domain) throw new Error('Each cookie must have name, value, and domain'); return { name: String(c.name), value: String(c.value), domain: String(c.domain), path: String(c.path || '/'), expires: c.expires ? Number(c.expires) : -1, httpOnly: !!c.httpOnly, secure: !!c.secure, sameSite: ['Strict','Lax','None'].includes(c.sameSite) ? c.sameSite : 'Lax' }; }); if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies(validated); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true, count: validated.length }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; for (const nc of validated) { const idx = existing.findIndex(e => e.name === nc.name && e.domain === nc.domain && e.path === nc.path); if (idx >= 0) existing[idx] = nc; else existing.push(nc); } state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true, count: validated.length }; } catch (error) { return { success: false, error: error.message }; } }
+async function importCookiesInternal(profileId, cookies) { try { if (!Array.isArray(cookies)) throw new Error('Invalid cookies payload'); const validated = cookies.map(c => { if (!c.name || !c.value || !c.domain) throw new Error('Each cookie must have name, value, and domain'); return { name: String(c.name), value: String(c.value), domain: String(c.domain), path: String(c.path || '/'), expires: c.expires ? Number(c.expires) : -1, httpOnly: !!c.httpOnly, secure: !!c.secure, sameSite: ['Strict', 'Lax', 'None'].includes(c.sameSite) ? c.sameSite : 'Lax' }; }); if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies(validated); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true, count: validated.length }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; for (const nc of validated) { const idx = existing.findIndex(e => e.name === nc.name && e.domain === nc.domain && e.path === nc.path); if (idx >= 0) existing[idx] = nc; else existing.push(nc); } state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true, count: validated.length }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function deleteCookieInternal(profileId, { name, domain, path: cookiePath }) { try { if (!name || !domain) throw new Error('name and domain are required'); const targetPath = cookiePath || '/'; if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies([{ name, domain, path: targetPath, value: '', expires: 0 }]); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); if (!fs.existsSync(statePath)) return { success: true }; const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); state.cookies = (state.cookies || []).filter(c => !(c.name === name && c.domain === domain && (c.path || '/') === targetPath)); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function clearCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.clearCookies(); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); state.cookies = []; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); } return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function editCookieInternal(profileId, cookie) { try { if (!cookie || !cookie.name || !cookie.domain) throw new Error('cookie with name and domain is required'); const validated = { name: String(cookie.name), value: String(cookie.value || ''), domain: String(cookie.domain), path: String(cookie.path || '/'), expires: cookie.expires ? Number(cookie.expires) : -1, httpOnly: !!cookie.httpOnly, secure: !!cookie.secure, sameSite: ['Strict','Lax','None'].includes(cookie.sameSite) ? cookie.sameSite : 'Lax' }; if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies([validated]); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; const idx = existing.findIndex(e => e.name === validated.name && e.domain === validated.domain && (e.path || '/') === validated.path); if (idx >= 0) existing[idx] = validated; else existing.push(validated); state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
+async function editCookieInternal(profileId, cookie) { try { if (!cookie || !cookie.name || !cookie.domain) throw new Error('cookie with name and domain is required'); const validated = { name: String(cookie.name), value: String(cookie.value || ''), domain: String(cookie.domain), path: String(cookie.path || '/'), expires: cookie.expires ? Number(cookie.expires) : -1, httpOnly: !!cookie.httpOnly, secure: !!cookie.secure, sameSite: ['Strict', 'Lax', 'None'].includes(cookie.sameSite) ? cookie.sameSite : 'Lax' }; if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies([validated]); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; const idx = existing.findIndex(e => e.name === validated.name && e.domain === validated.domain && (e.path || '/') === validated.path); if (idx >= 0) existing[idx] = validated; else existing.push(validated); state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function getStorageStateInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const state = await running.context.storageState(); return { success: true, state }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, state }; } return { success: true, state: { cookies: [], origins: [] } }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function getProfileWsInternal(profileId) {
   try {
     const running = runningProfiles.get(profileId);
-    if (!running) return { success: true, wsEndpoint: null };
-    // Playwright: check context/browser state only (do NOT call isWsAlive because wsEndpoint may be null)
-    if (running.engine === 'playwright') {
-      if (running.context?.isClosed?.() || running.browser?.isConnected?.() === false) {
-        runningProfiles.delete(profileId);
-        appendLog(profileId, 'Heartbeat: context/browser disconnected');
-        broadcastRunningMap();
-        return { success: true, wsEndpoint: null };
-      }
-      // Profile is alive - return 'pipe' if wsEndpoint is null (pipe mode)
-      return { success: true, wsEndpoint: running.wsEndpoint || 'pipe' };
-    }
-    // CDP: check via isWsAlive
-    const ws = running.wsEndpoint;
-    const alive = await require('../engine/health').isWsAlive(ws);
-    if (!alive) {
+    if (!running) return { success: true, wsEndpoint: null, running: false };
+    if (running.context?.isClosed?.() || running.browser?.isConnected?.() === false) {
       runningProfiles.delete(profileId);
-      appendLog(profileId, 'Heartbeat failed; removed stale running state');
+      setProfileStatus(profileId, 'STOPPED');
+      appendLog(profileId, 'Heartbeat: context/browser disconnected');
       broadcastRunningMap();
-      return { success: true, wsEndpoint: null };
+      return { success: true, wsEndpoint: null, running: false };
     }
-    return { success: true, wsEndpoint: ws };
+    return { success: true, wsEndpoint: running.wsEndpoint || 'pipe', running: true };
   } catch (error) { return { success: false, error: error.message }; }
 }
 
@@ -935,12 +730,7 @@ async function getRunningMapInternal() {
   try {
     const result = {};
     for (const [id, info] of runningProfiles.entries()) {
-      let alive = true;
-      if (info.engine === 'playwright') {
-        if (info.context?.isClosed?.() || info.browser?.isConnected?.() === false) alive = false;
-      } else {
-        if (!(await require('../engine/health').isWsAlive(info.wsEndpoint))) alive = false;
-      }
+      const alive = !(info.context?.isClosed?.() || info.browser?.isConnected?.() === false);
       if (!alive) {
         runningProfiles.delete(id);
         setProfileStatus(id, 'STOPPED');
