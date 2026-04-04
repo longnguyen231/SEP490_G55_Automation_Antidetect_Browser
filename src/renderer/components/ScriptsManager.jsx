@@ -184,7 +184,7 @@ function ScriptsTab({ profiles }) {
                 {editing ? (
                     <>
                         {/* Middle Panel: Editor Settings & Code */}
-                        <div className="flex-1 flex flex-col" style={{ background: 'var(--card)' }}>
+                        <div className="flex-1 flex flex-col min-w-0 min-h-0" style={{ background: 'var(--card)' }}>
                             {/* Header Row */}
                             <div className="p-3 flex justify-between items-center" style={{ borderBottom: '1px solid var(--border)' }}>
                                 <div className="font-semibold text-[0.85rem]" style={{ color: 'var(--fg)' }}>
@@ -235,22 +235,22 @@ function ScriptsTab({ profiles }) {
                                 
                                 {/* Expanded Auto-run Config */}
                                 {editing.autoRun && (
-                                    <div className="px-4 pb-4 pt-1" style={{ borderBottom: '1px solid var(--border)' }}>
-                                        <div className="flex items-center gap-3 mb-3">
+                                    <div className="px-3 pb-2 pt-1" style={{ borderBottom: '1px solid var(--border)' }}>
+                                        <div className="flex items-center gap-2 mb-2">
                                             <span className="text-[0.7rem]" style={{ color: 'var(--fg)' }}>Profile:</span>
-                                            <select className="flex-1 rounded px-2 py-1.5 text-[0.75rem]" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}>
+                                            <select className="flex-1 rounded px-2 py-1 text-[0.75rem]" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}>
                                                 <option value="">Select profile...</option>
                                                 {profiles.map(p => <option key={p.id} value={p.id}>{p.name || p.id}</option>)}
                                             </select>
                                         </div>
-                                        <div className="flex gap-1.5 flex-wrap mb-3">
+                                        <div className="flex gap-1 flex-wrap mb-2">
                                             {['Every 5m', 'Every 15m', 'Every 30m', 'Hourly', 'Daily 9am', 'Midnight', 'Mon 9am'].map(label => (
-                                                <button key={label} className="px-2 py-1 rounded hover:bg-slate-200 transition text-[0.65rem] border" style={{ background: 'var(--glass-strong)', borderColor: 'var(--border2)', color: 'var(--fg)' }}>
+                                                <button key={label} className="px-1.5 py-0.5 rounded hover:bg-slate-200 transition text-[0.65rem] border" style={{ background: 'var(--glass-strong)', borderColor: 'var(--border2)', color: 'var(--fg)' }}>
                                                     {label}
                                                 </button>
                                             ))}
                                         </div>
-                                        <div className="flex gap-2 mb-3">
+                                        <div className="flex gap-1.5 mb-2">
                                             {[
                                                 { label: 'Minute', bg: 'var(--glass-input)' },
                                                 { label: 'Hour', bg: 'var(--glass-strong)' },
@@ -259,21 +259,21 @@ function ScriptsTab({ profiles }) {
                                                 { label: 'Weekday', bg: 'var(--glass-strong)' }
                                             ].map(col => (
                                                 <div key={col.label} className="flex-1">
-                                                    <div className="text-[0.65rem] mb-1" style={{ color: 'var(--muted)' }}>{col.label}</div>
-                                                    <select className="w-full rounded px-1 py-1 text-[0.7rem] border" style={{ background: col.bg, borderColor: 'var(--border2)', color: 'var(--fg)' }}>
+                                                    <div className="text-[0.65rem] mb-0.5" style={{ color: 'var(--muted)' }}>{col.label}</div>
+                                                    <select className="w-full rounded px-1 py-0.5 text-[0.7rem] border" style={{ background: col.bg, borderColor: 'var(--border2)', color: 'var(--fg)' }}>
                                                         <option>* (eve...</option>
                                                     </select>
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="flex gap-3 items-center">
+                                        <div className="flex gap-2 items-center">
                                             <input 
-                                                className="w-[120px] rounded px-3 py-1.5 text-[0.75rem] font-mono tracking-widest border text-center" 
+                                                className="w-[100px] rounded px-2 py-1 text-[0.75rem] font-mono tracking-widest border text-center" 
                                                 readOnly 
                                                 value="* * * * *" 
                                                 style={{ background: 'var(--glass-input)', borderColor: 'var(--border2)', color: 'var(--fg)' }} 
                                             />
-                                            <span className="text-[0.75rem]" style={{ color: 'var(--muted)' }}>Every minute</span>
+                                            <span className="text-[0.7rem]" style={{ color: 'var(--muted)' }}>Every minute</span>
                                         </div>
                                     </div>
                                 )}
@@ -292,7 +292,7 @@ function ScriptsTab({ profiles }) {
                             </div>
 
                             {/* Editor */}
-                            <div className="flex-1 relative">
+                            <div className="flex-1 relative min-h-0">
                                 <Editor
                                     height="100%"
                                     language="javascript"
@@ -313,7 +313,7 @@ function ScriptsTab({ profiles }) {
                         </div>
 
                         {/* Right Panel: API Reference Sidebar */}
-                        <div className="w-[280px] flex flex-col" style={{ background: '#f8fafc', borderLeft: '1px solid var(--border)' }}>
+                        <div className="w-[280px] flex flex-col min-h-0" style={{ background: '#f8fafc', borderLeft: '1px solid var(--border)' }}>
                             <div className="p-3 font-semibold text-[0.75rem]" style={{ color: '#334155' }}>
                                 API Reference
                             </div>
