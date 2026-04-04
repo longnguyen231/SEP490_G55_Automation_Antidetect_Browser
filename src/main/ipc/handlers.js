@@ -17,6 +17,7 @@ const {
   editCookieInternal,
   getProfileWsInternal,
   getRunningMapInternal,
+  getStatusMapInternal,
   getLocalesTimezonesInternal,
   runAutomationNowInternal,
 } = require('../controllers/profiles');
@@ -64,6 +65,7 @@ function registerIpcHandlers(extra = {}) {
   ipcMain.handle('edit-cookie', async (_e, profileId, cookie) => await editCookieInternal(profileId, cookie));
   ipcMain.handle('get-profile-ws', async (_e, profileId) => await getProfileWsInternal(profileId));
   ipcMain.handle('get-running-map', async () => await getRunningMapInternal());
+  ipcMain.handle('get-status-map', async () => getStatusMapInternal());
   ipcMain.handle('get-locales-timezones', async () => await getLocalesTimezonesInternal());
   ipcMain.handle('clone-profile', async (_e, sourceProfileId, overrides = {}) => await cloneProfileInternal(sourceProfileId, overrides));
 
@@ -87,7 +89,15 @@ function registerIpcHandlers(extra = {}) {
   ipcMain.handle('scripts-save', async (_e, script) => await saveScriptInternal(script));
   ipcMain.handle('scripts-delete', async (_e, id) => await deleteScriptInternal(id));
   ipcMain.handle('scripts-execute', async (_e, profileId, scriptId, opts) => {
-    try { return await executeScript(profileId, scriptId, opts || {}); }
+    try {
+      // Load script code from storage by scriptId
+      const scriptResult = await getScriptInternal(scriptId);
+      if (!scriptResult?.success || !scriptResult.script) {
+        return { success: false, error: 'Script not found: ' + scriptId };
+      }
+      const code = scriptResult.script.code || '';
+      return await executeScript(profileId, code, opts || {});
+    }
     catch (e) { return { success: false, error: e?.message || String(e) }; }
   });
 

@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLocalesTimezones: () => ipcRenderer.invoke('get-locales-timezones'),
   getProfileWs: (profileId) => ipcRenderer.invoke('get-profile-ws', profileId),
   getRunningMap: () => ipcRenderer.invoke('get-running-map'),
+  getStatusMap: () => ipcRenderer.invoke('get-status-map'),
   stopProfile: (profileId) => ipcRenderer.invoke('stop-profile', profileId),
   stopAllProfiles: () => ipcRenderer.invoke('stop-all-profiles'),
   getProfileLog: (profileId) => ipcRenderer.invoke('get-profile-log', profileId),

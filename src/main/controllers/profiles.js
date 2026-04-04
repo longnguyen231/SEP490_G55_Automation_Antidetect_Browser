@@ -4,7 +4,7 @@ const { chromium } = require('playwright');
 const { appendLog } = require('../logging/logger');
 const { storageStatePath, getDataRoot } = require('../storage/paths');
 const { loadSettings, resolveChromeExecutable, resolveVendorChromePath } = require('../storage/settings');
-const { runningProfiles, launchingProfiles } = require('../state/runtime');
+const { runningProfiles, launchingProfiles,setProfileStatus, generateInstanceId, buildStatusMap } = require('../state/runtime');
 const { applyCdpOverrides } = require('../engine/cdpOverrides');
 const { findFreePort, fetchJsonVersion, killProcessTreeWin, userDataDirFor, launchChromeCdp } = require('../engine/cdp');
 const { readProfiles, writeProfiles } = require('../storage/profiles');
@@ -46,9 +46,11 @@ async function runPlaywrightInstall(browser = 'chromium') {
 
 function broadcastRunningMap() {
   const { BrowserWindow } = require('electron');
-  // Playwright Chromium pipe-mode: wsEndpoint=null → dùng 'pipe' làm giá trị truthy
-  // để frontend biết profile đang chạy (!!runningWs[id] === true)
-  const payload = { map: Object.fromEntries([...runningProfiles.entries()].map(([id, info]) => [id, info.wsEndpoint || 'pipe'])) };
+  const map = Object.fromEntries(
+    [...runningProfiles.entries()].map(([id, info]) => [id, info.wsEndpoint || 'pipe'])
+  );
+  const statuses = buildStatusMap();
+  const payload = { map, statuses };
   for (const w of BrowserWindow.getAllWindows()) {
     try { w.webContents.send('running-map-changed', payload); } catch { }
   }
@@ -66,6 +68,14 @@ async function launchProfileInternal(profileId, options = {}) {
     const profiles = readProfiles();
     const profile = profiles.find(p => p.id === profileId);
     if (!profile) return { success: false, error: 'Profile not found' };
+    if (runningProfiles.has(profileId)) {
+      const running = runningProfiles.get(profileId);
+      return { success: true, wsEndpoint: running.wsEndpoint || 'pipe' };
+    }
+    // Set STARTING status immediately and broadcast
+    const instanceId = generateInstanceId();
+    setProfileStatus(profileId, 'STARTING', instanceId);
+    broadcastRunningMap();
     const settings = profile.settings || {};
     let startUrl = profile.startUrl || 'https://www.google.com/?hl=en';
     if (startUrl === 'https://www.google.com' || startUrl === 'https://www.google.com/') {
@@ -212,6 +222,7 @@ async function launchProfileInternal(profileId, options = {}) {
         }, 2500);
       } catch { }
   runningProfiles.set(profileId, { engine: 'cdp', childProc: child, wsEndpoint, host, port, forwarder, heartbeat });
+      setProfileStatus(profileId, 'RUNNING', instanceId);
       broadcastRunningMap();
       // Load saved tabs
       const { loadSessionTabs } = require('../storage/sessionTabs');
@@ -522,6 +533,7 @@ async function launchProfileInternal(profileId, options = {}) {
       await saveState();
       try { await forwarder?.stop?.(); } catch {}
       runningProfiles.delete(profileId);
+      setProfileStatus(profileId, 'STOPPED');
       appendLog(profileId, reason);
       try { await context.close(); } catch {}
       try { await browser?.close?.(); } catch {}
@@ -542,11 +554,14 @@ async function launchProfileInternal(profileId, options = {}) {
     try { for (const p of context.pages()) { p.on('close', onPageClose); } } catch {}
     context.on('page', (newPage) => { try { newPage.on('close', onPageClose); } catch {} });
     runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder });
+    setProfileStatus(profileId, 'RUNNING', instanceId);
     broadcastRunningMap();
     // Post-launch automation script (if configured)
     try { await runAutomationPostLaunch(profile, { engine: 'playwright', wsEndpoint, context, browser }); } catch (e) { appendLog(profileId, `Automation post-launch error: ${e?.message || e}`); }
     return { success: true, wsEndpoint };
   } catch (error) {
+    setProfileStatus(profileId, 'ERROR', instanceId);
+    broadcastRunningMap();
     appendLog(profileId, `Launch error: ${error.message}`);
     return { success: false, error: error.message };
   } finally {
@@ -672,13 +687,20 @@ async function runAutomationPostLaunch(profile, launchCtx) {
 async function stopProfileInternal(profileId) {
   try {
     const running = runningProfiles.get(profileId);
-    if (!running) return { success: true, message: 'Profile not running' };
+    if (!running) {
+      setProfileStatus(profileId, 'STOPPED');
+      broadcastRunningMap();
+      return { success: true, message: 'Profile not running' };
+    }
+    setProfileStatus(profileId, 'STOPPING');
+    broadcastRunningMap();
     if (running.engine === 'cdp') {
       try { running.heartbeat && clearInterval(running.heartbeat); } catch { }
       try { await running.forwarder?.stop?.(); } catch { }
       try { await running.cdpControl?.browser?.close?.(); } catch { }
       const pid = running.childProc?.pid; if (pid) await killProcessTreeWin(pid); else { try { running.childProc?.kill?.('SIGKILL'); } catch { } }
       runningProfiles.delete(profileId);
+      setProfileStatus(profileId, 'STOPPED');
       appendLog(profileId, 'Stopped CDP profile');
       broadcastRunningMap();
       return { success: true };
@@ -692,12 +714,15 @@ async function stopProfileInternal(profileId) {
     } catch (e) { appendLog(profileId, `Failed saving state on stop: ${e.message}`); }
     try { await context.close(); } catch { }
     try { await browser?.close?.(); } catch { }
-    try { await server.close(); } catch { }
+    try { await server?.close?.(); } catch { }
     runningProfiles.delete(profileId);
+    setProfileStatus(profileId, 'STOPPED');
     appendLog(profileId, 'Stopped profile');
     broadcastRunningMap();
     return { success: true };
   } catch (error) {
+    setProfileStatus(profileId, 'ERROR');
+    broadcastRunningMap();
     appendLog(profileId, `Stop error: ${error.message}`);
     return { success: false, error: error.message };
   }
@@ -715,6 +740,7 @@ async function stopAllProfilesInternal() {
         try { await running.forwarder?.stop?.(); } catch { }
         const pid = running.childProc?.pid; if (pid) await killProcessTreeWin(pid);
         runningProfiles.delete(id);
+        setProfileStatus(id, 'STOPPED');
         appendLog(id, 'Stopped CDP by stop-all');
       } else {
         const { server, context, browser } = running;
@@ -722,7 +748,7 @@ async function stopAllProfilesInternal() {
         try { await context.close(); } catch { }
         try { await browser?.close?.(); } catch { }
         try { await server.close(); } catch { }
-        runningProfiles.delete(id); appendLog(id, 'Stopped by stop-all');
+        runningProfiles.delete(id); setProfileStatus(id, 'STOPPED'); appendLog(id, 'Stopped by stop-all');
       }
       stopped++;
     } catch (e) { appendLog(id, `Stop-all error: ${e.message}`); }
@@ -881,7 +907,7 @@ async function getProfileWsInternal(profileId) {
   try {
     const running = runningProfiles.get(profileId);
     if (!running) return { success: true, wsEndpoint: null };
-    // Playwright: check context/browser state (KHÔNG gọi isWsAlive vì wsEndpoint có thể null)
+    // Playwright: check context/browser state only (do NOT call isWsAlive because wsEndpoint may be null)
     if (running.engine === 'playwright') {
       if (running.context?.isClosed?.() || running.browser?.isConnected?.() === false) {
         runningProfiles.delete(profileId);
@@ -889,10 +915,10 @@ async function getProfileWsInternal(profileId) {
         broadcastRunningMap();
         return { success: true, wsEndpoint: null };
       }
-      // Profile đang chạy → trả 'pipe' nếu wsEndpoint null (pipe mode)
+      // Profile is alive - return 'pipe' if wsEndpoint is null (pipe mode)
       return { success: true, wsEndpoint: running.wsEndpoint || 'pipe' };
     }
-    // CDP: check bằng isWsAlive 
+    // CDP: check via isWsAlive
     const ws = running.wsEndpoint;
     const alive = await require('../engine/health').isWsAlive(ws);
     if (!alive) {
@@ -911,22 +937,21 @@ async function getRunningMapInternal() {
     for (const [id, info] of runningProfiles.entries()) {
       let alive = true;
       if (info.engine === 'playwright') {
-        // Playwright: chỉ check context/browser state
         if (info.context?.isClosed?.() || info.browser?.isConnected?.() === false) alive = false;
       } else {
-        // CDP: check bằng WebSocket health
         if (!(await require('../engine/health').isWsAlive(info.wsEndpoint))) alive = false;
       }
       if (!alive) {
         runningProfiles.delete(id);
+        setProfileStatus(id, 'STOPPED');
         appendLog(id, 'Bulk heartbeat: stale, clearing');
         result[id] = null;
       } else {
-        // 'pipe' = giá trị truthy cho Playwright pipe-mode (wsEndpoint=null)
         result[id] = info.wsEndpoint || 'pipe';
       }
     }
-    return { success: true, map: result };
+    const statuses = buildStatusMap();
+    return { success: true, map: result, statuses };
   } catch (error) { return { success: false, error: error.message }; }
 }
 
@@ -964,6 +989,10 @@ async function runAutomationNowInternal(profileId) {
   } catch (e) { return { success: false, error: e?.message || String(e) }; }
 }
 
+function getStatusMapInternal() {
+  return { success: true, statuses: buildStatusMap() };
+}
+
 module.exports = {
   launchProfileInternal,
   stopProfileInternal,
@@ -992,5 +1021,6 @@ module.exports = {
   getStorageStateInternal,
   getProfileWsInternal,
   getRunningMapInternal,
+  getStatusMapInternal,
   getLocalesTimezonesInternal,
 };

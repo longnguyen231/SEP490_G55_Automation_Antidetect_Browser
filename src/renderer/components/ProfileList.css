@@ -94,6 +94,17 @@
   box-shadow: 0 0 6px rgba(220,53,69,0.6);
 }
 
+.pl-dot-starting {
+  background: #6366f1;
+  box-shadow: 0 0 6px rgba(99,102,241,0.6);
+  animation: pl-pulse 1s ease-in-out infinite;
+}
+
+@keyframes pl-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
 /* Info */
 .pl-info {
   flex: 1;

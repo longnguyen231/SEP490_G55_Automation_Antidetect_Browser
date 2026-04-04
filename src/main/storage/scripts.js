@@ -49,9 +49,15 @@ function sanitizeScript(input = {}, existing = null) {
   const description = String(input.description ?? base.description ?? '').slice(0, 1000);
   const language = 'javascript';
   const code = String(input.code ?? base.code ?? '');
+  const browserMode = input.browserMode ?? base.browserMode ?? 'visible';
+  const schedule = {
+    enabled: !!(input.schedule?.enabled ?? base.schedule?.enabled),
+    cron: String(input.schedule?.cron ?? base.schedule?.cron ?? ''),
+    profileId: String(input.schedule?.profileId ?? base.schedule?.profileId ?? ''),
+  };
   const createdAt = base.createdAt || new Date().toISOString();
   const updatedAt = new Date().toISOString();
-  return { id, name, description, language, code, createdAt, updatedAt };
+  return { id, name, description, language, code, browserMode, schedule, createdAt, updatedAt };
 }
 
 async function listScriptsInternal() { return readScripts(); }
