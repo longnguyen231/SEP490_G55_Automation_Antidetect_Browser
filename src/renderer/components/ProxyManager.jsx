@@ -196,7 +196,7 @@ export default function ProxyManager() {
                         Export Excel
                     </button>
                     <button 
-                        className="btn btn-success text-[0.75rem]"
+                        className="btn btn-primary text-[0.75rem]"
                         onClick={() => { setEditingProxy(null); setShowForm(true); }}
                     >
                         + Add Proxy
@@ -217,10 +217,6 @@ export default function ProxyManager() {
                             proxies={filteredProxies}
                             onEdit={(p) => { setEditingProxy(p); setShowForm(true); }}
                             onDelete={handleDelete}
-                            onCheck={handleCheckOne}
-                            onRotate={handleRotateOne}
-                            checkingIds={checkingIds}
-                            rotatingIds={rotatingIds}
                             t={t}
                         />
                     </div>
@@ -247,91 +243,41 @@ export default function ProxyManager() {
     );
 }
 
-function ProxyTable({ proxies, onEdit, onDelete, onCheck, onRotate, checkingIds, rotatingIds, t }) {
-    const getStatusIcon = (status) => {
-        switch (status) {
-            case 'alive': return <CheckCircle2 size={14} />;
-            case 'dead': return <XCircle size={14} />;
-            case 'unchecked':
-            default: return <HelpCircle size={14} />;
-        }
-    };
-
-    const getStatusClass = (status) => {
-        switch (status) {
-            case 'alive': return 'status-active';
-            case 'dead': return 'status-error';
-            case 'unchecked':
-            default: return 'status-untested';
-        }
-    };
-
+function ProxyTable({ proxies, onEdit, onDelete, t }) {
     return (
         <div className="proxy-table-wrapper">
             <table className="proxy-table">
                 <thead>
                     <tr>
-                        <th>{t('proxies.col.name')}</th>
-                        <th>{t('proxies.col.protocol')}</th>
-                        <th>{t('proxies.col.host')}</th>
-                        <th>{t('proxies.col.status')}</th>
-                        <th>Latency</th>
-                        <th>Country</th>
-                        <th style={{ textAlign: 'right' }}>{t('proxies.col.actions')}</th>
+                        <th style={{fontWeight: 600, color: 'var(--fg)', fontSize: '0.85rem'}}>Label</th>
+                        <th style={{fontWeight: 600, color: 'var(--fg)', fontSize: '0.85rem'}}>Type</th>
+                        <th style={{fontWeight: 600, color: 'var(--fg)', fontSize: '0.85rem'}}>Host : Port</th>
+                        <th style={{fontWeight: 600, color: 'var(--fg)', fontSize: '0.85rem'}}>Auth</th>
+                        <th style={{fontWeight: 600, color: 'var(--fg)', fontSize: '0.85rem'}}>Assigned Profile</th>
+                        <th style={{ textAlign: 'right', fontWeight: 600, color: 'var(--fg)', fontSize: '0.85rem' }}>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {proxies.map(p => {
-                        const isChecking = checkingIds?.has(p.id);
-                        return (
-                            <tr key={p.id}>
-                                <td><strong>{p.name}</strong></td>
-                                <td><span style={{ textTransform: 'uppercase', fontSize: '0.85rem' }}>{p.protocol || 'http'}</span></td>
-                                <td>
-                                    <span style={{ fontFamily: 'monospace' }}>
-                                        {p.username ? `${p.username}:***@` : ''}{p.host}:{p.port}
-                                    </span>
-                                </td>
-                                <td>
-                                    <span className={`proxy-status ${getStatusClass(p.status)}`}>
-                                        {getStatusIcon(p.status)} {p.status || 'unchecked'}
-                                    </span>
-                                </td>
-                                <td>
-                                    {p.latency != null ? (
-                                        <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{p.latency}ms</span>
-                                    ) : '—'}
-                                </td>
-                                <td>{p.country || '—'}</td>
-                                <td style={{ textAlign: 'right' }}>
-                                    {p.rotateUrl && (
-                                        <button
-                                            className="btn-icon-primary"
-                                            onClick={() => onRotate(p)}
-                                            disabled={rotatingIds?.has(p.id)}
-                                            title="Rotate IP"
-                                        >
-                                            {rotatingIds?.has(p.id) ? <Loader2 size={16} className="spin" /> : <RefreshCcw size={16} />}
-                                        </button>
-                                    )}
-                                    <button
-                                        className="btn-icon-primary"
-                                        onClick={() => onCheck(p)}
-                                        disabled={isChecking}
-                                        title="Check proxy"
-                                    >
-                                        {isChecking ? <Loader2 size={16} className="spin" /> : <Zap size={16} />}
-                                    </button>
-                                    <button className="btn-icon-primary" onClick={() => onEdit(p)} title={t('proxies.form.title.edit')}>
-                                        <Edit2 size={16} />
-                                    </button>
-                                    <button className="btn-icon-danger" onClick={() => onDelete(p.id)} title={t('proxies.delete.confirm')}>
-                                        <Trash2 size={16} />
-                                    </button>
-                                </td>
-                            </tr>
-                        );
-                    })}
+                    {proxies.map(p => (
+                        <tr key={p.id}>
+                            <td className="text-[0.85rem]" style={{color: 'var(--fg)'}}>{p.name || ''}</td>
+                            <td>
+                                <span style={{ background: 'var(--glass-strong)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                                    {p.protocol || 'http'}
+                                </span>
+                            </td>
+                            <td className="text-[0.85rem]" style={{color: 'var(--muted)', fontFamily: 'monospace'}}>{p.host}:{p.port}</td>
+                            <td className="text-[0.85rem] font-medium" style={{color: 'var(--primary)'}}>{p.username ? 'yes' : 'none'}</td>
+                            <td className="text-[0.85rem]" style={{color: 'var(--muted)'}}>Unassigned</td>
+                            <td style={{ textAlign: 'right' }}>
+                                <div className="flex gap-2 justify-end">
+                                    <button className="btn btn-primary px-3 py-1 text-[0.7rem]" style={{border: 'none', background: '#3b82f6', color: '#fff'}} onClick={() => {}}>Clone</button>
+                                    <button className="btn btn-secondary px-3 py-1 text-[0.7rem]" onClick={() => onEdit(p)}>Edit</button>
+                                    <button className="btn btn-danger px-3 py-1 text-[0.7rem]" style={{background: '#ef4444', color: '#fff', border: 'none'}} onClick={() => onDelete(p.id)}>Delete</button>
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
                 </tbody>
             </table>
         </div>

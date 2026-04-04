@@ -182,6 +182,69 @@
 .pl-btn-edit    { background: #4a4e5a; }
 .pl-btn-delete  { background: #a02020; }
 
+/* Fingerprint section toggle badges */
+.pl-fp-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  letter-spacing: 0.04em;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+  line-height: 1.4;
+  user-select: none;
+}
+
+.pl-fp-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+}
+
+.pl-fp-badge:active {
+  transform: translateY(0);
+}
+
+/* ON state: green highlight */
+.pl-fp-badge-on {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.55);
+  color: #10b981;
+}
+
+.pl-fp-badge-on:hover {
+  background: rgba(16, 185, 129, 0.28);
+  border-color: #10b981;
+}
+
+/* OFF state: muted/dimmed */
+.pl-fp-badge-off {
+  background: var(--glass-strong);
+  border-color: var(--border);
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.pl-fp-badge-off:hover {
+  opacity: 1;
+  border-color: var(--border2);
+  color: var(--fg);
+}
+
+/* WARN state: orange highlight */
+.pl-fp-badge-warn {
+  background: rgba(255, 159, 67, 0.15);
+  border-color: rgba(255, 159, 67, 0.4);
+  color: #ff9f43;
+}
+
+.pl-fp-badge-warn:hover {
+  background: rgba(255, 159, 67, 0.25);
+  border-color: #ff9f43;
+}
+
 @media (max-width: 900px) {
   .pl-card {
     flex-wrap: wrap;

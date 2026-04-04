@@ -179,69 +179,193 @@ function ScriptsTab({ profiles }) {
                 </div>
             </div>
 
-            {/* Right Editor Area */}
-            <div className="flex-1 flex flex-col" style={{ background: 'var(--card)' }}>
+            {/* Right Editor Area (Split into Middle and Right panels) */}
+            <div className="flex-1 flex flex-row overflow-hidden" style={{ background: 'var(--bg)' }}>
                 {editing ? (
-                    <div className="flex flex-col h-full">
-                        <div className="p-3 flex gap-3 items-center" style={{ background: 'var(--card2)', borderBottom: '1px solid var(--border)' }}>
-                            <input
-                                className="flex-1 rounded px-2 py-1 text-[0.75rem]"
-                                style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
-                                value={editing.name}
-                                onChange={e => setEditing(p => ({ ...p, name: e.target.value }))}
-                                placeholder="Script Name"
-                            />
-                            <select
-                                className="w-[180px] rounded px-2 py-1 text-[0.75rem]"
-                                style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
-                                value={runProfileId}
-                                onChange={e => setRunProfileId(e.target.value)}
-                            >
-                                <option value="">Select profile to run...</option>
-                                {profiles.map(p => <option key={p.id} value={p.id}>{p.name || p.id}</option>)}
-                            </select>
-                            <button className="btn btn-secondary text-[0.75rem]" onClick={handleSave}>
-                                Save
-                            </button>
-                            <button className="btn btn-success text-[0.75rem] flex items-center gap-1" onClick={() => handleRun()} disabled={running}>
-                                {running ? <><RefreshCw size={14} className="animate-spin" /> Running...</> : <><Play size={14} /> Run Log</>}
-                            </button>
-                        </div>
-                        <div className="flex-1 relative">
-                            <Editor
-                                height="100%"
-                                language="javascript"
-                                theme="vs-dark"
-                                value={editing.code}
-                                onChange={v => setEditing(p => ({ ...p, code: v || '' }))}
-                                options={{
-                                    minimap: { enabled: false },
-                                    fontSize: 12,
-                                    lineNumbers: 'on',
-                                    scrollBeyondLastLine: false,
-                                    automaticLayout: true,
-                                    tabSize: 4,
-                                }}
-                            />
-                        </div>
-                        {runResult && (
-                            <div className="h-[150px] font-mono text-[0.75rem] overflow-y-auto p-3 shadow-inner" style={{ borderTop: '1px solid var(--border)', background: 'var(--card2)', color: 'var(--fg)' }}>
-                                <div className={`mb-3 flex items-center gap-2 font-bold ${runResult.success ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                    <span className="w-2 h-2 rounded-full border border-current bg-current"></span>
-                                    {runResult.success ? 'Task Completed' : 'Task Failed'} {runResult.error && `- ${runResult.error}`}
+                    <>
+                        {/* Middle Panel: Editor Settings & Code */}
+                        <div className="flex-1 flex flex-col min-w-0 min-h-0" style={{ background: 'var(--card)' }}>
+                            {/* Header Row */}
+                            <div className="p-3 flex justify-between items-center" style={{ borderBottom: '1px solid var(--border)' }}>
+                                <div className="font-semibold text-[0.85rem]" style={{ color: 'var(--fg)' }}>
+                                    {editing.id ? 'Edit Script' : 'New Script'}
                                 </div>
-                                {runResult.logs && runResult.logs.map((l, i) => (
-                                    <div key={i} className="mb-1">
-                                        <span className="mr-3" style={{ color: 'var(--muted)' }}>[{new Date(l.time).toLocaleTimeString()}]</span>
-                                        <span style={{ color: 'var(--fg)' }}>{l.message}</span>
-                                    </div>
-                                ))}
+                                <div className="flex gap-2">
+                                    <button className="btn btn-secondary px-3 py-1 text-[0.75rem]" onClick={() => { setEditing(null); setSelectedId(null); }}>Cancel</button>
+                                    <button className="btn btn-secondary px-3 py-1 text-[0.75rem]">Export JSON</button>
+                                    <button className="btn btn-primary px-3 py-1 text-[0.75rem]" style={{ background: '#3b82f6', color: '#fff', border: 'none' }} onClick={handleSave}>Save</button>
+                                </div>
                             </div>
-                        )}
-                    </div>
+                            
+                            {/* Config Row 1 */}
+                            <div className="p-3 flex gap-4" style={{ borderBottom: '1px solid var(--border)' }}>
+                                <div className="flex-1">
+                                    <label className="block text-[0.7rem] mb-1" style={{ color: 'var(--muted)' }}>Name</label>
+                                    <input
+                                        className="w-full rounded px-2 py-1.5 text-[0.75rem]"
+                                        style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
+                                        value={editing.name}
+                                        onChange={e => setEditing(p => ({ ...p, name: e.target.value }))}
+                                        placeholder="e.g. Login to site"
+                                    />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="block text-[0.7rem] mb-1" style={{ color: 'var(--muted)' }}>Description (optional)</label>
+                                    <input
+                                        className="w-full rounded px-2 py-1.5 text-[0.75rem]"
+                                        style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
+                                        value={editing.description || ''}
+                                        onChange={e => setEditing(p => ({ ...p, description: e.target.value }))}
+                                        placeholder="What does this script do"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Config Row 2 (Auto-run) */}
+                            <div className="flex flex-col">
+                                <div className="p-3 flex items-center justify-between" style={{ borderBottom: editing.autoRun ? 'none' : '1px solid var(--border)' }}>
+                                    <span className="text-[0.75rem] font-medium" style={{ color: 'var(--fg)' }}>Auto-run schedule</span>
+                                    <label className="flex flex-col items-center cursor-pointer">
+                                        <input type="checkbox" className="hidden" checked={!!editing.autoRun} onChange={e => setEditing(p => ({ ...p, autoRun: e.target.checked }))} />
+                                        <div className="w-9 h-5 rounded-full relative transition-colors" style={{ background: editing.autoRun ? '#3b82f6' : 'var(--border2)' }}>
+                                            <div className={`w-3.5 h-3.5 bg-white rounded-full shadow absolute top-[3px] transition-transform ${editing.autoRun ? 'translate-x-[19px]' : 'translate-x-[3px]'}`}></div>
+                                        </div>
+                                    </label>
+                                </div>
+                                
+                                {/* Expanded Auto-run Config */}
+                                {editing.autoRun && (
+                                    <div className="px-3 pb-2 pt-1" style={{ borderBottom: '1px solid var(--border)' }}>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-[0.7rem]" style={{ color: 'var(--fg)' }}>Profile:</span>
+                                            <select className="flex-1 rounded px-2 py-1 text-[0.75rem]" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}>
+                                                <option value="">Select profile...</option>
+                                                {profiles.map(p => <option key={p.id} value={p.id}>{p.name || p.id}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="flex gap-1 flex-wrap mb-2">
+                                            {['Every 5m', 'Every 15m', 'Every 30m', 'Hourly', 'Daily 9am', 'Midnight', 'Mon 9am'].map(label => (
+                                                <button key={label} className="px-1.5 py-0.5 rounded hover:bg-slate-200 transition text-[0.65rem] border" style={{ background: 'var(--glass-strong)', borderColor: 'var(--border2)', color: 'var(--fg)' }}>
+                                                    {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="flex gap-1.5 mb-2">
+                                            {[
+                                                { label: 'Minute', bg: 'var(--glass-input)' },
+                                                { label: 'Hour', bg: 'var(--glass-strong)' },
+                                                { label: 'Day', bg: 'var(--glass-input)' },
+                                                { label: 'Month', bg: 'var(--glass-input)' },
+                                                { label: 'Weekday', bg: 'var(--glass-strong)' }
+                                            ].map(col => (
+                                                <div key={col.label} className="flex-1">
+                                                    <div className="text-[0.65rem] mb-0.5" style={{ color: 'var(--muted)' }}>{col.label}</div>
+                                                    <select className="w-full rounded px-1 py-0.5 text-[0.7rem] border" style={{ background: col.bg, borderColor: 'var(--border2)', color: 'var(--fg)' }}>
+                                                        <option>* (eve...</option>
+                                                    </select>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="flex gap-2 items-center">
+                                            <input 
+                                                className="w-[100px] rounded px-2 py-1 text-[0.75rem] font-mono tracking-widest border text-center" 
+                                                readOnly 
+                                                value="* * * * *" 
+                                                style={{ background: 'var(--glass-input)', borderColor: 'var(--border2)', color: 'var(--fg)' }} 
+                                            />
+                                            <span className="text-[0.7rem]" style={{ color: 'var(--muted)' }}>Every minute</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Config Row 3 */}
+                            <div className="p-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
+                                <div>
+                                    <div className="text-[0.75rem] font-medium" style={{ color: 'var(--fg)' }}>Browser mode</div>
+                                    <div className="text-[0.65rem] mt-0.5" style={{ color: 'var(--muted)' }}>Background (no window)</div>
+                                </div>
+                                <div className="flex rounded p-1" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)' }}>
+                                    <button className="px-3 py-1 text-[0.7rem] rounded font-medium shadow-sm transition" style={{ background: '#3b82f6', color: '#fff' }}>Headless</button>
+                                    <button className="px-3 py-1 text-[0.7rem] rounded font-medium transition" style={{ color: 'var(--muted)' }}>Visible</button>
+                                </div>
+                            </div>
+
+                            {/* Editor */}
+                            <div className="flex-1 relative min-h-0">
+                                <Editor
+                                    height="100%"
+                                    language="javascript"
+                                    theme="vs"
+                                    value={editing.code}
+                                    onChange={v => setEditing(p => ({ ...p, code: v || '' }))}
+                                    options={{
+                                        minimap: { enabled: false },
+                                        fontSize: 12,
+                                        lineNumbers: 'on',
+                                        scrollBeyondLastLine: false,
+                                        automaticLayout: true,
+                                        tabSize: 4,
+                                        wordWrap: 'on'
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Right Panel: API Reference Sidebar */}
+                        <div className="w-[280px] flex flex-col min-h-0" style={{ background: '#f8fafc', borderLeft: '1px solid var(--border)' }}>
+                            <div className="p-3 font-semibold text-[0.75rem]" style={{ color: '#334155' }}>
+                                API Reference
+                            </div>
+                            <div className="px-3 pb-3 relative">
+                                <Search size={12} className="absolute left-[18px] top-[9px]" style={{ color: '#94a3b8' }} />
+                                <input
+                                    placeholder="Search methods..."
+                                    className="w-full rounded px-7 py-1.5 text-[0.75rem]"
+                                    style={{ background: '#e2e8f0', border: '1px solid #cbd5e1', color: '#334155' }}
+                                />
+                            </div>
+                            <div className="flex-1 overflow-y-auto border-t bg-white" style={{ borderColor: '#e2e8f0' }}>
+                                {/* Mock API List Expandable Item */}
+                                <div>
+                                    <div className="flex items-center gap-1.5 px-3 py-2 text-[0.75rem] cursor-pointer" style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                        <span className="text-[0.55rem]" style={{ color: '#94a3b8' }}>▼</span>
+                                        <span className="font-medium" style={{ color: '#3b82f6' }}>page</span>
+                                        <span className="text-[0.7rem]" style={{ color: '#64748b' }}>102 methods</span>
+                                    </div>
+                                    <div className="flex flex-col text-[0.75rem]">
+                                        <div className="px-4 py-2 border-b cursor-pointer hover:bg-slate-50 transition" style={{ borderColor: '#f1f5f9' }}>
+                                            <div className="font-mono text-[0.65rem]" style={{ color: '#475569' }}><span style={{ color: '#cbd5e1' }}>▶</span> page.goto(url, options?)</div>
+                                            <div className="text-[0.65rem] pl-3 mt-1" style={{ color: '#64748b' }}>Navigate to URL</div>
+                                        </div>
+                                        <div className="px-4 py-2 border-b cursor-pointer hover:bg-slate-50 transition" style={{ borderColor: '#f1f5f9' }}>
+                                            <div className="font-mono text-[0.65rem]" style={{ color: '#475569' }}><span style={{ color: '#cbd5e1' }}>▶</span> page.reload(options?)</div>
+                                            <div className="text-[0.65rem] pl-3 mt-1" style={{ color: '#64748b' }}>Reload the current page</div>
+                                        </div>
+                                        <div className="px-4 py-2 border-b cursor-pointer hover:bg-slate-50 transition" style={{ borderColor: '#f1f5f9' }}>
+                                            <div className="font-mono text-[0.65rem]" style={{ color: '#475569' }}><span style={{ color: '#cbd5e1' }}>▶</span> page.goBack() / goForward()</div>
+                                            <div className="text-[0.65rem] pl-3 mt-1" style={{ color: '#64748b' }}>Navigate browser history</div>
+                                        </div>
+                                        <div className="px-4 py-2 border-b cursor-pointer hover:bg-slate-50 transition" style={{ borderColor: '#f1f5f9' }}>
+                                            <div className="font-mono text-[0.65rem]" style={{ color: '#475569' }}><span style={{ color: '#cbd5e1' }}>▶</span> page.title()</div>
+                                            <div className="text-[0.65rem] pl-3 mt-1" style={{ color: '#64748b' }}>Get the page &lt;title&gt;</div>
+                                        </div>
+                                        <div className="px-4 py-2 border-b cursor-pointer hover:bg-slate-50 transition" style={{ borderColor: '#f1f5f9' }}>
+                                            <div className="font-mono text-[0.65rem]" style={{ color: '#475569' }}><span style={{ color: '#cbd5e1' }}>▶</span> page.url()</div>
+                                            <div className="text-[0.65rem] pl-3 mt-1" style={{ color: '#64748b' }}>Get the current URL (sync)</div>
+                                        </div>
+                                        <div className="px-4 py-2 border-b cursor-pointer hover:bg-slate-50 transition" style={{ borderColor: '#f1f5f9' }}>
+                                            <div className="font-mono text-[0.65rem]" style={{ color: '#475569' }}><span style={{ color: '#cbd5e1' }}>▶</span> page.content()</div>
+                                            <div className="text-[0.65rem] pl-3 mt-1" style={{ color: '#64748b' }}>Get the full page HTML</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </>
                 ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-[0.75rem]" style={{ color: 'var(--muted)' }}>
-                        Select a script to edit, or create a new one
+                    <div className="flex-1 flex flex-col items-center justify-center text-[0.75rem]" style={{ color: 'var(--muted)', background: 'var(--card)' }}>
+                        No scripts yet. Create one to get started.
                     </div>
                 )}
             </div>
