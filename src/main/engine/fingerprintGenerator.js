@@ -197,16 +197,13 @@ const FIREFOX_WEBGL_VENDORS = {
   ],
 };
 
-// Firefox versions — realistic distribution 2026
+// Firefox versions — must match Playwright-bundled Firefox binary (revision 1495 = Firefox 142).
+// Using versions HIGHER than the real binary causes immediate detection (UA says 138 but
+// browser APIs/rendering match 142 → mismatch). Keep range tight around bundled version.
 const FIREFOX_VERSIONS = [
-  { major: 138, weight: 14 },
-  { major: 137, weight: 12 },
-  { major: 136, weight: 10 },
-  { major: 135, weight: 8  },
-  { major: 134, weight: 6  },
-  { major: 133, weight: 5  },
-  { major: 132, weight: 3  },
-  { major: 131, weight: 2  },
+  { major: 142, weight: 20 },
+  { major: 141, weight: 10 },
+  { major: 140, weight: 6  },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════

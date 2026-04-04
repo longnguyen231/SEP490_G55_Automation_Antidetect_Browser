@@ -3,7 +3,7 @@ const { execFile } = require('child_process');
 const { chromium } = require('playwright');
 const { appendLog } = require('../logging/logger');
 const { storageStatePath, getDataRoot } = require('../storage/paths');
-const { loadSettings, resolveChromeExecutable, resolveVendorChromePath } = require('../storage/settings');
+const { loadSettings, resolveChromeExecutable, resolveVendorChromePath, resolveFirefoxExecutable } = require('../storage/settings');
 const { runningProfiles, launchingProfiles } = require('../state/runtime');
 const { applyCdpOverrides } = require('../engine/cdpOverrides');
 const { findFreePort, fetchJsonVersion, killProcessTreeWin, userDataDirFor, launchChromeCdp } = require('../engine/cdp');
@@ -256,6 +256,13 @@ async function launchProfileInternal(profileId, options = {}) {
       // ── Misc ──
       '--no-default-browser-check',
       '--no-first-run',
+      // ── Startup speed ──
+      '--disable-extensions',
+      '--disable-default-apps',
+      '--disable-sync',
+      '--disable-background-networking',
+      // ── Prevent session restore (stops multiple windows from crashed/killed sessions) ──
+      '--no-restore-session-state',
     ];
     // Window size (Chromium flags only)
     if (!isFirefox && settings.windowWidth > 0 && settings.windowHeight > 0) {
@@ -327,15 +334,16 @@ async function launchProfileInternal(profileId, options = {}) {
       }
       if (executablePath) {
         appendLog(profileId, `[binary] source=${binarySource} path=${executablePath}`);
-        // Detect actual Chrome version from binary to ensure UA matches
-        try {
-          detectedChromeVersion = await getChromeVersion(executablePath);
-          if (detectedChromeVersion) appendLog(profileId, `[binary] detected version=${detectedChromeVersion}`);
-        } catch {}
+        // Start version detection now — result awaited AFTER browser.launch() so it runs in parallel.
+        // getChromeVersion can take up to 5s on first call; caching means subsequent launches are instant.
       } else {
         appendLog(profileId, `[binary] source=bundled WARNING: no vendor or system Chrome found — icon will appear blue Chromium. Place Chrome at vendor/chrome-win/Chrome-bin/chrome.exe`);
       }
     }
+    // Kick off version detection early so it runs concurrently with browser launch
+    const _chromeVersionPromise = (!isFirefox && executablePath)
+      ? getChromeVersion(executablePath).catch(() => null)
+      : Promise.resolve(null);
 
     const chromiumLaunchOpts = {
       headless,
@@ -348,32 +356,77 @@ async function launchProfileInternal(profileId, options = {}) {
 
     // Firefox about:config prefs to disable automation signals
     const firefoxUserPrefs = isFirefox ? {
+      // ── Automation detection ──
       'dom.webdriver.enabled': false,
       'useAutomationExtension': false,
       // NOTE: do NOT set marionette.enabled=false — Playwright needs Marionette to control Firefox
+
+      // ── Telemetry / reporting (disable to reduce network noise & timing leaks) ──
       'toolkit.telemetry.enabled': false,
       'toolkit.telemetry.unified': false,
+      'toolkit.telemetry.archive.enabled': false,
       'datareporting.policy.dataSubmissionEnabled': false,
       'datareporting.healthreport.uploadEnabled': false,
       'browser.newtabpage.activity-stream.telemetry': false,
       'browser.ping-centre.telemetry': false,
       'browser.send_pings': false,
-      'media.peerconnection.ice.no_host': false,
+      'app.shield.optoutstudies.enabled': false,
+      'app.normandy.enabled': false,
+      'app.normandy.api_url': '',
+
+      // ── Privacy / fingerprinting ──
       'privacy.resistFingerprinting': false,   // leave off — causes inconsistent FP values
       'privacy.trackingprotection.enabled': false,
+      'privacy.globalprivacycontrol.enabled': false,
+      // Disable canvas fingerprinting protection (we handle it in JS)
+      'privacy.resistFingerprinting.randomDataOnCanvasExtract': false,
+
+      // ── Network ──
       'geo.enabled': false,
+      'media.peerconnection.ice.no_host': false,
+      'network.cookie.cookieBehavior': 0,
+      // Disable DNS-over-HTTPS (would change timing fingerprint)
+      'network.trr.mode': 0,
+      // Match real Firefox HTTP/2 settings (don't use automation defaults)
+      'network.http.spdy.enabled.http2': true,
+      'network.http.spdy.enabled': true,
+
+      // ── Safe browsing ──
       'browser.safebrowsing.enabled': false,
       'browser.safebrowsing.malware.enabled': false,
-      'network.cookie.cookieBehavior': 0,
+      'browser.safebrowsing.phishing.enabled': false,
+      'browser.safebrowsing.downloads.enabled': false,
+
+      // ── UI / startup ──
       'browser.aboutConfig.showWarning': false,
       'general.warnOnAboutConfig': false,
+      'browser.startup.homepage_override.mstone': 'ignore',
+      'browser.startup.firstrunSkipsHomepage': true,
+      'startup.homepage_welcome_url': '',
+      'startup.homepage_welcome_url.additional': '',
+
+      // ── Extensions / updates ──
+      'extensions.update.enabled': false,
+      'extensions.update.autoUpdateDefault': false,
+      'browser.search.update': false,
+
+      // ── Automation UI noise ──
+      'browser.tabs.warnOnClose': false,
+      'browser.shell.checkDefaultBrowser': false,
     } : undefined;
+
+    const firefoxLaunchOpts = {
+      headless,
+      args,
+      proxy,
+      firefoxUserPrefs,
+    };
 
     let server;
     let browser;
     try {
       if (isFirefox) {
-        server = await pwEngine.launchServer({ headless, args, proxy, firefoxUserPrefs });
+        server = await pwEngine.launchServer(firefoxLaunchOpts);
         browser = await pwEngine.connect(server.wsEndpoint());
       } else {
         browser = await pwEngine.launch(chromiumLaunchOpts);
@@ -388,7 +441,7 @@ async function launchProfileInternal(profileId, options = {}) {
         const ok = await runPlaywrightInstall(bname);
         if (!ok) { try { await forwarder?.stop?.(); } catch {} return { success: false, error: 'Playwright browsers not installed.' }; }
         if (isFirefox) {
-          server = await pwEngine.launchServer({ headless, args, proxy, firefoxUserPrefs });
+          server = await pwEngine.launchServer(firefoxLaunchOpts);
           browser = await pwEngine.connect(server.wsEndpoint());
         } else {
           browser = await pwEngine.launch(chromiumLaunchOpts);
@@ -399,7 +452,11 @@ async function launchProfileInternal(profileId, options = {}) {
     try { appendLog(profileId, `[binary] version=${browser.version()}`); } catch {}
     const wsEndpoint = isFirefox ? server.wsEndpoint() : null; // pipe mode for chromium
     appendLog(profileId, `Launched Playwright ${isFirefox ? 'Firefox server: ' + wsEndpoint : 'browser (pipe mode, no external WS)'}`);
-    
+
+    // Await version detection — started before launch, so usually already resolved by now
+    detectedChromeVersion = await _chromeVersionPromise;
+    if (detectedChromeVersion) appendLog(profileId, `[binary] detected version=${detectedChromeVersion}`);
+
     // safeMode: true (default) → skip CDP emulation commands (userAgent, locale,
     // timezone, geolocation) that Cloudflare enterprise detects.
     // Only viewport and proxy are safe because they don't use CDP Emulation APIs.

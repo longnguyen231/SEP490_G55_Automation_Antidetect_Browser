@@ -55,8 +55,8 @@ async function fetchJsonVersion(host, port, timeoutMs = 20000) {
   const hostCandidates = Array.from(new Set([host, '127.0.0.1', 'localhost'].filter(Boolean)));
   const start = Date.now();
   let lastErr;
-  // Grace period for Chrome to bind the port
-  await sleep(300);
+  // Short initial grace for Chrome to bind the port (Chrome usually binds in <100ms)
+  await sleep(100);
   while (Date.now() - start < timeoutMs) {
     for (const h of hostCandidates) {
       try {
@@ -74,7 +74,7 @@ async function fetchJsonVersion(host, port, timeoutMs = 20000) {
         if (json && json.webSocketDebuggerUrl) return json;
       } catch (e) { lastErr = e; }
     }
-    await sleep(250);
+    await sleep(150);
   }
   const msg = lastErr?.message || 'DevTools version endpoint not available';
   throw new Error(`Failed to fetch DevTools URL: ${msg}`);
@@ -137,6 +137,13 @@ async function launchChromeCdp({ profileId, chromePath, host, port, userDataDir,
     '--use-mock-keychain',
     '--export-tagged-pdf',
     '--lang=en-US,en',
+    // ── Startup speed ──
+    '--disable-extensions',
+    '--disable-default-apps',
+    '--disable-sync',
+    '--disable-background-networking',
+    // ── Prevent session restore (stops multiple windows from crashed/killed sessions) ──
+    '--no-restore-session-state',
   ];
   // On macOS, omitting remote-debugging-address improves reliability; let Chrome choose the bind address (localhost)
   if (host && process.platform !== 'darwin') chromeArgs.push(`--remote-debugging-address=${host}`);

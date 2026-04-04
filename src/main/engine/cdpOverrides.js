@@ -124,15 +124,15 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
 
   // Apply to existing pages
   try {
+    const isHttpUrl = (u) => { try { const url = new URL(u); return url.protocol === 'http:' || url.protocol === 'https:'; } catch { return false; } };
     const pages = context.pages?.() || [];
     for (const p of pages) {
       // eslint-disable-next-line no-await-in-loop
       await applyToPage(p);
     }
     // Restore session tabs or navigate to startUrl
-    const isHttpUrl = (u) => { try { const url = new URL(u); return url.protocol === 'http:' || url.protocol === 'https:'; } catch { return false; } };
     const restoredTabs = Array.isArray(savedTabs) ? savedTabs : [];
-    
+
     if (restoredTabs.length > 0) {
       appendLog && appendLog(profileId, `CDP: Restoring ${savedTabs.length} saved tabs...`);
       let first = true;
