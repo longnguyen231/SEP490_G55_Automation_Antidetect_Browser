@@ -11,6 +11,7 @@ import AppLogsTab from './components/AppLogsTab';
 import SettingsTab from './components/SettingsTab';
 import LicenseModal from './components/LicenseModal';
 import EngineInstallModal from './components/EngineInstallModal';
+import LinkProxyModal from './components/LinkProxyModal';
 import './App.css';
 import { useI18n } from './i18n/index';
  
@@ -26,6 +27,7 @@ function App() {
   const [cookieProfile, setCookieProfile] = useState(null);
   const [runningWs, setRunningWs] = useState({});
   const [logProfile, setLogProfile] = useState(null);
+  const [linkProxyProfile, setLinkProxyProfile] = useState(null);
   const [selectedIds, setSelectedIds] = useState({});
   const [headlessPrefs, setHeadlessPrefs] = useState({});
   const [toasts, setToasts] = useState([]);
@@ -239,6 +241,43 @@ function App() {
     }
   };
 
+  const handleLinkProxy = async (proxy) => {
+    if (!linkProxyProfile) return;
+    try {
+      let proxySettings = { type: 'none', server: '', username: '', password: '', rotateUrl: '' };
+      
+      if (proxy && proxy.type !== 'none') {
+        const typeStr = (proxy.type || proxy.protocol || 'http').toLowerCase();
+        const hostPort = proxy.port ? `${proxy.host}:${proxy.port}` : proxy.host;
+        proxySettings = {
+          type: typeStr,
+          server: hostPort || '',
+          username: proxy.username || '',
+          password: proxy.password || '',
+          rotateUrl: proxy.rotateUrl || ''
+        };
+      }
+      
+      const updated = {
+        ...linkProxyProfile,
+        settings: {
+          ...(linkProxyProfile.settings || {}),
+          proxy: proxySettings
+        }
+      };
+      const res = await api.saveProfile(updated);
+      if (res?.success) {
+        setProfiles(prev => prev.map(p => p.id === linkProxyProfile.id ? (res.profile || updated) : p));
+        setLinkProxyProfile(null);
+        addToast(`Proxy linked to ${linkProxyProfile.name}`, 'success', 2500);
+      } else {
+        addToast('Error saving proxy to profile: ' + res?.error, 'error', 3000);
+      }
+    } catch (e) {
+      addToast('Error linking proxy: ' + e.message, 'error', 3000);
+    }
+  };
+
   // Bulk selection helpers
   const toggleSelect = (profileId) => setSelectedIds(prev => ({ ...prev, [profileId]: !prev[profileId] }));
   const clearSelection = () => setSelectedIds({});
@@ -314,6 +353,7 @@ function App() {
             onDeleteSelected={handleDeleteSelected}
             errorProfiles={errorProfiles}
             onToggleFp={handleToggleFp}
+            onLinkProxy={setLinkProxyProfile}
           />
         );
 
@@ -394,6 +434,7 @@ function App() {
       {/* Overlays */}
       {cookieProfile && <CookieManager profile={cookieProfile} onClose={() => setCookieProfile(null)} />}
       {logProfile && <LogViewer profile={logProfile} onClose={() => setLogProfile(null)} />}
+      {linkProxyProfile && <LinkProxyModal profile={linkProxyProfile} onClose={() => setLinkProxyProfile(null)} onLink={handleLinkProxy} />}
       <Toasts toasts={toasts} onDismiss={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />
 
       {/* API Password Modal */}

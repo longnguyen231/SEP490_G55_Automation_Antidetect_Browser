@@ -38,6 +38,13 @@ const WindowsIcon = () => (
   </svg>
 );
 
+const LinkIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+  </svg>
+);
+
 // Mapping badge label -> path in profile.settings (sub-object with .enabled)
 const BADGE_MAP = [
   { key: 'ID',  label: 'ID',  section: 'identity', title: 'Identity (UA/platform/locale)' },
@@ -57,7 +64,7 @@ export default function ProfileList({
   selectedIds = {}, onToggleSelect, onSelectAll, onClearSelection,
   onStartSelected, onStopSelected, onCloneProfile,
   headlessPrefs = {}, onSetHeadless, enginePrefs = {}, onSetEngine, onDeleteSelected,
-  errorProfiles = {}, onToggleFp,
+  errorProfiles = {}, onToggleFp, onLinkProxy
 }) {
   const shortId = (id) => (id || '').substring(0, 6);
 
@@ -94,6 +101,10 @@ export default function ProfileList({
             const engine = profile?.settings?.engine || 'playwright';
             const isFirefox = engine === 'playwright-firefox';
             const engineLabel = isFirefox ? 'Firefox' : 'Chromium';
+            
+            const hasProxy = profile?.settings?.proxy?.type && profile.settings.proxy.type !== 'none' && profile.settings.proxy.server;
+            const proxyType = hasProxy ? profile.settings.proxy.type.toUpperCase() : '';
+            const proxyServer = hasProxy ? profile.settings.proxy.server : '';
 
             const cardClass = `pl-card ${isRunning ? 'pl-card-running' : ''} ${hasError ? 'pl-card-error' : ''}`;
 
@@ -137,6 +148,13 @@ export default function ProfileList({
                       <span className="pl-tag-icon"><MonitorIcon /></span>
                       {res}
                     </span>
+                    {hasProxy && (
+                      <span className="pl-tag" style={{ background: '#94a3b8', color: '#cbd5e1', borderColor: 'transparent', paddingLeft: '6px' }}>
+                        <span className="pl-tag-icon" style={{ color: '#1e293b' }}><LinkIcon /></span>
+                        <span style={{ color: '#bfdbfe', fontWeight: 'bold' }}>{proxyType}</span>
+                        <span style={{ color: '#e2e8f0', marginLeft: '4px' }}>{proxyServer}</span>
+                      </span>
+                    )}
                   </div>
 
                   {/* Row 3: Fingerprint section toggle badges */}
@@ -171,7 +189,7 @@ export default function ProfileList({
                       <button className="pl-btn pl-btn-headless" onClick={() => onLaunchHeadless(profile.id)}>Headless</button>
                     </>
                   )}
-                  <button className="pl-btn pl-btn-proxy" onClick={() => onEditProfile(profile, 'proxy')}>Proxy</button>
+                  <button className="pl-btn pl-btn-proxy" onClick={() => onLinkProxy(profile)}>Proxy</button>
                   <button className="pl-btn pl-btn-clone" onClick={() => onCloneProfile(profile.id)}>Clone</button>
                   <button className="pl-btn pl-btn-edit" onClick={() => onEditProfile(profile)}>Edit</button>
                   <button className="pl-btn pl-btn-delete" onClick={() => onDeleteProfile(profile.id)}>Delete</button>
