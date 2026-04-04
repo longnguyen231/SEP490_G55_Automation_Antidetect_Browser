@@ -192,7 +192,6 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
         } catch {}
 
         // navigator.buildID — Firefox-specific property (Chrome doesn't have it)
-        // Value matches Playwright-bundled Firefox 142 (revision 1495)
         try {
           Object.defineProperty(navigator, 'buildID', { get: () => '20181001000000', configurable: true });
         } catch {}
@@ -257,66 +256,6 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
         // Remove Chrome-only window properties that leak browser identity
         try { delete window.chrome; } catch {}
         try { delete window.google; } catch {}
-
-        // navigator.appName — Firefox: "Netscape", same as Chrome but double-check
-        try {
-          Object.defineProperty(navigator, 'appName', { get: () => 'Netscape', configurable: true });
-        } catch {}
-
-        // navigator.appCodeName — Firefox: "Mozilla"
-        try {
-          Object.defineProperty(navigator, 'appCodeName', { get: () => 'Mozilla', configurable: true });
-        } catch {}
-
-        // navigator.product — Firefox: "Gecko"
-        try {
-          Object.defineProperty(navigator, 'product', { get: () => 'Gecko', configurable: true });
-        } catch {}
-
-        // window.dump — Firefox-specific function (used by some FP scripts)
-        try {
-          if (typeof window.dump === 'undefined') {
-            Object.defineProperty(window, 'dump', { value: () => {}, configurable: true, writable: true });
-          }
-        } catch {}
-
-        // window.Components — Mozilla-specific (XPCOM), checked by some bot scripts
-        try {
-          if (typeof window.Components === 'undefined') {
-            Object.defineProperty(window, 'Components', {
-              get: () => ({ isSuccessCode: () => false }),
-              configurable: true,
-            });
-          }
-        } catch {}
-
-        // CSS.supports — Firefox supports -moz- prefixed properties
-        try {
-          const origSupports = CSS.supports.bind(CSS);
-          Object.defineProperty(CSS, 'supports', {
-            value: function(prop, val) {
-              if (typeof prop === 'string' && prop.startsWith('-moz-')) return true;
-              return origSupports(prop, val);
-            },
-            configurable: true, writable: true,
-          });
-        } catch {}
-
-        // navigator.globalPrivacyControl — Firefox 120+ supports this
-        try {
-          if (typeof navigator.globalPrivacyControl === 'undefined') {
-            Object.defineProperty(navigator, 'globalPrivacyControl', { get: () => false, configurable: true });
-          }
-        } catch {}
-
-        // Ensure no Notification.permission leak (Firefox and Chrome differ in automation)
-        try {
-          if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
-            // Automation sets denied — real users usually see 'default'
-            Object.defineProperty(Notification, 'permission', { get: () => 'default', configurable: true });
-          }
-        } catch {}
-
       } catch {}
     }, { oscpu: ffOscpu });
   } catch {}

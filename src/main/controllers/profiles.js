@@ -3,7 +3,7 @@ const { execFile } = require('child_process');
 const { chromium } = require('playwright');
 const { appendLog } = require('../logging/logger');
 const { storageStatePath, getDataRoot } = require('../storage/paths');
-const { loadSettings, resolveChromeExecutable, resolveVendorChromePath, resolveFirefoxExecutable } = require('../storage/settings');
+const { loadSettings, resolveChromeExecutable, resolveVendorChromePath } = require('../storage/settings');
 const { runningProfiles, launchingProfiles } = require('../state/runtime');
 const { applyCdpOverrides } = require('../engine/cdpOverrides');
 const { findFreePort, fetchJsonVersion, killProcessTreeWin, userDataDirFor, launchChromeCdp } = require('../engine/cdp');
@@ -356,77 +356,32 @@ async function launchProfileInternal(profileId, options = {}) {
 
     // Firefox about:config prefs to disable automation signals
     const firefoxUserPrefs = isFirefox ? {
-      // ── Automation detection ──
       'dom.webdriver.enabled': false,
       'useAutomationExtension': false,
       // NOTE: do NOT set marionette.enabled=false — Playwright needs Marionette to control Firefox
-
-      // ── Telemetry / reporting (disable to reduce network noise & timing leaks) ──
       'toolkit.telemetry.enabled': false,
       'toolkit.telemetry.unified': false,
-      'toolkit.telemetry.archive.enabled': false,
       'datareporting.policy.dataSubmissionEnabled': false,
       'datareporting.healthreport.uploadEnabled': false,
       'browser.newtabpage.activity-stream.telemetry': false,
       'browser.ping-centre.telemetry': false,
       'browser.send_pings': false,
-      'app.shield.optoutstudies.enabled': false,
-      'app.normandy.enabled': false,
-      'app.normandy.api_url': '',
-
-      // ── Privacy / fingerprinting ──
+      'media.peerconnection.ice.no_host': false,
       'privacy.resistFingerprinting': false,   // leave off — causes inconsistent FP values
       'privacy.trackingprotection.enabled': false,
-      'privacy.globalprivacycontrol.enabled': false,
-      // Disable canvas fingerprinting protection (we handle it in JS)
-      'privacy.resistFingerprinting.randomDataOnCanvasExtract': false,
-
-      // ── Network ──
       'geo.enabled': false,
-      'media.peerconnection.ice.no_host': false,
-      'network.cookie.cookieBehavior': 0,
-      // Disable DNS-over-HTTPS (would change timing fingerprint)
-      'network.trr.mode': 0,
-      // Match real Firefox HTTP/2 settings (don't use automation defaults)
-      'network.http.spdy.enabled.http2': true,
-      'network.http.spdy.enabled': true,
-
-      // ── Safe browsing ──
       'browser.safebrowsing.enabled': false,
       'browser.safebrowsing.malware.enabled': false,
-      'browser.safebrowsing.phishing.enabled': false,
-      'browser.safebrowsing.downloads.enabled': false,
-
-      // ── UI / startup ──
+      'network.cookie.cookieBehavior': 0,
       'browser.aboutConfig.showWarning': false,
       'general.warnOnAboutConfig': false,
-      'browser.startup.homepage_override.mstone': 'ignore',
-      'browser.startup.firstrunSkipsHomepage': true,
-      'startup.homepage_welcome_url': '',
-      'startup.homepage_welcome_url.additional': '',
-
-      // ── Extensions / updates ──
-      'extensions.update.enabled': false,
-      'extensions.update.autoUpdateDefault': false,
-      'browser.search.update': false,
-
-      // ── Automation UI noise ──
-      'browser.tabs.warnOnClose': false,
-      'browser.shell.checkDefaultBrowser': false,
     } : undefined;
-
-    const firefoxLaunchOpts = {
-      headless,
-      args,
-      proxy,
-      firefoxUserPrefs,
-    };
 
     let server;
     let browser;
     try {
       if (isFirefox) {
-        server = await pwEngine.launchServer(firefoxLaunchOpts);
+        server = await pwEngine.launchServer({ headless, args, proxy, firefoxUserPrefs });
         browser = await pwEngine.connect(server.wsEndpoint());
       } else {
         browser = await pwEngine.launch(chromiumLaunchOpts);
@@ -441,7 +396,7 @@ async function launchProfileInternal(profileId, options = {}) {
         const ok = await runPlaywrightInstall(bname);
         if (!ok) { try { await forwarder?.stop?.(); } catch {} return { success: false, error: 'Playwright browsers not installed.' }; }
         if (isFirefox) {
-          server = await pwEngine.launchServer(firefoxLaunchOpts);
+          server = await pwEngine.launchServer({ headless, args, proxy, firefoxUserPrefs });
           browser = await pwEngine.connect(server.wsEndpoint());
         } else {
           browser = await pwEngine.launch(chromiumLaunchOpts);
