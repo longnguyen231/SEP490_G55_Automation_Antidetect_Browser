@@ -152,6 +152,8 @@ function ScriptsTab({ profiles }) {
     // Per-script run state: { [scriptId]: 'idle' | 'running' | 'success' | 'error' }
     const [scriptStates, setScriptStates] = useState({});
     const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+    // Run modal state
+    const [runModalScript, setRunModalScript] = useState(null);
 
     // Schedule state
     const [scheduleEnabled, setScheduleEnabled] = useState(false);
@@ -262,6 +264,18 @@ function ScriptsTab({ profiles }) {
         } finally { setRunning(false); }
     };
 
+    // Open run modal for a script
+    const openRunModal = (script) => {
+        setRunModalScript(script);
+    };
+
+    // Called when modal finishes execution
+    const handleModalRunComplete = (scriptId, result) => {
+        setRunResult(result);
+        setScriptStates(prev => ({ ...prev, [scriptId]: result.success ? 'success' : 'error' }));
+        setTimeout(() => setScriptStates(prev => ({ ...prev, [scriptId]: 'idle' })), 5000);
+    };
+
     const handleDeleteWithConfirm = (id, e) => {
         e && e.stopPropagation();
         setDeleteConfirmId(id);
@@ -363,7 +377,7 @@ function ScriptsTab({ profiles }) {
                                         style={{ background: state === 'running' ? '#d97706' : '#10b981', color: '#fff' }}
                                         title={state === 'running' ? 'Running...' : 'Run script'}
                                         disabled={state === 'running'}
-                                        onClick={e => { e.stopPropagation(); handleRun(s.id); }}
+                                        onClick={e => { e.stopPropagation(); openRunModal(s); }}
                                     >
                                         {state === 'running'
                                             ? <><RefreshCw size={10} className="animate-spin" /> Running</>
@@ -533,7 +547,7 @@ function ScriptsTab({ profiles }) {
                                 <option value="">Select profile to run...</option>
                                 {profiles.map(p => <option key={p.id} value={p.id}>{p.name || p.id}</option>)}
                             </select>
-                            <button className="btn btn-success text-[0.75rem] flex items-center gap-1" onClick={() => handleRun()} disabled={running}>
+                            <button className="btn btn-success text-[0.75rem] flex items-center gap-1" onClick={() => editing?.id ? openRunModal(editing) : alert('Save script first.')} disabled={running}>
                                 {running ? <><RefreshCw size={14} className="animate-spin" /> Running...</> : <><Play size={14} /> Run</>}
                             </button>
                         </div>
@@ -551,173 +565,8 @@ function ScriptsTab({ profiles }) {
                                     </div>
                                 ))}
                             </div>
-                            
-                            {/* Config Row 1 */}
-                            <div className="p-3 flex gap-4" style={{ borderBottom: '1px solid var(--border)' }}>
-                                <div className="flex-1">
-                                    <label className="block text-[0.7rem] mb-1" style={{ color: 'var(--muted)' }}>Name</label>
-                                    <input
-                                        className="w-full rounded px-2 py-1.5 text-[0.75rem]"
-                                        style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
-                                        value={editing.name}
-                                        onChange={e => setEditing(p => ({ ...p, name: e.target.value }))}
-                                        placeholder="e.g. Login to site"
-                                    />
-                                </div>
-                                <div className="flex-1">
-                                    <label className="block text-[0.7rem] mb-1" style={{ color: 'var(--muted)' }}>Description (optional)</label>
-                                    <input
-                                        className="w-full rounded px-2 py-1.5 text-[0.75rem]"
-                                        style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
-                                        value={editing.description || ''}
-                                        onChange={e => setEditing(p => ({ ...p, description: e.target.value }))}
-                                        placeholder="What does this script do"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Config Row 2 (Auto-run) */}
-                            <div className="flex flex-col">
-                                <div className="p-3 flex items-center justify-between" style={{ borderBottom: editing.autoRun ? 'none' : '1px solid var(--border)' }}>
-                                    <span className="text-[0.75rem] font-medium" style={{ color: 'var(--fg)' }}>Auto-run schedule</span>
-                                    <label className="flex flex-col items-center cursor-pointer">
-                                        <input type="checkbox" className="hidden" checked={!!editing.autoRun} onChange={e => setEditing(p => ({ ...p, autoRun: e.target.checked }))} />
-                                        <div className="w-9 h-5 rounded-full relative transition-colors" style={{ background: editing.autoRun ? '#3b82f6' : 'var(--border2)' }}>
-                                            <div className={`w-3.5 h-3.5 bg-white rounded-full shadow absolute top-[3px] transition-transform ${editing.autoRun ? 'translate-x-[19px]' : 'translate-x-[3px]'}`}></div>
-                                        </div>
-                                    </label>
-                                </div>
-                                
-                                {/* Expanded Auto-run Config */}
-                                {editing.autoRun && (
-                                    <div className="px-3 pb-2 pt-1" style={{ borderBottom: '1px solid var(--border)' }}>
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <span className="text-[0.7rem]" style={{ color: 'var(--fg)' }}>Profile:</span>
-                                            <select className="flex-1 rounded px-2 py-1 text-[0.75rem]" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}>
-                                                <option value="">Select profile...</option>
-                                                {profiles.map(p => <option key={p.id} value={p.id}>{p.name || p.id}</option>)}
-                                            </select>
-                                        </div>
-                                        <div className="flex gap-1 flex-wrap mb-2">
-                                            {['Every 5m', 'Every 15m', 'Every 30m', 'Hourly', 'Daily 9am', 'Midnight', 'Mon 9am'].map(label => (
-                                                <button key={label} className="px-1.5 py-0.5 rounded hover:bg-slate-200 transition text-[0.65rem] border" style={{ background: 'var(--glass-strong)', borderColor: 'var(--border2)', color: 'var(--fg)' }}>
-                                                    {label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                        <div className="flex gap-1.5 mb-2">
-                                            {[
-                                                { label: 'Minute', bg: 'var(--glass-input)' },
-                                                { label: 'Hour', bg: 'var(--glass-strong)' },
-                                                { label: 'Day', bg: 'var(--glass-input)' },
-                                                { label: 'Month', bg: 'var(--glass-input)' },
-                                                { label: 'Weekday', bg: 'var(--glass-strong)' }
-                                            ].map(col => (
-                                                <div key={col.label} className="flex-1">
-                                                    <div className="text-[0.65rem] mb-0.5" style={{ color: 'var(--muted)' }}>{col.label}</div>
-                                                    <select className="w-full rounded px-1 py-0.5 text-[0.7rem] border" style={{ background: col.bg, borderColor: 'var(--border2)', color: 'var(--fg)' }}>
-                                                        <option>* (eve...</option>
-                                                    </select>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="flex gap-2 items-center">
-                                            <input 
-                                                className="w-[100px] rounded px-2 py-1 text-[0.75rem] font-mono tracking-widest border text-center" 
-                                                readOnly 
-                                                value="* * * * *" 
-                                                style={{ background: 'var(--glass-input)', borderColor: 'var(--border2)', color: 'var(--fg)' }} 
-                                            />
-                                            <span className="text-[0.7rem]" style={{ color: 'var(--muted)' }}>Every minute</span>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Config Row 3 */}
-                            <div className="p-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
-                                <div>
-                                    <div className="text-[0.75rem] font-medium" style={{ color: 'var(--fg)' }}>Browser mode</div>
-                                    <div className="text-[0.65rem] mt-0.5" style={{ color: 'var(--muted)' }}>Background (no window)</div>
-                                </div>
-                                <div className="flex rounded p-1" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)' }}>
-                                    <button className="px-3 py-1 text-[0.7rem] rounded font-medium shadow-sm transition" style={{ background: '#3b82f6', color: '#fff' }}>Headless</button>
-                                    <button className="px-3 py-1 text-[0.7rem] rounded font-medium transition" style={{ color: 'var(--muted)' }}>Visible</button>
-                                </div>
-                            </div>
-
-                            {/* Editor */}
-                            <div className="flex-1 relative min-h-0">
-                                <Editor
-                                    height="100%"
-                                    language="javascript"
-                                    theme="vs"
-                                    value={editing.code}
-                                    onChange={v => setEditing(p => ({ ...p, code: v || '' }))}
-                                    options={{
-                                        minimap: { enabled: false },
-                                        fontSize: 12,
-                                        lineNumbers: 'on',
-                                        scrollBeyondLastLine: false,
-                                        automaticLayout: true,
-                                        tabSize: 4,
-                                        wordWrap: 'on'
-                                    }}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Right Panel: API Reference Sidebar */}
-                        <div className="w-[280px] flex flex-col min-h-0" style={{ background: '#f8fafc', borderLeft: '1px solid var(--border)' }}>
-                            <div className="p-3 font-semibold text-[0.75rem]" style={{ color: '#334155' }}>
-                                API Reference
-                            </div>
-                            <div className="px-3 pb-3 relative">
-                                <Search size={12} className="absolute left-[18px] top-[9px]" style={{ color: '#94a3b8' }} />
-                                <input
-                                    placeholder="Search methods..."
-                                    className="w-full rounded px-7 py-1.5 text-[0.75rem]"
-                                    style={{ background: '#e2e8f0', border: '1px solid #cbd5e1', color: '#334155' }}
-                                />
-                            </div>
-                            <div className="flex-1 overflow-y-auto border-t bg-white" style={{ borderColor: '#e2e8f0' }}>
-                                {/* Mock API List Expandable Item */}
-                                <div>
-                                    <div className="flex items-center gap-1.5 px-3 py-2 text-[0.75rem] cursor-pointer" style={{ borderBottom: '1px solid #e2e8f0' }}>
-                                        <span className="text-[0.55rem]" style={{ color: '#94a3b8' }}>▼</span>
-                                        <span className="font-medium" style={{ color: '#3b82f6' }}>page</span>
-                                        <span className="text-[0.7rem]" style={{ color: '#64748b' }}>102 methods</span>
-                                    </div>
-                                    <div className="flex flex-col text-[0.75rem]">
-                                        <div className="px-4 py-2 border-b cursor-pointer hover:bg-slate-50 transition" style={{ borderColor: '#f1f5f9' }}>
-                                            <div className="font-mono text-[0.65rem]" style={{ color: '#475569' }}><span style={{ color: '#cbd5e1' }}>▶</span> page.goto(url, options?)</div>
-                                            <div className="text-[0.65rem] pl-3 mt-1" style={{ color: '#64748b' }}>Navigate to URL</div>
-                                        </div>
-                                        <div className="px-4 py-2 border-b cursor-pointer hover:bg-slate-50 transition" style={{ borderColor: '#f1f5f9' }}>
-                                            <div className="font-mono text-[0.65rem]" style={{ color: '#475569' }}><span style={{ color: '#cbd5e1' }}>▶</span> page.reload(options?)</div>
-                                            <div className="text-[0.65rem] pl-3 mt-1" style={{ color: '#64748b' }}>Reload the current page</div>
-                                        </div>
-                                        <div className="px-4 py-2 border-b cursor-pointer hover:bg-slate-50 transition" style={{ borderColor: '#f1f5f9' }}>
-                                            <div className="font-mono text-[0.65rem]" style={{ color: '#475569' }}><span style={{ color: '#cbd5e1' }}>▶</span> page.goBack() / goForward()</div>
-                                            <div className="text-[0.65rem] pl-3 mt-1" style={{ color: '#64748b' }}>Navigate browser history</div>
-                                        </div>
-                                        <div className="px-4 py-2 border-b cursor-pointer hover:bg-slate-50 transition" style={{ borderColor: '#f1f5f9' }}>
-                                            <div className="font-mono text-[0.65rem]" style={{ color: '#475569' }}><span style={{ color: '#cbd5e1' }}>▶</span> page.title()</div>
-                                            <div className="text-[0.65rem] pl-3 mt-1" style={{ color: '#64748b' }}>Get the page &lt;title&gt;</div>
-                                        </div>
-                                        <div className="px-4 py-2 border-b cursor-pointer hover:bg-slate-50 transition" style={{ borderColor: '#f1f5f9' }}>
-                                            <div className="font-mono text-[0.65rem]" style={{ color: '#475569' }}><span style={{ color: '#cbd5e1' }}>▶</span> page.url()</div>
-                                            <div className="text-[0.65rem] pl-3 mt-1" style={{ color: '#64748b' }}>Get the current URL (sync)</div>
-                                        </div>
-                                        <div className="px-4 py-2 border-b cursor-pointer hover:bg-slate-50 transition" style={{ borderColor: '#f1f5f9' }}>
-                                            <div className="font-mono text-[0.65rem]" style={{ color: '#475569' }}><span style={{ color: '#cbd5e1' }}>▶</span> page.content()</div>
-                                            <div className="text-[0.65rem] pl-3 mt-1" style={{ color: '#64748b' }}>Get the full page HTML</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </>
+                        )}
+                    </div>
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center gap-2" style={{ color: 'var(--muted)' }}>
                         <FileCode size={48} strokeWidth={1} />
@@ -728,6 +577,16 @@ function ScriptsTab({ profiles }) {
 
             {/* ═══ Right API Reference ═══ */}
             <ApiReferencePanel onInsert={editing ? handleInsertSnippet : null} />
+
+            {/* Run Script Modal */}
+            {runModalScript && (
+                <RunScriptModal
+                    script={runModalScript}
+                    profiles={profiles}
+                    onClose={() => setRunModalScript(null)}
+                    onComplete={handleModalRunComplete}
+                />
+            )}
 
             {/* Delete Confirmation Modal — rendered at root level so it's not clipped by overflow */}
             {deleteConfirmId && (
@@ -760,7 +619,155 @@ function ScriptsTab({ profiles }) {
     );
 }
 
-/* ═══════════════ API Reference Panel ═══════════════ */
+/* ═══════════════ Run Script Modal ═══════════════ */
+function RunScriptModal({ script, profiles = [], onClose, onComplete }) {
+    const [selectedProfileId, setSelectedProfileId] = useState('');
+    const [browserMode, setBrowserMode] = useState(script?.browserMode || 'visible');
+    const [isRunning, setIsRunning] = useState(false);
+    const [result, setResult] = useState(null);
+    const [logs, setLogs] = useState([]);
+
+    const canRun = !!selectedProfileId && !isRunning;
+
+    const handleRun = async () => {
+        if (!canRun) return;
+        setIsRunning(true);
+        setResult(null);
+        setLogs([]);
+        try {
+            const res = await window.electronAPI.executeScript(selectedProfileId, script.id, {
+                timeoutMs: 120000,
+                headless: browserMode === 'headless',
+            });
+            setResult(res);
+            setLogs(res.logs || []);
+            onComplete?.(script.id, res);
+            // Auto-close on success after 1.5s
+            if (res.success) {
+                setTimeout(() => onClose?.(), 1500);
+            }
+        } catch (e) {
+            const errResult = { success: false, error: e?.message || String(e), logs: [] };
+            setResult(errResult);
+            onComplete?.(script.id, errResult);
+        } finally {
+            setIsRunning(false);
+        }
+    };
+
+    const selectedProfile = profiles.find(p => p.id === selectedProfileId);
+
+    return (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} onClick={onClose}>
+            <div className="rounded-2xl w-[480px] shadow-2xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="px-5 py-4 flex items-center justify-between" style={{ background: 'var(--card2)', borderBottom: '1px solid var(--border)' }}>
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+                            <Play size={18} color="#fff" />
+                        </div>
+                        <div>
+                            <h3 className="text-[0.9rem] font-bold" style={{ color: 'var(--fg)' }}>Run Script</h3>
+                            <p className="text-[0.7rem]" style={{ color: 'var(--muted)' }}>{script?.name || 'Untitled Script'}</p>
+                        </div>
+                    </div>
+                    <button className="p-1.5 rounded-lg transition hover:brightness-125" style={{ background: 'var(--glass)', color: 'var(--muted)' }} onClick={onClose}>
+                        <X size={16} />
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="px-5 py-4 space-y-4">
+                    {/* Script info */}
+                    {script?.description && (
+                        <div className="rounded-lg px-3 py-2" style={{ background: 'var(--glass)', border: '1px solid var(--border)' }}>
+                            <span className="text-[0.68rem]" style={{ color: 'var(--muted)' }}>{script.description}</span>
+                        </div>
+                    )}
+
+                    {/* Browser Mode */}
+                    <div>
+                        <label className="text-[0.72rem] font-semibold block mb-2" style={{ color: 'var(--fg)' }}>Browser Mode</label>
+                        <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border2)' }}>
+                            <button className="flex-1 px-3 py-2 text-[0.75rem] font-medium transition flex items-center justify-center gap-2"
+                                style={{ background: browserMode === 'visible' ? 'var(--primary)' : 'var(--glass)', color: browserMode === 'visible' ? '#fff' : 'var(--fg)' }}
+                                onClick={() => setBrowserMode('visible')}>
+                                <span style={{ fontSize: '1rem' }}>🖥️</span> Visible
+                            </button>
+                            <button className="flex-1 px-3 py-2 text-[0.75rem] font-medium transition flex items-center justify-center gap-2"
+                                style={{ background: browserMode === 'headless' ? 'var(--primary)' : 'var(--glass)', color: browserMode === 'headless' ? '#fff' : 'var(--fg)', borderLeft: '1px solid var(--border2)' }}
+                                onClick={() => setBrowserMode('headless')}>
+                                <span style={{ fontSize: '1rem' }}>👻</span> Headless
+                            </button>
+                        </div>
+                        <p className="text-[0.65rem] mt-1" style={{ color: 'var(--muted)' }}>
+                            {browserMode === 'headless' ? 'Browser runs in background — no window shown' : 'Browser window will be visible during execution'}
+                        </p>
+                    </div>
+
+                    {/* Profile Selection */}
+                    <div>
+                        <label className="text-[0.72rem] font-semibold block mb-2" style={{ color: 'var(--fg)' }}>Select Profile</label>
+                        <select className="w-full rounded-lg px-3 py-2 text-[0.78rem]"
+                            style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
+                            value={selectedProfileId} onChange={e => setSelectedProfileId(e.target.value)}>
+                            <option value="">— Choose a profile —</option>
+                            {profiles.map(p => <option key={p.id} value={p.id}>{p.name || p.id.slice(0, 8)}</option>)}
+                        </select>
+                        {selectedProfile && (
+                            <div className="flex items-center gap-2 mt-2 px-3 py-1.5 rounded-lg" style={{ background: 'var(--glass)', border: '1px solid var(--border)' }}>
+                                <div className="w-2 h-2 rounded-full" style={{ background: '#10b981' }} />
+                                <span className="text-[0.7rem] font-medium" style={{ color: 'var(--fg)' }}>{selectedProfile.name}</span>
+                                <span className="text-[0.62rem] font-mono ml-auto" style={{ color: 'var(--muted)' }}>{selectedProfile.id?.slice(0, 8)}</span>
+                            </div>
+                        )}
+                        {!profiles.length && (
+                            <p className="text-[0.68rem] mt-1 text-amber-400">No profiles available. Create a profile first.</p>
+                        )}
+                    </div>
+
+                    {/* Result */}
+                    {result && (
+                        <div className="rounded-lg p-3" style={{ background: result.success ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${result.success ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}` }}>
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className={`text-[0.78rem] font-semibold ${result.success ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                    {result.success ? '✅ Script completed successfully' : '❌ Script failed'}
+                                </span>
+                            </div>
+                            {result.error && <p className="text-[0.72rem] text-rose-400">{result.error}</p>}
+                            {logs.length > 0 && (
+                                <div className="mt-2 max-h-[100px] overflow-y-auto font-mono text-[0.68rem] space-y-0.5" style={{ color: 'var(--fg)' }}>
+                                    {logs.map((l, i) => (
+                                        <div key={i}><span style={{ color: 'var(--muted)' }}>[{new Date(l.time).toLocaleTimeString()}]</span> {l.message}</div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div className="px-5 py-3 flex items-center justify-between" style={{ background: 'var(--card2)', borderTop: '1px solid var(--border)' }}>
+                    <button className="px-4 py-2 rounded-lg text-[0.78rem] font-medium transition hover:brightness-110"
+                        style={{ background: 'var(--glass)', color: 'var(--fg)', border: '1px solid var(--border2)' }}
+                        onClick={onClose} disabled={isRunning}>
+                        Cancel
+                    </button>
+                    <button className="px-5 py-2 rounded-lg text-[0.78rem] font-semibold text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 hover:shadow-lg"
+                        style={{ background: canRun ? 'linear-gradient(135deg, #10b981, #059669)' : '#4b5563' }}
+                        disabled={!canRun}
+                        onClick={handleRun}>
+                        {isRunning ? (
+                            <><RefreshCw size={15} className="animate-spin" /> Executing...</>
+                        ) : (
+                            <><Play size={15} /> Run Script</>
+                        )}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 function ApiReferencePanel({ onInsert }) {
     const [search, setSearch] = useState('');
 

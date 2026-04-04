@@ -1,16 +1,12 @@
 const fs = require('fs');
-const { execFile } = require('child_process');
-const { chromium } = require('playwright');
 const { appendLog } = require('../logging/logger');
 const { storageStatePath, getDataRoot } = require('../storage/paths');
-const { loadSettings, resolveChromeExecutable, resolveVendorChromePath } = require('../storage/settings');
-const { runningProfiles, launchingProfiles, setProfileStatus, generateInstanceId, buildStatusMap } = require('../state/runtime');
-
-const { appendLog } = require('../logging/logger');
-const { storageStatePath, getDataRoot } = require('../storage/paths');
-const { loadSettings } = require('../storage/settings'); // used by automation
+const { loadSettings, resolveVendorChromePath,resolveChromeExecutable } = require('../storage/settings');
 const { runningProfiles, setProfileStatus, generateInstanceId, buildStatusMap } = require('../state/runtime');
 const { readProfiles, writeProfiles } = require('../storage/profiles');
+
+// Lock set to prevent concurrent launches of the same profile
+const launchingProfiles = new Set();
 
 /**
  * Reads the actual Chrome version from a binary by running `chrome --version`.
@@ -67,6 +63,9 @@ async function launchProfileInternal(profileId, options = {}) {
     return { success: false, error: 'Profile is already starting up' };
   }
   launchingProfiles.add(profileId);
+  const instanceId = generateInstanceId();
+  setProfileStatus(profileId, 'STARTING', instanceId);
+  broadcastRunningMap();
   try {
     const profiles = readProfiles();
     const profile = profiles.find(p => p.id === profileId);
@@ -75,10 +74,6 @@ async function launchProfileInternal(profileId, options = {}) {
       const running = runningProfiles.get(profileId);
       return { success: true, wsEndpoint: running.wsEndpoint || 'pipe' };
     }
-    // Set STARTING status immediately and broadcast
-    const instanceId = generateInstanceId();
-    setProfileStatus(profileId, 'STARTING', instanceId);
-    broadcastRunningMap();
     const settings = profile.settings || {};
     let startUrl = profile.startUrl || 'https://www.google.com/?hl=en';
     if (startUrl === 'https://www.google.com' || startUrl === 'https://www.google.com/') {
@@ -531,6 +526,24 @@ async function stopProfileInternal(profileId) {
     }
     setProfileStatus(profileId, 'STOPPING');
     broadcastRunningMap();
+
+    if (running.engine === 'cdp') {
+      // CDP: kill child process
+      try { running.heartbeat && clearInterval(running.heartbeat); } catch { }
+      try { await running.forwarder?.stop?.(); } catch { }
+      try { await running.cdpControl?.browser?.close?.(); } catch { }
+      const { killProcessTreeWin } = require('../engine/cdp');
+      const pid = running.childProc?.pid;
+      if (pid) await killProcessTreeWin(pid);
+      else { try { running.childProc?.kill?.('SIGKILL'); } catch { } }
+      runningProfiles.delete(profileId);
+      setProfileStatus(profileId, 'STOPPED');
+      appendLog(profileId, 'Stopped CDP profile');
+      broadcastRunningMap();
+      return { success: true };
+    }
+
+    // Playwright: close context/browser/server
     const { server, context, browser } = running;
     try {
       const statePath = storageStatePath(profileId);
@@ -561,12 +574,22 @@ async function stopAllProfilesInternal() {
     try {
       const running = runningProfiles.get(id);
       if (!running) continue;
-      const { server, context, browser } = running;
-      try { const state = await context.storageState(); fs.writeFileSync(storageStatePath(id), JSON.stringify(state, null, 2)); appendLog(id, 'Saved storage state before stop-all'); } catch (e) { appendLog(id, `Failed save state on stop-all: ${e.message}`); }
-      try { await context.close(); } catch { }
-      try { await browser?.close?.(); } catch { }
-      try { await server?.close?.(); } catch { }
-      runningProfiles.delete(id); setProfileStatus(id, 'STOPPED'); appendLog(id, 'Stopped by stop-all');
+      if (running.engine === 'cdp') {
+        try { running.heartbeat && clearInterval(running.heartbeat); } catch { }
+        try { await running.forwarder?.stop?.(); } catch { }
+        try { await running.cdpControl?.browser?.close?.(); } catch { }
+        const { killProcessTreeWin } = require('../engine/cdp');
+        const pid = running.childProc?.pid;
+        if (pid) await killProcessTreeWin(pid);
+        runningProfiles.delete(id); setProfileStatus(id, 'STOPPED'); appendLog(id, 'Stopped CDP by stop-all');
+      } else {
+        const { server, context, browser } = running;
+        try { const state = await context.storageState(); fs.writeFileSync(storageStatePath(id), JSON.stringify(state, null, 2)); appendLog(id, 'Saved storage state before stop-all'); } catch (e) { appendLog(id, `Failed save state on stop-all: ${e.message}`); }
+        try { await context.close(); } catch { }
+        try { await browser?.close?.(); } catch { }
+        try { await server?.close?.(); } catch { }
+        runningProfiles.delete(id); setProfileStatus(id, 'STOPPED'); appendLog(id, 'Stopped by stop-all');
+      }
       stopped++;
     } catch (e) { appendLog(id, `Stop-all error: ${e.message}`); }
   }
@@ -715,13 +738,8 @@ async function getProfileWsInternal(profileId) {
   try {
     const running = runningProfiles.get(profileId);
     if (!running) return { success: true, wsEndpoint: null, running: false };
-    if (running.context?.isClosed?.() || running.browser?.isConnected?.() === false) {
-      runningProfiles.delete(profileId);
-      setProfileStatus(profileId, 'STOPPED');
-      appendLog(profileId, 'Heartbeat: context/browser disconnected');
-      broadcastRunningMap();
-      return { success: true, wsEndpoint: null, running: false };
-    }
+    // Only report status - do NOT delete from runningProfiles here.
+    // Cleanup is handled by event handlers (context.on close, browser.on disconnected).
     return { success: true, wsEndpoint: running.wsEndpoint || 'pipe', running: true };
   } catch (error) { return { success: false, error: error.message }; }
 }
@@ -730,15 +748,9 @@ async function getRunningMapInternal() {
   try {
     const result = {};
     for (const [id, info] of runningProfiles.entries()) {
-      const alive = !(info.context?.isClosed?.() || info.browser?.isConnected?.() === false);
-      if (!alive) {
-        runningProfiles.delete(id);
-        setProfileStatus(id, 'STOPPED');
-        appendLog(id, 'Bulk heartbeat: stale, clearing');
-        result[id] = null;
-      } else {
-        result[id] = info.wsEndpoint || 'pipe';
-      }
+      // Only report status - do NOT delete from runningProfiles here.
+      // Cleanup is handled by event handlers (context.on close, browser.on disconnected).
+      result[id] = info.wsEndpoint || 'pipe';
     }
     const statuses = buildStatusMap();
     return { success: true, map: result, statuses };

@@ -96,6 +96,19 @@ function registerIpcHandlers(extra = {}) {
         return { success: false, error: 'Script not found: ' + scriptId };
       }
       const code = scriptResult.script.code || '';
+
+      // Auto-launch profile if not already running
+      const { runningProfiles } = require('../state/runtime');
+      if (!runningProfiles.has(profileId)) {
+        const headless = !!(opts && opts.headless);
+        const launchResult = await launchProfileInternal(profileId, { headless, engine: 'playwright' });
+        if (!launchResult.success) {
+          return { success: false, error: 'Failed to launch profile: ' + (launchResult.error || 'unknown') };
+        }
+        // Wait a moment for the browser to fully initialize
+        await new Promise(r => setTimeout(r, 1500));
+      }
+
       return await executeScript(profileId, code, opts || {});
     }
     catch (e) { return { success: false, error: e?.message || String(e) }; }
