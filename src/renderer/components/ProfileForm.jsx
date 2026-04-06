@@ -31,7 +31,6 @@ const defaultSettings = {
   webrtc: 'Public + private',
   geolocation: { mode: 'ip', latitude: 21.0278, longitude: 105.8342, accuracy: 100, permission: 'ask' },
   mediaDevices: { audio: true, video: true },
-  webgl: true,
   headless: false,
   engine: 'playwright',
   injectFingerprint: true,
@@ -98,8 +97,6 @@ const defaultSettings = {
     chargingTime: 0,
     dischargingTime: '',
   },
-  // Legacy fields for backward compatibility
-  proxy: { type: 'none', server: '', username: '', password: '' },
   cookie: '',
   description: '',
 };

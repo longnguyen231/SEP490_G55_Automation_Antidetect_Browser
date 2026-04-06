@@ -64,7 +64,8 @@ export default function ProfileList({
   selectedIds = {}, onToggleSelect, onSelectAll, onClearSelection,
   onStartSelected, onStopSelected, onCloneProfile,
   headlessPrefs = {}, onSetHeadless, enginePrefs = {}, onSetEngine, onDeleteSelected,
-  errorProfiles = {}, onToggleFp, onLinkProxy
+  errorProfiles = {},
+  profileStatuses = {}
 }) {
   const shortId = (id) => (id || '').substring(0, 6);
 
@@ -93,8 +94,12 @@ export default function ProfileList({
           </div>
         ) : (
           profiles.map(profile => {
-            const isRunning = profile.id in runningWs;
-            const hasError = !!errorProfiles[profile.id] && !isRunning;
+            const pStatus = profileStatuses[profile.id]?.status;
+            const isStarting = pStatus === 'STARTING';
+            const isStopping = pStatus === 'STOPPING';
+            const isRunning = pStatus === 'RUNNING' || (!isStarting && !isStopping && !!runningWs[profile.id]);
+            const isTransitioning = isStarting || isStopping;
+            const hasError = (pStatus === 'ERROR' || !!errorProfiles[profile.id]) && !isRunning && !isStarting;
             const osInfo = getOsInfo(profile);
             const browser = profile?.fingerprint?.browser || 'Chrome';
             const res = profile?.fingerprint?.screenResolution || '1920x1080';
@@ -106,12 +111,12 @@ export default function ProfileList({
             const proxyType = hasProxy ? profile.settings.proxy.type.toUpperCase() : '';
             const proxyServer = hasProxy ? profile.settings.proxy.server : '';
 
-            const cardClass = `pl-card ${isRunning ? 'pl-card-running' : ''} ${hasError ? 'pl-card-error' : ''}`;
+            const cardClass = `pl-card ${isRunning || isStarting ? 'pl-card-running' : ''} ${hasError ? 'pl-card-error' : ''}`;
 
             return (
               <div key={profile.id} className={cardClass}>
                 {/* Dot */}
-                <div className={`pl-dot ${isRunning ? 'pl-dot-active' : ''} ${hasError ? 'pl-dot-error' : ''}`} />
+                <div className={`pl-dot ${isRunning || isStarting ? 'pl-dot-active' : ''} ${hasError ? 'pl-dot-error' : ''} ${isStarting ? 'pl-dot-starting' : ''}`} />
 
                 {/* Info: 3 rows */}
                 <div className="pl-info">
@@ -181,7 +186,11 @@ export default function ProfileList({
 
                 {/* Actions */}
                 <div className="pl-actions">
-                  {isRunning ? (
+                  {isStarting ? (
+                    <button className="pl-btn" style={{ background: '#6366f1', opacity: 0.8, cursor: 'wait' }} disabled>Starting...</button>
+                  ) : isStopping ? (
+                    <button className="pl-btn" style={{ background: '#f59e0b', opacity: 0.8, cursor: 'wait' }} disabled>Stopping...</button>
+                  ) : isRunning ? (
                     <button className="pl-btn" style={{ background: '#c07e15' }} onClick={() => onStopProfile(profile.id)}>Stop</button>
                   ) : (
                     <>
@@ -189,10 +198,10 @@ export default function ProfileList({
                       <button className="pl-btn pl-btn-headless" onClick={() => onLaunchHeadless(profile.id)}>Headless</button>
                     </>
                   )}
-                  <button className="pl-btn pl-btn-proxy" onClick={() => onLinkProxy(profile)}>Proxy</button>
-                  <button className="pl-btn pl-btn-clone" onClick={() => onCloneProfile(profile.id)}>Clone</button>
-                  <button className="pl-btn pl-btn-edit" onClick={() => onEditProfile(profile)}>Edit</button>
-                  <button className="pl-btn pl-btn-delete" onClick={() => onDeleteProfile(profile.id)}>Delete</button>
+                  <button className="pl-btn pl-btn-proxy" onClick={() => onEditProfile(profile)} disabled={isTransitioning}>Proxy</button>
+                  <button className="pl-btn pl-btn-clone" onClick={() => onCloneProfile(profile.id)} disabled={isTransitioning}>Clone</button>
+                  <button className="pl-btn pl-btn-edit" onClick={() => onEditProfile(profile)} disabled={isTransitioning}>Edit</button>
+                  <button className="pl-btn pl-btn-delete" onClick={() => onDeleteProfile(profile.id)} disabled={isRunning || isTransitioning}>Delete</button>
                 </div>
               </div>
             );

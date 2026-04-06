@@ -26,6 +26,7 @@ function App() {
   const [formInitialTab, setFormInitialTab] = useState('general');
   const [cookieProfile, setCookieProfile] = useState(null);
   const [runningWs, setRunningWs] = useState({});
+  const [profileStatuses, setProfileStatuses] = useState({});
   const [logProfile, setLogProfile] = useState(null);
   const [linkProxyProfile, setLinkProxyProfile] = useState(null);
   const [selectedIds, setSelectedIds] = useState({});
@@ -91,13 +92,28 @@ function App() {
   useEffect(() => { loadProfiles(); }, []);
   useEffect(() => {
     let unsub;
+    let pollTimer;
     (async () => {
       try {
-        unsub = window.electronAPI.onRunningMapChanged?.((payload) => setRunningWs(payload?.map || {}));
+        unsub = window.electronAPI.onRunningMapChanged?.((payload) => {
+          setRunningWs(payload?.map || {});
+          if (payload?.statuses) setProfileStatuses(payload.statuses);
+        });
         await refreshRunningStatus();
       } catch { }
+      // Polling every 3s as safety net
+      pollTimer = setInterval(async () => {
+        try {
+          const res = await window.electronAPI.getStatusMap?.();
+          if (res?.success && res.statuses) setProfileStatuses(res.statuses);
+        } catch { }
+      }, 3000);
     })();
-    return () => { try { unsub && unsub(); } catch { }; try { window.electronAPI.removeAllRunningMapChanged?.(); } catch { } };
+    return () => {
+      try { unsub && unsub(); } catch { }
+      try { window.electronAPI.removeAllRunningMapChanged?.(); } catch { }
+      if (pollTimer) clearInterval(pollTimer);
+    };
   }, []);
   useEffect(() => {
     let unsub;
@@ -139,7 +155,11 @@ function App() {
     try {
       if (window.electronAPI.getRunningMap) {
         const res = await window.electronAPI.getRunningMap();
-        if (res?.success) { setRunningWs(res.map || {}); return; }
+        if (res?.success) {
+          setRunningWs(res.map || {});
+          if (res.statuses) setProfileStatuses(res.statuses);
+          return;
+        }
       }
       const entries = await Promise.all((list || []).map(async p => { try { const r = await window.electronAPI.getProfileWs(p.id); return [p.id, r?.wsEndpoint || null]; } catch { return [p.id, null]; } }));
       setRunningWs(Object.fromEntries(entries));
@@ -155,6 +175,9 @@ function App() {
   const handleDeleteProfile = async (profileId) => { if (!window.confirm('Delete this profile?')) return; try { await api.deleteProfile(profileId); await loadProfiles(); } catch (e) { console.error('Delete error', e); } };
 
   const handleLaunchProfile = async (profileId) => {
+    // Block if already starting or running
+    const st = profileStatuses[profileId]?.status;
+    if (st === 'STARTING' || st === 'RUNNING' || st === 'STOPPING') return;
     setErrorProfiles(prev => { const n = { ...prev }; delete n[profileId]; return n; });
     try {
       const headless = !!headlessPrefs[profileId];
@@ -167,11 +190,10 @@ function App() {
         try {
           const status = await window.electronAPI?.checkBrowserStatus?.(requiredBrowser);
           if (status?.status !== 'installed') {
-            // Pause launch and show install modal
             setEngineInstallState({ profileId, engine: requiredBrowser, headless });
             return;
           }
-        } catch { /* ignore check errors, proceed with launch */ }
+        } catch { }
       }
 
       await doLaunchProfile(profileId, { headless, engine });
@@ -191,16 +213,20 @@ function App() {
         setErrorProfiles(prev => ({ ...prev, [profileId]: true }));
         addToast('Error launching profile: ' + result.error, 'error', 5000);
       }
-      await refreshRunningStatus(profiles.filter(p => p.id === profileId));
+      // No manual refreshRunningStatus - backend broadcasts status changes
     } catch (e) {
       setErrorProfiles(prev => ({ ...prev, [profileId]: true }));
       addToast('Error launching profile: ' + e.message, 'error', 5000);
     }
   };
   const handleStopProfile = async (profileId) => { try { const res = profileId === '__ALL__' ? await window.electronAPI.stopAllProfiles() : await window.electronAPI.stopProfile(profileId); if (!res.success) alert('Error stopping profile: ' + res.error); await refreshRunningStatus(); } catch (e) { alert('Error stopping profile: ' + e.message); } };
-  const handleSetHeadless = async (profileId, value) => { if (profileId in runningWs) return; setHeadlessPrefs(prev => ({ ...prev, [profileId]: !!value })); try { const p = profiles.find(x => x.id === profileId); if (p) { const updated = { ...p, settings: { ...(p.settings || {}), headless: !!value } }; const res = await window.electronAPI.saveProfile(updated); if (res?.success && res.profile) setProfiles(prev => prev.map(pp => pp.id === profileId ? res.profile : pp)); } } catch { } };
-  const handleSetEngine = async (profileId, value) => { if (profileId in runningWs) return; setEnginePrefs(prev => ({ ...prev, [profileId]: value })); try { const p = profiles.find(x => x.id === profileId); if (p) { const updated = { ...p, settings: { ...(p.settings || {}), engine: value } }; const res = await window.electronAPI.saveProfile(updated); if (res?.success && res.profile) setProfiles(prev => prev.map(pp => pp.id === profileId ? res.profile : pp)); } } catch { } };
-  const handleToggleProfile = async (profileId) => (profileId in runningWs) ? handleStopProfile(profileId) : handleLaunchProfile(profileId);
+  const handleSetHeadless = async (profileId, value) => { if (runningWs[profileId]) return; setHeadlessPrefs(prev => ({ ...prev, [profileId]: !!value })); try { const p = profiles.find(x => x.id === profileId); if (p) { const updated = { ...p, settings: { ...(p.settings || {}), headless: !!value } }; const res = await window.electronAPI.saveProfile(updated); if (res?.success && res.profile) setProfiles(prev => prev.map(pp => pp.id === profileId ? res.profile : pp)); } } catch { } };
+  const handleSetEngine = async (profileId, value) => { if (runningWs[profileId]) return; setEnginePrefs(prev => ({ ...prev, [profileId]: value })); try { const p = profiles.find(x => x.id === profileId); if (p) { const updated = { ...p, settings: { ...(p.settings || {}), engine: value } }; const res = await window.electronAPI.saveProfile(updated); if (res?.success && res.profile) setProfiles(prev => prev.map(pp => pp.id === profileId ? res.profile : pp)); } } catch { } };
+  const handleToggleProfile = async (profileId) => {
+    const st = profileStatuses[profileId]?.status;
+    if (st === 'STARTING' || st === 'STOPPING') return;
+    return (st === 'RUNNING' || runningWs[profileId]) ? handleStopProfile(profileId) : handleLaunchProfile(profileId);
+  };
   const handleLaunchHeadless = async (profileId) => {
     setErrorProfiles(prev => { const n = { ...prev }; delete n[profileId]; return n; });
     try {
@@ -352,8 +378,7 @@ function App() {
             onSetEngine={handleSetEngine}
             onDeleteSelected={handleDeleteSelected}
             errorProfiles={errorProfiles}
-            onToggleFp={handleToggleFp}
-            onLinkProxy={setLinkProxyProfile}
+            profileStatuses={profileStatuses}
           />
         );
 

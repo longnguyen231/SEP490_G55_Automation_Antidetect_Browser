@@ -7,15 +7,16 @@
 
 const fs = require('fs');
 const path = require('path');
-const { userDataDirFor } = require('../engine/cdp');
+const { getDataRoot } = require('./paths');
 const { appendLog } = require('../logging/logger');
 
 /**
  * Get the path to the session-tabs.json file for a given profile.
  */
 function getSessionTabsPath(profileId) {
-  const dir = userDataDirFor(profileId);
-  return path.join(dir, 'session-tabs.json');
+  const dir = path.join(getDataRoot(), 'session-tabs');
+  try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+  return path.join(dir, `${profileId}.json`);
 }
 
 /**
