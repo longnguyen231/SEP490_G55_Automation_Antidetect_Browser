@@ -37,12 +37,14 @@ const {
   importProxiesInternal, exportProxiesInternal,
 } = require('../storage/proxies');
 const { checkProxy, checkProxiesBatch } = require('../services/ProxyChecker');
-const { getMachineCode } = require('../services/machineId');
+const { getMachineCode, validateLicenseKey } = require('../services/machineId');
 const { checkBrowserStatus, installBrowser, uninstallBrowser, reinstallBrowser } = require('../services/browserManagerService');
 
 function registerIpcHandlers(extra = {}) {
-  // Machine Code
+  // Machine Code & License
   ipcMain.handle('get-machine-code', () => getMachineCode());
+  ipcMain.handle('validate-license', (_e, key) => validateLicenseKey(key));
+  ipcMain.handle('open-external', (_e, url) => shell.openExternal(url));
 
   // Browser Runtime Manager
   ipcMain.handle('browser-runtime-status', async (_e, name) => checkBrowserStatus(name));

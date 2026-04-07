@@ -56,10 +56,15 @@ function App() {
   }, []);
 
   const [showLicenseModal, setShowLicenseModal] = useState(() => {
-    return !sessionStorage.getItem('license-shown');
+    // Skip modal if user already activated OR chose free plan this session
+    return !localStorage.getItem('hl-license-activated') &&
+           !sessionStorage.getItem('license-skipped');
   });
   const handleCloseLicense = () => {
-    sessionStorage.setItem('license-shown', 'true');
+    sessionStorage.setItem('license-skipped', 'true');
+    setShowLicenseModal(false);
+  };
+  const handleLicenseActivated = () => {
     setShowLicenseModal(false);
   };
 
@@ -450,7 +455,7 @@ function App() {
         {renderContent()}
       </main>
 
-      {showLicenseModal && <LicenseModal onClose={handleCloseLicense} />}
+      {showLicenseModal && <LicenseModal onClose={handleCloseLicense} onActivated={handleLicenseActivated} />}
 
       {/* Engine Install Modal */}
       {engineInstallState && (
