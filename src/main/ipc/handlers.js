@@ -27,7 +27,8 @@ const { loadSettings, saveSettings } = require('../storage/settings');
 const { listPresetsInternal, addPresetInternal, deletePresetInternal } = require('../storage/presets');
 const { performAction } = require('../engine/actions');
 const { listScriptsInternal, getScriptInternal, saveScriptInternal, deleteScriptInternal } = require('../storage/scripts');
-const { addTaskLog, getTaskLogs, getTaskLogById, clearTaskLogs } = require('../storage/taskLogs');
+const { addTaskLog, getTaskLogs, getTaskLogById, deleteTaskLog, clearTaskLogs } = require('../storage/taskLogs');
+const { listModules, installModule, uninstallModule } = require('../storage/scriptModules');
 const { executeScript } = require('../engine/scriptRuntime');
 const {
   getProxiesInternal, getProxyByIdInternal,
@@ -45,9 +46,26 @@ function registerIpcHandlers(extra = {}) {
 
   // Browser Runtime Manager
   ipcMain.handle('browser-runtime-status', async (_e, name) => checkBrowserStatus(name));
-  ipcMain.handle('browser-runtime-install', async (_e, name) => await installBrowser(name));
-  ipcMain.handle('browser-runtime-uninstall', async (_e, name) => await uninstallBrowser(name));
-  ipcMain.handle('browser-runtime-reinstall', async (_e, name) => await reinstallBrowser(name));
+  ipcMain.handle('browser-runtime-install', async (_e, name) => {
+    appendLog('system', `Browser runtime: installing "${name}"...`);
+    const r = await installBrowser(name);
+    if (r?.success) appendLog('system', `Browser runtime: "${name}" installed OK`);
+    else appendLog('system', `Browser runtime: install "${name}" failed — ${r?.error || 'unknown'}`);
+    return r;
+  });
+  ipcMain.handle('browser-runtime-uninstall', async (_e, name) => {
+    appendLog('system', `Browser runtime: uninstalling "${name}"`);
+    const r = await uninstallBrowser(name);
+    if (r?.success) appendLog('system', `Browser runtime: "${name}" uninstalled`);
+    return r;
+  });
+  ipcMain.handle('browser-runtime-reinstall', async (_e, name) => {
+    appendLog('system', `Browser runtime: reinstalling "${name}"...`);
+    const r = await reinstallBrowser(name);
+    if (r?.success) appendLog('system', `Browser runtime: "${name}" reinstalled OK`);
+    else appendLog('system', `Browser runtime: reinstall "${name}" failed — ${r?.error || 'unknown'}`);
+    return r;
+  });
 
   ipcMain.handle('get-profiles', async () => await getProfilesInternal());
   ipcMain.handle('save-profile', async (_e, profile) => {
@@ -61,20 +79,53 @@ function registerIpcHandlers(extra = {}) {
     if (r?.success) appendLog('system', `Profile deleted: ${profileId}`);
     return r;
   });
-  ipcMain.handle('launch-profile', async (_e, profileId, options = {}) => await launchProfileInternal(profileId, options));
-  ipcMain.handle('stop-profile', async (_e, profileId) => await stopProfileInternal(profileId));
-  ipcMain.handle('stop-all-profiles', async () => await stopAllProfilesInternal());
+  ipcMain.handle('launch-profile', async (_e, profileId, options = {}) => {
+    appendLog(profileId, `Profile launch requested (engine=${options.engine || 'default'}, headless=${!!options.headless})`);
+    const r = await launchProfileInternal(profileId, options);
+    if (!r?.success) appendLog(profileId, `Profile launch failed: ${r?.error || 'unknown'}`);
+    return r;
+  });
+  ipcMain.handle('stop-profile', async (_e, profileId) => {
+    appendLog(profileId, 'Profile stop requested');
+    return await stopProfileInternal(profileId);
+  });
+  ipcMain.handle('stop-all-profiles', async () => {
+    appendLog('system', 'Stop all profiles requested');
+    return await stopAllProfilesInternal();
+  });
   ipcMain.handle('get-profile-log', async (_e, profileId) => await getProfileLogInternal(profileId));
   ipcMain.handle('get-cookies', async (_e, profileId) => await getCookiesInternal(profileId));
-  ipcMain.handle('import-cookies', async (_e, profileId, cookies) => await importCookiesInternal(profileId, cookies));
-  ipcMain.handle('delete-cookie', async (_e, profileId, cookie) => await deleteCookieInternal(profileId, cookie));
-  ipcMain.handle('clear-cookies', async (_e, profileId) => await clearCookiesInternal(profileId));
-  ipcMain.handle('edit-cookie', async (_e, profileId, cookie) => await editCookieInternal(profileId, cookie));
+  ipcMain.handle('import-cookies', async (_e, profileId, cookies) => {
+    const r = await importCookiesInternal(profileId, cookies);
+    if (r?.success) appendLog(profileId, `Cookies imported: ${Array.isArray(cookies) ? cookies.length : 0} cookie(s)`);
+    else appendLog(profileId, `Cookies import failed: ${r?.error || 'unknown'}`);
+    return r;
+  });
+  ipcMain.handle('delete-cookie', async (_e, profileId, cookie) => {
+    const r = await deleteCookieInternal(profileId, cookie);
+    if (r?.success) appendLog(profileId, `Cookie deleted: ${cookie?.name} (${cookie?.domain})`);
+    return r;
+  });
+  ipcMain.handle('clear-cookies', async (_e, profileId) => {
+    const r = await clearCookiesInternal(profileId);
+    if (r?.success) appendLog(profileId, 'All cookies cleared');
+    return r;
+  });
+  ipcMain.handle('edit-cookie', async (_e, profileId, cookie) => {
+    const r = await editCookieInternal(profileId, cookie);
+    if (r?.success) appendLog(profileId, `Cookie edited: ${cookie?.name} (${cookie?.domain})`);
+    return r;
+  });
   ipcMain.handle('get-profile-ws', async (_e, profileId) => await getProfileWsInternal(profileId));
   ipcMain.handle('get-running-map', async () => await getRunningMapInternal());
   ipcMain.handle('get-status-map', async () => getStatusMapInternal());
   ipcMain.handle('get-locales-timezones', async () => await getLocalesTimezonesInternal());
-  ipcMain.handle('clone-profile', async (_e, sourceProfileId, overrides = {}) => await cloneProfileInternal(sourceProfileId, overrides));
+  ipcMain.handle('clone-profile', async (_e, sourceProfileId, overrides = {}) => {
+    const r = await cloneProfileInternal(sourceProfileId, overrides);
+    if (r?.success) appendLog('system', `Profile cloned: ${sourceProfileId} → ${r.profile?.id} "${r.profile?.name}"`);
+    else appendLog('system', `Profile clone failed: ${r?.error || 'unknown'}`);
+    return r;
+  });
 
   // Automation
   ipcMain.handle('run-automation-now', async (_e, profileId) => await runAutomationNowInternal(profileId));
@@ -87,22 +138,41 @@ function registerIpcHandlers(extra = {}) {
 
   // Presets management
   ipcMain.handle('presets-list', async () => await listPresetsInternal());
-  ipcMain.handle('presets-add', async (_e, preset) => await addPresetInternal(preset || {}));
-  ipcMain.handle('presets-delete', async (_e, id) => await deletePresetInternal(String(id)));
+  ipcMain.handle('presets-add', async (_e, preset) => {
+    const r = await addPresetInternal(preset || {});
+    if (r?.success) appendLog('system', `Preset added: "${preset?.name || 'unnamed'}"`);
+    return r;
+  });
+  ipcMain.handle('presets-delete', async (_e, id) => {
+    const r = await deletePresetInternal(String(id));
+    if (r?.success) appendLog('system', `Preset deleted: ${id}`);
+    return r;
+  });
 
   // Scripts management
   ipcMain.handle('scripts-list', async () => await listScriptsInternal());
   ipcMain.handle('scripts-get', async (_e, id) => await getScriptInternal(id));
-  ipcMain.handle('scripts-save', async (_e, script) => await saveScriptInternal(script));
-  ipcMain.handle('scripts-delete', async (_e, id) => await deleteScriptInternal(id));
+  ipcMain.handle('scripts-save', async (_e, script) => {
+    const r = await saveScriptInternal(script);
+    if (r?.success) appendLog('system', `Script saved: "${script?.name || script?.id || 'unnamed'}"`);
+    else appendLog('system', `Script save failed: ${r?.error || 'unknown'}`);
+    return r;
+  });
+  ipcMain.handle('scripts-delete', async (_e, id) => {
+    const r = await deleteScriptInternal(id);
+    if (r?.success) appendLog('system', `Script deleted: ${id}`);
+    return r;
+  });
   ipcMain.handle('scripts-execute', async (_e, profileId, scriptId, opts) => {
+    const startedAt = new Date().toISOString();
     try {
       const scriptResult = await getScriptInternal(scriptId);
       if (!scriptResult?.success || !scriptResult.script) {
         return { success: false, error: 'Script not found: ' + scriptId };
       }
       const code = scriptResult.script.code || '';
-      appendLog(profileId, `Script execute: "${scriptResult.script.name || scriptId}"`);
+      const scriptName = scriptResult.script.name || scriptId;
+      appendLog(profileId, `Script execute: "${scriptName}"`);
 
       const { runningProfiles } = require('../state/runtime');
       if (!runningProfiles.has(profileId)) {
@@ -110,32 +180,79 @@ function registerIpcHandlers(extra = {}) {
         const launchResult = await launchProfileInternal(profileId, { headless, engine: 'playwright' });
         if (!launchResult.success) {
           appendLog(profileId, `Script execute failed — could not launch profile: ${launchResult.error || 'unknown'}`);
+          await addTaskLog({ scriptId, scriptName, profileId, status: 'error', startedAt, finishedAt: new Date().toISOString(), logs: [], error: 'Failed to launch profile: ' + (launchResult.error || 'unknown') });
           return { success: false, error: 'Failed to launch profile: ' + (launchResult.error || 'unknown') };
         }
         await new Promise(r => setTimeout(r, 1500));
       }
 
       const result = await executeScript(profileId, code, opts || {});
-      if (result.success) appendLog(profileId, `Script finished OK: "${scriptResult.script.name || scriptId}"`);
-      else appendLog(profileId, `Script error: ${result.error}`);
+      const finishedAt = new Date().toISOString();
+      if (result.success) {
+        appendLog(profileId, `Script finished OK: "${scriptName}"`);
+        await addTaskLog({ scriptId, scriptName, profileId, status: 'completed', startedAt, finishedAt, logs: result.logs || [] });
+      } else {
+        appendLog(profileId, `Script error: ${result.error}`);
+        await addTaskLog({ scriptId, scriptName, profileId, status: 'error', startedAt, finishedAt, logs: result.logs || [], error: result.error });
+      }
       return result;
     }
-    catch (e) { return { success: false, error: e?.message || String(e) }; }
+    catch (e) {
+      await addTaskLog({ scriptId, scriptName: scriptId, profileId, status: 'error', startedAt, finishedAt: new Date().toISOString(), logs: [], error: e?.message || String(e) });
+      return { success: false, error: e?.message || String(e) };
+    }
   });
 
   // Task logs
   ipcMain.handle('task-logs-list', async () => getTaskLogs());
   ipcMain.handle('task-logs-get', async (_e, id) => getTaskLogById(id));
-  ipcMain.handle('task-logs-clear', async () => clearTaskLogs());
+  ipcMain.handle('task-logs-delete', async (_e, id) => {
+    const r = await deleteTaskLog(id);
+    if (r?.success) appendLog('system', `Task log deleted: ${id}`);
+    return r;
+  });
+  ipcMain.handle('task-logs-clear', async () => {
+    const r = await clearTaskLogs();
+    if (r?.success) appendLog('system', 'All task logs cleared');
+    return r;
+  });
+
+  // Script modules (npm packages)
+  ipcMain.handle('script-modules-list', async () => {
+    try { return { success: true, modules: listModules() }; }
+    catch (e) { return { success: false, error: e.message }; }
+  });
+  ipcMain.handle('script-modules-install', async (_e, packageName) => {
+    try { return await installModule(packageName); }
+    catch (e) { return { success: false, error: e.message }; }
+  });
+  ipcMain.handle('script-modules-uninstall', async (_e, packageName) => {
+    try { return await uninstallModule(packageName); }
+    catch (e) { return { success: false, error: e.message }; }
+  });
 
   // Proxy management
   ipcMain.handle('proxy-get-all', async () => await getProxiesInternal());
   ipcMain.handle('proxy-get-by-id', async (_e, id) => await getProxyByIdInternal(id));
-  ipcMain.handle('proxy-create', async (_e, data) => await createProxyInternal(data));
+  ipcMain.handle('proxy-create', async (_e, data) => {
+    const r = await createProxyInternal(data);
+    if (r?.success) appendLog('system', `Proxy created: "${data?.name || data?.host || 'unnamed'}"`);
+    else appendLog('system', `Proxy create failed: ${r?.error || 'unknown'}`);
+    return r;
+  });
   ipcMain.handle('proxy-update', async (_e, id, data) => await updateProxyInternal(id, data));
-  ipcMain.handle('proxy-delete', async (_e, id) => await deleteProxyInternal(id));
+  ipcMain.handle('proxy-delete', async (_e, id) => {
+    const r = await deleteProxyInternal(id);
+    if (r?.success) appendLog('system', `Proxy deleted: ${id}`);
+    return r;
+  });
   ipcMain.handle('proxy-delete-bulk', async (_e, ids) => await deleteProxiesBulkInternal(ids));
-  ipcMain.handle('proxy-import', async (_e, text, format) => await importProxiesInternal(text, format));
+  ipcMain.handle('proxy-import', async (_e, text, format) => {
+    const r = await importProxiesInternal(text, format);
+    if (r?.success) appendLog('system', `Proxies imported: ${r?.count || 0} item(s)`);
+    else appendLog('system', `Proxy import failed: ${r?.error || 'unknown'}`);
+    return r;
+  });
   ipcMain.handle('proxy-export', async (_e, ids) => await exportProxiesInternal(ids));
 
   // Proxy checker
@@ -208,6 +325,8 @@ function registerIpcHandlers(extra = {}) {
   ipcMain.handle('save-settings', async (_e, partial) => {
     const current = loadSettings();
     const ok = saveSettings({ ...current, ...partial });
+    if (ok) appendLog('system', `Settings saved (keys: ${Object.keys(partial || {}).join(', ') || 'none'})`);
+    else appendLog('system', 'Settings save failed');
     return { success: ok };
   });
 

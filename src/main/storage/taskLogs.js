@@ -97,6 +97,21 @@ async function getTaskLogById(id) {
 }
 
 /**
+ * Delete a single task log by id.
+ */
+async function deleteTaskLog(id) {
+  try {
+    const list = readTaskLogs();
+    const filtered = list.filter(t => t.id !== id);
+    if (filtered.length === list.length) return { success: false, error: 'Task log not found' };
+    if (!writeTaskLogs(filtered)) return { success: false, error: 'Persist error' };
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) };
+  }
+}
+
+/**
  * Clear all task logs.
  */
 async function clearTaskLogs() {
@@ -108,5 +123,6 @@ module.exports = {
   addTaskLog,
   getTaskLogs,
   getTaskLogById,
+  deleteTaskLog,
   clearTaskLogs,
 };

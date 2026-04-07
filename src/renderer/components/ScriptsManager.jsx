@@ -397,7 +397,7 @@ function ScriptsTab({ profiles }) {
 
                                     {/* Delete button */}
                                     <button
-                                        className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[0.62rem] font-medium transition-all duration-150 opacity-0 group-hover:opacity-80 hover:!opacity-100 hover:brightness-110"
+                                        className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[0.62rem] font-medium transition-all duration-150 opacity-60 hover:opacity-100 hover:brightness-110"
                                         style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}
                                         title="Delete script"
                                         onClick={e => handleDeleteWithConfirm(s.id, e)}
@@ -856,6 +856,16 @@ function TaskLogsTab() {
         try { const res = await window.electronAPI.getTaskLog(task.id); if (res?.success) setDetailLogs(res.taskLog?.logs || []); else setDetailLogs([]); } catch { setDetailLogs([]); }
     };
 
+    const handleDelete = async (e, id, name) => {
+        e.stopPropagation();
+        if (!window.confirm(`Delete log "${name || 'this task'}"?`)) return;
+        try {
+            await window.electronAPI.deleteTaskLog(id);
+            setTasks(prev => prev.filter(t => t.id !== id));
+            if (selected?.id === id) { setSelected(null); setDetailLogs([]); }
+        } catch {}
+    };
+
     const handleClear = async () => {
         if (!window.confirm('Clear all task logs?')) return;
         try { await window.electronAPI.clearTaskLogs(); setTasks([]); setSelected(null); setDetailLogs([]); } catch {}
@@ -873,14 +883,22 @@ function TaskLogsTab() {
                 </div>
                 <div className="flex-1 overflow-y-auto">
                     {tasks.map(t => (
-                        <div key={t.id} className="px-3 py-2 cursor-pointer border-l-4 transition"
+                        <div key={t.id} className="px-3 py-2 cursor-pointer border-l-4 transition group"
                             style={{ borderColor: selected?.id === t.id ? 'var(--primary)' : 'transparent', background: selected?.id === t.id ? 'var(--glass-strong)' : 'transparent', borderBottom: '1px solid var(--border)' }}
                             onClick={() => handleSelect(t)}>
                             <div className="flex justify-between items-center">
-                                <span className="text-[0.72rem] font-medium" style={{ color: 'var(--fg)' }}>{t.scriptName || 'Script'}</span>
-                                <span className={`text-[0.65rem] font-medium ${t.status === 'completed' ? 'text-emerald-500' : t.status === 'error' ? 'text-rose-500' : 'text-amber-400'}`}>
-                                    {t.status === 'completed' ? '✅' : t.status === 'error' ? '❌' : '⏳'} {t.status}
-                                </span>
+                                <span className="text-[0.72rem] font-medium truncate flex-1 mr-1" style={{ color: 'var(--fg)' }}>{t.scriptName || 'Script'}</span>
+                                <div className="flex items-center gap-1 shrink-0">
+                                    <span className={`text-[0.65rem] font-medium ${t.status === 'completed' ? 'text-emerald-500' : t.status === 'error' ? 'text-rose-500' : 'text-amber-400'}`}>
+                                        {t.status === 'completed' ? '✅' : t.status === 'error' ? '❌' : '⏳'}
+                                    </span>
+                                    <button
+                                        className="opacity-50 hover:opacity-100 p-0.5 rounded hover:bg-red-500/10 transition-all"
+                                        style={{ color: 'var(--danger)' }}
+                                        onClick={(e) => handleDelete(e, t.id, t.scriptName)}
+                                        title="Delete this log"
+                                    ><X size={11} /></button>
+                                </div>
                             </div>
                             <div className="flex justify-between text-[0.62rem] mt-0.5" style={{ color: 'var(--muted)' }}>
                                 <span>Profile: {(t.profileId || '').slice(0, 8)}</span>
@@ -917,18 +935,102 @@ function TaskLogsTab() {
 
 /* ═══════════════ Script Modules Tab ═══════════════ */
 function ScriptModulesTab() {
+    const [modules, setModules] = useState([]);
+    const [input, setInput] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [status, setStatus] = useState(null); // { type: 'ok'|'err', msg }
+
+    useEffect(() => {
+        window.electronAPI?.listScriptModules?.().then(r => {
+            if (r?.success) setModules(r.modules || []);
+        });
+    }, []);
+
+    const handleInstall = async () => {
+        const pkg = input.trim();
+        if (!pkg) return;
+        setLoading(true);
+        setStatus(null);
+        const r = await window.electronAPI?.installScriptModule?.(pkg);
+        setLoading(false);
+        if (r?.success) {
+            setModules(r.modules || []);
+            setInput('');
+            setStatus({ type: 'ok', msg: `"${pkg}" installed successfully` });
+        } else {
+            setStatus({ type: 'err', msg: r?.error || 'Install failed' });
+        }
+    };
+
+    const handleUninstall = async (name) => {
+        setLoading(true);
+        setStatus(null);
+        const r = await window.electronAPI?.uninstallScriptModule?.(name);
+        setLoading(false);
+        if (r?.success) {
+            setModules(r.modules || []);
+            setStatus({ type: 'ok', msg: `"${name}" uninstalled` });
+        } else {
+            setStatus({ type: 'err', msg: r?.error || 'Uninstall failed' });
+        }
+    };
+
     return (
         <div className="w-full flex-1">
             <div className="rounded-xl p-4 w-full" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-                <p className="text-[0.8rem] mb-4" style={{ color: 'var(--muted)' }}>
-                    Install npm packages for use in automation scripts via <code className="font-mono text-[0.75rem]" style={{ color: 'var(--fg)' }}>require('package-name')</code>.
+                <p className="text-[0.8rem] mb-3" style={{ color: 'var(--muted)' }}>
+                    Install npm packages for use in automation scripts via{' '}
+                    <code className="font-mono text-[0.75rem]" style={{ color: 'var(--fg)' }}>require('package-name')</code>.
+                    Built-in modules available: <code className="font-mono text-[0.7rem]" style={{ color: 'var(--fg)' }}>path, crypto, url, os, util, buffer, zlib</code>.
                 </p>
-                <div className="flex gap-3 mb-4">
-                    <input type="text" placeholder="e.g. axios or lodash@4" className="flex-1 rounded-md px-3 py-1.5 text-[0.75rem]"
-                        style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }} />
-                    <button className="btn btn-success text-[0.75rem]">Install</button>
+                <div className="flex gap-2 mb-3">
+                    <input
+                        type="text"
+                        placeholder="e.g. axios or lodash@4"
+                        value={input}
+                        onChange={e => setInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && !loading && handleInstall()}
+                        disabled={loading}
+                        className="flex-1 rounded-md px-3 py-1.5 text-[0.75rem]"
+                        style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
+                    />
+                    <button
+                        className="btn btn-success text-[0.75rem] min-w-[80px]"
+                        onClick={handleInstall}
+                        disabled={loading || !input.trim()}
+                    >
+                        {loading ? '...' : 'Install'}
+                    </button>
                 </div>
-                <p className="text-[0.75rem] italic" style={{ color: 'var(--muted)' }}>No modules installed.</p>
+
+                {status && (
+                    <div className={`text-[0.72rem] px-3 py-1.5 rounded mb-3 ${status.type === 'ok' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                        {status.msg}
+                    </div>
+                )}
+
+                {modules.length === 0 ? (
+                    <p className="text-[0.75rem] italic" style={{ color: 'var(--muted)' }}>No modules installed.</p>
+                ) : (
+                    <div className="flex flex-col gap-1">
+                        {modules.map(m => (
+                            <div key={m.name} className="flex items-center justify-between px-3 py-1.5 rounded-md" style={{ background: 'var(--glass)', border: '1px solid var(--border2)' }}>
+                                <div>
+                                    <span className="text-[0.78rem] font-medium" style={{ color: 'var(--fg)' }}>{m.name}</span>
+                                    <span className="ml-2 text-[0.65rem]" style={{ color: 'var(--muted)' }}>v{m.version}</span>
+                                </div>
+                                <button
+                                    className="text-[0.65rem] px-2 py-0.5 rounded text-red-400 hover:bg-red-500/10 transition-all"
+                                    onClick={() => handleUninstall(m.name)}
+                                    disabled={loading}
+                                    title="Uninstall"
+                                >
+                                    Remove
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );
