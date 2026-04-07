@@ -1,4 +1,5 @@
 const { ipcMain, shell } = require('electron');
+const { appendLog } = require('../logging/logger');
 const {
   launchProfileInternal,
   stopProfileInternal,
@@ -49,10 +50,16 @@ function registerIpcHandlers(extra = {}) {
   ipcMain.handle('browser-runtime-reinstall', async (_e, name) => await reinstallBrowser(name));
 
   ipcMain.handle('get-profiles', async () => await getProfilesInternal());
-  ipcMain.handle('save-profile', async (_e, profile) => await saveProfileInternal(profile));
+  ipcMain.handle('save-profile', async (_e, profile) => {
+    const r = await saveProfileInternal(profile);
+    if (r?.success) appendLog('system', `Profile saved: ${profile.name || profile.id}`);
+    return r;
+  });
   ipcMain.handle('delete-profile', async (_e, profileId) => {
     try { await stopProfileInternal(profileId); } catch { }
-    return await deleteProfileInternal(profileId);
+    const r = await deleteProfileInternal(profileId);
+    if (r?.success) appendLog('system', `Profile deleted: ${profileId}`);
+    return r;
   });
   ipcMain.handle('launch-profile', async (_e, profileId, options = {}) => await launchProfileInternal(profileId, options));
   ipcMain.handle('stop-profile', async (_e, profileId) => await stopProfileInternal(profileId));
@@ -90,26 +97,28 @@ function registerIpcHandlers(extra = {}) {
   ipcMain.handle('scripts-delete', async (_e, id) => await deleteScriptInternal(id));
   ipcMain.handle('scripts-execute', async (_e, profileId, scriptId, opts) => {
     try {
-      // Load script code from storage by scriptId
       const scriptResult = await getScriptInternal(scriptId);
       if (!scriptResult?.success || !scriptResult.script) {
         return { success: false, error: 'Script not found: ' + scriptId };
       }
       const code = scriptResult.script.code || '';
+      appendLog(profileId, `Script execute: "${scriptResult.script.name || scriptId}"`);
 
-      // Auto-launch profile if not already running
       const { runningProfiles } = require('../state/runtime');
       if (!runningProfiles.has(profileId)) {
         const headless = !!(opts && opts.headless);
         const launchResult = await launchProfileInternal(profileId, { headless, engine: 'playwright' });
         if (!launchResult.success) {
+          appendLog(profileId, `Script execute failed — could not launch profile: ${launchResult.error || 'unknown'}`);
           return { success: false, error: 'Failed to launch profile: ' + (launchResult.error || 'unknown') };
         }
-        // Wait a moment for the browser to fully initialize
         await new Promise(r => setTimeout(r, 1500));
       }
 
-      return await executeScript(profileId, code, opts || {});
+      const result = await executeScript(profileId, code, opts || {});
+      if (result.success) appendLog(profileId, `Script finished OK: "${scriptResult.script.name || scriptId}"`);
+      else appendLog(profileId, `Script error: ${result.error}`);
+      return result;
     }
     catch (e) { return { success: false, error: e?.message || String(e) }; }
   });
@@ -161,18 +170,16 @@ function registerIpcHandlers(extra = {}) {
       if (!getRes.success) return getRes;
       const proxy = getRes.proxy;
       if (!proxy.rotateUrl) return { success: false, error: 'No rotate URL configured' };
-      
+      appendLog('system', `Proxy rotate: ${proxy.name || id}`);
       const axios = require('axios');
       const startTime = Date.now();
       const response = await axios.get(proxy.rotateUrl, { timeout: 15000 });
       const latency = Date.now() - startTime;
-      
-      await updateProxyInternal(id, {
-        lastRotated: new Date().toISOString()
-      });
-      
+      await updateProxyInternal(id, { lastRotated: new Date().toISOString() });
+      appendLog('system', `Proxy rotated OK: ${proxy.name || id} (${latency}ms)`);
       return { success: true, latency, data: response.data };
     } catch (e) {
+      appendLog('system', `Proxy rotate failed: ${e?.message || e}`);
       return { success: false, error: e?.message || e };
     }
   });
@@ -180,11 +187,15 @@ function registerIpcHandlers(extra = {}) {
   ipcMain.handle('proxy-rotate-url', async (_e, url) => {
     try {
       if (!url) return { success: false, error: 'No URL provided' };
+      appendLog('system', `Proxy rotate URL: ${url}`);
       const axios = require('axios');
       const startTime = Date.now();
       const response = await axios.get(url, { timeout: 15000 });
-      return { success: true, latency: Date.now() - startTime, data: response.data };
+      const latency = Date.now() - startTime;
+      appendLog('system', `Proxy rotate URL OK (${latency}ms)`);
+      return { success: true, latency, data: response.data };
     } catch (e) {
+      appendLog('system', `Proxy rotate URL failed: ${e?.message || String(e)}`);
       return { success: false, error: e?.message || String(e) };
     }
   });
