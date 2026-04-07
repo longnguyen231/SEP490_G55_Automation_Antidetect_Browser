@@ -11,18 +11,49 @@ import Team from './pages/Team';
 import Settings from './pages/Settings';
 import EditProfile from './pages/Profiles/EditProfile';
 import LandingPage from './pages/Landing';
+import LoginPage from './pages/Auth/Login';
+import RegisterPage from './pages/Auth/Register';
+import { AdminRoute, GuestRoute } from './components/ProtectedRoute';
 
 function App() {
   return (
     <ConfigProvider theme={{ token: { fontFamily: '"Inter", sans-serif' } }}>
       <BrowserRouter>
-        <Toaster position="top-right" toastOptions={{ className: 'dark:bg-slate-800 dark:text-white border border-primary/20' }} />
+        <Toaster
+          position="top-right"
+          toastOptions={{ className: 'dark:bg-slate-800 dark:text-white border border-primary/20' }}
+        />
         <Routes>
-          {/* Public landing page */}
+          {/* ── Public ───────────────────────────────────────────────────── */}
           <Route path="/" element={<LandingPage />} />
 
-          {/* Admin dashboard (protected layout) */}
-          <Route path="/dashboard" element={<AdminLayout />}>
+          {/* ── Auth (guest-only, redirect if already logged in) ─────────── */}
+          <Route
+            path="/login"
+            element={
+              <GuestRoute>
+                <LoginPage />
+              </GuestRoute>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <GuestRoute>
+                <RegisterPage />
+              </GuestRoute>
+            }
+          />
+
+          {/* ── Admin dashboard (requires role === 'admin') ──────────────── */}
+          <Route
+            path="/dashboard"
+            element={
+              <AdminRoute>
+                <AdminLayout />
+              </AdminRoute>
+            }
+          >
             <Route index element={<Dashboard />} />
             <Route path="profiles" element={<Profiles />} />
             <Route path="profiles/edit/:id" element={<EditProfile />} />
@@ -32,12 +63,8 @@ function App() {
             <Route path="settings" element={<Settings />} />
           </Route>
 
-          {/* Legacy short paths → keep working */}
-          <Route path="/profiles" element={<Navigate to="/dashboard/profiles" replace />} />
-          <Route path="/proxies" element={<Navigate to="/dashboard/proxies" replace />} />
-          <Route path="/groups" element={<Navigate to="/dashboard/groups" replace />} />
-          <Route path="/team" element={<Navigate to="/dashboard/team" replace />} />
-          <Route path="/settings" element={<Navigate to="/dashboard/settings" replace />} />
+          {/* ── Fallback: mọi path không khớp → landing page ────────── */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </ConfigProvider>

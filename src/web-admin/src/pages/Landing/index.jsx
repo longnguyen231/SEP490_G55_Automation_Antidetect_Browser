@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
+import toast from 'react-hot-toast';
 
 // ─── Minimal animation helper ────────────────────────────────────────────────
 function useInView(threshold = 0.15) {
@@ -149,6 +151,8 @@ function StepCard({ step, title, desc, icon, index }) {
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 const LandingPage = () => {
+  const navigate = useNavigate();
+  const { isAuthenticated, user, logout } = useAuthStore();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -166,6 +170,11 @@ const LandingPage = () => {
     setMenuOpen(false);
     const el = document.querySelector(href);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleLogout = () => {
+    logout();
+    toast.success('Logged out.');
   };
 
   return (
@@ -201,12 +210,40 @@ const LandingPage = () => {
 
           {/* CTA buttons */}
           <div className="hidden md:flex items-center gap-3">
-            <Link
-              to="/dashboard"
-              className="text-sm font-medium text-slate-400 hover:text-primary transition-colors px-3 py-1.5"
-            >
-              Dashboard →
-            </Link>
+            {isAuthenticated ? (
+              <>
+                {user?.role === 'admin' && (
+                  <Link
+                    to="/dashboard"
+                    className="text-sm font-medium text-slate-400 hover:text-primary transition-colors px-3 py-1.5"
+                  >
+                    Dashboard →
+                  </Link>
+                )}
+                <button
+                  onClick={handleLogout}
+                  className="text-sm font-medium text-slate-500 hover:text-rose-400 transition-colors px-3 py-1.5"
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="text-sm font-medium text-slate-400 hover:text-primary transition-colors px-3 py-1.5"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  to="/register"
+                  className="px-4 py-2 rounded-lg border border-primary/40 text-primary text-sm font-semibold
+                    hover:bg-primary/10 transition-colors"
+                >
+                  Register
+                </Link>
+              </>
+            )}
             <a
               href="#download"
               onClick={(e) => scrollTo(e, '#download')}
@@ -240,6 +277,30 @@ const LandingPage = () => {
                 {label}
               </a>
             ))}
+            {isAuthenticated ? (
+              <>
+                {user?.role === 'admin' && (
+                  <Link to="/dashboard" onClick={() => setMenuOpen(false)} className="block text-sm font-medium text-primary py-1">
+                    Dashboard →
+                  </Link>
+                )}
+                <button
+                  onClick={() => { setMenuOpen(false); handleLogout(); }}
+                  className="block text-sm font-medium text-rose-400 py-1 text-left"
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" onClick={() => setMenuOpen(false)} className="block text-sm text-slate-400 hover:text-primary py-1">
+                  Sign In
+                </Link>
+                <Link to="/register" onClick={() => setMenuOpen(false)} className="block text-sm text-primary font-semibold py-1">
+                  Create Account
+                </Link>
+              </>
+            )}
             <a
               href="#download"
               onClick={(e) => scrollTo(e, '#download')}
@@ -297,15 +358,27 @@ const LandingPage = () => {
               <span className="material-symbols-outlined text-xl">download</span>
               Download for Windows
             </a>
-            <Link
-              to="/dashboard"
-              className="flex items-center gap-2 px-7 py-3.5 rounded-xl border border-slate-700
-                text-slate-300 font-semibold text-base hover:border-primary/50 hover:text-primary
-                transition-all duration-200"
-            >
-              Open Dashboard
-              <span className="material-symbols-outlined text-xl">arrow_forward</span>
-            </Link>
+            {isAuthenticated && user?.role === 'admin' ? (
+              <Link
+                to="/dashboard"
+                className="flex items-center gap-2 px-7 py-3.5 rounded-xl border border-slate-700
+                  text-slate-300 font-semibold text-base hover:border-primary/50 hover:text-primary
+                  transition-all duration-200"
+              >
+                Open Dashboard
+                <span className="material-symbols-outlined text-xl">arrow_forward</span>
+              </Link>
+            ) : !isAuthenticated ? (
+              <Link
+                to="/login"
+                className="flex items-center gap-2 px-7 py-3.5 rounded-xl border border-slate-700
+                  text-slate-300 font-semibold text-base hover:border-primary/50 hover:text-primary
+                  transition-all duration-200"
+              >
+                Sign In
+                <span className="material-symbols-outlined text-xl">arrow_forward</span>
+              </Link>
+            ) : null}
           </div>
 
           {/* Trust badges */}
@@ -519,14 +592,30 @@ const LandingPage = () => {
               <span className="material-symbols-outlined text-base">code</span>
               View Source on GitHub
             </a>
-            <span className="hidden sm:block opacity-30">|</span>
-            <Link
-              to="/dashboard"
-              className="flex items-center gap-1.5 hover:text-primary transition-colors"
-            >
-              <span className="material-symbols-outlined text-base">dashboard</span>
-              Open Web Dashboard
-            </Link>
+            {isAuthenticated && user?.role === 'admin' && (
+              <>
+                <span className="hidden sm:block opacity-30">|</span>
+                <Link
+                  to="/dashboard"
+                  className="flex items-center gap-1.5 hover:text-primary transition-colors"
+                >
+                  <span className="material-symbols-outlined text-base">dashboard</span>
+                  Open Web Dashboard
+                </Link>
+              </>
+            )}
+            {!isAuthenticated && (
+              <>
+                <span className="hidden sm:block opacity-30">|</span>
+                <Link
+                  to="/login"
+                  className="flex items-center gap-1.5 hover:text-primary transition-colors"
+                >
+                  <span className="material-symbols-outlined text-base">login</span>
+                  Admin Login
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </section>
