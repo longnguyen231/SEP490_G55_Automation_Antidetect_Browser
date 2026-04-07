@@ -81,6 +81,7 @@ async function launchProfileInternal(profileId, options = {}) {
     if (startUrl === 'https://www.google.com' || startUrl === 'https://www.google.com/') {
       startUrl = 'https://www.google.com/?hl=en';
     }
+    const engine = (options && options.engine) ? String(options.engine).toLowerCase() : (settings.engine === 'cdp' ? 'cdp' : 'playwright');
     const requestedHeadless = (options && typeof options.headless === 'boolean') ? options.headless : undefined;
     const headless = (requestedHeadless !== undefined) ? requestedHeadless : !!settings.headless;
 
