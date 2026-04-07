@@ -42,7 +42,8 @@ export default function AppLogsTab() {
         let cleanupIpc = null;
         if (window.electronAPI && window.electronAPI.onAppLog) {
             cleanupIpc = window.electronAPI.onAppLog(logData => {
-                 setLogs(prev => [...prev, { id: Date.now() + Math.random(), time: new Date().toLocaleTimeString('en-US', { hour12: false }), level: logData.level || 'INF', text: logData.message || '' }]);
+                const prefix = logData.profileId && logData.profileId !== 'system' ? `[${logData.profileId}] ` : '';
+                setLogs(prev => [...prev, { id: Date.now() + Math.random(), time: new Date().toLocaleTimeString('en-US', { hour12: false }), level: logData.level || 'INF', text: prefix + (logData.message || '') }]);
             });
         }
 

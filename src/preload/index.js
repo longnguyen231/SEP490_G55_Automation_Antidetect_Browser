@@ -96,4 +96,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('browser-runtime-progress', listener);
   },
   removeAllBrowserProgress: () => ipcRenderer.removeAllListeners('browser-runtime-progress'),
+
+  // Application logs stream from main process
+  onAppLog: (callback) => {
+    const listener = (_event, payload) => callback && callback(payload);
+    ipcRenderer.on('app-log', listener);
+    return () => ipcRenderer.removeListener('app-log', listener);
+  },
+  removeAllAppLog: () => ipcRenderer.removeAllListeners('app-log'),
 });
