@@ -64,6 +64,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   executeScript: (profileId, scriptId, opts) => ipcRenderer.invoke('scripts-execute', profileId, scriptId, opts || {}),
   getTaskLogs: () => ipcRenderer.invoke('task-logs-list'),
   getTaskLog: (id) => ipcRenderer.invoke('task-logs-get', id),
+  deleteTaskLog: (id) => ipcRenderer.invoke('task-logs-delete', id),
   clearTaskLogs: () => ipcRenderer.invoke('task-logs-clear'),
 
   // Proxy management
@@ -96,6 +97,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('browser-runtime-progress', listener);
   },
   removeAllBrowserProgress: () => ipcRenderer.removeAllListeners('browser-runtime-progress'),
+
+  // Script modules (npm packages for automation)
+  listScriptModules: () => ipcRenderer.invoke('script-modules-list'),
+  installScriptModule: (packageName) => ipcRenderer.invoke('script-modules-install', packageName),
+  uninstallScriptModule: (packageName) => ipcRenderer.invoke('script-modules-uninstall', packageName),
 
   // Application logs stream from main process
   onAppLog: (callback) => {
