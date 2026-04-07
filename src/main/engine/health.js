@@ -36,12 +36,19 @@ function isWsAlive(wsEndpoint) {
   });
 }
 
-// Helper to actively verify and cleanup stale CDP runningProfiles entries
+// Helper to actively verify and cleanup stale CDP runningProfiles entries.
+// Grace period: skip health check for profiles started less than GRACE_MS ago
+// to avoid pruning profiles whose Chrome process is still initializing.
+const PRUNE_GRACE_MS = 15000;
+
 async function pruneDeadCdp(runningProfiles, appendLog, broadcastRunningMap) {
   if (!runningProfiles) return;
   const toRemove = [];
   for (const [id, info] of runningProfiles.entries()) {
     if (info.engine !== 'cdp') continue;
+    // Skip recently-started profiles — Chrome may not be ready yet
+    const age = info.startedAt ? (Date.now() - info.startedAt) : Infinity;
+    if (age < PRUNE_GRACE_MS) continue;
     const ws = info.wsEndpoint;
     const ok = ws ? await isWsAlive(ws) : false;
     if (!ok) toRemove.push(id);

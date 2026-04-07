@@ -174,6 +174,41 @@ const FONTS_BY_OS = {
   ],
 };
 
+// Firefox WebGL strings — Firefox uses OpenGL ES via ANGLE (different from Chrome's D3D11 format)
+const FIREFOX_WEBGL_VENDORS = {
+  Windows: [
+    { vendor: 'Google Inc. (NVIDIA)', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060, OpenGL ES 2.0 (ANGLE 2.1.21))', weight: 3 },
+    { vendor: 'Google Inc. (NVIDIA)', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4060, OpenGL ES 2.0 (ANGLE 2.1.21))', weight: 3 },
+    { vendor: 'Google Inc. (NVIDIA)', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 SUPER, OpenGL ES 2.0 (ANGLE 2.1.21))', weight: 2 },
+    { vendor: 'Google Inc. (AMD)', renderer: 'ANGLE (AMD, AMD Radeon RX 580, OpenGL ES 2.0 (ANGLE 2.1.21))', weight: 2 },
+    { vendor: 'Google Inc. (AMD)', renderer: 'ANGLE (AMD, AMD Radeon RX 6600 XT, OpenGL ES 2.0 (ANGLE 2.1.21))', weight: 2 },
+    { vendor: 'Google Inc. (Intel)', renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 630, OpenGL ES 2.0 (ANGLE 2.1.21))', weight: 3 },
+    { vendor: 'Google Inc. (Intel)', renderer: 'ANGLE (Intel, Intel(R) Iris(R) Xe Graphics, OpenGL ES 2.0 (ANGLE 2.1.21))', weight: 2 },
+  ],
+  macOS: [
+    { vendor: 'Google Inc. (Apple)', renderer: 'ANGLE (Apple, Apple M1, OpenGL ES 3.0)', weight: 4 },
+    { vendor: 'Google Inc. (Apple)', renderer: 'ANGLE (Apple, Apple M2, OpenGL ES 3.0)', weight: 3 },
+    { vendor: 'Google Inc. (Apple)', renderer: 'ANGLE (Apple, Apple M3, OpenGL ES 3.0)', weight: 2 },
+  ],
+  Linux: [
+    { vendor: 'Mozilla', renderer: 'Mozilla', weight: 3 },
+    { vendor: 'Intel Open Source Technology Center', renderer: 'Mesa DRI Intel(R) UHD Graphics 630 (CFL GT2)', weight: 2 },
+    { vendor: 'VMware, Inc.', renderer: 'llvmpipe (LLVM 12.0.0, 256 bits)', weight: 1 },
+  ],
+};
+
+// Firefox versions — realistic distribution 2026
+const FIREFOX_VERSIONS = [
+  { major: 138, weight: 14 },
+  { major: 137, weight: 12 },
+  { major: 136, weight: 10 },
+  { major: 135, weight: 8  },
+  { major: 134, weight: 6  },
+  { major: 133, weight: 5  },
+  { major: 132, weight: 3  },
+  { major: 131, weight: 2  },
+];
+
 // ═══════════════════════════════════════════════════════════════════════
 // USER-AGENT BUILDER
 // ═══════════════════════════════════════════════════════════════════════
@@ -196,6 +231,22 @@ function buildUserAgent(os, chromeVersion, rng) {
   }
 }
 
+function buildFirefoxUserAgent(os, firefoxMajor, rng) {
+  const rv = firefoxMajor;
+  switch (os) {
+    case 'Windows':
+      return `Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:${rv}.0) Gecko/20100101 Firefox/${rv}.0`;
+    case 'macOS': {
+      const macVer = pick(rng, OS_CONFIGS.macOS.macVersions).replace(/_/g, '.');
+      return `Mozilla/5.0 (Macintosh; Intel Mac OS X ${macVer}; rv:${rv}.0) Gecko/20100101 Firefox/${rv}.0`;
+    }
+    case 'Linux':
+      return `Mozilla/5.0 (X11; Linux x86_64; rv:${rv}.0) Gecko/20100101 Firefox/${rv}.0`;
+    default:
+      return `Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:${rv}.0) Gecko/20100101 Firefox/${rv}.0`;
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // MAIN GENERATOR
 // ═══════════════════════════════════════════════════════════════════════
@@ -205,6 +256,7 @@ function buildUserAgent(os, chromeVersion, rng) {
  *
  * @param {Object} [opts] - Optional constraints
  * @param {string} [opts.os] - Force a specific OS ('Windows', 'macOS', 'Linux')
+ * @param {string} [opts.browser] - Force browser type ('Chrome'|'Firefox')
  * @param {string} [opts.language] - Force a specific language (e.g., 'en-US')
  * @param {string} [opts.timezone] - Force a specific timezone
  * @param {number} [opts.seed] - Seed for deterministic generation
@@ -222,11 +274,21 @@ function generateFingerprint(opts = {}) {
     : pickWeighted(rng, osItems);
   const os = osChoice.name;
 
-  // 2. Choose Chrome version
-  const chromeVersion = pickWeighted(rng, CHROME_VERSIONS);
+  // 2. Choose browser type
+  const isFirefox = opts.browser === 'Firefox';
+  const browserType = isFirefox ? 'Firefox' : 'Chrome';
 
-  // 3. Build User-Agent
-  const userAgent = buildUserAgent(os, chromeVersion, rng);
+  // 3. Choose version & build User-Agent
+  let userAgent, browserVersion;
+  if (isFirefox) {
+    const ffVer = pickWeighted(rng, FIREFOX_VERSIONS);
+    browserVersion = String(ffVer.major);
+    userAgent = buildFirefoxUserAgent(os, ffVer.major, rng);
+  } else {
+    const chromeVersion = pickWeighted(rng, CHROME_VERSIONS);
+    browserVersion = chromeVersion.full;
+    userAgent = buildUserAgent(os, chromeVersion, rng);
+  }
 
   // 4. Platform
   const platform = pick(rng, osChoice.platforms);
@@ -258,8 +320,11 @@ function generateFingerprint(opts = {}) {
   const memoryGB = pickWeighted(rng, MEMORY_OPTIONS).gb;
   const dpr = pickWeighted(rng, DEVICE_PIXEL_RATIOS).dpr;
 
-  // 8. WebGL
-  const webglConfig = pickWeighted(rng, osChoice.webglVendors);
+  // 8. WebGL — Firefox uses different ANGLE format than Chrome
+  const webglPool = isFirefox
+    ? (FIREFOX_WEBGL_VENDORS[os] || FIREFOX_WEBGL_VENDORS.Windows)
+    : osChoice.webglVendors;
+  const webglConfig = pickWeighted(rng, webglPool);
 
   // 9. Plugins count (Chrome always has 5 PDF-related plugins)
   const plugins = 5;
@@ -271,11 +336,14 @@ function generateFingerprint(opts = {}) {
   // 11. Fonts for this OS
   const fonts = FONTS_BY_OS[os] || FONTS_BY_OS.Windows;
 
+  // Firefox plugins: empty (Firefox doesn't expose PDF plugins via navigator.plugins)
+  const pluginsCount = isFirefox ? 0 : 5;
+
   // Assemble fingerprint object (matches profile.fingerprint schema)
   const fingerprint = {
     os,
-    browser: 'Chrome',
-    browserVersion: chromeVersion.full,
+    browser: browserType,
+    browserVersion,
     userAgent,
     language,
     screenResolution: screenRes,
@@ -293,12 +361,12 @@ function generateFingerprint(opts = {}) {
     timezone,
     advanced: {
       platform,
-      dnt: rng() < 0.1, // ~10% of users enable Do Not Track
+      dnt: rng() < 0.1,
       devicePixelRatio: dpr,
       maxTouchPoints: 0,
       webglVendor: webglConfig.vendor,
       webglRenderer: webglConfig.renderer,
-      plugins,
+      plugins: pluginsCount,
       languages,
     },
   };
@@ -309,8 +377,8 @@ function generateFingerprint(opts = {}) {
     _meta: {
       seed,
       fonts,
-      chromeVersion: chromeVersion.full,
-      chromeMajor: chromeVersion.major,
+      browserVersion,
+      browserType,
     },
   };
 }

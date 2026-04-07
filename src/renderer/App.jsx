@@ -330,9 +330,7 @@ function App() {
       if (res?.success && res.state) {
         setApiStatus(res.state);
       } else {
-        const needPwd = (res && res.error === 'PASSWORD_REQUIRED') || (res && res.state && res.state.error === 'PASSWORD_REQUIRED') || (apiStatus && apiStatus.error === 'PASSWORD_REQUIRED');
-        if (needPwd) { setShowApiPwdModal(true); }
-        else { const cur = await window.electronAPI.getApiServerStatus?.(); if (cur?.success && cur.state) setApiStatus(cur.state); }
+        const cur = await window.electronAPI.getApiServerStatus?.(); if (cur?.success && cur.state) setApiStatus(cur.state);
       }
     } catch (e) { console.warn('Toggle API run error', e); }
   };

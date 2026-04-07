@@ -1,9 +1,11 @@
 const fs = require('fs');
 const { appendLog } = require('../logging/logger');
 const { storageStatePath, getDataRoot } = require('../storage/paths');
-const { loadSettings, resolveVendorChromePath,resolveChromeExecutable } = require('../storage/settings');
+const { loadSettings, resolveChromeExecutable, resolveVendorChromePath } = require('../storage/settings');
 const { runningProfiles, setProfileStatus, generateInstanceId, buildStatusMap } = require('../state/runtime');
-const { readProfiles, writeProfiles } = require('../storage/profiles');
+const { applyCdpOverrides } = require('../engine/cdpOverrides');
+const { findFreePort, fetchJsonVersion, killProcessTreeWin, userDataDirFor, launchChromeCdp } = require('../engine/cdp');
+const { readProfiles, writeProfiles, updateProfileSettings } = require('../storage/profiles');
 
 // Lock set to prevent concurrent launches of the same profile
 const launchingProfiles = new Set();
@@ -79,20 +81,160 @@ async function launchProfileInternal(profileId, options = {}) {
     if (startUrl === 'https://www.google.com' || startUrl === 'https://www.google.com/') {
       startUrl = 'https://www.google.com/?hl=en';
     }
+    const engine = (options && options.engine) ? String(options.engine).toLowerCase() : (settings.engine === 'cdp' ? 'cdp' : 'playwright');
     const requestedHeadless = (options && typeof options.headless === 'boolean') ? options.headless : undefined;
     const headless = (requestedHeadless !== undefined) ? requestedHeadless : !!settings.headless;
 
-    // Persist headless
+    // Persist engine/headless — use atomic single-profile update to avoid
+    // race conditions when multiple profiles are launched concurrently.
     try {
-      const idx = profiles.findIndex(p => p.id === profileId);
-      if (idx !== -1) {
-        const persist = { ...(profile.settings || {}), engine: 'playwright', headless: !!headless };
-        profiles[idx] = { ...profile, settings: persist };
-        writeProfiles(profiles);
-      }
+      updateProfileSettings(profileId, {
+        engine: engine === 'cdp' ? 'cdp' : 'playwright',
+        headless: !!headless,
+      });
     } catch { }
 
-    // Playwright flow.
+    if (engine === 'cdp') {
+      const chromePath = resolveChromeExecutable();
+      if (!chromePath) {
+        const msg = 'Chrome/Edge executable not found. Set CHROME_PATH or configure settings.json.';
+        appendLog(profileId, msg);
+        return { success: false, error: msg };
+      }
+      // Debug paths to help vendor portable troubleshooting
+      try {
+        const vendorRoot = require('path').join(__dirname, '../../vendor');
+        const exists = fs.existsSync(vendorRoot);
+        appendLog(profileId, `Vendor root: ${vendorRoot} (exists: ${exists})`);
+        appendLog(profileId, `resourcesPath: ${process.resourcesPath || ''}`);
+        appendLog(profileId, `Resolved Chrome path: ${chromePath}`);
+      } catch { }
+      const host = options.cdpHost || '127.0.0.1';
+      const port = options.cdpPort ? Number(options.cdpPort) : await findFreePort(9222, host);
+      const userDataDir = userDataDirFor(profileId);
+      const extraArgs = ['--lang=en-US'];
+      // Parity flags with Playwright
+      if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
+        extraArgs.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
+      }
+      const fp = profile.fingerprint || {};
+      if (settings.webgl === false || fp.webgl === false) { extraArgs.push('--disable-3d-apis'); }
+      if (headless) { extraArgs.push('--headless=new'); }
+      // Proxy handling: start local forwarder when auth is present or using SOCKS
+      let proxyForChrome = settings.proxy;
+      let forwarder = null;
+      try {
+        const serverStr = (settings.proxy && settings.proxy.server) ? String(settings.proxy.server) : '';
+        const hasAuth = !!(settings.proxy && (settings.proxy.username || settings.proxy.password));
+        const proxyType = (settings.proxy?.type || '').toLowerCase();
+        const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(serverStr);
+        if (settings.proxy && (hasAuth || isSocks)) {
+          const { startProxyForwarder } = require('../engine/proxyForwarder');
+          forwarder = await startProxyForwarder(settings.proxy, { appendLog, profileId });
+          proxyForChrome = { server: forwarder.url };
+        }
+      } catch (e) {
+        appendLog(profileId, `Proxy forwarder failed, falling back to direct proxy: ${e?.message || e}`);
+      }
+
+  const { child, wsPromise } = await launchChromeCdp({ profileId, chromePath, host, port, userDataDir, startUrl, proxy: proxyForChrome, appendLog, extraArgs });
+      // Add periodic vendor path log for troubleshooting
+      try {
+        const vendorRoot = require('path').join(__dirname, '../../vendor');
+        appendLog(profileId, `CDP launch vendorRoot check: ${vendorRoot} exists=${fs.existsSync(vendorRoot)}`);
+        appendLog(profileId, `Using chromePath: ${chromePath}`);
+      } catch {}
+      const onChildExit = async (code, signal) => {
+        if (runningProfiles.has(profileId)) {
+          try { const info = runningProfiles.get(profileId); info?.heartbeat && clearInterval(info.heartbeat); } catch {}
+          try { const info = runningProfiles.get(profileId); await info?.forwarder?.stop?.(); } catch {}
+          runningProfiles.delete(profileId);
+          setProfileStatus(profileId, 'STOPPED');
+          appendLog(profileId, `Chrome exited (${code || ''} ${signal || ''}); clearing running state`);
+          broadcastRunningMap();
+        }
+      };
+      child.once('exit', onChildExit);
+      try { child.once('close', onChildExit); } catch { }
+      try { child.once('error', (e) => { appendLog(profileId, `Chrome process error: ${e?.message || e}`); onChildExit('ERR', 'error'); }); } catch { }
+      let wsEndpoint = null;
+      try {
+        const json = await fetchJsonVersion(host, port, 12000);
+        wsEndpoint = json.webSocketDebuggerUrl || null;
+      } catch (e) {
+        appendLog(profileId, `DevTools version fetch failed, trying stderr-parsed WS: ${e?.message || e}`);
+      }
+      if (!wsEndpoint) {
+        try {
+          wsEndpoint = await Promise.race([
+            wsPromise,
+            (async () => { await new Promise(r => setTimeout(r, 8000)); throw new Error('timeout waiting for DevTools WS on stderr'); })(),
+          ]);
+        } catch (e) {
+          await killProcessTreeWin(child.pid);
+          const msg = 'DevTools WS endpoint not found';
+          appendLog(profileId, `${msg}: ${e?.message || e}`);
+          return { success: false, error: msg };
+        }
+      }
+      if (!wsEndpoint) {
+        await killProcessTreeWin(child.pid);
+        const msg = 'DevTools WS endpoint not found';
+        appendLog(profileId, msg);
+        return { success: false, error: msg };
+      }
+      appendLog(profileId, `Chrome DevTools WS: ${wsEndpoint}`);
+      // Setup heartbeat to detect abrupt disconnects if events miss
+      let heartbeat = null;
+      try {
+        const { isWsAlive, pruneDeadCdp } = require('../engine/health');
+        heartbeat = setInterval(async () => {
+          try {
+            const ok = await isWsAlive(wsEndpoint);
+            if (!ok) {
+              clearInterval(heartbeat);
+              heartbeat = null;
+              if (runningProfiles.has(profileId)) {
+                try { await runningProfiles.get(profileId)?.forwarder?.stop?.(); } catch { }
+                runningProfiles.delete(profileId);
+                setProfileStatus(profileId, 'STOPPED');
+                appendLog(profileId, 'Heartbeat: CDP endpoint down; clearing running state');
+                broadcastRunningMap();
+              }
+            }
+            // Periodically prune other dead CDP sessions as well
+            else {
+              await pruneDeadCdp(runningProfiles, appendLog, broadcastRunningMap);
+              // Periodically save open tabs for session restore
+              try {
+                const info = runningProfiles.get(profileId);
+                if (info && info.cdpControl && info.cdpControl.context) {
+                  const pages = info.cdpControl.context.pages();
+                  if (pages && pages.length > 0) {
+                    const { saveSessionTabs } = require('../storage/sessionTabs');
+                    saveSessionTabs(profileId, pages.map(p => p.url()));
+                  }
+                }
+              } catch {}
+            }
+          } catch { }
+        }, 8000);
+      } catch { }
+  runningProfiles.set(profileId, { engine: 'cdp', childProc: child, wsEndpoint, host, port, forwarder, heartbeat, startedAt: Date.now() });
+      setProfileStatus(profileId, 'RUNNING', instanceId);
+      broadcastRunningMap();
+      // Load saved tabs
+      const { loadSessionTabs } = require('../storage/sessionTabs');
+      const savedTabs = loadSessionTabs(profileId);
+
+      // Always apply CDP overrides; InitScript can be toggled inside cdpOverrides based on settings.cdpApplyInitScript
+      try { await applyCdpOverrides(profileId, wsEndpoint, profile, settings, startUrl, { appendLog, runningProfiles, broadcastRunningMap, savedTabs }); } catch (e) { appendLog(profileId, `CDP overrides failed: ${e?.message || e}`); }
+      // Post-launch automation script (if configured)
+      try { await runAutomationPostLaunch(profile, { engine: 'cdp', wsEndpoint }); } catch (e) { appendLog(profileId, `Automation post-launch error (CDP): ${e?.message || e}`); }
+      return { success: true, wsEndpoint };
+    }
+
+    // Playwright flow — rebrowser-playwright (pipe mode).
     // rebrowser-playwright patches CDP leak at network level (Runtime.enable, bindings).
     // Combined with safeMode ON (no JS Object.defineProperty overrides), this bypasses
     // Cloudflare enterprise WAF.
@@ -128,6 +270,13 @@ async function launchProfileInternal(profileId, options = {}) {
       // ── Misc ──
       '--no-default-browser-check',
       '--no-first-run',
+      // ── Startup speed ──
+      '--disable-extensions',
+      '--disable-default-apps',
+      '--disable-sync',
+      '--disable-background-networking',
+      // ── Prevent session restore (stops multiple windows from crashed/killed sessions) ──
+      '--no-restore-session-state',
     ];
     // Window size (Chromium flags only)
     if (!isFirefox && settings.windowWidth > 0 && settings.windowHeight > 0) {
@@ -199,29 +348,54 @@ async function launchProfileInternal(profileId, options = {}) {
       }
       if (executablePath) {
         appendLog(profileId, `[binary] source=${binarySource} path=${executablePath}`);
-        // Detect actual Chrome version from binary to ensure UA matches
-        try {
-          detectedChromeVersion = await getChromeVersion(executablePath);
-          if (detectedChromeVersion) appendLog(profileId, `[binary] detected version=${detectedChromeVersion}`);
-        } catch { }
+        // Start version detection now — result awaited AFTER browser.launch() so it runs in parallel.
+        // getChromeVersion can take up to 5s on first call; caching means subsequent launches are instant.
       } else {
         appendLog(profileId, `[binary] source=bundled WARNING: no vendor or system Chrome found — icon will appear blue Chromium. Place Chrome at vendor/chrome-win/Chrome-bin/chrome.exe`);
       }
     }
+    // Kick off version detection early so it runs concurrently with browser launch
+    const _chromeVersionPromise = (!isFirefox && executablePath)
+      ? getChromeVersion(executablePath).catch(() => null)
+      : Promise.resolve(null);
 
     const chromiumLaunchOpts = {
       headless,
       args,
       proxy,
       ignoreDefaultArgs: ['--enable-automation'],
+      // channel: undefined — never use installed Chrome channel, always use executablePath or bundled
       ...(executablePath ? { executablePath } : {}),
     };
+
+    // Firefox about:config prefs to disable automation signals
+    const firefoxUserPrefs = isFirefox ? {
+      'dom.webdriver.enabled': false,
+      'useAutomationExtension': false,
+      // NOTE: do NOT set marionette.enabled=false — Playwright needs Marionette to control Firefox
+      'toolkit.telemetry.enabled': false,
+      'toolkit.telemetry.unified': false,
+      'datareporting.policy.dataSubmissionEnabled': false,
+      'datareporting.healthreport.uploadEnabled': false,
+      'browser.newtabpage.activity-stream.telemetry': false,
+      'browser.ping-centre.telemetry': false,
+      'browser.send_pings': false,
+      'media.peerconnection.ice.no_host': false,
+      'privacy.resistFingerprinting': false,   // leave off — causes inconsistent FP values
+      'privacy.trackingprotection.enabled': false,
+      'geo.enabled': false,
+      'browser.safebrowsing.enabled': false,
+      'browser.safebrowsing.malware.enabled': false,
+      'network.cookie.cookieBehavior': 0,
+      'browser.aboutConfig.showWarning': false,
+      'general.warnOnAboutConfig': false,
+    } : undefined;
 
     let server;
     let browser;
     try {
       if (isFirefox) {
-        server = await pwEngine.launchServer({ headless, args, proxy });
+        server = await pwEngine.launchServer({ headless, args, proxy, firefoxUserPrefs });
         browser = await pwEngine.connect(server.wsEndpoint());
       } else {
         browser = await pwEngine.launch(chromiumLaunchOpts);
@@ -236,7 +410,7 @@ async function launchProfileInternal(profileId, options = {}) {
         const ok = await runPlaywrightInstall(bname);
         if (!ok) { try { await forwarder?.stop?.(); } catch { } return { success: false, error: 'Playwright browsers not installed.' }; }
         if (isFirefox) {
-          server = await pwEngine.launchServer({ headless, args, proxy });
+          server = await pwEngine.launchServer({ headless, args, proxy, firefoxUserPrefs });
           browser = await pwEngine.connect(server.wsEndpoint());
         } else {
           browser = await pwEngine.launch(chromiumLaunchOpts);
@@ -248,10 +422,18 @@ async function launchProfileInternal(profileId, options = {}) {
     const wsEndpoint = isFirefox ? server.wsEndpoint() : null; // pipe mode for chromium
     appendLog(profileId, `Launched Playwright ${isFirefox ? 'Firefox server: ' + wsEndpoint : 'browser (pipe mode, no external WS)'}`);
 
+    // Await version detection — started before launch, so usually already resolved by now
+    detectedChromeVersion = await _chromeVersionPromise;
+    if (detectedChromeVersion) appendLog(profileId, `[binary] detected version=${detectedChromeVersion}`);
+
+
     // safeMode: true (default) → skip CDP emulation commands (userAgent, locale,
     // timezone, geolocation) that Cloudflare enterprise detects.
     // Only viewport and proxy are safe because they don't use CDP Emulation APIs.
-    const safeMode = settings?.safeMode !== false; // default ON
+    // safeMode: skip Object.defineProperty overrides to bypass Cloudflare Enterprise (Chrome only).
+    // Firefox can't bypass Cloudflare regardless (TLS fingerprint), so force safeMode=false
+    // to enable full fingerprint injection on Firefox.
+    const safeMode = isFirefox ? false : (settings?.safeMode !== false);
     const apply = (settings && settings.applyOverrides) || {};
     const applyUA = !safeMode && apply.userAgent !== false;
     const applyLang = !safeMode && apply.language !== false;
@@ -305,14 +487,8 @@ async function launchProfileInternal(profileId, options = {}) {
     // Apply fingerprint init scripts (reuse safeMode from context options above)
     try {
       const { applyFingerprintInitScripts } = require('../engine/fingerprintInit');
-      await applyFingerprintInitScripts(context, profile, settings, { safeMode });
+      await applyFingerprintInitScripts(context, profile, settings, { safeMode, isFirefox });
     } catch { }
-    // Inject mouse position tracker for behavior simulator
-    try {
-      const { injectMouseTracker } = require('../engine/behaviorSimulator');
-      await injectMouseTracker(context);
-    } catch { }
-
     // Inject mouse position tracker for behavior simulator
     try {
       const { injectMouseTracker } = require('../engine/behaviorSimulator');
@@ -410,7 +586,7 @@ async function launchProfileInternal(profileId, options = {}) {
     };
     try { for (const p of context.pages()) { p.on('close', onPageClose); } } catch { }
     context.on('page', (newPage) => { try { newPage.on('close', onPageClose); } catch { } });
-    runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder });
+    runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder, startedAt: Date.now() });
     setProfileStatus(profileId, 'RUNNING', instanceId);
     broadcastRunningMap();
     // Post-launch automation script (if configured)
@@ -738,19 +914,56 @@ async function getProfileWsInternal(profileId) {
   try {
     const running = runningProfiles.get(profileId);
     if (!running) return { success: true, wsEndpoint: null, running: false };
-    // Only report status - do NOT delete from runningProfiles here.
-    // Cleanup is handled by event handlers (context.on close, browser.on disconnected).
-    return { success: true, wsEndpoint: running.wsEndpoint || 'pipe', running: true };
+    // Skip health check for recently-started profiles
+    const age = running.startedAt ? (Date.now() - running.startedAt) : Infinity;
+    if (age < 20000) return { success: true, wsEndpoint: running.wsEndpoint || 'pipe', running: true };
+
+    if (running.engine === 'playwright') {
+      if (running.context?.isClosed?.() || running.browser?.isConnected?.() === false) {
+        runningProfiles.delete(profileId);
+        setProfileStatus(profileId, 'STOPPED');
+        appendLog(profileId, 'getProfileWs: Playwright browser disconnected');
+        broadcastRunningMap();
+        return { success: true, wsEndpoint: null, running: false };
+      }
+      return { success: true, wsEndpoint: running.wsEndpoint || 'pipe', running: true };
+    }
+
+    const alive = await require('../engine/health').isWsAlive(running.wsEndpoint);
+    if (!alive) {
+      runningProfiles.delete(profileId);
+      setProfileStatus(profileId, 'STOPPED');
+      appendLog(profileId, 'getProfileWs: CDP heartbeat failed, removed');
+      broadcastRunningMap();
+      return { success: true, wsEndpoint: null, running: false };
+    }
+    return { success: true, wsEndpoint: running.wsEndpoint, running: true };
   } catch (error) { return { success: false, error: error.message }; }
 }
 
 async function getRunningMapInternal() {
   try {
+    const GRACE_MS = 15000;
     const result = {};
     for (const [id, info] of runningProfiles.entries()) {
-      // Only report status - do NOT delete from runningProfiles here.
-      // Cleanup is handled by event handlers (context.on close, browser.on disconnected).
-      result[id] = info.wsEndpoint || 'pipe';
+      // Always include recently-started profiles regardless of health check
+      const age = info.startedAt ? (Date.now() - info.startedAt) : Infinity;
+      if (age < GRACE_MS) { result[id] = info.wsEndpoint || 'pipe'; continue; }
+
+      let alive = true;
+      if (info.engine === 'playwright') {
+        if (info.context?.isClosed?.() || info.browser?.isConnected?.() === false) alive = false;
+      } else {
+        if (!(await require('../engine/health').isWsAlive(info.wsEndpoint))) alive = false;
+      }
+      if (!alive) {
+        runningProfiles.delete(id);
+        setProfileStatus(id, 'STOPPED');
+        appendLog(id, 'Bulk heartbeat: stale, clearing');
+        broadcastRunningMap();
+      } else {
+        result[id] = info.wsEndpoint || 'pipe';
+      }
     }
     const statuses = buildStatusMap();
     return { success: true, map: result, statuses };
