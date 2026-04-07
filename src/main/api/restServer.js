@@ -1,10 +1,6 @@
 const path = require('path');
-const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
-const crypto = require('crypto');
-const { safeStorage } = require('electron');
-const { getDataRoot } = require('../storage/paths');
 
 function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   const apiKey = rest.apiKey || process.env.REST_API_KEY;
@@ -424,76 +420,14 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
 
   function broadcast() { broadcaster && broadcaster({ ...restServerState }); }
 
-  function sha256Hex(str) {
-    try { return crypto.createHash('sha256').update(String(str), 'utf8').digest('hex'); } catch { return ''; }
-  }
-
-  // Fixed password hardcoded in code. Change this value to your desired password.
-  // Optionally override via environment variable HL_MCK_REST_PASSWORD for development.
-  const FIXED_PASSWORD = process.env.HL_MCK_REST_PASSWORD || 'HL_MCK@2025_STR0NGP4SS';
-  const FIXED_PASSWORD_HASH = sha256Hex(FIXED_PASSWORD);
-
-  // Hidden encrypted password persistence (so user doesn't need to re-enter).
-  // Stored under a nested dot directory in data root to reduce discoverability.
-  function secretDir() {
-    try {
-      const dir = path.join(getDataRoot(), '.sys', '.sec');
-      fs.mkdirSync(dir, { recursive: true });
-      return dir;
-    } catch { return getDataRoot(); }
-  }
-  function secretFilePath() { return path.join(secretDir(), '.restpwd.bin'); }
-  function loadStoredPassword() {
-    try {
-      if (!safeStorage?.isEncryptionAvailable()) return null;
-      const p = secretFilePath();
-      if (!fs.existsSync(p)) return null;
-      const buf = fs.readFileSync(p);
-      return safeStorage.decryptString(buf);
-    } catch { return null; }
-  }
-  function persistPassword(plain) {
-    try {
-      if (!plain || !safeStorage?.isEncryptionAvailable()) return false;
-      const enc = safeStorage.encryptString(String(plain));
-      fs.writeFileSync(secretFilePath(), enc);
-      return true;
-    } catch { return false; }
-  }
-
-  function verifyPassword(inputPlain) {
-    const actual = sha256Hex(inputPlain || '');
-    try {
-      const a = Buffer.from(actual, 'hex');
-      const b = Buffer.from(FIXED_PASSWORD_HASH, 'hex');
-      if (a.length !== b.length) return false;
-      return crypto.timingSafeEqual(a, b);
-    } catch { return false; }
-  }
-
-  async function start(handlers, opts = {}) {
+  async function start(handlers) {
     const settings = settingsProvider();
     const rest = settings.restApi || {};
-    const requirePassword = true; // always require password
     const enabled = rest.enabled !== false;
     const host = rest.host || '127.0.0.1';
     const port = Number(rest.port || 5478);
     restServerState.enabled = enabled; restServerState.host = host; restServerState.port = port; restServerState.error = null;
     if (!enabled) { restServerState.running = false; broadcast(); return { ok: false, disabled: true }; }
-
-    if (requirePassword) {
-      // Attempt stored secret first
-      let supplied = loadStoredPassword();
-      if (!supplied) supplied = (opts && opts.passwordPlain) || process.env.REST_START_PASSWORD || null;
-      if (!supplied || !verifyPassword(supplied)) {
-        restServerState.running = false; restServerState.error = 'PASSWORD_REQUIRED'; broadcast();
-        return { ok: false, error: 'PASSWORD_REQUIRED' };
-      }
-      // Persist if this was a freshly provided password (not already stored)
-      try {
-        if ((opts && opts.passwordPlain) && !loadStoredPassword()) persistPassword(opts.passwordPlain);
-      } catch { }
-    }
 
     if (restHttpServer) {
       try { const addr = restHttpServer.address(); if (addr && Number(addr.port) === port) { restServerState.running = true; restServerState.error = null; broadcast(); return { ok: true }; } } catch { }
@@ -532,8 +466,8 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
     restServerState.port = n; await stop(); return await start(handlers);
   }
 
-  async function startWithPassword(handlers, passwordPlain) {
-    return await start(handlers, { passwordPlain });
+  async function startWithPassword(handlers) {
+    return await start(handlers);
   }
 
   function getState() { return { ...restServerState }; }
