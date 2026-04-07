@@ -1,7 +1,52 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Avatar, Dropdown, ConfigProvider } from 'antd';
+import { ChevronDown, LogOut, LayoutDashboard } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
+
+// ─── Provider icon helpers ────────────────────────────────────────────────
+const PROVIDER_META = {
+  google: {
+    label: 'via Google',
+    bg: 'bg-[#4285F4]/10',
+    text: 'text-[#4285F4]',
+    icon: (
+      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+    ),
+  },
+  facebook: {
+    label: 'via Facebook',
+    bg: 'bg-[#1877F2]/10',
+    text: 'text-[#1877F2]',
+    icon: (
+      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="#1877F2">
+        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+      </svg>
+    ),
+  },
+  local: {
+    label: 'account',
+    bg: 'bg-primary/10',
+    text: 'text-primary',
+    icon: <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>person</span>,
+  },
+};
+
+const ProviderBadge = ({ provider }) => {
+  const meta = PROVIDER_META[provider] ?? PROVIDER_META.local;
+  return (
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${meta.bg} ${meta.text}`}>
+      {meta.icon}
+      {meta.label}
+    </span>
+  );
+};
 
 // ─── Minimal animation helper ────────────────────────────────────────────────
 function useInView(threshold = 0.15) {
@@ -211,22 +256,70 @@ const LandingPage = () => {
           {/* CTA buttons */}
           <div className="hidden md:flex items-center gap-3">
             {isAuthenticated ? (
-              <>
-                {user?.role === 'admin' && (
-                  <Link
-                    to="/dashboard"
-                    className="text-sm font-medium text-slate-400 hover:text-primary transition-colors px-3 py-1.5"
-                  >
-                    Dashboard →
-                  </Link>
-                )}
-                <button
-                  onClick={handleLogout}
-                  className="text-sm font-medium text-slate-500 hover:text-rose-400 transition-colors px-3 py-1.5"
+              <ConfigProvider theme={{ token: { colorBgElevated: '#1e293b', colorText: '#e2e8f0', colorTextSecondary: '#94a3b8', colorSplit: 'rgba(148,163,184,0.12)', borderRadius: 10 } }}>
+                <Dropdown
+                  placement="bottomRight"
+                  trigger={['click']}
+                  menu={{
+                    items: [
+                      {
+                        key: 'info',
+                        disabled: true,
+                        label: (
+                          <div className="py-1 min-w-[180px]">
+                            <p className="text-xs font-semibold text-slate-200 truncate">{user?.name}</p>
+                            <p className="text-xs text-slate-500 truncate mt-0.5">{user?.email}</p>
+                            <div className="mt-1.5 flex items-center gap-1.5">
+                              <ProviderBadge provider={user?.provider} />
+                              {user?.role === 'admin' && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary">
+                                  admin
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ),
+                      },
+                      { type: 'divider' },
+                      ...(user?.role === 'admin' ? [{
+                        key: 'dashboard',
+                        label: (
+                          <Link to="/dashboard" className="flex items-center gap-2 text-slate-300">
+                            <LayoutDashboard size={14} />
+                            Dashboard
+                          </Link>
+                        ),
+                      }] : []),
+                      {
+                        key: 'logout',
+                        label: (
+                          <span className="flex items-center gap-2 text-rose-400">
+                            <LogOut size={14} />
+                            Sign out
+                          </span>
+                        ),
+                        onClick: handleLogout,
+                      },
+                    ],
+                  }}
                 >
-                  Sign out
-                </button>
-              </>
+                  <button className="flex items-center gap-2 px-2.5 py-1.5 rounded-full border border-slate-700/70
+                    hover:border-primary/50 transition-all duration-200 group">
+                    <Avatar
+                      size={26}
+                      src={user?.avatar || undefined}
+                      icon={!user?.avatar && (
+                        <span className="material-symbols-outlined text-slate-400" style={{ fontSize: '14px' }}>person</span>
+                      )}
+                      className="flex-shrink-0"
+                    />
+                    <span className="text-sm font-medium text-slate-300 group-hover:text-white transition-colors max-w-[90px] truncate">
+                      {user?.name}
+                    </span>
+                    <ChevronDown size={12} className="text-slate-500 group-hover:text-slate-300 transition-colors" />
+                  </button>
+                </Dropdown>
+              </ConfigProvider>
             ) : (
               <>
                 <Link

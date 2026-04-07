@@ -13,6 +13,7 @@ import EditProfile from './pages/Profiles/EditProfile';
 import LandingPage from './pages/Landing';
 import LoginPage from './pages/Auth/Login';
 import RegisterPage from './pages/Auth/Register';
+import ForgotPasswordPage from './pages/Auth/ForgotPassword';
 import { AdminRoute, GuestRoute } from './components/ProtectedRoute';
 
 function App() {
@@ -41,6 +42,14 @@ function App() {
             element={
               <GuestRoute>
                 <RegisterPage />
+              </GuestRoute>
+            }
+          />
+          <Route
+            path="/forgot-password"
+            element={
+              <GuestRoute>
+                <ForgotPasswordPage />
               </GuestRoute>
             }
           />
