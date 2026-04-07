@@ -18,6 +18,7 @@ const Sidebar = () => {
       <nav className="flex-1 px-4 space-y-1 py-4 overflow-y-auto">
         <NavLink 
           to="/dashboard" 
+          end
           className={({ isActive }) => 
             `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
               isActive 
@@ -31,7 +32,7 @@ const Sidebar = () => {
         </NavLink>
         
         <NavLink 
-          to="/profiles" 
+          to="/dashboard/profiles" 
           className={({ isActive }) => 
             `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
               isActive 
@@ -45,7 +46,7 @@ const Sidebar = () => {
         </NavLink>
         
         <NavLink 
-          to="/proxies" 
+          to="/dashboard/proxies" 
           className={({ isActive }) => 
             `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
               isActive 
@@ -59,7 +60,7 @@ const Sidebar = () => {
         </NavLink>
         
         <NavLink 
-          to="/groups" 
+          to="/dashboard/groups" 
           className={({ isActive }) => 
             `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
               isActive 
@@ -73,7 +74,7 @@ const Sidebar = () => {
         </NavLink>
         
         <NavLink 
-          to="/team" 
+          to="/dashboard/team" 
           className={({ isActive }) => 
             `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
               isActive 
@@ -88,7 +89,7 @@ const Sidebar = () => {
         
         <div className="pt-4 mt-4 border-t border-primary/10">
           <NavLink 
-            to="/settings" 
+            to="/dashboard/settings" 
             className={({ isActive }) => 
               `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
                 isActive 
