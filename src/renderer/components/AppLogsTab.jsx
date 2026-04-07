@@ -1,60 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-export default function AppLogsTab() {
-    // Dynamic runtime state for logs.
-    const [logs, setLogs] = useState([]);
-    const [levelFilter, setLevelFilter] = useState('Trace+');
+export default function AppLogsTab({ logs = [], onClear }) {
+    const [levelFilter, setLevelFilter] = useState('All');
     const [autoScroll, setAutoScroll] = useState(true);
     const logsEndRef = useRef(null);
     const containerRef = useRef(null);
-
-    // Capture console methods to provide actual runtime logs without hardcoding
-    useEffect(() => {
-        const originalLog = console.log;
-        const originalWarn = console.warn;
-        const originalError = console.error;
-        const originalInfo = console.info;
-
-        const addRuntimeLog = (level, args) => {
-            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-            const text = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-            setLogs(prev => [...prev, { id: Date.now() + Math.random(), time, level, text }]);
-        };
-
-        console.log = (...args) => {
-            addRuntimeLog('INF', args);
-            originalLog(...args);
-        };
-        console.info = (...args) => {
-            addRuntimeLog('INF', args);
-            originalInfo(...args);
-        };
-        console.warn = (...args) => {
-            addRuntimeLog('WRN', args);
-            originalWarn(...args);
-        };
-        console.error = (...args) => {
-            addRuntimeLog('ERR', args);
-            originalError(...args);
-        };
-
-        // Hook into IPC channel if the backend streams logs
-        let cleanupIpc = null;
-        if (window.electronAPI && window.electronAPI.onAppLog) {
-            cleanupIpc = window.electronAPI.onAppLog(logData => {
-                const prefix = logData.profileId && logData.profileId !== 'system' ? `[${logData.profileId}] ` : '';
-                setLogs(prev => [...prev, { id: Date.now() + Math.random(), time: new Date().toLocaleTimeString('en-US', { hour12: false }), level: logData.level || 'INF', text: prefix + (logData.message || '') }]);
-            });
-        }
-
-        return () => {
-            console.log = originalLog;
-            console.warn = originalWarn;
-            console.error = originalError;
-            console.info = originalInfo;
-            if (cleanupIpc) cleanupIpc();
-        };
-    }, []);
 
     useEffect(() => {
         if (autoScroll && logsEndRef.current) {
@@ -62,7 +12,7 @@ export default function AppLogsTab() {
         }
     }, [logs, autoScroll]);
 
-    const handleClear = () => setLogs([]);
+    const handleClear = () => onClear?.();
 
     const getLevelColor = (level) => {
         switch (level) {
@@ -75,9 +25,8 @@ export default function AppLogsTab() {
     };
 
     const filteredLogs = logs.filter(log => {
-        if (levelFilter === 'Error+' && log.level !== 'ERR') return false;
         if (levelFilter === 'Warn+' && !['ERR', 'WRN'].includes(log.level)) return false;
-        if (levelFilter === 'Info+' && !['ERR', 'WRN', 'INF'].includes(log.level)) return false;
+        if (levelFilter === 'Error+' && log.level !== 'ERR') return false;
         return true;
     });
 
@@ -96,9 +45,7 @@ export default function AppLogsTab() {
                                 className="appearance-none text-[0.75rem] rounded-md pl-2 pr-6 py-1 cursor-pointer"
                                 style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
                             >
-                                <option>Trace+</option>
-                                <option>Debug+</option>
-                                <option>Info+</option>
+                                <option>All</option>
                                 <option>Warn+</option>
                                 <option>Error+</option>
                             </select>

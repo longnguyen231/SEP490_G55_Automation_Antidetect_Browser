@@ -417,6 +417,7 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
   let restHttpServer = null;
   const restServerState = { enabled: true, running: false, host: '127.0.0.1', port: 5478, error: null };
   const openapiPath = path.join(__dirname, '../api', 'openapi.json');
+  const { appendLog } = require('../logging/logger');
 
   function broadcast() { broadcaster && broadcaster({ ...restServerState }); }
 
@@ -438,13 +439,17 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
     const appx = buildExpressApp(rest, swaggerUi, openapiPath, handlers);
     return new Promise((resolve) => {
       restHttpServer = appx.listen(port, host, () => {
-        restServerState.running = true; restServerState.error = null; broadcast(); resolve({ ok: true });
+        restServerState.running = true; restServerState.error = null; broadcast();
+        appendLog('system', `REST API server started on ${host}:${port} — Swagger UI at /api-docs`);
+        resolve({ ok: true });
       });
       restHttpServer.on('error', (err) => {
         restServerState.running = false;
         restServerState.error = err?.code === 'EADDRINUSE' ? `Port ${port} is already in use` : (err?.message || String(err));
         try { restHttpServer.close(); } catch { }
-        restHttpServer = null; broadcast(); resolve({ ok: false, error: restServerState.error });
+        restHttpServer = null; broadcast();
+        appendLog('system', `REST API server failed to start: ${restServerState.error}`);
+        resolve({ ok: false, error: restServerState.error });
       });
     });
   }
@@ -452,7 +457,10 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
   async function stop() {
     if (!restHttpServer) { restServerState.running = false; broadcast(); return true; }
     const srv = restHttpServer; restHttpServer = null;
-    return new Promise((resolve) => { try { srv.close(() => resolve(true)); } catch { resolve(false); } }).finally(() => { restServerState.running = false; broadcast(); });
+    return new Promise((resolve) => { try { srv.close(() => resolve(true)); } catch { resolve(false); } }).finally(() => {
+      restServerState.running = false; broadcast();
+      appendLog('system', 'REST API server stopped');
+    });
   }
 
   async function setEnabled(enabled, handlers) {

@@ -39,6 +39,21 @@ function App() {
   const apiPortTimerRef = useRef(null);
   const [showApiPwdModal, setShowApiPwdModal] = useState(false);
   const [apiPwdInput, setApiPwdInput] = useState('');
+  const [appLogs, setAppLogs] = useState([]);
+
+  // Subscribe to app-log events at app level so logs are captured regardless of active tab
+  useEffect(() => {
+    if (!window.electronAPI?.onAppLog) return;
+    const cleanup = window.electronAPI.onAppLog(logData => {
+      const prefix = logData.profileId && logData.profileId !== 'system' ? `[${logData.profileId}] ` : '';
+      setAppLogs(prev => {
+        const entry = { id: Date.now() + Math.random(), time: new Date().toLocaleTimeString('en-US', { hour12: false }), level: logData.level || 'INF', text: prefix + (logData.message || '') };
+        const next = [...prev, entry];
+        return next.length > 2000 ? next.slice(-2000) : next;
+      });
+    });
+    return cleanup;
+  }, []);
 
   const [showLicenseModal, setShowLicenseModal] = useState(() => {
     return !sessionStorage.getItem('license-shown');
@@ -398,7 +413,7 @@ function App() {
 
       case 'logs':
         return (
-          <AppLogsTab />
+          <AppLogsTab logs={appLogs} onClear={() => setAppLogs([])} />
         );
 
       case 'settings':
