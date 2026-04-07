@@ -387,6 +387,7 @@ const ACTION_MAP = {
   'nav.forward': goForward,
   'nav.reload': reloadPage,
   'wait.loadState': waitLoadState,
+  'wait-for-url': waitForUrl,
   // Element utilities
   'element.focus': focusElement,
   'input.type': typeInto,
@@ -482,6 +483,18 @@ async function waitLoadState(profileId, { state = 'load', index = 0, timeout = 3
   const { success, error, page, cleanup } = await withPage(profileId, { index });
   if (!success) return err(error);
   try { await page.waitForLoadState(state, { timeout }); await cleanup(); return ok(); } catch (e) { await cleanup(); return err(e?.message || e); }
+}
+
+async function waitForUrl(profileId, { url, index = 0, timeout = 30000, waitUntil = 'load' } = {}) {
+  if (!url) return err('url is required');
+  const { success, error, page, cleanup } = await withPage(profileId, { index });
+  if (!success) return err(error);
+  try {
+    await page.waitForURL(url, { timeout, waitUntil });
+    appendLog(profileId, `Action: waitForUrl ${url}`);
+    await cleanup();
+    return ok({ url: page.url() });
+  } catch (e) { await cleanup(); return err(e?.message || e); }
 }
 
 // Element utilities

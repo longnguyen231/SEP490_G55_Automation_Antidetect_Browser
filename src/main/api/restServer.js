@@ -182,6 +182,27 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
     const r = await handlers.doubleClickElementInternal(req.params.id, req.body || {});
     res.status(r.success ? 200 : 500).json(r);
   });
+  appx.post('/api/profiles/:id/actions/wait-for-url', async (req, res) => {
+    try {
+      const { performAction } = require('../engine/actions');
+      const result = await performAction(req.params.id, 'wait-for-url', req.body || {});
+      res.status(result.success ? 200 : 500).json(result);
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+  appx.post('/api/profiles/:id/actions/wait', async (req, res) => {
+    try {
+      const { performAction } = require('../engine/actions');
+      const result = await performAction(req.params.id, 'wait', req.body || {});
+      res.status(result.success ? 200 : 500).json(result);
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
+  appx.post('/api/profiles/:id/actions/wait-for-load-state', async (req, res) => {
+    try {
+      const { performAction } = require('../engine/actions');
+      const result = await performAction(req.params.id, 'wait.loadState', req.body || {});
+      res.status(result.success ? 200 : 500).json(result);
+    } catch (e) { res.status(500).json({ success: false, error: e?.message || String(e) }); }
+  });
 
   // Browser context actions
   appx.get('/api/profiles/:id/context/storage-state', async (req, res) => {
