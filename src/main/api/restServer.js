@@ -8,6 +8,15 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   appx.use(express.json({ limit: '2mb' }));
   appx.use(cors({ origin: rest.allowedOrigins || true }));
 
+  function broadcastProfilesUpdated() {
+    try {
+      const { BrowserWindow } = require('electron');
+      for (const w of BrowserWindow.getAllWindows()) {
+        try { w.webContents.send('profiles-updated'); } catch {}
+      }
+    } catch {}
+  }
+
   // API key middleware (optional)
   appx.use((req, res, next) => {
     if (apiKey && req.headers['x-api-key'] !== apiKey) {
@@ -26,16 +35,27 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   });
   appx.post('/api/profiles', async (req, res) => {
     const result = await handlers.saveProfileInternal(req.body || {});
+    if (result.success) broadcastProfilesUpdated();
     res.status(result.success ? 200 : 500).json(result);
   });
   appx.put('/api/profiles/:id', async (req, res) => {
+    const list = await handlers.getProfilesInternal();
+    if (!list.find(p => p.id === req.params.id)) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
     const body = { ...(req.body || {}), id: req.params.id };
     const result = await handlers.saveProfileInternal(body);
+    if (result.success) broadcastProfilesUpdated();
     res.status(result.success ? 200 : 500).json(result);
   });
   appx.delete('/api/profiles/:id', async (req, res) => {
+    const list = await handlers.getProfilesInternal();
+    if (!list.find(p => p.id === req.params.id)) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
     const id = req.params.id;
     const result = await handlers.deleteProfileInternal(id);
+    if (result.success) broadcastProfilesUpdated();
     res.status(result.success ? 200 : 500).json(result);
   });
 
