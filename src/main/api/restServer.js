@@ -619,7 +619,12 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
       const spec = require("fs").existsSync(openapiPath)
         ? JSON.parse(require("fs").readFileSync(openapiPath, "utf8"))
         : { openapi: "3.0.0", info: { title: "HL-MCK API", version: "1.0.0" } };
-      appx.use("/docs", swaggerUi.serve, swaggerUi.setup(spec));
+      const swaggerOptions = {
+        swaggerOptions: {
+          defaultModelsExpandDepth: -1
+        }
+      };
+      appx.use("/docs", swaggerUi.serve, swaggerUi.setup(spec, swaggerOptions));
     } catch {}
   }
 
