@@ -103,6 +103,19 @@
           }
         }
       },
+      "UpdateProfileRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "string"
+          },
+          "headless": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
       "LaunchOptions": {
         "type": "object",
         "properties": {
@@ -267,7 +280,7 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Default Response"
           }
         }
       }
@@ -293,14 +306,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Profile"
+                "$ref": "#/components/schemas/UpdateProfileRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Default Response"
           }
         }
       },
