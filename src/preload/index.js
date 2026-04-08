@@ -28,6 +28,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   removeAllRunningMapChanged: () => ipcRenderer.removeAllListeners('running-map-changed'),
 
+  onProfilesUpdated: (callback) => {
+    const listener = () => callback && callback();
+    ipcRenderer.on('profiles-updated', listener);
+    return () => ipcRenderer.removeListener('profiles-updated', listener);
+  },
+  removeAllProfilesUpdated: () => ipcRenderer.removeAllListeners('profiles-updated'),
+
   // Open external links in default browser (via main)
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
 

@@ -6,15 +6,17 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:5478"
+      "url": "http://127.0.0.1:4000"
     }
   ],
   "tags": [
     {
-      "name": "Profiles"
+      "name": "profiles",
+      "description": "Browser profile CRUD"
     },
     {
-      "name": "Browser"
+      "name": "browsers",
+      "description": "Browser lifecycle control"
     },
     {
       "name": "Actions"
@@ -39,6 +41,78 @@
           },
           "settings": {
             "type": "object"
+          }
+        }
+      },
+      "CreateProfileRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "string"
+          },
+          "headless": {
+            "type": "boolean",
+            "example": true
+          },
+          "fingerprintOptions": {
+            "type": "object",
+            "properties": {
+              "os": {
+                "type": "string",
+                "example": "windows"
+              },
+              "browser": {
+                "type": "string",
+                "example": "chrome"
+              },
+              "device": {
+                "type": "string",
+                "example": "desktop"
+              },
+              "locale": {
+                "type": "string",
+                "example": "string"
+              }
+            }
+          },
+          "proxy": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "example": "http"
+              },
+              "host": {
+                "type": "string",
+                "example": "string"
+              },
+              "port": {
+                "type": "integer",
+                "example": 65535
+              },
+              "username": {
+                "type": "string",
+                "example": "string"
+              },
+              "password": {
+                "type": "string",
+                "example": "string"
+              }
+            }
+          }
+        }
+      },
+      "UpdateProfileRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "string"
+          },
+          "headless": {
+            "type": "boolean",
+            "example": true
           }
         }
       },
@@ -177,55 +251,45 @@
         }
       }
     },
-    "/api/profiles": {
+    "/api/profiles/": {
       "get": {
-        "summary": "List profiles",
+        "summary": "List all profiles",
         "tags": [
-          "Profiles"
+          "profiles"
         ],
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Profile"
-                  }
-                }
-              }
-            }
+            "description": "Default Response"
           }
         }
       },
       "post": {
-        "summary": "Create profile",
+        "summary": "Create a new profile",
         "tags": [
-          "Profiles"
+          "profiles"
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Profile"
+                "$ref": "#/components/schemas/CreateProfileRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Default Response"
           }
         }
       }
     },
     "/api/profiles/{id}": {
       "put": {
-        "summary": "Update profile",
+        "summary": "Update a profile",
         "tags": [
-          "Profiles"
+          "profiles"
         ],
         "parameters": [
           {
@@ -242,21 +306,21 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Profile"
+                "$ref": "#/components/schemas/UpdateProfileRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Default Response"
           }
         }
       },
       "delete": {
-        "summary": "Delete profile",
+        "summary": "Delete a profile",
         "tags": [
-          "Profiles"
+          "profiles"
         ],
         "parameters": [
           {
@@ -279,7 +343,7 @@
       "post": {
         "summary": "Launch",
         "tags": [
-          "Profiles"
+          "browsers"
         ],
         "parameters": [
           {
@@ -311,7 +375,7 @@
       "post": {
         "summary": "Stop",
         "tags": [
-          "Profiles"
+          "browsers"
         ],
         "parameters": [
           {
@@ -334,7 +398,7 @@
       "post": {
         "summary": "Stop all",
         "tags": [
-          "Profiles"
+          "browsers"
         ],
         "responses": {
           "200": {
@@ -375,7 +439,10 @@
     },
     "/api/profiles/{id}/cookies": {
       "get": {
-        "summary": "Get cookies",
+        "summary": "Get all cookies for a profile",
+        "tags": [
+          "browsers"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -388,12 +455,33 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "cookies": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       },
       "post": {
-        "summary": "Import cookies",
+        "summary": "Import cookies for a profile",
+        "tags": [
+          "browsers"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -409,11 +497,169 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Cookies"
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "value",
+                    "domain"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    },
+                    "domain": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string",
+                      "default": "/"
+                    },
+                    "expires": {
+                      "type": "number"
+                    },
+                    "httpOnly": {
+                      "type": "boolean"
+                    },
+                    "secure": {
+                      "type": "boolean"
+                    },
+                    "sameSite": {
+                      "type": "string",
+                      "enum": [
+                        "Strict",
+                        "Lax",
+                        "None"
+                      ],
+                      "default": "Lax"
+                    }
+                  }
+                }
               }
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "summary": "Edit a single cookie",
+        "tags": [
+          "browsers"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "value",
+                  "domain"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  },
+                  "domain": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string",
+                    "default": "/"
+                  },
+                  "expires": {
+                    "type": "number"
+                  },
+                  "httpOnly": {
+                    "type": "boolean"
+                  },
+                  "secure": {
+                    "type": "boolean"
+                  },
+                  "sameSite": {
+                    "type": "string",
+                    "enum": [
+                      "Strict",
+                      "Lax",
+                      "None"
+                    ],
+                    "default": "Lax"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a cookie or clear all cookies",
+        "tags": [
+          "browsers"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie name (required with domain to delete specific cookie)"
+          },
+          {
+            "name": "domain",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie domain"
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie path"
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK"
@@ -1683,7 +1929,7 @@
       "post": {
         "summary": "Run automation steps for a profile",
         "tags": [
-          "Profiles"
+          "browsers"
         ],
         "parameters": [
           {
@@ -1693,149 +1939,6 @@
             "schema": {
               "type": "string"
             }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/profiles/{id}/cookies": {
-      "get": {
-        "summary": "Get all cookies for a profile",
-        "tags": ["Profiles"],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": { "type": "boolean" },
-                    "cookies": { "type": "array", "items": { "type": "object" } }
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Import cookies for a profile",
-        "tags": ["Profiles"],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": ["name", "value", "domain"],
-                  "properties": {
-                    "name": { "type": "string" },
-                    "value": { "type": "string" },
-                    "domain": { "type": "string" },
-                    "path": { "type": "string", "default": "/" },
-                    "expires": { "type": "number" },
-                    "httpOnly": { "type": "boolean" },
-                    "secure": { "type": "boolean" },
-                    "sameSite": { "type": "string", "enum": ["Strict", "Lax", "None"], "default": "Lax" }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": { "description": "OK" }
-        }
-      },
-      "put": {
-        "summary": "Edit a single cookie",
-        "tags": [
-          "Profiles"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["name", "value", "domain"],
-                "properties": {
-                  "name": { "type": "string" },
-                  "value": { "type": "string" },
-                  "domain": { "type": "string" },
-                  "path": { "type": "string", "default": "/" },
-                  "expires": { "type": "number" },
-                  "httpOnly": { "type": "boolean" },
-                  "secure": { "type": "boolean" },
-                  "sameSite": { "type": "string", "enum": ["Strict", "Lax", "None"], "default": "Lax" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "delete": {
-        "summary": "Delete a cookie or clear all cookies",
-        "tags": [
-          "Profiles"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "name",
-            "in": "query",
-            "required": false,
-            "schema": { "type": "string" },
-            "description": "Cookie name (required with domain to delete specific cookie)"
-          },
-          {
-            "name": "domain",
-            "in": "query",
-            "required": false,
-            "schema": { "type": "string" },
-            "description": "Cookie domain"
-          },
-          {
-            "name": "path",
-            "in": "query",
-            "required": false,
-            "schema": { "type": "string" },
-            "description": "Cookie path"
           }
         ],
         "responses": {
@@ -1857,10 +1960,25 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "os": { "type": "string", "enum": ["Windows", "macOS", "Linux"] },
-                  "language": { "type": "string", "example": "en-US" },
-                  "timezone": { "type": "string", "example": "America/New_York" },
-                  "seed": { "type": "integer" }
+                  "os": {
+                    "type": "string",
+                    "enum": [
+                      "Windows",
+                      "macOS",
+                      "Linux"
+                    ]
+                  },
+                  "language": {
+                    "type": "string",
+                    "example": "en-US"
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "example": "America/New_York"
+                  },
+                  "seed": {
+                    "type": "integer"
+                  }
                 }
               }
             }
@@ -1885,10 +2003,25 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "count": { "type": "integer", "default": 1, "maximum": 50 },
-                  "os": { "type": "string", "enum": ["Windows", "macOS", "Linux"] },
-                  "language": { "type": "string" },
-                  "timezone": { "type": "string" }
+                  "count": {
+                    "type": "integer",
+                    "default": 1,
+                    "maximum": 50
+                  },
+                  "os": {
+                    "type": "string",
+                    "enum": [
+                      "Windows",
+                      "macOS",
+                      "Linux"
+                    ]
+                  },
+                  "language": {
+                    "type": "string"
+                  },
+                  "timezone": {
+                    "type": "string"
+                  }
                 }
               }
             }
@@ -1912,7 +2045,9 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1923,11 +2058,23 @@
                 "properties": {
                   "action": {
                     "type": "string",
-                    "enum": ["browse", "scroll", "move", "click", "type", "idle"],
+                    "enum": [
+                      "browse",
+                      "scroll",
+                      "move",
+                      "click",
+                      "type",
+                      "idle"
+                    ],
                     "default": "browse"
                   },
-                  "pageIndex": { "type": "integer", "default": 0 },
-                  "options": { "type": "object" }
+                  "pageIndex": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "options": {
+                    "type": "object"
+                  }
                 }
               }
             }
@@ -1951,7 +2098,9 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1973,13 +2122,33 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["host", "port"],
+                "required": [
+                  "host",
+                  "port"
+                ],
                 "properties": {
-                  "host": { "type": "string" },
-                  "port": { "type": "integer" },
-                  "type": { "type": "string", "enum": ["http", "https", "socks4", "socks5"], "default": "http" },
-                  "username": { "type": "string" },
-                  "password": { "type": "string" }
+                  "host": {
+                    "type": "string"
+                  },
+                  "port": {
+                    "type": "integer"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "http",
+                      "https",
+                      "socks4",
+                      "socks5"
+                    ],
+                    "default": "http"
+                  },
+                  "username": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
                 }
               }
             }
@@ -2003,7 +2172,9 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -2012,7 +2183,9 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["url"],
+                "required": [
+                  "url"
+                ],
                 "properties": {
                   "url": {
                     "type": "string",
@@ -2031,7 +2204,12 @@
                   "waitUntil": {
                     "type": "string",
                     "default": "load",
-                    "enum": ["load", "domcontentloaded", "networkidle", "commit"]
+                    "enum": [
+                      "load",
+                      "domcontentloaded",
+                      "networkidle",
+                      "commit"
+                    ]
                   }
                 }
               }
@@ -2046,8 +2224,12 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "success": { "type": "boolean" },
-                    "url": { "type": "string" }
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "url": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -2067,7 +2249,9 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -2087,7 +2271,12 @@
                   "state": {
                     "type": "string",
                     "default": "visible",
-                    "enum": ["attached", "detached", "visible", "hidden"]
+                    "enum": [
+                      "attached",
+                      "detached",
+                      "visible",
+                      "hidden"
+                    ]
                   },
                   "timeout": {
                     "type": "integer",
@@ -2116,7 +2305,9 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -2128,7 +2319,11 @@
                   "state": {
                     "type": "string",
                     "default": "load",
-                    "enum": ["load", "domcontentloaded", "networkidle"]
+                    "enum": [
+                      "load",
+                      "domcontentloaded",
+                      "networkidle"
+                    ]
                   },
                   "index": {
                     "type": "integer",

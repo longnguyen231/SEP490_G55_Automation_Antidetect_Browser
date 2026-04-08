@@ -65,7 +65,8 @@ export default function ProfileList({
   onStartSelected, onStopSelected, onCloneProfile,
   headlessPrefs = {}, onSetHeadless, enginePrefs = {}, onSetEngine, onDeleteSelected,
   errorProfiles = {},
-  profileStatuses = {}
+  profileStatuses = {},
+  onToggleFp
 }) {
   const shortId = (id) => (id || '').substring(0, 6);
 
