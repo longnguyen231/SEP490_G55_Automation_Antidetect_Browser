@@ -1,12 +1,18 @@
 .browser-manager-card {
     border-radius: 12px;
-    border: none;
+    border: 1px solid var(--border) !important;
+    background: var(--card) !important;
+    color: var(--fg) !important;
     transition: all 0.2s ease;
+}
+
+.browser-manager-card .card-body {
+    background: transparent !important;
 }
 
 .browser-manager-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.08) !important;
+    box-shadow: var(--shadow) !important;
 }
 
 .browser-icon-container {
