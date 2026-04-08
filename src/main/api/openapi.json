@@ -44,6 +44,65 @@
           }
         }
       },
+      "CreateProfileRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "string"
+          },
+          "headless": {
+            "type": "boolean",
+            "example": true
+          },
+          "fingerprintOptions": {
+            "type": "object",
+            "properties": {
+              "os": {
+                "type": "string",
+                "example": "windows"
+              },
+              "browser": {
+                "type": "string",
+                "example": "chrome"
+              },
+              "device": {
+                "type": "string",
+                "example": "desktop"
+              },
+              "locale": {
+                "type": "string",
+                "example": "string"
+              }
+            }
+          },
+          "proxy": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "example": "http"
+              },
+              "host": {
+                "type": "string",
+                "example": "string"
+              },
+              "port": {
+                "type": "integer",
+                "example": 65535
+              },
+              "username": {
+                "type": "string",
+                "example": "string"
+              },
+              "password": {
+                "type": "string",
+                "example": "string"
+              }
+            }
+          }
+        }
+      },
       "LaunchOptions": {
         "type": "object",
         "properties": {
@@ -201,7 +260,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Profile"
+                "$ref": "#/components/schemas/CreateProfileRequest"
               }
             }
           }
