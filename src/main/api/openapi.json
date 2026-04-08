@@ -339,334 +339,6 @@
         }
       }
     },
-    "/api/profiles/{id}/launch": {
-      "post": {
-        "summary": "Launch",
-        "tags": [
-          "browsers"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LaunchOptions"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/profiles/{id}/stop": {
-      "post": {
-        "summary": "Stop",
-        "tags": [
-          "browsers"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/stop-all": {
-      "post": {
-        "summary": "Stop all",
-        "tags": [
-          "browsers"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/running-map": {
-      "get": {
-        "summary": "Running map",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/profiles/{id}/ws": {
-      "get": {
-        "summary": "WS endpoint",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/profiles/{id}/cookies": {
-      "get": {
-        "summary": "Get all cookies for a profile",
-        "tags": [
-          "browsers"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "cookies": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Import cookies for a profile",
-        "tags": [
-          "browsers"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "name",
-                    "value",
-                    "domain"
-                  ],
-                  "properties": {
-                    "name": {
-                      "type": "string"
-                    },
-                    "value": {
-                      "type": "string"
-                    },
-                    "domain": {
-                      "type": "string"
-                    },
-                    "path": {
-                      "type": "string",
-                      "default": "/"
-                    },
-                    "expires": {
-                      "type": "number"
-                    },
-                    "httpOnly": {
-                      "type": "boolean"
-                    },
-                    "secure": {
-                      "type": "boolean"
-                    },
-                    "sameSite": {
-                      "type": "string",
-                      "enum": [
-                        "Strict",
-                        "Lax",
-                        "None"
-                      ],
-                      "default": "Lax"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "put": {
-        "summary": "Edit a single cookie",
-        "tags": [
-          "browsers"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "name",
-                  "value",
-                  "domain"
-                ],
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "value": {
-                    "type": "string"
-                  },
-                  "domain": {
-                    "type": "string"
-                  },
-                  "path": {
-                    "type": "string",
-                    "default": "/"
-                  },
-                  "expires": {
-                    "type": "number"
-                  },
-                  "httpOnly": {
-                    "type": "boolean"
-                  },
-                  "secure": {
-                    "type": "boolean"
-                  },
-                  "sameSite": {
-                    "type": "string",
-                    "enum": [
-                      "Strict",
-                      "Lax",
-                      "None"
-                    ],
-                    "default": "Lax"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "delete": {
-        "summary": "Delete a cookie or clear all cookies",
-        "tags": [
-          "browsers"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "name",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Cookie name (required with domain to delete specific cookie)"
-          },
-          {
-            "name": "domain",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Cookie domain"
-          },
-          {
-            "name": "path",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Cookie path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/api/profiles/{id}/log": {
       "get": {
         "summary": "Get log",
@@ -765,36 +437,6 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ClosePageRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/profiles/{id}/eval": {
-      "post": {
-        "summary": "Eval JS",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EvalRequest"
               }
             }
           }
@@ -1925,29 +1567,6 @@
         }
       }
     },
-    "/api/profiles/{id}/automation/run": {
-      "post": {
-        "summary": "Run automation steps for a profile",
-        "tags": [
-          "browsers"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/api/fingerprint/generate": {
       "post": {
         "summary": "Generate a random fingerprint",
@@ -2341,6 +1960,117 @@
         "responses": {
           "200": {
             "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/browsers/{profileId}/launch": {
+      "post": {
+        "summary": "Launch browser for a profile",
+        "tags": [
+          "browsers"
+        ],
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LaunchOptions"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/browsers/{profileId}/close": {
+      "post": {
+        "summary": "Close browser for a profile",
+        "tags": [
+          "browsers"
+        ],
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/browsers/{profileId}/status": {
+      "get": {
+        "summary": "Check if browser is running for a profile",
+        "tags": [
+          "browsers"
+        ],
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/browsers/{profileId}/execute": {
+      "post": {
+        "summary": "Execute any Playwright Page method",
+        "tags": [
+          "browsers"
+        ],
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
           }
         }
       }
