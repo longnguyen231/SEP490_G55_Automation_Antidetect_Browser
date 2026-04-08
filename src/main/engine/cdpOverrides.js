@@ -100,6 +100,10 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
       }
       if (applyViewport && viewport) {
         try {
+          // Disable setDeviceMetricsOverride so the browser window isn't forcibly zoomed or scaled.
+          // The JS initialization script (fingerprintInit.js) already spoofs window.screen.* variables perfectly.
+          // We don't want CDP to artificially lock the viewport to 3840x2160 if the user's screen is smaller.
+          /*
           await session.send('Emulation.setDeviceMetricsOverride', {
             width: viewport.width,
             height: viewport.height,
@@ -108,6 +112,7 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
             screenWidth: viewport.width,
             screenHeight: viewport.height,
           });
+          */
         } catch {}
       }
       if (applyGeo && wantGeo) {

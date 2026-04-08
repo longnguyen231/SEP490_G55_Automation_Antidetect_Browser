@@ -466,12 +466,10 @@ async function launchProfileInternal(profileId, options = {}) {
     if (applyUA && fp.userAgent) contextOptions.userAgent = fp.userAgent;
     // Apply viewport and device scale like CDP DeviceMetricsOverride
     try {
-      if (applyViewport) {
-        const m = (fp.screenResolution || '').match(/^(\d+)x(\d+)$/);
-        if (m) contextOptions.viewport = { width: Math.max(1, parseInt(m[1], 10)), height: Math.max(1, parseInt(m[2], 10)) };
-        const dpr = Number((settings.advanced || {}).devicePixelRatio || 1);
-        if (dpr > 0) contextOptions.deviceScaleFactor = dpr;
-      }
+      // Fix: Setting viewport null lets the OS window respond naturally.
+      // fingerprintInit.js applies actual screen.width/height spoofing via JS, 
+      // preventing Playwright from stretching/zooming the UI on physical monitors.
+      contextOptions.viewport = null;
     } catch { }
     if (applyGeo && settings.geolocation && settings.geolocation.latitude != null && settings.geolocation.longitude != null) {
       contextOptions.geolocation = {
