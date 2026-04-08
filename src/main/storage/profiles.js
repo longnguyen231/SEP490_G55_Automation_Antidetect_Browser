@@ -303,16 +303,12 @@ async function saveProfileInternal(profile) {
 }
 
 function generateShortId() {
-  try {
-    // Prefer crypto random for entropy
-    const bytes = crypto.randomBytes(6).toString('hex'); // 12 hex chars
-    const t = Date.now().toString(36); // timestamp base36
-    return (t + bytes.slice(0, 6)).toLowerCase(); // ~ 6+6 = 12 chars
-  } catch {
-    const t = Date.now().toString(36);
-    const r = Math.random().toString(36).slice(2, 8);
-    return (t + r).toLowerCase();
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
+  return result;
 }
 
 async function deleteProfileInternal(profileId) {

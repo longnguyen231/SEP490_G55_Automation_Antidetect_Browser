@@ -109,7 +109,17 @@ function App() {
   }, []);
 
   // Effects: initial load, subscribe to running map & API status
-  useEffect(() => { loadProfiles(); }, []);
+  useEffect(() => { 
+    loadProfiles(); 
+    let unsub = null;
+    if (window.electronAPI.onProfilesUpdated) {
+      unsub = window.electronAPI.onProfilesUpdated(() => loadProfiles());
+    }
+    return () => {
+      try { unsub && unsub(); } catch {}
+      try { window.electronAPI.removeAllProfilesUpdated?.(); } catch {}
+    };
+  }, []);
   useEffect(() => {
     let unsub;
     let pollTimer;
