@@ -277,7 +277,7 @@ function App() {
           },
         },
       };
-      const res = await api.saveProfile(updated);
+      const res = await window.electronAPI.saveProfile(updated);
       if (res?.success) {
         // Update local state optimistically for instant feedback
         setProfiles(prev => prev.map(p => p.id === profile.id ? (res.profile || updated) : p));
@@ -397,6 +397,7 @@ function App() {
             onDeleteSelected={handleDeleteSelected}
             errorProfiles={errorProfiles}
             profileStatuses={profileStatuses}
+            onToggleFp={handleToggleFp}
           />
         );
 
