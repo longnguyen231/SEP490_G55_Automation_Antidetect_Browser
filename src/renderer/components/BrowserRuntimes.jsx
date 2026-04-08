@@ -158,7 +158,7 @@ export default function BrowserRuntimes() {
                                 <h4 className="mb-1 text-bold d-flex align-items-center gap-2">
                                     {title} {statusBadge}
                                 </h4>
-                                <p className="text-muted mb-0 small">{description}</p>
+                                <p className="mb-0 small" style={{color: 'var(--fg)'}}>{description}</p>
                             </div>
                         </div>
                         <div className="btn-group">
