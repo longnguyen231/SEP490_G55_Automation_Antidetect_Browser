@@ -185,27 +185,27 @@ export default function BrowserRuntimes() {
                         </div>
                     </div>
 
-                    <div className="mt-3 bg-light p-3 rounded-3 border">
+                    <div className="mt-3 p-3 rounded-3" style={{background: 'var(--card2)', border: '1px solid var(--border)'}}>
                         <div className="row gc-2 gy-2">
                             <div className="col-md-12 text-truncate">
-                                <span className="text-secondary small fw-bold">Executable Path:</span><br/>
-                                <code className="bg-white px-2 py-1 rounded border user-select-all font-monospace mt-1 d-inline-block text-body" style={{fontSize: '0.8rem', wordBreak: 'break-all'}}>
+                                <span className="small fw-bold" style={{color: 'var(--muted)'}}>Executable Path:</span><br/>
+                                <code className="px-2 py-1 rounded user-select-all font-monospace mt-1 d-inline-block" style={{fontSize: '0.8rem', wordBreak: 'break-all', background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--fg)'}}>
                                     {info.path || 'Not setup'}
                                 </code>
                             </div>
                             <div className="col-md-6 mt-3">
-                                <span className="text-secondary small fw-bold">Runtime Version:</span><br/>
-                                <span className="font-monospace fw-medium">{info.version || 'v----'}</span>
+                                <span className="small fw-bold" style={{color: 'var(--muted)'}}>Runtime Version:</span><br/>
+                                <span className="font-monospace fw-medium" style={{color: 'var(--fg)'}}>{info.version || 'v----'}</span>
                             </div>
                             <div className="col-md-6 mt-3">
-                                <span className="text-secondary small fw-bold"><HardDrive size={12} className="me-1 mb-1"/>Storage Size:</span><br/>
-                                <span className="font-monospace fw-medium">{info.size || '0 MB'}</span>
+                                <span className="small fw-bold" style={{color: 'var(--muted)'}}><HardDrive size={12} className="me-1 mb-1"/>Storage Size:</span><br/>
+                                <span className="font-monospace fw-medium" style={{color: 'var(--fg)'}}>{info.size || '0 MB'}</span>
                             </div>
                         </div>
                     </div>
 
                     {isInstalling && (
-                        <div className="mt-3 p-3 bg-white border border-primary rounded border-opacity-50">
+                        <div className="mt-3 p-3 border border-primary rounded border-opacity-50" style={{background: 'var(--card2)'}}>
                             <h6 className="text-primary mb-2 d-flex align-items-center gap-2">
                                 <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                                 Downloading & Extracting {title}...
