@@ -34,8 +34,8 @@ function App() {
   const [toasts, setToasts] = useState([]);
   const [enginePrefs, setEnginePrefs] = useState({});
   const [errorProfiles, setErrorProfiles] = useState({});
-  const [apiStatus, setApiStatus] = useState({ enabled: true, running: false, host: '127.0.0.1', port: 5478, error: null });
-  const [apiDesiredPort, setApiDesiredPort] = useState(5478);
+  const [apiStatus, setApiStatus] = useState({ enabled: true, running: false, host: '127.0.0.1', port: 4000, error: null });
+  const [apiDesiredPort, setApiDesiredPort] = useState(4000);
   const apiPortTimerRef = useRef(null);
   const [showApiPwdModal, setShowApiPwdModal] = useState(false);
   const [apiPwdInput, setApiPwdInput] = useState('');
@@ -85,7 +85,7 @@ function App() {
 
   // Bridge helper: prefer IPC via preload; fallback to REST API when unavailable
   const api = useMemo(() => {
-    const base = 'http://127.0.0.1:5478';
+    const base = 'http://127.0.0.1:4000';
     const hasIpc = !!(window.electronAPI && typeof window.electronAPI === 'object');
     return {
       async getProfiles() {

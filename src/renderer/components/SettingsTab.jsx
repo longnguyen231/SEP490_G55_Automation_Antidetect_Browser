@@ -146,7 +146,7 @@ export default function SettingsTab({
                         </div>
                         {apiStatus?.running && (
                             <button
-                                onClick={() => window.open(`http://localhost:${apiDesiredPort || 5478}/api-docs`, '_blank')}
+                                onClick={() => window.electronAPI.openExternal(`http://localhost:${apiDesiredPort || 4000}/docs`)}
                                 className="text-[0.8rem] text-[var(--primary)] hover:underline flex items-center gap-1"
                             >
                                 Open Swagger UI ↗
@@ -155,7 +155,7 @@ export default function SettingsTab({
                     </div>
                     {apiStatus?.running && (
                         <div className="mb-3 text-[0.8rem] text-[var(--fg)] font-mono">
-                            http://localhost:{apiDesiredPort || 5478}/api-docs
+                            http://localhost:{apiDesiredPort || 4000}/docs
                         </div>
                     )}
                     <div className="flex items-center gap-3 mb-3">
@@ -163,7 +163,7 @@ export default function SettingsTab({
                         <input
                             type="number"
                             min="1" max="65535"
-                            value={apiDesiredPort || 5478}
+                            value={apiDesiredPort || 4000}
                             onChange={e => { setApiDesiredPort(e.target.value); applyPortChange(Number(e.target.value)); }}
                             className="w-[80px] text-[0.75rem] py-1"
                         />
@@ -178,7 +178,7 @@ export default function SettingsTab({
                         <input type="checkbox" checked={autoStartApi} onChange={e => setAutoStartApi(e.target.checked)} className="rounded cursor-pointer" />
                         Auto-start server on app launch
                     </label>
-                    <p className="text-[0.7rem] text-[var(--muted)]">Exposes REST API for automation scripting. Swagger docs available at /api-docs when running.</p>
+                    <p className="text-[0.7rem] text-[var(--muted)]">Exposes REST API for automation scripting. Swagger docs available at /docs when running.</p>
                 </div>
 
                 {/* Playwright Engines Control */}

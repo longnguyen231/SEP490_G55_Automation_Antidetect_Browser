@@ -427,7 +427,7 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   if (swaggerUi) {
     try {
       const spec = require('fs').existsSync(openapiPath) ? JSON.parse(require('fs').readFileSync(openapiPath, 'utf8')) : { openapi: '3.0.0', info: { title: 'HL-MCK API', version: '1.0.0' } };
-      appx.use('/api-docs', swaggerUi.serve, swaggerUi.setup(spec));
+      appx.use('/docs', swaggerUi.serve, swaggerUi.setup(spec));
     } catch { }
   }
 
@@ -436,7 +436,7 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
 
 function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
   let restHttpServer = null;
-  const restServerState = { enabled: true, running: false, host: '127.0.0.1', port: 5478, error: null };
+  const restServerState = { enabled: true, running: false, host: '127.0.0.1', port: 4000, error: null };
   const openapiPath = path.join(__dirname, '../api', 'openapi.json');
   const { appendLog } = require('../logging/logger');
 
@@ -447,7 +447,7 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
     const rest = settings.restApi || {};
     const enabled = rest.enabled !== false;
     const host = rest.host || '127.0.0.1';
-    const port = Number(rest.port || 5478);
+    const port = Number(rest.port || 4000);
     restServerState.enabled = enabled; restServerState.host = host; restServerState.port = port; restServerState.error = null;
     if (!enabled) { restServerState.running = false; broadcast(); return { ok: false, disabled: true }; }
 
@@ -461,7 +461,7 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
     return new Promise((resolve) => {
       restHttpServer = appx.listen(port, host, () => {
         restServerState.running = true; restServerState.error = null; broadcast();
-        appendLog('system', `REST API server started on ${host}:${port} — Swagger UI at /api-docs`);
+        appendLog('system', `REST API server started on ${host}:${port} — Swagger UI at /docs`);
         resolve({ ok: true });
       });
       restHttpServer.on('error', (err) => {
