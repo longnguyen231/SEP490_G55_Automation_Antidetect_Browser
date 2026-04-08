@@ -18,6 +18,7 @@
     "axios": "^1.13.5",
     "bootstrap": "^5.3.8",
     "date-fns": "^4.1.0",
+    "firebase": "^12.11.0",
     "lucide-react": "^0.564.0",
     "react": "^19.2.0",
     "react-bootstrap": "^2.10.10",

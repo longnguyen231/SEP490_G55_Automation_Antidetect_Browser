@@ -45,4 +45,28 @@ function getMachineCode() {
   }
 }
 
-module.exports = { getMachineCode };
+// ─── License Key ──────────────────────────────────────────────────────────────
+// Key is derived from machine code + secret salt.
+// Format: HL-XXXX-XXXX-XXXX (12 hex chars from SHA256)
+const LICENSE_SECRET = 'HL-MCK-SEP490-G55-2024';
+
+function deriveLicenseKey(machineCode) {
+  const raw = machineCode.replace(/\s/g, '') + LICENSE_SECRET;
+  const hash = crypto.createHash('sha256').update(raw).digest('hex').toUpperCase();
+  return `HL-${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
+}
+
+function validateLicenseKey(inputKey) {
+  try {
+    const machineCode = getMachineCode();
+    const expected = deriveLicenseKey(machineCode);
+    return {
+      valid: inputKey.trim().toUpperCase() === expected,
+      expected, // expose so admin can generate keys
+    };
+  } catch {
+    return { valid: false };
+  }
+}
+
+module.exports = { getMachineCode, deriveLicenseKey, validateLicenseKey };
