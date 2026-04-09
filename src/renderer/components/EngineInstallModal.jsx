@@ -14,10 +14,13 @@ export default function EngineInstallModal({ engine = 'chromium', onInstall, onS
   const [done, setDone] = useState(false);
   const [error, setError] = useState(null);
 
+  const isCamoufox = engine === 'camoufox';
   const isFirefox = engine === 'firefox';
-  const engineLabel = isFirefox ? 'Playwright Firefox' : 'Playwright Chromium';
-  const engineIcon = isFirefox ? '🦊' : '🌐';
-  const downloadNote = isFirefox
+  const engineLabel = isCamoufox ? 'Camoufox Firefox' : isFirefox ? 'Playwright Firefox' : 'Playwright Chromium';
+  const engineIcon = (isCamoufox || isFirefox) ? '🦊' : '🌐';
+  const downloadNote = isCamoufox
+    ? 'Camoufox will be downloaded from GitHub releases.'
+    : isFirefox
     ? 'Firefox will be downloaded automatically.'
     : 'Chromium will be downloaded automatically.';
 

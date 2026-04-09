@@ -5,20 +5,24 @@ import './BrowserRuntimes.css';
 export default function BrowserRuntimes() {
     const [browsers, setBrowsers] = useState({
         chromium: { status: 'loading', path: null, version: null, size: null },
-        firefox: { status: 'loading', path: null, version: null, size: null }
+        firefox: { status: 'loading', path: null, version: null, size: null },
+        camoufox: { status: 'loading', path: null, version: null, size: null }
     });
-    
+
     const [installing, setInstalling] = useState({
         chromium: false,
-        firefox: false
+        firefox: false,
+        camoufox: false
     });
     const [progressLogs, setProgressLogs] = useState({
         chromium: '',
-        firefox: ''
+        firefox: '',
+        camoufox: ''
     });
     const [progressPercent, setProgressPercent] = useState({
         chromium: null,
-        firefox: null
+        firefox: null,
+        camoufox: null
     });
 
     useEffect(() => {
@@ -43,19 +47,23 @@ export default function BrowserRuntimes() {
         try {
             const chromiumData = await window.electronAPI.checkBrowserStatus('chromium');
             const firefoxData = await window.electronAPI.checkBrowserStatus('firefox');
+            const camoufoxData = await window.electronAPI.checkBrowserStatus('camoufox');
             setBrowsers({
                 chromium: chromiumData,
-                firefox: firefoxData
+                firefox: firefoxData,
+                camoufox: camoufoxData
             });
 
             // Restore installing states
             setInstalling({
                 chromium: !!chromiumData.isInstalling,
-                firefox: !!firefoxData.isInstalling
+                firefox: !!firefoxData.isInstalling,
+                camoufox: !!camoufoxData.isInstalling
             });
             setProgressLogs({
                 chromium: chromiumData.lastLog || '',
-                firefox: firefoxData.lastLog || ''
+                firefox: firefoxData.lastLog || '',
+                camoufox: camoufoxData.lastLog || ''
             });
         } catch (e) {
             console.error("Failed to load browser status", e);
@@ -240,6 +248,7 @@ export default function BrowserRuntimes() {
                 <div className="col-12">
                     {renderCard('chromium', 'Playwright Chromium', 'text-emerald-500', 'High-performance engine built on Chrome architecture. Recommended for 90% of profiles.')}
                     {renderCard('firefox', 'Playwright Firefox', 'text-amber-500', 'Isolated Mozilla engine. Excellent for deeply obfuscating hardware fingerprints.')}
+                    {renderCard('camoufox', 'Camoufox Firefox', 'text-purple-500', 'Patched Firefox fork with built-in fingerprint spoofing — canvas, WebGL, fonts, hardware. Better antidetect than plain Firefox.')}
                 </div>
             </div>
         </div>

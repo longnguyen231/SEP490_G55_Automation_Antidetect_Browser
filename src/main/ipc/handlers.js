@@ -29,7 +29,7 @@ const { performAction } = require('../engine/actions');
 const { listScriptsInternal, getScriptInternal, saveScriptInternal, deleteScriptInternal } = require('../storage/scripts');
 const { addTaskLog, getTaskLogs, getTaskLogById, deleteTaskLog, clearTaskLogs } = require('../storage/taskLogs');
 const { listModules, installModule, uninstallModule } = require('../storage/scriptModules');
-const { executeScript } = require('../engine/scriptRuntime');
+const { executeScript, stopScript, pauseScript, resumeScript, isScriptRunning } = require('../engine/scriptRuntime');
 const {
   getProxiesInternal, getProxyByIdInternal,
   createProxyInternal, updateProxyInternal,
@@ -179,7 +179,10 @@ function registerIpcHandlers(extra = {}) {
       const { runningProfiles } = require('../state/runtime');
       if (!runningProfiles.has(profileId)) {
         const headless = !!(opts && opts.headless);
-        const launchResult = await launchProfileInternal(profileId, { headless, engine: 'playwright' });
+        const { readProfiles } = require('../storage/profiles');
+        const profileForEngine = readProfiles().find(p => p.id === profileId);
+        const profileEngine = profileForEngine?.settings?.engine || 'playwright';
+        const launchResult = await launchProfileInternal(profileId, { headless, engine: profileEngine });
         if (!launchResult.success) {
           appendLog(profileId, `Script execute failed — could not launch profile: ${launchResult.error || 'unknown'}`);
           await addTaskLog({ scriptId, scriptName, profileId, status: 'error', startedAt, finishedAt: new Date().toISOString(), logs: [], error: 'Failed to launch profile: ' + (launchResult.error || 'unknown') });
@@ -203,6 +206,23 @@ function registerIpcHandlers(extra = {}) {
       await addTaskLog({ scriptId, scriptName: scriptId, profileId, status: 'error', startedAt, finishedAt: new Date().toISOString(), logs: [], error: e?.message || String(e) });
       return { success: false, error: e?.message || String(e) };
     }
+  });
+
+  // Script execution control
+  ipcMain.handle('script-stop', (_e, profileId) => {
+    stopScript(profileId);
+    return { success: true };
+  });
+  ipcMain.handle('script-pause', (_e, profileId) => {
+    pauseScript(profileId);
+    return { success: true };
+  });
+  ipcMain.handle('script-resume', (_e, profileId) => {
+    resumeScript(profileId);
+    return { success: true };
+  });
+  ipcMain.handle('script-is-running', (_e, profileId) => {
+    return { running: isScriptRunning(profileId) };
   });
 
   // Task logs

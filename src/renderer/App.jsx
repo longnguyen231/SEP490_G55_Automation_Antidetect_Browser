@@ -215,8 +215,9 @@ function App() {
 
       // Only check Playwright engines (cdp uses system Chrome, no install needed)
       if (engine !== 'cdp') {
+        const isCamoufox = engine === 'camoufox';
         const isFirefox = engine === 'playwright-firefox' || engine === 'firefox';
-        const requiredBrowser = isFirefox ? 'firefox' : 'chromium';
+        const requiredBrowser = isCamoufox ? 'camoufox' : isFirefox ? 'firefox' : 'chromium';
         try {
           const status = await window.electronAPI?.checkBrowserStatus?.(requiredBrowser);
           if (status?.status !== 'installed') {
@@ -408,6 +409,7 @@ function App() {
             errorProfiles={errorProfiles}
             profileStatuses={profileStatuses}
             onToggleFp={handleToggleFp}
+            onReloadProfiles={loadProfiles}
           />
         );
 

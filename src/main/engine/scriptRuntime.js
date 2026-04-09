@@ -32,6 +32,28 @@ function makeScriptRequire(profileId) {
 function ok(v = {}) { return { success: true, ...v }; }
 function err(message, extra = {}) { return { success: false, error: String(message || 'unknown error'), ...extra }; }
 
+// Per-profile execution control
+const _runningScripts = new Map(); // profileId -> { aborted, paused }
+
+function stopScript(profileId) {
+  const ctrl = _runningScripts.get(profileId);
+  if (ctrl) { ctrl.aborted = true; ctrl.paused = false; }
+}
+
+function pauseScript(profileId) {
+  const ctrl = _runningScripts.get(profileId);
+  if (ctrl) ctrl.paused = true;
+}
+
+function resumeScript(profileId) {
+  const ctrl = _runningScripts.get(profileId);
+  if (ctrl) ctrl.paused = false;
+}
+
+function isScriptRunning(profileId) {
+  return _runningScripts.has(profileId);
+}
+
 /**
  * Get a Playwright page from a running profile.
  */
@@ -42,7 +64,9 @@ async function getPageForProfile(profileId) {
     return null;
   }
 
-  if (running.engine === 'playwright') {
+  // All Playwright-based engines (chromium, firefox, camoufox) store context directly
+  const isPlaywrightEngine = running.engine !== 'cdp' && running.context;
+  if (isPlaywrightEngine) {
     const context = running.context;
     if (!context) {
       appendLog(profileId, 'Script: Playwright context not available');
@@ -90,6 +114,10 @@ async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
   if (!profileId) return err('profileId is required');
   const src = String(code || '').trim();
   if (!src) return err('code is empty');
+  if (_runningScripts.has(profileId)) return err('A script is already running for this profile');
+
+  const ctrl = { aborted: false, paused: false };
+  _runningScripts.set(profileId, ctrl);
 
   appendLog(profileId, `Script: starting execution (timeout=${timeoutMs}ms)`);
 
@@ -101,7 +129,21 @@ async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
     logs.push(entry);
     try { appendLog(profileId, '[script] ' + msg); } catch {}
   };
-  const sleep = (ms) => new Promise((r) => setTimeout(r, Math.min(Math.max(0, Number(ms) || 0), 10 * 60 * 1000)));
+
+  // Abort/pause-aware sleep — checks flags every 100ms
+  const sleep = (ms) => new Promise((resolve, reject) => {
+    const total = Math.min(Math.max(0, Number(ms) || 0), 10 * 60 * 1000);
+    let elapsed = 0;
+    const tick = () => {
+      if (ctrl.aborted) return reject(new Error('Script stopped by user'));
+      if (ctrl.paused) { setTimeout(tick, 100); return; }
+      if (elapsed >= total) return resolve();
+      const step = Math.min(100, total - elapsed);
+      elapsed += step;
+      setTimeout(tick, step);
+    };
+    tick();
+  });
 
   // Actions proxy (legacy compatibility)
   const actions = new Proxy({}, {
@@ -192,18 +234,21 @@ async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
       script.runInContext(vmContext, { displayErrors: true }),
       new Promise((_, reject) => setTimeout(() => reject(new Error(`Script timeout after ${timeoutMs}ms`)), Math.min(timeoutMs, 300000))),
     ]);
+    _runningScripts.delete(profileId);
     if (pageHandle?.cleanup) await pageHandle.cleanup();
     appendLog(profileId, `Script: completed successfully (${logs.length} log entries)`);
     return ok({ result, logs });
   } catch (e) {
+    _runningScripts.delete(profileId);
     const errMsg = e?.message || String(e);
-    // Classify error type for clearer log
-    if (errMsg.includes('timeout')) {
+    if (errMsg.includes('stopped by user')) {
+      appendLog(profileId, `Script: STOPPED by user`);
+    } else if (errMsg.includes('timeout')) {
       appendLog(profileId, `Script: TIMEOUT — ${errMsg}`);
     } else if (errMsg.includes('is not defined')) {
-      appendLog(profileId, `Script: REFERENCE ERROR — ${errMsg} (check variable names or missing globals like fetch/require)`);
+      appendLog(profileId, `Script: REFERENCE ERROR — ${errMsg}`);
     } else if (errMsg.includes('Cannot read')) {
-      appendLog(profileId, `Script: NULL/UNDEFINED ERROR — ${errMsg} (page or element may not be available)`);
+      appendLog(profileId, `Script: NULL/UNDEFINED ERROR — ${errMsg}`);
     } else if (errMsg.includes('Assertion failed') || errMsg.startsWith('assert')) {
       appendLog(profileId, `Script: ASSERTION FAILED — ${errMsg}`);
     } else {
@@ -215,4 +260,4 @@ async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
   }
 }
 
-module.exports = { executeScript };
+module.exports = { executeScript, stopScript, pauseScript, resumeScript, isScriptRunning };
