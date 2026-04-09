@@ -1,5 +1,134 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './ProfileList.css';
+
+function ProxyPickerPopup({ profile, onClose, onSaved }) {
+  const [proxies, setProxies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const list = await window.electronAPI.getProxies();
+        setProxies(Array.isArray(list) ? list : []);
+      } catch { }
+      setLoading(false);
+    })();
+  }, []);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  const currentServer = profile?.settings?.proxy?.server || '';
+
+  const handleSelect = async (proxy) => {
+    setSaving(true);
+    try {
+      const server = proxy ? `${proxy.host}:${proxy.port}` : '';
+      const updated = {
+        ...profile,
+        settings: {
+          ...profile.settings,
+          proxy: proxy ? {
+            type: proxy.type || 'http',
+            server,
+            username: proxy.username || '',
+            password: proxy.password || '',
+          } : { type: 'none', server: '', username: '', password: '' },
+        },
+      };
+      const res = await window.electronAPI.saveProfile(updated);
+      if (res?.success) { onSaved(res.profile || updated); onClose(); }
+      else alert(res?.error || 'Failed to save');
+    } catch (e) { alert(e.message); }
+    setSaving(false);
+  };
+
+  const filtered = proxies.filter(p =>
+    !search || `${p.name} ${p.host} ${p.type}`.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const statusColor = (s) => s === 'alive' ? '#10b981' : s === 'dead' ? '#ef4444' : '#6b7280';
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '80px', background: 'rgba(0,0,0,0.4)' }}>
+      <div ref={ref} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', width: '440px', maxHeight: '480px', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+        {/* Header */}
+        <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--fg)' }}>Assign Proxy</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '2px' }}>{profile?.name}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '1.1rem', padding: '4px 8px' }}>✕</button>
+        </div>
+        {/* Search */}
+        <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+          <input
+            autoFocus
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search proxy..."
+            style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--card2)', color: 'var(--fg)', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }}
+          />
+        </div>
+        {/* List */}
+        <div style={{ overflowY: 'auto', flex: 1, padding: '6px 8px' }}>
+          {loading ? (
+            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.82rem' }}>Loading...</div>
+          ) : (
+            <>
+              {/* None option */}
+              <div
+                onClick={() => !saving && handleSelect(null)}
+                style={{ padding: '8px 10px', borderRadius: '6px', cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', background: !currentServer ? 'rgba(99,102,241,0.12)' : 'transparent', border: !currentServer ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent' }}
+                onMouseEnter={e => { if (currentServer) e.currentTarget.style.background = 'var(--card2)'; }}
+                onMouseLeave={e => { if (currentServer) e.currentTarget.style.background = 'transparent'; }}
+              >
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#6b7280', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.82rem', color: 'var(--muted)', fontStyle: 'italic' }}>No proxy (direct)</span>
+                {!currentServer && <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: '#818cf8' }}>current</span>}
+              </div>
+              {filtered.length === 0 && (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.82rem' }}>
+                  No proxies found. Add some in the Proxy Manager.
+                </div>
+              )}
+              {filtered.map(p => {
+                const server = `${p.host}:${p.port}`;
+                const isCurrent = currentServer === server;
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => !saving && handleSelect(p)}
+                    style={{ padding: '8px 10px', borderRadius: '6px', cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px', background: isCurrent ? 'rgba(99,102,241,0.12)' : 'transparent', border: isCurrent ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent' }}
+                    onMouseEnter={e => { if (!isCurrent) e.currentTarget.style.background = 'var(--card2)'; }}
+                    onMouseLeave={e => { if (!isCurrent) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusColor(p.status), flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name || server}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{p.type?.toUpperCase()} · {server}</div>
+                    </div>
+                    {isCurrent && <span style={{ fontSize: '0.7rem', color: '#818cf8', flexShrink: 0 }}>current</span>}
+                    {p.latency && <span style={{ fontSize: '0.7rem', color: '#10b981', flexShrink: 0 }}>{p.latency}ms</span>}
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+        {saving && (
+          <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', fontSize: '0.78rem', color: 'var(--muted)', textAlign: 'center' }}>Saving...</div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // Common SVG Icons
 const ChromiumIcon = () => (
@@ -66,8 +195,11 @@ export default function ProfileList({
   headlessPrefs = {}, onSetHeadless, enginePrefs = {}, onSetEngine, onDeleteSelected,
   errorProfiles = {},
   profileStatuses = {},
-  onToggleFp
+  onToggleFp,
+  onReloadProfiles,
 }) {
+  const [proxyPickerProfile, setProxyPickerProfile] = useState(null);
+
   const shortId = (id) => (id || '').substring(0, 6);
 
   const getOsInfo = (p) => {
@@ -105,8 +237,9 @@ export default function ProfileList({
             const browser = profile?.fingerprint?.browser || 'Chrome';
             const res = profile?.fingerprint?.screenResolution || '1920x1080';
             const engine = profile?.settings?.engine || 'playwright';
-            const isFirefox = engine === 'playwright-firefox';
-            const engineLabel = isFirefox ? 'Firefox' : 'Chromium';
+            const isFirefox = engine === 'playwright-firefox' || engine === 'firefox';
+            const isCamoufox = engine === 'camoufox';
+            const engineLabel = isCamoufox ? 'Camoufox' : isFirefox ? 'Firefox' : 'Chromium';
             
             const hasProxy = profile?.settings?.proxy?.type && profile.settings.proxy.type !== 'none' && profile.settings.proxy.server;
             const proxyType = hasProxy ? profile.settings.proxy.type.toUpperCase() : '';
@@ -127,13 +260,13 @@ export default function ProfileList({
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: '5px',
                       padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600,
-                      background: isFirefox ? 'rgba(234,88,12,0.15)' : 'rgba(16,185,129,0.15)',
-                      color: isFirefox ? '#fb923c' : '#34d399',
-                      border: `1px solid ${isFirefox ? 'rgba(234,88,12,0.3)' : 'rgba(16,185,129,0.3)'}`,
+                      background: isCamoufox ? 'rgba(168,85,247,0.15)' : isFirefox ? 'rgba(234,88,12,0.15)' : 'rgba(16,185,129,0.15)',
+                      color: isCamoufox ? '#c084fc' : isFirefox ? '#fb923c' : '#34d399',
+                      border: `1px solid ${isCamoufox ? 'rgba(168,85,247,0.3)' : isFirefox ? 'rgba(234,88,12,0.3)' : 'rgba(16,185,129,0.3)'}`,
                     }}>
                       <span style={{
                         width: '6px', height: '6px', borderRadius: '50%',
-                        background: isFirefox ? '#fb923c' : '#10b981',
+                        background: isCamoufox ? '#c084fc' : isFirefox ? '#fb923c' : '#10b981',
                       }} />
                       {engineLabel}
                     </span>
@@ -147,7 +280,7 @@ export default function ProfileList({
                       {osInfo.label}
                     </span>
                     <span className="pl-tag">
-                      <span className="pl-tag-icon">{isFirefox ? <FoxIcon /> : <ChromiumIcon />}</span>
+                      <span className="pl-tag-icon">{(isFirefox || isCamoufox) ? <FoxIcon /> : <ChromiumIcon />}</span>
                       {browser}
                     </span>
                     <span className="pl-tag">
@@ -199,7 +332,7 @@ export default function ProfileList({
                       <button className="pl-btn pl-btn-headless" onClick={() => onLaunchHeadless(profile.id)}>Headless</button>
                     </>
                   )}
-                  <button className="pl-btn pl-btn-proxy" onClick={() => onEditProfile(profile)} disabled={isTransitioning}>Proxy</button>
+                  <button className="pl-btn pl-btn-proxy" onClick={() => setProxyPickerProfile(profile)} disabled={isTransitioning}>Proxy</button>
                   <button className="pl-btn pl-btn-clone" onClick={() => onCloneProfile(profile.id)} disabled={isTransitioning}>Clone</button>
                   <button className="pl-btn pl-btn-edit" onClick={() => onEditProfile(profile)} disabled={isTransitioning}>Edit</button>
                   <button className="pl-btn pl-btn-delete" onClick={() => onDeleteProfile(profile.id)} disabled={isRunning || isTransitioning}>Delete</button>
@@ -209,6 +342,14 @@ export default function ProfileList({
           })
         )}
       </div>
+
+      {proxyPickerProfile && (
+        <ProxyPickerPopup
+          profile={proxyPickerProfile}
+          onClose={() => setProxyPickerProfile(null)}
+          onSaved={() => { setProxyPickerProfile(null); onReloadProfiles?.(); }}
+        />
+      )}
     </div>
   );
 }

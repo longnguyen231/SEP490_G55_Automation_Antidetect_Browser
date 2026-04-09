@@ -81,7 +81,7 @@ async function launchProfileInternal(profileId, options = {}) {
     if (startUrl === 'https://www.google.com' || startUrl === 'https://www.google.com/') {
       startUrl = 'https://www.google.com/?hl=en';
     }
-    const engine = (options && options.engine) ? String(options.engine).toLowerCase() : (settings.engine === 'cdp' ? 'cdp' : 'playwright');
+    const engine = (options && options.engine) ? String(options.engine).toLowerCase() : (settings.engine || 'playwright');
     const requestedHeadless = (options && typeof options.headless === 'boolean') ? options.headless : undefined;
     const headless = (requestedHeadless !== undefined) ? requestedHeadless : !!settings.headless;
 
@@ -89,7 +89,7 @@ async function launchProfileInternal(profileId, options = {}) {
     // race conditions when multiple profiles are launched concurrently.
     try {
       updateProfileSettings(profileId, {
-        engine: engine === 'cdp' ? 'cdp' : 'playwright',
+        engine,
         headless: !!headless,
       });
     } catch { }
@@ -238,8 +238,8 @@ async function launchProfileInternal(profileId, options = {}) {
     // rebrowser-playwright patches CDP leak at network level (Runtime.enable, bindings).
     // Combined with safeMode ON (no JS Object.defineProperty overrides), this bypasses
     // Cloudflare enterprise WAF.
-    const engineMode = settings.engine || 'playwright';
-    const isFirefox = engineMode === 'playwright-firefox' || engineMode === 'firefox';
+    const engineMode = engine;
+    const isFirefox = engineMode === 'playwright-firefox' || engineMode === 'firefox' || engineMode === 'camoufox';
     const { chromium, firefox } = require('playwright'); // rebrowser-playwright — must NOT use playwright-core (standard, unpatched)
     const pwEngine = isFirefox ? firefox : chromium;
 
@@ -389,13 +389,55 @@ async function launchProfileInternal(profileId, options = {}) {
       'network.cookie.cookieBehavior': 0,
       'browser.aboutConfig.showWarning': false,
       'general.warnOnAboutConfig': false,
+      // Extra automation signal removal
+      'dom.automation': false,
+      'dom.automation.enabled': false,
+      'browser.tabs.remote.autostart': false,
+      'extensions.autoDisableScopes': 0,
+      'devtools.chrome.enabled': false,
+      'devtools.debugger.remote-enabled': false,
+      'devtools.debugger.prompt-connection': false,
+      // HTTP/2 settings to match real Firefox profile
+      'network.http.spdy.enabled.http2': true,
+      'network.http.spdy.enabled': true,
+      'security.ssl.enable_false_start': true,
+      // Disable first-run pages that signal fresh/automation profile
+      'browser.startup.homepage_override.mstone': 'ignore',
+      'startup.homepage_welcome_url': '',
+      'startup.homepage_welcome_url.additional': '',
+      'browser.usedOnWindows10.introURL': '',
+      // Fingerprinting-related
+      'webgl.disabled': false,
+      'media.navigator.enabled': true,
+      'media.peerconnection.enabled': true,
     } : undefined;
+
+    const camoufoxArgs = engineMode === 'camoufox' ? [
+      '--no-remote',
+      '--new-instance',
+    ] : [];
+    let firefoxLaunchOpts = { headless: false, args: [...args, ...camoufoxArgs], proxy, firefoxUserPrefs };
+    if (engineMode === 'camoufox') {
+      // Camoufox must run non-headless — headless leaks GPU/screen metrics that Cloudflare detects.
+      try {
+        const camoufoxMgr = require('../services/camoufoxManager');
+        const exe = camoufoxMgr.getCamoufoxExecutable();
+        if (exe) {
+          firefoxLaunchOpts.executablePath = exe;
+          appendLog(profileId, `[camoufox] Using Camoufox: ${exe}`);
+        } else {
+          appendLog(profileId, '[camoufox] Not installed — falling back to Playwright Firefox');
+        }
+      } catch (e) {
+        appendLog(profileId, `[camoufox] Resolve error: ${e?.message || e}`);
+      }
+    }
 
     let server;
     let browser;
     try {
       if (isFirefox) {
-        server = await pwEngine.launchServer({ headless, args, proxy, firefoxUserPrefs });
+        server = await pwEngine.launchServer(firefoxLaunchOpts);
         browser = await pwEngine.connect(server.wsEndpoint());
       } else {
         browser = await pwEngine.launch(chromiumLaunchOpts);
@@ -410,7 +452,7 @@ async function launchProfileInternal(profileId, options = {}) {
         const ok = await runPlaywrightInstall(bname);
         if (!ok) { try { await forwarder?.stop?.(); } catch { } return { success: false, error: 'Playwright browsers not installed.' }; }
         if (isFirefox) {
-          server = await pwEngine.launchServer({ headless, args, proxy, firefoxUserPrefs });
+          server = await pwEngine.launchServer(firefoxLaunchOpts);
           browser = await pwEngine.connect(server.wsEndpoint());
         } else {
           browser = await pwEngine.launch(chromiumLaunchOpts);
