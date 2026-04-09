@@ -262,7 +262,7 @@ function App() {
     setErrorProfiles(prev => { const n = { ...prev }; delete n[profileId]; return n; });
     try {
       const engine = enginePrefs[profileId] || 'playwright';
-      const options = { headless: true, engine: engine === 'cdp' ? 'cdp' : 'playwright' };
+      const options = { headless: true, engine };
       const result = await window.electronAPI.launchProfile(profileId, options);
       if (!result.success) { setErrorProfiles(prev => ({ ...prev, [profileId]: true })); alert('Error launching headless: ' + result.error); }
       await refreshRunningStatus();
