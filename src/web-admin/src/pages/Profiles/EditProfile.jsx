@@ -49,14 +49,14 @@ const EditProfile = () => {
   const onSubmit = (data) => {
     console.log('Saving profile:', data);
     toast.success('Changes saved successfully!');
-    navigate('/profiles');
+    navigate('/dashboard/profiles');
   };
 
   const headerExtra = (
     <div className="flex gap-3">
       <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorBgContainer: '#334155', colorBorder: 'transparent', colorText: '#f1f5f9' } }}>
         <Button 
-          onClick={() => navigate('/profiles')}
+          onClick={() => navigate('/dashboard/profiles')}
           className="font-bold border-none h-10 px-6"
         >
           Discard

@@ -198,6 +198,14 @@ export default function ProfileList({
   onToggleFp,
   onReloadProfiles,
 }) {
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const totalPages = Math.max(1, Math.ceil((profiles || []).length / pageSize));
+  useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages); }, [profiles?.length, pageSize]);
+  const paginatedProfiles = (profiles || []).slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  // Proxy picker popup
   const [proxyPickerProfile, setProxyPickerProfile] = useState(null);
 
   const shortId = (id) => (id || '').substring(0, 6);
@@ -226,7 +234,7 @@ export default function ProfileList({
             No profiles yet. Click <strong>+ New Profile</strong> to create one.
           </div>
         ) : (
-          profiles.map(profile => {
+          paginatedProfiles.map(profile => {
             const pStatus = profileStatuses[profile.id]?.status;
             const isStarting = pStatus === 'STARTING';
             const isStopping = pStatus === 'STOPPING';
@@ -304,7 +312,7 @@ export default function ProfileList({
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                     {BADGE_MAP.map(({ key, label, section, title }) => {
                       const isEnabled = !!profile?.settings?.[section]?.enabled;
-                      const isWarn = key === 'DSP' && isEnabled; // Display spoofing triggers warning
+                      const isWarn = key === 'DSP' && isEnabled;
                       return (
                         <button
                           key={key}
@@ -347,6 +355,37 @@ export default function ProfileList({
         )}
       </div>
 
+      {/* Pagination */}
+      {profiles && profiles.length > pageSize && (
+        <div className="pl-pagination">
+          <div className="pl-pagination-info">
+            Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, profiles.length)} of {profiles.length} profiles
+          </div>
+          <div className="pl-pagination-controls">
+            <select className="pl-pagination-size" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}>
+              {[5, 10, 20, 50].map(n => <option key={n} value={n}>{n} / page</option>)}
+            </select>
+            <button className="pl-pagination-btn" disabled={currentPage <= 1} onClick={() => setCurrentPage(1)} title="First">«</button>
+            <button className="pl-pagination-btn" disabled={currentPage <= 1} onClick={() => setCurrentPage(p => p - 1)} title="Previous">‹</button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+              .reduce((acc, p, i, arr) => {
+                if (i > 0 && p - arr[i - 1] > 1) acc.push('...');
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, i) =>
+                p === '...'
+                  ? <span key={'dot' + i} className="pl-pagination-dots">…</span>
+                  : <button key={p} className={`pl-pagination-btn ${p === currentPage ? 'pl-pagination-active' : ''}`} onClick={() => setCurrentPage(p)}>{p}</button>
+              )}
+            <button className="pl-pagination-btn" disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} title="Next">›</button>
+            <button className="pl-pagination-btn" disabled={currentPage >= totalPages} onClick={() => setCurrentPage(totalPages)} title="Last">»</button>
+          </div>
+        </div>
+      )}
+
+      {/* Proxy Picker Popup */}
       {proxyPickerProfile && (
         <ProxyPickerPopup
           profile={proxyPickerProfile}
@@ -357,4 +396,3 @@ export default function ProfileList({
     </div>
   );
 }
-
