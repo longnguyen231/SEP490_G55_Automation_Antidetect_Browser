@@ -119,4 +119,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('app-log', listener);
   },
   removeAllAppLog: () => ipcRenderer.removeAllListeners('app-log'),
+
+  // Backend ready signal — fired when all IPC handlers are registered
+  onBackendReady: (callback) => {
+    const listener = (_event, ready) => callback && callback(ready);
+    ipcRenderer.on('backend-ready', listener);
+    return () => ipcRenderer.removeListener('backend-ready', listener);
+  },
 });

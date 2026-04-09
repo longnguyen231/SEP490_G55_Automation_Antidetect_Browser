@@ -767,7 +767,9 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
     return { ...restServerState };
   }
 
-  return { start, stop, setEnabled, setPort, getState, startWithPassword };
+  function setBroadcaster(fn) { broadcaster = fn; }
+
+  return { start, stop, setEnabled, setPort, getState, startWithPassword, setBroadcaster };
 }
 
 module.exports = { createRestServer };

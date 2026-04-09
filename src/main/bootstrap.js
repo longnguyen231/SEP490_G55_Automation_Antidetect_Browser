@@ -63,30 +63,37 @@ function startBackgroundHeartbeat(intervalMs = 30000) {
 }
 
 app.whenReady().then(async () => {
-  // Prepare data directories and migrate legacy files
+  // 1. Prepare data directories FIRST (sync, fast)
   initializeDataFiles();
 
-  // Create main window
+  // 2. Register IPC handlers BEFORE creating window
+  //    This ensures all handlers are ready before renderer can call them.
+  const settingsProvider = () => loadSettings();
+  settingsProvider.set = (st) => { try { saveSettings(st); } catch {} };
+  let swaggerUi = null; try { swaggerUi = require('swagger-ui-express'); } catch {}
+  const restServer = createRestServer({ settingsProvider, broadcaster: () => {}, swaggerUi });
+  const handlers = { ...require('./controllers/profiles'), ...require('./storage/profiles') };
+  registerIpcHandlers({ restServer, handlers });
+
+  // 3. NOW create window — IPC is guaranteed ready
   const mainWindow = createWindow();
   setMainWindowRef(mainWindow);
 
-  // Start REST API server
-  const settingsProvider = () => loadSettings();
-  settingsProvider.set = (st) => { try { saveSettings(st); } catch {} };
+  // 4. Update broadcaster to use actual window (non-blocking)
   const broadcaster = (state) => { try { mainWindow.webContents.send('api-server-status', state); } catch {} };
-  let swaggerUi = null; try { swaggerUi = require('swagger-ui-express'); } catch {}
-  const restServer = createRestServer({ settingsProvider, broadcaster, swaggerUi });
-  const handlers = { ...require('./controllers/profiles'), ...require('./storage/profiles') };
-  try { await restServer.start(handlers); } catch (e) { appendLog('system', `REST start error: ${e?.message || e}`); }
+  restServer.setBroadcaster?.(broadcaster);
 
-  // Register IPC handlers (include restServer and handlers for API control)
-  registerIpcHandlers({ restServer, handlers });
+  // 5. Start REST API server in background (don't block window)
+  restServer.start(handlers).catch(e => appendLog('system', `REST start error: ${e?.message || e}`));
 
-  // Background pruning of stale running profiles
+  // 6. Background tasks
   startBackgroundHeartbeat();
-
-  // Start automation scheduler (cron-based auto launches)
   try { startAutomationScheduler(); } catch (e) { appendLog('system', `Automation scheduler failed to start: ${e?.message || e}`); }
+
+  // 7. Signal renderer that backend is fully ready
+  mainWindow.webContents.on('did-finish-load', () => {
+    try { mainWindow.webContents.send('backend-ready', true); } catch {}
+  });
 });
 
 // Graceful shutdown (dev convenience)

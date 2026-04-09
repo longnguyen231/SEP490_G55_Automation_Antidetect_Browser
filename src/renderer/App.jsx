@@ -34,6 +34,7 @@ function App() {
   const [toasts, setToasts] = useState([]);
   const [enginePrefs, setEnginePrefs] = useState({});
   const [errorProfiles, setErrorProfiles] = useState({});
+  const [backendReady, setBackendReady] = useState(false);
   const [apiStatus, setApiStatus] = useState({ enabled: true, running: false, host: '127.0.0.1', port: 4000, error: null });
   const [apiDesiredPort, setApiDesiredPort] = useState(4000);
   const apiPortTimerRef = useRef(null);
@@ -108,16 +109,29 @@ function App() {
     };
   }, []);
 
-  // Effects: initial load, subscribe to running map & API status
-  useEffect(() => { 
-    loadProfiles(); 
+  // Wait for backend IPC to be ready, then load data
+  useEffect(() => {
     let unsub = null;
-    if (window.electronAPI.onProfilesUpdated) {
+    const init = () => { setBackendReady(true); loadProfiles(); };
+    // In production, IPC handlers may register after window loads.
+    // Listen for explicit 'backend-ready' signal from main process.
+    if (window.electronAPI?.onBackendReady) {
+      unsub = window.electronAPI.onBackendReady(() => init());
+    }
+    // Also try immediately — in dev, handlers are usually ready already
+    loadProfiles();
+    return () => { try { unsub?.(); } catch {} };
+  }, []);
+
+  // Subscribe to profile updates
+  useEffect(() => {
+    let unsub = null;
+    if (window.electronAPI?.onProfilesUpdated) {
       unsub = window.electronAPI.onProfilesUpdated(() => loadProfiles());
     }
     return () => {
-      try { unsub && unsub(); } catch {}
-      try { window.electronAPI.removeAllProfilesUpdated?.(); } catch {}
+      try { unsub?.(); } catch {}
+      try { window.electronAPI?.removeAllProfilesUpdated?.(); } catch {}
     };
   }, []);
   useEffect(() => {
