@@ -294,7 +294,10 @@ function registerIpcHandlers(extra = {}) {
             status: result.alive ? 'alive' : 'dead',
             latency: result.latency || null,
             lastChecked: new Date().toISOString(),
-            country: result.countryCode || '',
+            country: result.country || result.countryCode || '',
+            countryCode: result.countryCode || '',
+            ip: result.ip || '',
+            city: result.city || '',
           }).catch(() => {});
         } catch {}
       });
