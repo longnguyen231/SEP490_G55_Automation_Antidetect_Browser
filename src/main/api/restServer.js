@@ -19,9 +19,10 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
     } catch {}
   }
 
-  // API key middleware (optional)
+  // API key middleware (optional) — docs and openapi spec are always public
   appx.use((req, res, next) => {
-    if (apiKey && req.headers["x-api-key"] !== apiKey) {
+    const isPublic = req.path === "/openapi.json" || req.path.startsWith("/docs");
+    if (apiKey && !isPublic && req.headers["x-api-key"] !== apiKey) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
     next();
@@ -737,6 +738,7 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
     const st = settingsProvider();
     const rest = st.restApi || {};
     rest.enabled = !!enabled;
+    st.restApi = rest;
     settingsProvider.set?.(st);
     restServerState.enabled = !!enabled;
     if (enabled) return await start(handlers);
@@ -753,6 +755,7 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
     const st = settingsProvider();
     const rest = st.restApi || {};
     rest.port = n;
+    st.restApi = rest;
     settingsProvider.set?.(st);
     restServerState.port = n;
     await stop();
