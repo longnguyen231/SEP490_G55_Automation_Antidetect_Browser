@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './ProfileList.css';
 
-function ProxyPickerPopup({ profile, onClose, onSaved }) {
+function ProxyPickerPopup({ profile, isRunning = false, onClose, onSaved }) {
   const [proxies, setProxies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -66,6 +66,12 @@ function ProxyPickerPopup({ profile, onClose, onSaved }) {
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '1.1rem', padding: '4px 8px' }}>✕</button>
         </div>
+        {/* Running warning */}
+        {isRunning && (
+          <div style={{ padding: '8px 16px', background: 'rgba(245,158,11,0.12)', borderBottom: '1px solid rgba(245,158,11,0.3)', fontSize: '0.75rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>⚠</span> Profile is running — will restart automatically to apply the new proxy
+          </div>
+        )}
         {/* Search */}
         <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
           <input
@@ -344,7 +350,7 @@ export default function ProfileList({
                       <button className="pl-btn pl-btn-headless" onClick={() => onLaunchHeadless(profile.id)}>Headless</button>
                     </>
                   )}
-                  <button className="pl-btn pl-btn-proxy" onClick={() => setProxyPickerProfile(profile)} disabled={isTransitioning}>Proxy</button>
+                  <button className="pl-btn pl-btn-proxy" onClick={() => setProxyPickerProfile({ profile, isRunning })} disabled={isTransitioning}>Proxy</button>
                   <button className="pl-btn pl-btn-clone" onClick={() => onCloneProfile(profile.id)} disabled={isTransitioning}>Clone</button>
                   <button className="pl-btn pl-btn-edit" onClick={() => onEditProfile(profile)} disabled={isTransitioning}>Edit</button>
                   <button className="pl-btn pl-btn-delete" onClick={() => onDeleteProfile(profile.id)} disabled={isRunning || isTransitioning}>Delete</button>
@@ -388,9 +394,19 @@ export default function ProfileList({
       {/* Proxy Picker Popup */}
       {proxyPickerProfile && (
         <ProxyPickerPopup
-          profile={proxyPickerProfile}
+          profile={proxyPickerProfile.profile}
+          isRunning={proxyPickerProfile.isRunning}
           onClose={() => setProxyPickerProfile(null)}
-          onSaved={() => { setProxyPickerProfile(null); onReloadProfiles?.(); }}
+          onSaved={async (updatedProfile) => {
+            setProxyPickerProfile(null);
+            onReloadProfiles?.();
+            if (proxyPickerProfile.isRunning) {
+              // Restart to apply new proxy
+              await window.electronAPI.stopProfile(updatedProfile.id);
+              await new Promise(r => setTimeout(r, 800));
+              await window.electronAPI.launchProfile(updatedProfile.id, {});
+            }
+          }}
         />
       )}
     </div>
