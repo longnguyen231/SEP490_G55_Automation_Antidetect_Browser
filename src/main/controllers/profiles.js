@@ -626,11 +626,11 @@ async function launchProfileInternal(profileId, options = {}) {
     };
     try { for (const p of context.pages()) { p.on('close', onPageClose); } } catch { }
     context.on('page', (newPage) => { try { newPage.on('close', onPageClose); } catch { } });
-    runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder, startedAt: Date.now() });
+    runningProfiles.set(profileId, { engine: engineMode, server, browser, context, wsEndpoint, forwarder, startedAt: Date.now() });
     setProfileStatus(profileId, 'RUNNING', instanceId);
     broadcastRunningMap();
     // Post-launch automation script (if configured)
-    try { await runAutomationPostLaunch(profile, { engine: 'playwright', wsEndpoint, context, browser }); } catch (e) { appendLog(profileId, `Automation post-launch error: ${e?.message || e}`); }
+    try { await runAutomationPostLaunch(profile, { engine: engineMode, wsEndpoint, context, browser }); } catch (e) { appendLog(profileId, `Automation post-launch error: ${e?.message || e}`); }
     return { success: true, wsEndpoint };
   } catch (error) {
     setProfileStatus(profileId, 'ERROR', instanceId);
@@ -1035,7 +1035,8 @@ async function runAutomationNowInternal(profileId) {
     appendLog(profileId, `Automation: manual run (${steps.length} steps)`);
     if (!steps.length) return { success: true, steps: 0 };
     const launchCtx = { engine, wsEndpoint };
-    if (engine === 'playwright') {
+    // All Playwright-based engines (chromium, firefox, camoufox) store browser+context
+    if (engine !== 'cdp') {
       launchCtx.browser = running.browser;
       launchCtx.context = running.context;
     }

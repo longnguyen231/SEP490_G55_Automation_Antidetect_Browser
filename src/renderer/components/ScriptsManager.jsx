@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Play, Plus, Trash2, Search, FileCode, RefreshCw, ChevronRight, X, Download, Upload, Edit2 } from 'lucide-react';
+import { Play, Plus, Trash2, Search, FileCode, RefreshCw, ChevronRight, X, Download, Upload, Edit2, Pause, Square } from 'lucide-react';
 import Editor from '@monaco-editor/react';
 
 /* ═══════════════ API Reference Data ═══════════════ */
@@ -134,7 +134,7 @@ export default function ScriptsManager({ profiles = [] }) {
                 </div>
             </div>
             {activeTab === 'scripts' && <ScriptsTab profiles={profiles} />}
-            {activeTab === 'logs' && <TaskLogsTab />}
+            {activeTab === 'logs' && <TaskLogsTab profiles={profiles} />}
             {activeTab === 'modules' && <ScriptModulesTab />}
         </div>
     );
@@ -620,10 +620,11 @@ function ScriptsTab({ profiles }) {
 }
 
 /* ═══════════════ Run Script Modal ═══════════════ */
-function RunScriptModal({ script, profiles = [], onClose, onComplete }) {
-    const [selectedProfileId, setSelectedProfileId] = useState('');
+function RunScriptModal({ script, profiles = [], defaultProfileId = '', onClose, onComplete }) {
+    const [selectedProfileId, setSelectedProfileId] = useState(defaultProfileId || '');
     const [browserMode, setBrowserMode] = useState(script?.browserMode || 'visible');
     const [isRunning, setIsRunning] = useState(false);
+    const [isPaused, setIsPaused] = useState(false);
     const [result, setResult] = useState(null);
     const [logs, setLogs] = useState([]);
 
@@ -632,6 +633,7 @@ function RunScriptModal({ script, profiles = [], onClose, onComplete }) {
     const handleRun = async () => {
         if (!canRun) return;
         setIsRunning(true);
+        setIsPaused(false);
         setResult(null);
         setLogs([]);
         try {
@@ -652,6 +654,21 @@ function RunScriptModal({ script, profiles = [], onClose, onComplete }) {
             onComplete?.(script.id, errResult);
         } finally {
             setIsRunning(false);
+            setIsPaused(false);
+        }
+    };
+
+    const handleStop = async () => {
+        await window.electronAPI.stopScript(selectedProfileId);
+    };
+
+    const handlePauseResume = async () => {
+        if (isPaused) {
+            await window.electronAPI.resumeScript(selectedProfileId);
+            setIsPaused(false);
+        } else {
+            await window.electronAPI.pauseScript(selectedProfileId);
+            setIsPaused(true);
         }
     };
 
@@ -747,22 +764,41 @@ function RunScriptModal({ script, profiles = [], onClose, onComplete }) {
                 </div>
 
                 {/* Footer */}
-                <div className="px-5 py-3 flex items-center justify-between" style={{ background: 'var(--card2)', borderTop: '1px solid var(--border)' }}>
-                    <button className="px-4 py-2 rounded-lg text-[0.78rem] font-medium transition hover:brightness-110"
-                        style={{ background: 'var(--glass)', color: 'var(--fg)', border: '1px solid var(--border2)' }}
-                        onClick={onClose} disabled={isRunning}>
-                        Cancel
-                    </button>
-                    <button className="px-5 py-2 rounded-lg text-[0.78rem] font-semibold text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 hover:shadow-lg"
-                        style={{ background: canRun ? 'linear-gradient(135deg, #10b981, #059669)' : '#4b5563' }}
-                        disabled={!canRun}
-                        onClick={handleRun}>
-                        {isRunning ? (
-                            <><RefreshCw size={15} className="animate-spin" /> Executing...</>
-                        ) : (
-                            <><Play size={15} /> Run Script</>
-                        )}
-                    </button>
+                <div className="px-5 py-3 flex items-center justify-between gap-2" style={{ background: 'var(--card2)', borderTop: '1px solid var(--border)' }}>
+                    {isRunning ? (
+                        <>
+                            <div className="flex items-center gap-2 text-[0.75rem]" style={{ color: 'var(--muted)' }}>
+                                <RefreshCw size={14} className="animate-spin" />
+                                <span>{isPaused ? 'Paused' : 'Executing...'}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button className="px-4 py-2 rounded-lg text-[0.78rem] font-semibold text-white transition-all duration-200 flex items-center gap-2 hover:brightness-110"
+                                    style={{ background: isPaused ? '#10b981' : '#f59e0b' }}
+                                    onClick={handlePauseResume}>
+                                    {isPaused ? <><Play size={14} /> Resume</> : <><Pause size={14} /> Pause</>}
+                                </button>
+                                <button className="px-4 py-2 rounded-lg text-[0.78rem] font-semibold text-white transition-all duration-200 flex items-center gap-2 hover:brightness-110"
+                                    style={{ background: '#dc2626' }}
+                                    onClick={handleStop}>
+                                    <Square size={14} /> Stop
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <button className="px-4 py-2 rounded-lg text-[0.78rem] font-medium transition hover:brightness-110"
+                                style={{ background: 'var(--glass)', color: 'var(--fg)', border: '1px solid var(--border2)' }}
+                                onClick={onClose}>
+                                Cancel
+                            </button>
+                            <button className="px-5 py-2 rounded-lg text-[0.78rem] font-semibold text-white transition-all duration-200 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 hover:shadow-lg"
+                                style={{ background: canRun ? 'linear-gradient(135deg, #10b981, #059669)' : '#4b5563' }}
+                                disabled={!canRun}
+                                onClick={handleRun}>
+                                <Play size={15} /> Run Script
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
         </div>
@@ -840,10 +876,11 @@ function ApiCategory({ cat, onInsert, forceOpen }) {
 }
 
 /* ═══════════════ Task Logs Tab ═══════════════ */
-function TaskLogsTab() {
+function TaskLogsTab({ profiles = [] }) {
     const [tasks, setTasks] = useState([]);
     const [selected, setSelected] = useState(null);
     const [detailLogs, setDetailLogs] = useState([]);
+    const [rerunModal, setRerunModal] = useState(null); // { script, defaultProfileId }
 
     const loadTasks = useCallback(async () => {
         try { const list = await window.electronAPI.getTaskLogs(); setTasks(Array.isArray(list) ? list : []); } catch { setTasks([]); }
@@ -871,7 +908,27 @@ function TaskLogsTab() {
         try { await window.electronAPI.clearTaskLogs(); setTasks([]); setSelected(null); setDetailLogs([]); } catch {}
     };
 
+    const handleRunAgain = async () => {
+        if (!selected?.scriptId) return;
+        try {
+            const res = await window.electronAPI.getScript(selected.scriptId);
+            if (res?.success && res.script) {
+                setRerunModal({ script: res.script, defaultProfileId: selected.profileId });
+            }
+        } catch {}
+    };
+
     return (
+        <>
+        {rerunModal && (
+            <RunScriptModal
+                script={rerunModal.script}
+                profiles={profiles}
+                defaultProfileId={rerunModal.defaultProfileId}
+                onClose={() => setRerunModal(null)}
+                onComplete={() => setRerunModal(null)}
+            />
+        )}
         <div className="flex-1 flex flex-row rounded-lg gap-[1px] overflow-hidden" style={{ background: 'var(--border)', border: '1px solid var(--border)' }}>
             <div className="w-[300px] flex flex-col" style={{ background: 'var(--card)' }}>
                 <div className="px-3 py-2 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)', background: 'var(--card2)' }}>
@@ -915,7 +972,12 @@ function TaskLogsTab() {
                         <div className="px-3 py-2 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)', background: 'var(--card2)' }}>
                             <span className="text-[0.75rem] font-semibold" style={{ color: 'var(--fg)' }}>{selected.scriptName}</span>
                             <span className={`text-[0.65rem] ${selected.status === 'completed' ? 'text-emerald-500' : 'text-rose-500'}`}>{selected.status}</span>
-                            <span className="text-[0.65rem] ml-auto" style={{ color: 'var(--muted)' }}>{new Date(selected.startedAt).toLocaleString()}</span>
+                            <span className="text-[0.65rem]" style={{ color: 'var(--muted)' }}>{new Date(selected.startedAt).toLocaleString()}</span>
+                            <button className="ml-auto px-3 py-1 rounded-lg text-[0.72rem] font-semibold text-white flex items-center gap-1.5 hover:brightness-110 transition"
+                                style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
+                                onClick={handleRunAgain}>
+                                <Play size={12} /> Run Again
+                            </button>
                         </div>
                         {selected.error && <div className="px-3 py-1.5 text-[0.72rem] text-rose-400" style={{ borderBottom: '1px solid var(--border)', background: 'rgba(220,38,38,0.05)' }}>Error: {selected.error}</div>}
                         <div className="flex-1 overflow-y-auto p-3 font-mono text-[0.72rem]" style={{ color: 'var(--fg)' }}>
@@ -930,6 +992,7 @@ function TaskLogsTab() {
                 )}
             </div>
         </div>
+        </>
     );
 }
 

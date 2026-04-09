@@ -287,14 +287,18 @@ export default function ProfileList({
                       <span className="pl-tag-icon"><MonitorIcon /></span>
                       {res}
                     </span>
-                    {hasProxy && (
-                      <span className="pl-tag" style={{ background: '#94a3b8', color: '#cbd5e1', borderColor: 'transparent', paddingLeft: '6px' }}>
-                        <span className="pl-tag-icon" style={{ color: '#1e293b' }}><LinkIcon /></span>
-                        <span style={{ color: '#bfdbfe', fontWeight: 'bold' }}>{proxyType}</span>
-                        <span style={{ color: '#e2e8f0', marginLeft: '4px' }}>{proxyServer}</span>
-                      </span>
-                    )}
                   </div>
+
+                  {/* Row 2b: Proxy (only if set) */}
+                  {hasProxy && (
+                    <div style={{ marginBottom: '4px' }}>
+                      <span className="pl-tag" style={{ background: 'rgba(99,102,241,0.12)', color: 'var(--fg)', border: '1px solid rgba(99,102,241,0.25)', maxWidth: '100%' }}>
+                        <span className="pl-tag-icon"><LinkIcon /></span>
+                        <span style={{ color: '#818cf8', fontWeight: 700, flexShrink: 0 }}>{proxyType}</span>
+                        <span style={{ color: 'var(--muted)', marginLeft: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '260px' }}>{proxyServer}</span>
+                      </span>
+                    </div>
+                  )}
 
                   {/* Row 3: Fingerprint section toggle badges */}
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
