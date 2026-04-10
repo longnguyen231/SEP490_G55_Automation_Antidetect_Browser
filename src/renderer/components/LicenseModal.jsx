@@ -133,9 +133,9 @@ export default function LicenseModal({ onClose, onActivated }) {
                 <div className="mt-7 text-center w-full">
                     <span className="text-[0.85rem] font-medium text-[var(--muted)]">
                         Get a license at{' '}
-                        <a href="https://browser.ongbantat.store" target="_blank" rel="noreferrer"
+                        <a href="https://browser.hl-mck.store" target="_blank" rel="noreferrer"
                            className="text-[var(--primary)] hover:underline opacity-90 hover:opacity-100 transition">
-                            browser.ongbantat.store
+                            browser.hl-mck.store
                         </a>
                     </span>
                 </div>
