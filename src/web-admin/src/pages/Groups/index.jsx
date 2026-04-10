@@ -5,7 +5,7 @@ import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/StatCard';
 import GroupCard from '../../components/GroupCard';
 import ActivityList from '../../components/ActivityList';
-import { mockGroupsData, recentActivities } from '../../data/mockGroups';
+import { mockGroupsData, recentActivities } from '../../dataweb/mockGroups';
 import toast from 'react-hot-toast';
 
 const Groups = () => {

@@ -8,7 +8,7 @@ import {
 import { Progress, Dropdown, Button } from 'antd';
 import { MoreVertical, Settings, Copy, Trash2, Globe } from 'lucide-react';
 import ReactCountryFlag from 'react-country-flag';
-import { mockProxiesData } from '../data/mockProxies';
+import { mockProxiesData } from '../dataweb/mockProxies';
 import DataTable from './DataTable';
 
 const columnHelper = createColumnHelper();
