@@ -5,7 +5,7 @@ import PageHeader from '../../components/PageHeader';
 import InfoBanner from '../../components/InfoBanner';
 import { Button, ConfigProvider, theme } from 'antd';
 import { RefreshCcw, PlusSquare, Lightbulb, Settings } from 'lucide-react';
-import { mockProxiesData } from '../../data/mockProxies';
+import { mockProxiesData } from '../../dataweb/mockProxies';
 import toast from 'react-hot-toast';
 
 const Proxies = () => {
