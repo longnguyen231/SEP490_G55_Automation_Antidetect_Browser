@@ -97,7 +97,7 @@ export default function ProfileList({
 
       {/* Cards */}
       <div className="pl-cards" style={{ overflowY: 'auto', flex: 1 }}>
-        {(!profiles || profiles.length === 0) ? (
+        {(!profiles || profiles.length  === 0) ? (
           <div className="pl-empty">
             No profiles yet. Click <strong>+ New Profile</strong> to create one.
           </div>
