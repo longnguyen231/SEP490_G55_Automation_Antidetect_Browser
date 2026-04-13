@@ -140,205 +140,103 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
     res.json(r);
   });
 
-  // Browser control endpoints
-  // Sample App Aliases mapping requested by user
-
-  appx.post("/api/profiles/:id/navigate", async (req, res) => {
-    const r = await handlers.navigateInternal(req.params.id, req.body || {});
-    res.json(r);
-  });
-  appx.post("/api/profiles/:id/close-page", async (req, res) => {
-    const r = await handlers.closePageInternal(req.params.id, req.body || {});
-    res.json(r);
-  });
-  appx.post("/api/profiles/:id/eval", async (req, res) => {
-    const r = await handlers.evalInternal(req.params.id, req.body || {});
-    res.json(r);
-  });
-
-  // Native mouse actions
-  appx.post("/api/profiles/:id/actions/mouse/move", async (req, res) => {
-    try {
-      const { mouseMove } = require("../engine/actions");
-      const result = await mouseMove(req.params.id, req.body || {});
-      res.status(result.success ? 200 : 500).json(result);
-    } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
-    }
-  });
-  appx.post("/api/profiles/:id/actions/mouse/click", async (req, res) => {
-    try {
-      const { mouseClick } = require("../engine/actions");
-      const result = await mouseClick(req.params.id, req.body || {});
-      res.status(result.success ? 200 : 500).json(result);
-    } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
-    }
-  });
-  appx.post("/api/profiles/:id/actions/mouse/dblclick", async (req, res) => {
-    try {
-      const { mouseDblclick } = require("../engine/actions");
-      const result = await mouseDblclick(req.params.id, req.body || {});
-      res.status(result.success ? 200 : 500).json(result);
-    } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
-    }
-  });
-  appx.post("/api/profiles/:id/actions/mouse/down", async (req, res) => {
-    try {
-      const { mouseDown } = require("../engine/actions");
-      const result = await mouseDown(req.params.id, req.body || {});
-      res.status(result.success ? 200 : 500).json(result);
-    } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
-    }
-  });
-  appx.post("/api/profiles/:id/actions/mouse/up", async (req, res) => {
-    try {
-      const { mouseUp } = require("../engine/actions");
-      const result = await mouseUp(req.params.id, req.body || {});
-      res.status(result.success ? 200 : 500).json(result);
-    } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
-    }
-  });
-  appx.post("/api/profiles/:id/actions/mouse/wheel", async (req, res) => {
-    try {
-      const { mouseWheel } = require("../engine/actions");
-      const result = await mouseWheel(req.params.id, req.body || {});
-      res.status(result.success ? 200 : 500).json(result);
-    } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
-    }
-  });
-  appx.post("/api/profiles/:id/actions/reload", async (req, res) => {
-    const r = await handlers.reloadPageInternal(req.params.id, req.body || {});
-    res.status(r.success ? 200 : 500).json(r);
-  });
-  appx.post("/api/profiles/:id/actions/go-back", async (req, res) => {
-    const r = await handlers.goBackInternal(req.params.id, req.body || {});
-    res.status(r.success ? 200 : 500).json(r);
-  });
-  appx.post("/api/profiles/:id/actions/go-forward", async (req, res) => {
-    const r = await handlers.goForwardInternal(req.params.id, req.body || {});
-    res.status(r.success ? 200 : 500).json(r);
-  });
-  appx.get("/api/profiles/:id/actions/page-info", async (req, res) => {
-    const r = await handlers.getPageInfoInternal(
-      req.params.id,
-      req.query || {},
-    );
-    res.status(r.success ? 200 : 500).json(r);
-  });
-  appx.get("/api/profiles/:id/actions/content", async (req, res) => {
-    const r = await handlers.getPageContentInternal(
-      req.params.id,
-      req.query || {},
-    );
-    res.status(r.success ? 200 : 500).json(r);
-  });
-  appx.post("/api/profiles/:id/actions/screenshot", async (req, res) => {
-    const r = await handlers.screenshotInternal(req.params.id, req.body || {});
-    res.status(r.success ? 200 : 500).json(r);
-  });
-  appx.post("/api/profiles/:id/actions/click", async (req, res) => {
-    const r = await handlers.clickElementInternal(
-      req.params.id,
-      req.body || {},
-    );
-    res.status(r.success ? 200 : 500).json(r);
-  });
-  appx.post("/api/profiles/:id/actions/double-click", async (req, res) => {
-    const r = await handlers.doubleClickElementInternal(
-      req.params.id,
-      req.body || {},
-    );
-    res.status(r.success ? 200 : 500).json(r);
-  });
-  appx.post("/api/profiles/:id/actions/wait-for-url", async (req, res) => {
+  // Browser control endpoints (Mapped from Swagger)
+  const mapAction = (actionName) => async (req, res) => {
     try {
       const { performAction } = require("../engine/actions");
-      const result = await performAction(
-        req.params.id,
-        "wait-for-url",
-        req.body || {},
-      );
+      const param = req.method === "GET" ? req.query : req.body;
+      const result = await performAction(req.params.profileId, actionName, param || {});
       res.status(result.success ? 200 : 500).json(result);
     } catch (e) {
       res.status(500).json({ success: false, error: e?.message || String(e) });
     }
-  });
-  appx.post("/api/profiles/:id/actions/wait", async (req, res) => {
-    try {
-      const { performAction } = require("../engine/actions");
-      const result = await performAction(req.params.id, "wait", req.body || {});
-      res.status(result.success ? 200 : 500).json(result);
-    } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
-    }
-  });
-  appx.post(
-    "/api/profiles/:id/actions/wait-for-load-state",
-    async (req, res) => {
-      try {
-        const { performAction } = require("../engine/actions");
-        const result = await performAction(
-          req.params.id,
-          "wait.loadState",
-          req.body || {},
-        );
-        res.status(result.success ? 200 : 500).json(result);
-      } catch (e) {
-        res
-          .status(500)
-          .json({ success: false, error: e?.message || String(e) });
-      }
-    },
-  );
+  };
 
-  // Browser context actions
-  appx.get("/api/profiles/:id/context/storage-state", async (req, res) => {
+  // Image 1: Basic Browser Navigation & Interactions
+  appx.post("/api/browsers/:profileId/actions/navigate", mapAction("nav.goto"));
+  appx.post("/api/browsers/:profileId/actions/reload", mapAction("nav.reload"));
+  appx.post("/api/browsers/:profileId/actions/go-back", mapAction("nav.back"));
+  appx.post("/api/browsers/:profileId/actions/go-forward", mapAction("nav.forward"));
+  appx.get("/api/browsers/:profileId/actions/page-info", mapAction("page.info"));
+  appx.get("/api/browsers/:profileId/actions/content", mapAction("page.content"));
+  appx.post("/api/browsers/:profileId/actions/screenshot", mapAction("capture.screen"));
+  appx.post("/api/browsers/:profileId/actions/click", mapAction("click.element"));
+  appx.post("/api/browsers/:profileId/actions/double-click", mapAction("element.dblclick"));
+  appx.post("/api/browsers/:profileId/actions/hover", mapAction("hover"));
+  appx.post("/api/browsers/:profileId/actions/focus", mapAction("element.focus"));
+  appx.post("/api/browsers/:profileId/actions/fill", mapAction("input.fill"));
+  appx.post("/api/browsers/:profileId/actions/type", mapAction("input.type"));
+  appx.post("/api/browsers/:profileId/actions/press-key", mapAction("keyboard.send"));
+  appx.post("/api/browsers/:profileId/actions/select-option", mapAction("select.option"));
+
+  // Image 2: Element checks, scrolling and waiting
+  appx.post("/api/browsers/:profileId/actions/check", mapAction("input.check"));
+  appx.post("/api/browsers/:profileId/actions/scroll", mapAction("scroll.elementToElement")); 
+  appx.post("/api/browsers/:profileId/actions/tap", mapAction("click.tap"));
+  appx.post("/api/browsers/:profileId/actions/drag-and-drop", mapAction("dragAndDrop"));
+  appx.post("/api/browsers/:profileId/actions/dispatch-event", mapAction("element.dispatchEvent"));
+  appx.post("/api/browsers/:profileId/actions/set-viewport-size", mapAction("viewport.set"));
+  appx.post("/api/browsers/:profileId/actions/set-content", mapAction("page.setContent"));
+  appx.post("/api/browsers/:profileId/actions/wait-for-navigation", mapAction("wait.navigation"));
+  appx.post("/api/browsers/:profileId/actions/wait-for-selector", mapAction("wait")); 
+  appx.post("/api/browsers/:profileId/actions/wait-for-url", mapAction("wait-for-url"));
+  appx.post("/api/browsers/:profileId/actions/get-text", mapAction("element.text"));
+  appx.post("/api/browsers/:profileId/actions/get-attribute", mapAction("element.attr"));
+  appx.post("/api/browsers/:profileId/actions/get-value", mapAction("element.value"));
+  appx.post("/api/browsers/:profileId/actions/get-inner-html", mapAction("element.html"));
+  appx.post("/api/browsers/:profileId/actions/evaluate", mapAction("js.eval"));
+
+  // Image 3: Cookies, scripts and visibility checks
+  appx.post("/api/browsers/:profileId/actions/run-script", mapAction("script.runInline"));
+  appx.get("/api/browsers/:profileId/actions/cookies", mapAction("cookies.get"));
+  appx.post("/api/browsers/:profileId/actions/cookies", mapAction("cookies.set"));
+  appx.delete("/api/browsers/:profileId/actions/cookies", mapAction("cookies.clear"));
+  appx.post("/api/browsers/:profileId/actions/is-visible", mapAction("element.isVisible"));
+  appx.post("/api/browsers/:profileId/actions/is-hidden", mapAction("element.isHidden"));
+  appx.post("/api/browsers/:profileId/actions/is-checked", mapAction("element.isChecked"));
+  appx.post("/api/browsers/:profileId/actions/is-enabled", mapAction("element.isEnabled"));
+  appx.post("/api/browsers/:profileId/actions/is-disabled", mapAction("element.isDisabled"));
+  appx.post("/api/browsers/:profileId/actions/is-editable", mapAction("element.isEditable"));
+  appx.post("/api/browsers/:profileId/actions/text-content", mapAction("element.textContent"));
+  appx.post("/api/browsers/:profileId/actions/wait-for-timeout", mapAction("wait")); 
+  appx.post("/api/browsers/:profileId/actions/wait-for-load-state", mapAction("wait.loadState"));
+  appx.post("/api/browsers/:profileId/actions/set-extra-http-headers", mapAction("headers.setExtra"));
+
+  // Image 4: Keyboard & Mouse specifics
+  appx.post("/api/browsers/:profileId/actions/add-init-script", mapAction("page.addInitScript"));
+  appx.post("/api/browsers/:profileId/actions/keyboard/down", mapAction("keyboard.down"));
+  appx.post("/api/browsers/:profileId/actions/keyboard/up", mapAction("keyboard.up"));
+  appx.post("/api/browsers/:profileId/actions/keyboard/type", mapAction("keyboard.type"));
+  appx.post("/api/browsers/:profileId/actions/keyboard/insert-text", mapAction("keyboard.insertText"));
+  appx.post("/api/browsers/:profileId/actions/mouse/click", mapAction("click.at"));
+  appx.post("/api/browsers/:profileId/actions/mouse/move", mapAction("mouse.move"));
+  appx.post("/api/browsers/:profileId/actions/mouse/dblclick", mapAction("mouse.dblclick"));
+  appx.post("/api/browsers/:profileId/actions/mouse/down", mapAction("mouse.down"));
+  appx.post("/api/browsers/:profileId/actions/mouse/up", mapAction("mouse.up"));
+  appx.post("/api/browsers/:profileId/actions/mouse/wheel", mapAction("mouse.wheel"));
+
+  // Context endpoints
+  appx.get("/api/browsers/:profileId/context/storage-state", async (req, res) => {
     const r = await (handlers.getStorageStateInternal
-      ? handlers.getStorageStateInternal(req.params.id)
+      ? handlers.getStorageStateInternal(req.params.profileId)
       : { success: false, error: "Not implemented" });
     res.json(r);
   });
-  appx.post("/api/profiles/:id/context/new-page", async (req, res) => {
-    const r = await handlers.newPageInternal(req.params.id, req.body || {});
+  appx.post("/api/browsers/:profileId/context/new-page", mapAction("tab.new"));
+  appx.get("/api/browsers/:profileId/context/pages", async (req, res) => {
+    const r = await handlers.listPagesInternal(req.params.profileId);
     res.json(r);
   });
-  appx.post("/api/profiles/:id/context/grant-permissions", async (req, res) => {
-    const r = await handlers.grantPermissionsInternal(
-      req.params.id,
-      req.body || {},
-    );
+  appx.post("/api/browsers/:profileId/context/extra-http-headers", mapAction("headers.setExtra"));
+  appx.post("/api/browsers/:profileId/context/grant-permissions", async (req, res) => {
+    const r = await handlers.grantPermissionsInternal(req.params.profileId, req.body || {});
     res.json(r);
   });
-  appx.post("/api/profiles/:id/context/clear-permissions", async (req, res) => {
-    const r = await handlers.clearPermissionsInternal(req.params.id);
+  appx.post("/api/browsers/:profileId/context/clear-permissions", async (req, res) => {
+    const r = await handlers.clearPermissionsInternal(req.params.profileId);
     res.json(r);
   });
-  appx.get("/api/profiles/:id/context/pages", async (req, res) => {
-    const r = await handlers.listPagesInternal(req.params.id);
-    res.json(r);
-  });
-  appx.post(
-    "/api/profiles/:id/context/extra-http-headers",
-    async (req, res) => {
-      const r = await handlers.setExtraHTTPHeadersInternal(
-        req.params.id,
-        req.body || {},
-      );
-      res.json(r);
-    },
-  );
-  appx.post("/api/profiles/:id/context/geolocation", async (req, res) => {
-    const r = await handlers.setGeolocationInternal(
-      req.params.id,
-      req.body || {},
-    );
-    res.json(r);
-  });
+  appx.post("/api/browsers/:profileId/context/geolocation", mapAction("geolocation.set"));
 
   // Generic action dispatcher and helpers
   appx.get("/api/actions", async (_req, res) => {

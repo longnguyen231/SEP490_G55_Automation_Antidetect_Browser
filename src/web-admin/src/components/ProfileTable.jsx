@@ -7,7 +7,7 @@ import {
   getPaginationRowModel,
 } from '@tanstack/react-table';
 import { ConfigProvider, Switch, Button } from 'antd';
-import { mockProfilesData } from '../data/mockProfiles';
+import { mockProfilesData } from '../dataweb/mockProfiles';
 import toast from 'react-hot-toast';
 import DataTable from './DataTable';
 

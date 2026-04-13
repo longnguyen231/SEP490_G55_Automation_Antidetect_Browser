@@ -60,8 +60,27 @@ function validateLicenseKey(inputKey) {
   try {
     const machineCode = getMachineCode();
     const expected = deriveLicenseKey(machineCode);
+    const isValid = inputKey.trim().toUpperCase() === expected;
+    
+    // Save license status to file
+    if (isValid) {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const { app } = require('electron');
+        const licensePath = path.join(app.getPath('userData'), 'license.json');
+        fs.writeFileSync(licensePath, JSON.stringify({
+          activated: true,
+          key: inputKey.trim().toUpperCase(),
+          activatedAt: new Date().toISOString()
+        }), 'utf8');
+      } catch (saveError) {
+        console.error('Failed to save license file:', saveError);
+      }
+    }
+    
     return {
-      valid: inputKey.trim().toUpperCase() === expected,
+      valid: isValid,
       expected, // expose so admin can generate keys
     };
   } catch {

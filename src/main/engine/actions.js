@@ -360,7 +360,58 @@ async function selectOption(profileId, { selector, values, timeout = 10000 } = {
 // Generic dispatcher mapping action string names to function references.
 // This is used by the frontend Workflow builder and the Script runner (scriptRuntime.js)
 // to dynamically invoke these functions.
+
+// ==== NEW BROWSER ACTIONS IMPLEMENTATIONS ====
+async function getPageInfoProxy(profileId, { index = 0 } = {}) { const { success, error, page, cleanup } = await withPage(profileId, { index }); if (!success) return err(error); try { const url = page.url(); const title = await page.title(); await cleanup(); return ok({ url, title }); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function doubleClickElementProxy(profileId, { selector, button = 'left', delay, timeout = 10000, position } = {}) { if (!selector) return err('selector is required'); const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { await page.dblclick(selector, { button, delay, timeout, position }); appendLog(profileId, `Action: doubleClick on ${selector}`); await cleanup(); return ok(); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function tapElementProxy(profileId, { selector, timeout = 10000 } = {}) { if (!selector) return err('selector is required'); const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { await page.tap(selector, { timeout }); appendLog(profileId, `Action: tap on ${selector}`); await cleanup(); return ok(); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function dispatchEventProxy(profileId, { selector, type, eventInit, timeout = 10000 } = {}) { if (!selector) return err('selector is required'); const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { await page.dispatchEvent(selector, type, eventInit, { timeout }); appendLog(profileId, `Action: dispatchEvent ${type} on ${selector}`); await cleanup(); return ok(); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function setContentProxy(profileId, { html, timeout = 10000 } = {}) { const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { await page.setContent(html || '', { timeout }); appendLog(profileId, `Action: setContent`); await cleanup(); return ok(); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function waitForNavigationProxy(profileId, { url, waitUntil, timeout = 30000 } = {}) { const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { await page.waitForNavigation({ url, waitUntil, timeout }); appendLog(profileId, `Action: waitForNavigation`); await cleanup(); return ok(); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function getInputValueProxy(profileId, { selector, timeout = 10000 } = {}) { if (!selector) return err('selector is required'); const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { const value = await page.inputValue(selector, { timeout }); await cleanup(); return ok({ value }); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function isVisibleProxy(profileId, { selector } = {}) { if (!selector) return err('selector is required'); const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { const visible = await page.isVisible(selector); await cleanup(); return ok({ visible }); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function isHiddenProxy(profileId, { selector } = {}) { if (!selector) return err('selector is required'); const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { const hidden = await page.isHidden(selector); await cleanup(); return ok({ hidden }); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function isCheckedProxy(profileId, { selector } = {}) { if (!selector) return err('selector is required'); const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { const checked = await page.isChecked(selector); await cleanup(); return ok({ checked }); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function isEnabledProxy(profileId, { selector } = {}) { if (!selector) return err('selector is required'); const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { const enabled = await page.isEnabled(selector); await cleanup(); return ok({ enabled }); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function isDisabledProxy(profileId, { selector } = {}) { if (!selector) return err('selector is required'); const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { const disabled = await page.isDisabled(selector); await cleanup(); return ok({ disabled }); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function isEditableProxy(profileId, { selector } = {}) { if (!selector) return err('selector is required'); const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { const editable = await page.isEditable(selector); await cleanup(); return ok({ editable }); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function textContentProxy(profileId, { selector, timeout = 10000 } = {}) { if (!selector) return err('selector is required'); const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { const text = await page.textContent(selector, { timeout }); await cleanup(); return ok({ text }); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function addInitScriptProxy(profileId, { script, path } = {}) { const { success, error, page, context, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { await context.addInitScript(script || { path }); await cleanup(); return ok(); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function keyboardDownProxy(profileId, { key } = {}) { const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { await page.keyboard.down(key); await cleanup(); return ok(); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function keyboardUpProxy(profileId, { key } = {}) { const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { await page.keyboard.up(key); await cleanup(); return ok(); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function keyboardTypeProxy(profileId, { text, delay } = {}) { const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { await page.keyboard.type(text, { delay }); await cleanup(); return ok(); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function keyboardInsertTextProxy(profileId, { text } = {}) { const { success, error, page, cleanup } = await withPage(profileId, {}); if (!success) return err(error); try { await page.keyboard.insertText(text); await cleanup(); return ok(); } catch (e) { await cleanup(); return err(e?.message || e); } }
+async function runInlineScriptProxy(profileId, { code, timeoutMs = 60000 } = {}) {
+  const { executeScript } = require('./scriptRuntime');
+  try {
+    const res = await executeScript(profileId, code, { timeoutMs });
+    return res;
+  } catch(e) { return err(e?.message || e); }
+}
+
 const ACTION_MAP = {
+
+  'page.info': getPageInfoProxy,
+  'element.dblclick': doubleClickElementProxy,
+  'click.tap': tapElementProxy,
+  'element.dispatchEvent': dispatchEventProxy,
+  'page.setContent': setContentProxy,
+  'wait.navigation': waitForNavigationProxy,
+  'element.value': getInputValueProxy,
+  'element.isVisible': isVisibleProxy,
+  'element.isHidden': isHiddenProxy,
+  'element.isChecked': isCheckedProxy,
+  'element.isEnabled': isEnabledProxy,
+  'element.isDisabled': isDisabledProxy,
+  'element.isEditable': isEditableProxy,
+  'element.textContent': textContentProxy,
+  'page.addInitScript': addInitScriptProxy,
+  'keyboard.down': keyboardDownProxy,
+  'keyboard.up': keyboardUpProxy,
+  'keyboard.type': keyboardTypeProxy,
+  'keyboard.insertText': keyboardInsertTextProxy,
+  'script.runInline': runInlineScriptProxy,
+
   'mouse.move': mouseMove,
   'mouse.click': mouseClick,
   'mouse.dblclick': mouseDblclick,
