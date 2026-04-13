@@ -714,7 +714,15 @@ function BulkRunModal({ script, profiles = [], onClose }) {
         setDone(true);
     };
 
-    const handleStop = () => { abortRef.current = true; };
+    const handleStop = () => {
+        abortRef.current = true;
+        // Stop all currently running scripts
+        selectedIds.forEach(id => {
+            if (statuses[id] === 'running') {
+                window.electronAPI.stopScript(id).catch(() => {});
+            }
+        });
+    };
 
     const statusColor = { pending: '#6b7280', running: '#f59e0b', success: '#10b981', error: '#ef4444', stopped: '#6b7280' };
     const statusLabel = { pending: 'Pending', running: 'Running...', success: 'Done', error: 'Failed', stopped: 'Stopped' };

@@ -10,6 +10,29 @@ const { readProfiles, writeProfiles, updateProfileSettings } = require('../stora
 // Lock set to prevent concurrent launches of the same profile
 const launchingProfiles = new Set();
 
+const PROXY_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Determines if a proxy is alive using cached status when fresh,
+ * falling back to TCP check when cache is missing or stale.
+ */
+async function resolveProxyAlive(proxy, appendLog, profileId) {
+  const status = proxy._status;
+  if (status && typeof status.alive === 'boolean' && status.checkedAt) {
+    const age = Date.now() - status.checkedAt;
+    if (age < PROXY_CACHE_TTL) {
+      const ageStr = age < 60000 ? `${Math.round(age / 1000)}s` : `${Math.round(age / 60000)}m`;
+      appendLog(profileId, `[proxy] Cached status: ${status.alive ? 'alive' : 'DEAD'} (checked ${ageStr} ago${status.latency ? `, ${status.latency}ms` : ''})`);
+      return status.alive;
+    }
+    appendLog(profileId, `[proxy] Cache stale (${Math.round((Date.now() - status.checkedAt) / 60000)}m) — running TCP check`);
+  }
+  const { checkProxyReachable } = require('../engine/proxyForwarder');
+  const alive = await checkProxyReachable(proxy, 5000);
+  appendLog(profileId, `[proxy] TCP check: ${alive ? 'reachable' : 'UNREACHABLE'}`);
+  return alive;
+}
+
 /**
  * Reads the actual Chrome version from a binary by running `chrome --version`.
  * Returns full version string e.g. "136.0.7103.113" or null on failure.
@@ -129,6 +152,13 @@ async function launchProfileInternal(profileId, options = {}) {
         const proxyType = (settings.proxy?.type || '').toLowerCase();
         const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(serverStr);
         if (settings.proxy && (hasAuth || isSocks)) {
+          const alive = await resolveProxyAlive(settings.proxy, appendLog, profileId);
+          if (!alive) {
+            appendLog(profileId, `[proxy] Proxy unreachable — launch blocked to prevent IP leak`);
+            try { await forwarder?.stop?.(); } catch {}
+            launchingProfiles.delete(profileId);
+            return { success: false, error: `Proxy is dead or unreachable (${settings.proxy.server}). Fix or remove the proxy before launching.` };
+          }
           const { startProxyForwarder } = require('../engine/proxyForwarder');
           forwarder = await startProxyForwarder(settings.proxy, { appendLog, profileId });
           proxyForChrome = { server: forwarder.url };
@@ -311,6 +341,13 @@ async function launchProfileInternal(profileId, options = {}) {
       const hasAuth = !!(settings.proxy.username || settings.proxy.password);
       if (hasAuth || isSocks) {
         try {
+          const alive = await resolveProxyAlive(settings.proxy, appendLog, profileId);
+          if (!alive) {
+            appendLog(profileId, `[proxy] Proxy unreachable — launch blocked to prevent IP leak`);
+            try { await forwarder?.stop?.(); } catch {}
+            launchingProfiles.delete(profileId);
+            return { success: false, error: `Proxy is dead or unreachable (${settings.proxy.server}). Fix or remove the proxy before launching.` };
+          }
           const { startProxyForwarder } = require('../engine/proxyForwarder');
           forwarder = await startProxyForwarder(settings.proxy, { appendLog, profileId });
           proxy = { server: forwarder.url };
@@ -761,15 +798,30 @@ async function stopProfileInternal(profileId) {
 
     // Playwright: close context/browser/server
     const { server, context, browser } = running;
+
+    const withTimeout = (promise, ms) =>
+      Promise.race([promise, new Promise(r => setTimeout(r, ms))]);
+
     try {
       const statePath = storageStatePath(profileId);
-      const state = await context.storageState();
-      fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+      const state = await withTimeout(context.storageState(), 3000);
+      if (state) fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
       appendLog(profileId, 'Saved storage state before stop');
     } catch (e) { appendLog(profileId, `Failed saving state on stop: ${e.message}`); }
-    try { await context.close(); } catch { }
-    try { await browser?.close?.(); } catch { }
-    try { await server?.close?.(); } catch { }
+
+    try { await withTimeout(context.close(), 2000); } catch { }
+    try { await withTimeout(browser?.close?.(), 2000); } catch { }
+
+    // server.close() can hang waiting for Firefox/Camoufox process to exit.
+    // Kill the underlying process directly, then close with short timeout.
+    try {
+      const proc = server?.process?.();
+      if (proc?.pid) {
+        proc.kill('SIGKILL');
+      }
+    } catch { }
+    try { await withTimeout(server?.close?.(), 1500); } catch { }
+
     runningProfiles.delete(profileId);
     setProfileStatus(profileId, 'STOPPED');
     appendLog(profileId, 'Stopped profile');

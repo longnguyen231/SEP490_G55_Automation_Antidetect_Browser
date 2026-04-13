@@ -173,4 +173,25 @@ async function startProxyForwarder(proxy, opts = {}) {
   return await startHttpForwarder(proxy, opts);
 }
 
-module.exports = { startProxyForwarder };
+/**
+ * Quick TCP reachability check for a proxy server.
+ * Returns true if the host:port accepts a TCP connection within timeoutMs.
+ */
+function checkProxyReachable(proxy, timeoutMs = 5000) {
+  return new Promise((resolve) => {
+    try {
+      let server = String(proxy.server || '').trim();
+      server = server.replace(/^(https?|socks\d?):\/\//i, '');
+      const parts = server.split(':');
+      const host = parts[0] || '127.0.0.1';
+      const port = parseInt(parts[1], 10) || 1080;
+      const socket = new net.Socket();
+      const timer = setTimeout(() => { socket.destroy(); resolve(false); }, timeoutMs);
+      socket.once('connect', () => { clearTimeout(timer); socket.destroy(); resolve(true); });
+      socket.once('error', () => { clearTimeout(timer); resolve(false); });
+      socket.connect(port, host);
+    } catch { resolve(false); }
+  });
+}
+
+module.exports = { startProxyForwarder, checkProxyReachable };
