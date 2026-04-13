@@ -5,6 +5,7 @@ function ProxyPickerPopup({ profile, isRunning = false, onClose, onSaved }) {
   const [proxies, setProxies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [search, setSearch] = useState('');
   const ref = useRef(null);
 
@@ -28,6 +29,28 @@ function ProxyPickerPopup({ profile, isRunning = false, onClose, onSaved }) {
 
   const handleSelect = async (proxy) => {
     setSaving(true);
+    let proxyStatus = null;
+    if (proxy) {
+      setChecking(true);
+      try {
+        const result = await Promise.race([
+          window.electronAPI.checkProxy({
+            type: proxy.type, host: proxy.host, port: proxy.port,
+            username: proxy.username || '', password: proxy.password || '',
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
+        ]);
+        proxyStatus = { alive: !!result.alive, checkedAt: Date.now(), latency: result.latency || null };
+      } catch {
+        proxyStatus = { alive: false, checkedAt: Date.now(), latency: null };
+      }
+      setChecking(false);
+      if (!proxyStatus.alive) {
+        setSaving(false);
+        alert(`Proxy ${proxy.host}:${proxy.port} is dead or unreachable. Cannot assign a dead proxy to a profile.`);
+        return;
+      }
+    }
     try {
       const server = proxy ? `${proxy.host}:${proxy.port}` : '';
       const updated = {
@@ -39,6 +62,7 @@ function ProxyPickerPopup({ profile, isRunning = false, onClose, onSaved }) {
             server,
             username: proxy.username || '',
             password: proxy.password || '',
+            _status: proxyStatus,
           } : { type: 'none', server: '', username: '', password: '' },
         },
       };
@@ -128,8 +152,10 @@ function ProxyPickerPopup({ profile, isRunning = false, onClose, onSaved }) {
             </>
           )}
         </div>
-        {saving && (
-          <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', fontSize: '0.78rem', color: 'var(--muted)', textAlign: 'center' }}>Saving...</div>
+        {(checking || saving) && (
+          <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', fontSize: '0.78rem', color: 'var(--muted)', textAlign: 'center' }}>
+            {checking ? '🔍 Checking proxy...' : 'Saving...'}
+          </div>
         )}
       </div>
     </div>

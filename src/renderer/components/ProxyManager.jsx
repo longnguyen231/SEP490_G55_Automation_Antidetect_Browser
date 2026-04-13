@@ -134,7 +134,7 @@ export default function ProxyManager() {
 
     const handleCheckSelected = async () => {
         const selected = proxies.filter(p => selectedIds.has(p.id));
-        for (const p of selected) await handleCheckOne(p);
+        await Promise.all(selected.map(p => handleCheckOne(p)));
     };
 
     const handleRotateOne = async (proxy) => {
