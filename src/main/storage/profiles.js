@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { app } = require('electron');
 const { profilesFilePath, storageStatePath, getDataRoot } = require('./paths');
 const { appendLog } = require('../logging/logger');
 
@@ -139,7 +140,7 @@ function validateProfileInputBasic(p) {
     errors.push('Unsupported browser value');
   }
   const engine = p.settings?.engine;
-  if (engine && !['playwright','playwright-firefox','cdp','auto'].includes(engine)) errors.push('settings.engine must be playwright, playwright-firefox, cdp, or auto');
+  if (engine && !['playwright','playwright-firefox','camoufox','cdp','auto'].includes(engine)) errors.push('settings.engine must be playwright, playwright-firefox, camoufox, cdp, or auto');
   const cpu = p.settings?.cpuCores; if (cpu != null && (!Number.isInteger(cpu) || cpu < 1 || cpu > 64)) errors.push('cpuCores must be 1-64');
   const mem = p.settings?.memoryGB; if (mem != null && (!Number.isInteger(mem) || mem < 1 || mem > 256)) errors.push('memoryGB must be 1-256');
   return errors;
@@ -271,6 +272,7 @@ async function saveProfileInternal(profile) {
     if (profile.id) {
       const idx = profiles.findIndex(p => p.id === profile.id);
       if (idx !== -1) {
+        // Updating existing profile - no license check needed
         const merged = normalizeProfileInput(profile, profiles[idx]);
         // Ensure unique name if changed
         if (merged.name && merged.name.trim().toLowerCase() !== (profiles[idx].name||'').trim().toLowerCase()) {
@@ -278,11 +280,26 @@ async function saveProfileInternal(profile) {
         }
         profiles[idx] = { ...profiles[idx], ...merged, updatedAt: nowIso };
       } else {
+        // Profile has ID but not found - creating new, check license limit
+        if (!isLicenseActivated() && profiles.length >= 5) {
+          return {
+            success: false,
+            error: 'Free plan giới hạn tối đa 5 profiles. Vui lòng kích hoạt license để tạo thêm profile.'
+          };
+        }
         const prepared = normalizeProfileInput(profile, null);
         prepared.name = makeUniqueName(prepared.name, profiles, prepared.id);
         profiles.push({ ...prepared, createdAt: nowIso });
       }
     } else {
+      // New profile without ID - check license limit for free users
+      if (!isLicenseActivated() && profiles.length >= 5) {
+        return {
+          success: false,
+          error: 'Free plan giới hạn tối đa 5 profiles. Vui lòng kích hoạt license để tạo thêm profile.'
+        };
+      }
+      
       let newId = generateShortId();
       // Ensure uniqueness just in case
       const existingIds = new Set((profiles || []).map(p => p.id));
@@ -310,7 +327,17 @@ function generateShortId() {
   }
   return result;
 }
-
+// Helper: Check if license is activated
+function isLicenseActivated() {
+  try {
+    const licensePath = path.join(app.getPath('userData'), 'license.json');
+    if (!fs.existsSync(licensePath)) return false;
+    const licenseData = JSON.parse(fs.readFileSync(licensePath, 'utf8'));
+    return licenseData && licenseData.activated === true;
+  } catch {
+    return false;
+  }
+}
 async function deleteProfileInternal(profileId) {
   try {
     const profiles = readProfiles();

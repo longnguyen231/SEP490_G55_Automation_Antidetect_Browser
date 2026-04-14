@@ -11,7 +11,7 @@ const http = require('http');
 const https = require('https');
 const { URL } = require('url');
 
-const TIMEOUT_MS = 15000;
+const TIMEOUT_MS = 8000;
 
 // IP detection endpoints (free, no key needed)
 const IP_APIS = [
@@ -121,62 +121,30 @@ async function checkProxy(cfg) {
   const isSocks = type.startsWith('socks');
   const proxyAuth = (cfg.username && cfg.password) ? `${cfg.username}:${cfg.password}` : null;
 
-  // Try each IP API until one succeeds
-  for (const api of IP_APIS) {
-    const start = Date.now();
-    try {
-      let result;
-      if (isSocks) {
-        result = await httpGetViaSocks(api.url, cfg, TIMEOUT_MS);
-      } else {
-        result = await httpGetViaProxy(api.url, cfg.host, Number(cfg.port), proxyAuth, TIMEOUT_MS);
-      }
-
-      const latency = Date.now() - start;
-
-      if (result.statusCode >= 200 && result.statusCode < 400) {
-        const geo = api.parse(result.body);
-        if (geo) {
-          return {
-            success: true,
-            alive: true,
-            ip: geo.ip,
-            country: geo.country,
-            countryCode: geo.countryCode,
-            city: geo.city,
-            timezone: geo.timezone,
-            latency,
-          };
-        }
-      }
-      // If status code is bad but connection succeeded, proxy is alive
-      return {
-        success: true,
-        alive: true,
-        ip: null,
-        country: null,
-        countryCode: null,
-        city: null,
-        timezone: null,
-        latency,
-        warning: `API returned status ${result.statusCode}`,
-      };
-    } catch (e) {
-      // Try next API
-      continue;
+  // Try all IP APIs in parallel — use the first successful result
+  const start = Date.now();
+  const tryApi = async (api) => {
+    let result;
+    if (isSocks) {
+      result = await httpGetViaSocks(api.url, cfg, TIMEOUT_MS);
+    } else {
+      result = await httpGetViaProxy(api.url, cfg.host, Number(cfg.port), proxyAuth, TIMEOUT_MS);
     }
-  }
+    const latency = Date.now() - start;
+    if (result.statusCode >= 200 && result.statusCode < 400) {
+      const geo = api.parse(result.body);
+      if (geo) return { success: true, alive: true, latency, ...geo };
+    }
+    return { success: true, alive: true, latency, warning: `API returned status ${result.statusCode}` };
+  };
 
-  // All APIs failed
+  // Race all APIs — first to resolve wins, errors are ignored
+  const winner = await Promise.any(IP_APIS.map(api => tryApi(api))).catch(() => null);
+  if (winner) return winner;
+
   return {
-    success: true,
-    alive: false,
-    ip: null,
-    country: null,
-    countryCode: null,
-    city: null,
-    timezone: null,
-    latency: null,
+    success: true, alive: false,
+    ip: null, country: null, countryCode: null, city: null, timezone: null, latency: null,
     error: 'Connection failed or timed out',
   };
 }

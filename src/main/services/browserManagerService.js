@@ -34,6 +34,9 @@ function getExecutableConfig() {
  * Returns: { status: 'installed' | 'missing' | 'broken', path: string | null, version: string | null, size: string | null }
  */
 async function checkBrowserStatus(browserName) {
+    if (browserName === 'camoufox') {
+        return require('./camoufoxManager').checkStatus();
+    }
     try {
         const pw = require('playwright');
         const engine = browserName === 'firefox' ? pw.firefox : pw.chromium;
@@ -92,6 +95,7 @@ const activeInstalls = new Set();
 const lastLogs = { chromium: '', firefox: '' };
 
 async function installBrowser(browserName) {
+    if (browserName === 'camoufox') return require('./camoufoxManager').install();
     if (activeInstalls.has(browserName)) {
         return { success: false, error: `${browserName} is already installing.` };
     }
@@ -175,6 +179,7 @@ async function installBrowser(browserName) {
 }
 
 async function uninstallBrowser(browserName) {
+    if (browserName === 'camoufox') return require('./camoufoxManager').uninstall();
     try {
         const browsersPath = getBrowsersPath();
         if (!fs.existsSync(browsersPath)) return { success: true };

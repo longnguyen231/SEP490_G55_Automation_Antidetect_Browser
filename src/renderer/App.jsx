@@ -229,8 +229,9 @@ function App() {
 
       // Only check Playwright engines (cdp uses system Chrome, no install needed)
       if (engine !== 'cdp') {
+        const isCamoufox = engine === 'camoufox';
         const isFirefox = engine === 'playwright-firefox' || engine === 'firefox';
-        const requiredBrowser = isFirefox ? 'firefox' : 'chromium';
+        const requiredBrowser = isCamoufox ? 'camoufox' : isFirefox ? 'firefox' : 'chromium';
         try {
           const status = await window.electronAPI?.checkBrowserStatus?.(requiredBrowser);
           if (status?.status !== 'installed') {
@@ -275,13 +276,38 @@ function App() {
     setErrorProfiles(prev => { const n = { ...prev }; delete n[profileId]; return n; });
     try {
       const engine = enginePrefs[profileId] || 'playwright';
-      const options = { headless: true, engine: engine === 'cdp' ? 'cdp' : 'playwright' };
+      const options = { headless: true, engine };
       const result = await window.electronAPI.launchProfile(profileId, options);
       if (!result.success) { setErrorProfiles(prev => ({ ...prev, [profileId]: true })); alert('Error launching headless: ' + result.error); }
       await refreshRunningStatus();
     } catch (e) { setErrorProfiles(prev => ({ ...prev, [profileId]: true })); alert('Error launching headless: ' + e.message); }
   };
-  const handleSaveProfile = async (profile) => { try { const result = await api.saveProfile(profile); if (result.success) { setShowForm(false); setSelectedProfile(null); await loadProfiles(); } else alert('Error saving profile: ' + result.error); } catch (e) { alert('Error saving profile: ' + e.message); } };
+  const handleSaveProfile = async (profile) => {
+    try {
+      // Check license limit cho free users
+      const isNewProfile = !profile.id;
+      const isPaidUser = !!localStorage.getItem('hl-license-activated');
+      
+      if (isNewProfile && !isPaidUser) {
+        const currentProfileCount = (profiles || []).length;
+        if (currentProfileCount >= 5) {
+          alert('Free plan giới hạn tối đa 5 profiles.\n\nVui lòng nâng cấp license để tạo thêm profile.');
+          return;
+        }
+      }
+      
+      const result = await api.saveProfile(profile);
+      if (result.success) {
+        setShowForm(false);
+        setSelectedProfile(null);
+        await loadProfiles();
+      } else {
+        alert('Error saving profile: ' + result.error);
+      }
+    } catch (e) {
+      alert('Error saving profile: ' + e.message);
+    }
+  };
   const handleCancel = () => { setShowForm(false); setSelectedProfile(null); };
   const handleManageCookies = (profile) => setCookieProfile(profile);
   const handleViewLogs = (profile) => setLogProfile(profile);
@@ -422,6 +448,7 @@ function App() {
             errorProfiles={errorProfiles}
             profileStatuses={profileStatuses}
             onToggleFp={handleToggleFp}
+            onReloadProfiles={loadProfiles}
           />
         );
 

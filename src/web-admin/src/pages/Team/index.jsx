@@ -9,7 +9,7 @@ import {
   getCoreRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { mockTeamMembers } from '../../data/mockTeam';
+import { mockTeamMembers } from '../../dataweb/mockTeam';
 import toast from 'react-hot-toast';
 
 const columnHelper = createColumnHelper();

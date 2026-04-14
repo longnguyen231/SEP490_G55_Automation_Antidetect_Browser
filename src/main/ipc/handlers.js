@@ -29,7 +29,7 @@ const { performAction } = require('../engine/actions');
 const { listScriptsInternal, getScriptInternal, saveScriptInternal, deleteScriptInternal } = require('../storage/scripts');
 const { addTaskLog, getTaskLogs, getTaskLogById, deleteTaskLog, clearTaskLogs } = require('../storage/taskLogs');
 const { listModules, installModule, uninstallModule } = require('../storage/scriptModules');
-const { executeScript } = require('../engine/scriptRuntime');
+const { executeScript, stopScript, pauseScript, resumeScript, isScriptRunning } = require('../engine/scriptRuntime');
 const {
   getProxiesInternal, getProxyByIdInternal,
   createProxyInternal, updateProxyInternal,
@@ -41,7 +41,7 @@ const { getMachineCode, validateLicenseKey } = require('../services/machineId');
 const { checkBrowserStatus, installBrowser, uninstallBrowser, reinstallBrowser } = require('../services/browserManagerService');
 
 function registerIpcHandlers(extra = {}) {
-  // Helper: remove existing handler before registering to avoid duplication on hot-reload
+  // Safe handle: remove existing handler first to support hot-reload
   const handle = (channel, fn) => {
     try { ipcMain.removeHandler(channel); } catch {}
     ipcMain.handle(channel, fn);
@@ -184,7 +184,10 @@ function registerIpcHandlers(extra = {}) {
       const { runningProfiles } = require('../state/runtime');
       if (!runningProfiles.has(profileId)) {
         const headless = !!(opts && opts.headless);
-        const launchResult = await launchProfileInternal(profileId, { headless, engine: 'playwright' });
+        const { readProfiles } = require('../storage/profiles');
+        const profileForEngine = readProfiles().find(p => p.id === profileId);
+        const profileEngine = profileForEngine?.settings?.engine || 'playwright';
+        const launchResult = await launchProfileInternal(profileId, { headless, engine: profileEngine });
         if (!launchResult.success) {
           appendLog(profileId, `Script execute failed — could not launch profile: ${launchResult.error || 'unknown'}`);
           await addTaskLog({ scriptId, scriptName, profileId, status: 'error', startedAt, finishedAt: new Date().toISOString(), logs: [], error: 'Failed to launch profile: ' + (launchResult.error || 'unknown') });
@@ -208,6 +211,23 @@ function registerIpcHandlers(extra = {}) {
       await addTaskLog({ scriptId, scriptName: scriptId, profileId, status: 'error', startedAt, finishedAt: new Date().toISOString(), logs: [], error: e?.message || String(e) });
       return { success: false, error: e?.message || String(e) };
     }
+  });
+
+  // Script execution control
+  handle('script-stop', (_e, profileId) => {
+    stopScript(profileId);
+    return { success: true };
+  });
+  handle('script-pause', (_e, profileId) => {
+    pauseScript(profileId);
+    return { success: true };
+  });
+  handle('script-resume', (_e, profileId) => {
+    resumeScript(profileId);
+    return { success: true };
+  });
+  handle('script-is-running', (_e, profileId) => {
+    return { running: isScriptRunning(profileId) };
   });
 
   // Task logs
@@ -279,7 +299,10 @@ function registerIpcHandlers(extra = {}) {
             status: result.alive ? 'alive' : 'dead',
             latency: result.latency || null,
             lastChecked: new Date().toISOString(),
-            country: result.countryCode || '',
+            country: result.country || result.countryCode || '',
+            countryCode: result.countryCode || '',
+            ip: result.ip || '',
+            city: result.city || '',
           }).catch(() => {});
         } catch {}
       });

@@ -114,7 +114,10 @@ export default function ProxyManager() {
                     status: result.alive ? 'alive' : 'dead',
                     latency: result.latency || null,
                     lastChecked: new Date().toISOString(),
-                    country: result.countryCode || '',
+                    country: result.country || result.countryCode || '',
+                    countryCode: result.countryCode || '',
+                    ip: result.ip || '',
+                    city: result.city || '',
                 });
             }
             await loadProxies();
@@ -131,7 +134,7 @@ export default function ProxyManager() {
 
     const handleCheckSelected = async () => {
         const selected = proxies.filter(p => selectedIds.has(p.id));
-        for (const p of selected) await handleCheckOne(p);
+        await Promise.all(selected.map(p => handleCheckOne(p)));
     };
 
     const handleRotateOne = async (proxy) => {
@@ -332,7 +335,13 @@ export default function ProxyManager() {
                                                 </td>
                                                 <td className="px-3 py-2">
                                                     {p.country
-                                                        ? <span className="text-[0.75rem] flex items-center gap-1" style={{ color: 'var(--fg)' }}><Globe size={12} /> {p.country}</span>
+                                                        ? <span className="text-[0.75rem] flex items-center gap-1" style={{ color: 'var(--fg)' }}>
+                                                            {p.countryCode && p.countryCode.length === 2
+                                                                ? <span style={{ fontSize: '1rem' }}>{String.fromCodePoint(...[...p.countryCode.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)))}</span>
+                                                                : <Globe size={12} />
+                                                            }
+                                                            {p.country}
+                                                          </span>
                                                         : <span className="text-[0.72rem]" style={{ color: 'var(--muted)' }}>—</span>}
                                                 </td>
                                                 <td className="px-3 py-2 text-right">
