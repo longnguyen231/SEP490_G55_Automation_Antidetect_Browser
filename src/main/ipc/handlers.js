@@ -143,6 +143,29 @@ function registerIpcHandlers(extra = {}) {
     catch (e) { return { success: false, error: e?.message || String(e) }; }
   });
 
+  // Live preview screencast controls
+  handle('start-preview', async (_e, profileId) => {
+    try {
+      const { startScreencast, isScreencasting } = require('../engine/screencast');
+      if (isScreencasting(profileId)) return { success: true, already: true };
+      startScreencast(profileId);
+      return { success: true };
+    } catch (e) { return { success: false, error: e?.message || String(e) }; }
+  });
+  handle('stop-preview', async (_e, profileId) => {
+    try {
+      const { stopScreencast } = require('../engine/screencast');
+      stopScreencast(profileId);
+      return { success: true };
+    } catch (e) { return { success: false, error: e?.message || String(e) }; }
+  });
+  handle('screencast-status', async (_e, profileId) => {
+    try {
+      const { isScreencasting } = require('../engine/screencast');
+      return { success: true, streaming: isScreencasting(profileId) };
+    } catch (e) { return { success: false, streaming: false }; }
+  });
+
   // Presets management
   handle('presets-list', async () => await listPresetsInternal());
   handle('presets-add', async (_e, preset) => {

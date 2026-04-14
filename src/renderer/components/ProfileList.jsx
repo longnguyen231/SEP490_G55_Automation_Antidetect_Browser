@@ -229,6 +229,7 @@ export default function ProfileList({
   profileStatuses = {},
   onToggleFp,
   onReloadProfiles,
+  onViewLiveScreen,
 }) {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -369,7 +370,23 @@ export default function ProfileList({
                   ) : isStopping ? (
                     <button className="pl-btn" style={{ background: '#f59e0b', opacity: 0.8, cursor: 'wait' }} disabled>Stopping...</button>
                   ) : isRunning ? (
-                    <button className="pl-btn" style={{ background: '#c07e15' }} onClick={() => onStopProfile(profile.id)}>Stop</button>
+                    <>
+                      <button className="pl-btn" style={{ background: '#c07e15' }} onClick={() => onStopProfile(profile.id)}>Stop</button>
+                      {!!headlessPrefs[profile.id] && onViewLiveScreen && (
+                        <button
+                          className="pl-btn"
+                          style={{
+                            background: 'rgba(139, 92, 246, 0.2)',
+                            color: '#a78bfa',
+                            border: '1px solid rgba(139, 92, 246, 0.4)',
+                          }}
+                          onClick={() => onViewLiveScreen(profile)}
+                          title="View live headless screen"
+                        >
+                          👁 View
+                        </button>
+                      )}
+                    </>
                   ) : (
                     <>
                       <button className="pl-btn pl-btn-launch" onClick={() => onToggleProfile(profile.id)}>Launch</button>

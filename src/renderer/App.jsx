@@ -12,6 +12,7 @@ import SettingsTab from './components/SettingsTab';
 import LicenseModal from './components/LicenseModal';
 import EngineInstallModal from './components/EngineInstallModal';
 import LinkProxyModal from './components/LinkProxyModal';
+import LivePreviewPanel from './components/LivePreviewPanel';
 import './App.css';
 import { useI18n } from './i18n/index';
  
@@ -41,6 +42,8 @@ function App() {
   const [showApiPwdModal, setShowApiPwdModal] = useState(false);
   const [apiPwdInput, setApiPwdInput] = useState('');
   const [appLogs, setAppLogs] = useState([]);
+  // Live preview: profile being previewed (or null)
+  const [previewProfile, setPreviewProfile] = useState(null);
 
   // Subscribe to app-log events at app level so logs are captured regardless of active tab
   useEffect(() => {
@@ -449,6 +452,7 @@ function App() {
             profileStatuses={profileStatuses}
             onToggleFp={handleToggleFp}
             onReloadProfiles={loadProfiles}
+            onViewLiveScreen={(profile) => setPreviewProfile(profile)}
           />
         );
 
@@ -530,6 +534,13 @@ function App() {
       {cookieProfile && <CookieManager profile={cookieProfile} onClose={() => setCookieProfile(null)} />}
       {logProfile && <LogViewer profile={logProfile} onClose={() => setLogProfile(null)} />}
       {linkProxyProfile && <LinkProxyModal profile={linkProxyProfile} onClose={() => setLinkProxyProfile(null)} onLink={handleLinkProxy} />}
+      {previewProfile && (
+        <LivePreviewPanel
+          profile={previewProfile}
+          apiPort={apiStatus.port || 4000}
+          onClose={() => setPreviewProfile(null)}
+        />
+      )}
       <Toasts toasts={toasts} onDismiss={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />
 
       {/* API Password Modal */}

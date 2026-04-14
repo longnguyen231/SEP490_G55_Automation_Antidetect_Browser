@@ -6,6 +6,7 @@ const { runningProfiles, setProfileStatus, generateInstanceId, buildStatusMap } 
 const { applyCdpOverrides } = require('../engine/cdpOverrides');
 const { findFreePort, fetchJsonVersion, killProcessTreeWin, userDataDirFor, launchChromeCdp } = require('../engine/cdp');
 const { readProfiles, writeProfiles, updateProfileSettings } = require('../storage/profiles');
+const { startScreencast, stopScreencast } = require('../engine/screencast');
 
 // Lock set to prevent concurrent launches of the same profile
 const launchingProfiles = new Set();
@@ -640,6 +641,8 @@ async function launchProfileInternal(profileId, options = {}) {
     const cleanupPlaywright = async (reason) => {
       if (playwrightCleaned) return;
       playwrightCleaned = true;
+      // Stop screencast before cleanup
+      try { stopScreencast(profileId); } catch {}
       await saveState();
       try { await forwarder?.stop?.(); } catch { }
       runningProfiles.delete(profileId);
@@ -666,6 +669,13 @@ async function launchProfileInternal(profileId, options = {}) {
     runningProfiles.set(profileId, { engine: engineMode, server, browser, context, wsEndpoint, forwarder, startedAt: Date.now() });
     setProfileStatus(profileId, 'RUNNING', instanceId);
     broadcastRunningMap();
+    // Auto-start live preview screencast for headless profiles
+    if (headless) {
+      try {
+        // Small delay to let the first page finish initial navigation
+        setTimeout(() => startScreencast(profileId), 800);
+      } catch (e) { appendLog(profileId, `[screencast] Auto-start failed: ${e?.message || e}`); }
+    }
     // Post-launch automation script (if configured)
     try { await runAutomationPostLaunch(profile, { engine: engineMode, wsEndpoint, context, browser }); } catch (e) { appendLog(profileId, `Automation post-launch error: ${e?.message || e}`); }
     return { success: true, wsEndpoint };
@@ -779,6 +789,9 @@ async function stopProfileInternal(profileId) {
     }
     setProfileStatus(profileId, 'STOPPING');
     broadcastRunningMap();
+
+    // Stop screencast loop before any cleanup
+    try { stopScreencast(profileId); } catch {}
 
     if (running.engine === 'cdp') {
       // CDP: kill child process

@@ -130,4 +130,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('backend-ready', listener);
     return () => ipcRenderer.removeListener('backend-ready', listener);
   },
+  // Live preview screencast controls
+  startPreview: (profileId) => ipcRenderer.invoke('start-preview', profileId),
+  stopPreview: (profileId) => ipcRenderer.invoke('stop-preview', profileId),
+  getScreencastStatus: (profileId) => ipcRenderer.invoke('screencast-status', profileId),
 });
