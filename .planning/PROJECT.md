@@ -25,18 +25,38 @@ Users can launch headless browser profiles with unique fingerprints and **see wh
 
 ### Active
 
-- [ ] Headless Live Preview — stream real-time browser screen to UI per profile
-- [ ] Live Screen panel — dedicated UI showing profile ID, status, headless indicator
-- [ ] Screenshot-based streaming — Playwright page.screenshot() loop (300-500ms) via WebSocket
-- [ ] Per-profile stream lifecycle — start on headless launch, stop on profile stop
-- [ ] Lightweight demo-grade performance — optimized for observation, not production streaming
+- [ ] Lifecycle state synchronization — backend as single source of truth, UI reflects real state reliably
+- [ ] Race condition prevention — disable launch/stop buttons during transitions, prevent double-click issues
+- [ ] CRUD UX cleanup — sync form defaults with backend, validation feedback, clear error messages
+- [ ] Immediate state refresh — UI updates instantly after create/update/delete/launch/stop operations
+- [ ] Profile list UI improvements — search/filter/sort toolbar, profile count, status labels, empty states
+- [ ] Live Screen integration — headless preview panel connected to profile lifecycle
 
 ### Out of Scope
 
-- Production-grade video streaming (WebRTC, RTMP) — demo-grade screenshot streaming is sufficient for capstone
-- Interactive remote control through live preview (click/type forwarding) — view-only for this milestone
-- Multi-profile simultaneous streaming dashboard — single profile stream at a time is sufficient
+- Auto-restart on crash — not needed for demo
+- Advanced lifecycle features (warmup sequences, session persistence across app restarts) — beyond demo scope
+- Complex automation workflows — existing automation is sufficient
+- High-scale performance optimization — demo operates with dozens of profiles, not thousands
+- Advanced proxy rotation — existing per-profile proxy assignment is sufficient
+- Bulk operations UI — optional, not critical for demo
 - Cloud deployment / remote access — desktop-only Electron app
+
+## Current Milestone: v1.0 Profile Management
+
+**Goal:** Build a stable, demo-ready profile management system with reliable lifecycle sync, clean CRUD UX, and UI improvements for the FPT capstone panel.
+
+**Target features:**
+- Lifecycle state synchronization (backend as single source of truth, reliable UI updates)
+- CRUD UX cleanup (form defaults, validation, error handling, immediate state refresh)
+- Profile list UI improvements (search/filter/sort, status labels, empty states)
+- Live Screen integration (headless preview connected to profile lifecycle)
+
+**Priority order:**
+1. Lifecycle sync (CRITICAL)
+2. CRUD UX cleanup
+3. UI improvements
+4. Live Screen integration
 
 ## Context
 
@@ -84,4 +104,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-14 after initialization*
+*Last updated: 2026-04-15 after milestone v1.0 Profile Management started*
