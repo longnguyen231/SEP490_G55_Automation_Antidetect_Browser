@@ -15,6 +15,7 @@ import LinkProxyModal from './components/LinkProxyModal';
 import LivePreviewPanel from './components/LivePreviewPanel';
 import './App.css';
 import { useI18n } from './i18n/index';
+import { getLicenseRequestUrl } from './config/app.config';
  
 function App() {
   const { t, lang, setLang } = useI18n();
@@ -44,6 +45,8 @@ function App() {
   const [appLogs, setAppLogs] = useState([]);
   // Live preview: profile being previewed (or null)
   const [previewProfile, setPreviewProfile] = useState(null);
+  // License info state
+  const [licenseInfo, setLicenseInfo] = useState({ valid: false, tier: 'free', maxProfiles: 5, features: [] });
 
   // Subscribe to app-log events at app level so logs are captured regardless of active tab
   useEffect(() => {
@@ -68,8 +71,11 @@ function App() {
     sessionStorage.setItem('license-skipped', 'true');
     setShowLicenseModal(false);
   };
-  const handleLicenseActivated = () => {
+  const handleLicenseActivated = async (payload) => {
     setShowLicenseModal(false);
+    // Reload license info after activation
+    await loadLicenseInfo();
+    addToast(`✅ License activated: ${payload?.tier?.toUpperCase()} tier`, 'success', 5000);
   };
 
   const [theme, setTheme] = useState(() => {
@@ -115,7 +121,11 @@ function App() {
   // Wait for backend IPC to be ready, then load data
   useEffect(() => {
     let unsub = null;
-    const init = () => { setBackendReady(true); loadProfiles(); };
+    const init = () => { 
+      setBackendReady(true); 
+      loadProfiles(); 
+      loadLicenseInfo(); // Load license info on app mount
+    };
     // In production, IPC handlers may register after window loads.
     // Listen for explicit 'backend-ready' signal from main process.
     if (window.electronAPI?.onBackendReady) {
@@ -123,6 +133,7 @@ function App() {
     }
     // Also try immediately — in dev, handlers are usually ready already
     loadProfiles();
+    loadLicenseInfo(); // Load license info immediately
     return () => { try { unsub?.(); } catch {} };
   }, []);
 
@@ -198,6 +209,21 @@ function App() {
     } catch (e) { console.error('Error loading profiles:', e); }
   };
 
+  const loadLicenseInfo = async () => {
+    try {
+      if (!window.electronAPI?.getLicenseInfo) {
+        console.warn('getLicenseInfo API not available');
+        return;
+      }
+      const info = await window.electronAPI.getLicenseInfo();
+      setLicenseInfo(info || { valid: false, tier: 'free', maxProfiles: 5, features: [] });
+      console.log(`[License] Loaded: tier=${info?.tier}, maxProfiles=${info?.maxProfiles}, valid=${info?.valid}`);
+    } catch (e) {
+      console.error('Error loading license info:', e);
+      setLicenseInfo({ valid: false, tier: 'free', maxProfiles: 5, features: [] });
+    }
+  };
+
   const refreshRunningStatus = async (list = profiles) => {
     try {
       if (window.electronAPI.getRunningMap) {
@@ -213,7 +239,34 @@ function App() {
     } catch (e) { console.warn('Failed to refresh running status', e); }
   };
 
-  const handleCreateProfile = () => {
+  const handleCreateProfile = async () => {
+    // Check license limit before creating profile
+    const currentCount = profiles.length;
+    const maxAllowed = licenseInfo.maxProfiles;
+    
+    if (maxAllowed !== -1 && currentCount >= maxAllowed) {
+      const tierName = licenseInfo.tier?.toUpperCase() || 'FREE';
+      const message = `⚠️ Profile Limit Reached!\n\nYour ${tierName} plan allows ${maxAllowed} profile${maxAllowed > 1 ? 's' : ''} maximum.\nCurrently: ${currentCount}/${maxAllowed}\n\n🚀 Upgrade to PRO for unlimited profiles!`;
+      
+      // First, ask if user wants to get license from web
+      if (window.confirm(message + '\n\n📱 Do you want to open the web admin to get a PRO license?\n(Click OK to open web, Cancel to enter license key manually)')) {
+        // Open web admin pricing page
+        const url = getLicenseRequestUrl('pro');
+        if (window.electronAPI?.openExternal) {
+          await window.electronAPI.openExternal(url);
+        } else {
+          window.open(url, '_blank');
+        }
+        addToast('Web admin opened. After getting your license, go to Settings to activate it.', 'info', 7000);
+      } else {
+        // User wants to enter license key manually
+        if (window.confirm('Do you already have a license key?\n\nClick OK to open activation modal.')) {
+          setShowLicenseModal(true);
+        }
+      }
+      return;
+    }
+    
     const base = 'Profile'; const existing = new Set((profiles || []).map(p => (p.name || '').trim()));
     let name = `${base} ${(profiles || []).length + 1}`; for (let i = 1; i <= (profiles || []).length + 100; i++) { const c = `${base} ${i}`; if (!existing.has(c)) { name = c; break; } }
     setSelectedProfile({ name }); setFormInitialTab('general'); setShowForm(true);
@@ -504,6 +557,9 @@ function App() {
           onNavigate={(id) => { setShowForm(false); setSelectedProfile(null); setActiveNav(id); }}
           onCreateProfile={handleCreateProfile}
           apiStatus={apiStatus}
+          licenseInfo={licenseInfo}
+          profileCount={profiles.length}
+          onUpgrade={() => setShowLicenseModal(true)}
         />
       )}
 

@@ -38,18 +38,6 @@ const TIER_PRESETS = {
       'priority_support',
     ],
   },
-  enterprise: {
-    tier: 'enterprise',
-    maxProfiles: -1,
-    features: [
-      'unlimited_profiles',
-      'automation',
-      'api_access',
-      'priority_support',
-      'custom_integrations',
-      'white_label',
-    ],
-  },
 };
 
 // ========================================
@@ -182,9 +170,8 @@ Usage:
   node tools/generate-jwt.js [options]
 
 Options:
-  --tier=<tier>          License tier: free, pro, enterprise (default: pro)
+  --tier=<tier>          License tier: free, pro (default: pro)
   --days=<number>        License validity in days (default: 30)
-  --lifetime             Generate lifetime license (no expiry)
   --maxProfiles=<num>    Max profiles limit (-1 = unlimited, default: from tier)
   --userId=<id>          Optional user ID
   --email=<email>        Optional user email
@@ -193,9 +180,6 @@ Options:
 Examples:
   # Pro license valid for 30 days
   node tools/generate-jwt.js --tier=pro --days=30
-
-  # Enterprise lifetime license
-  node tools/generate-jwt.js --tier=enterprise --lifetime
 
   # Free license valid for 7 days
   node tools/generate-jwt.js --tier=free --days=7
@@ -209,7 +193,6 @@ Examples:
 Tier Presets:
   free        ➜ 5 profiles, no features
   pro         ➜ Unlimited profiles, automation, API access
-  enterprise  ➜ Unlimited profiles, all features
   `);
 }
 
@@ -223,6 +206,19 @@ function main() {
   if (options.help || Object.keys(options).length === 0) {
     printHelp();
     return;
+  }
+
+  // Validate tier
+  const tier = options.tier || 'pro';
+  const validTiers = ['free', 'pro'];
+  if (!validTiers.includes(tier)) {
+    console.error(`\n❌ Error: Invalid tier "${tier}"`);
+    console.error(`   Valid tiers: ${validTiers.join(', ')}`);
+    if (tier === 'enterprise') {
+      console.error(`   Note: Enterprise tier has been removed. Use "pro" instead.`);
+    }
+    console.error('');
+    process.exit(1);
   }
 
   try {

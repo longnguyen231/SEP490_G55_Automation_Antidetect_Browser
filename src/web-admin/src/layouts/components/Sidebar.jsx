@@ -28,7 +28,7 @@ const Sidebar = () => {
           to="/dashboard" 
           end
           className={({ isActive }) => 
-            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group cursor-pointer ${
               isActive 
                 ? 'bg-primary text-white font-medium' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
@@ -42,7 +42,7 @@ const Sidebar = () => {
         <NavLink 
           to="/dashboard/profiles" 
           className={({ isActive }) => 
-            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group cursor-pointer ${
               isActive 
                 ? 'bg-primary text-white font-medium' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
@@ -56,7 +56,7 @@ const Sidebar = () => {
         <NavLink 
           to="/dashboard/proxies" 
           className={({ isActive }) => 
-            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group cursor-pointer ${
               isActive 
                 ? 'bg-primary text-white font-medium' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
@@ -70,7 +70,7 @@ const Sidebar = () => {
         <NavLink 
           to="/dashboard/groups" 
           className={({ isActive }) => 
-            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group cursor-pointer ${
               isActive 
                 ? 'bg-primary text-white font-medium' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
@@ -84,7 +84,7 @@ const Sidebar = () => {
         <NavLink 
           to="/dashboard/team" 
           className={({ isActive }) => 
-            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group cursor-pointer ${
               isActive 
                 ? 'bg-primary text-white font-medium' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
@@ -99,7 +99,7 @@ const Sidebar = () => {
         <NavLink 
           to="/dashboard/licenses" 
           className={({ isActive }) => 
-            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group cursor-pointer ${
               isActive 
                 ? 'bg-primary text-white font-medium' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
@@ -119,7 +119,7 @@ const Sidebar = () => {
           <NavLink 
             to="/dashboard/settings" 
             className={({ isActive }) => 
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group cursor-pointer ${
                 isActive 
                   ? 'bg-primary text-white font-medium' 
                   : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
@@ -134,7 +134,7 @@ const Sidebar = () => {
       
       <div className="p-4 bg-primary/5 m-4 rounded-xl border border-primary/10">
         <p className="text-[10px] uppercase font-bold text-primary/60 mb-1">Active Plan</p>
-        <p className="text-sm font-semibold dark:text-slate-200 mb-2">Enterprise Pro</p>
+        <p className="text-sm font-semibold dark:text-slate-200 mb-2">Pro</p>
         <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: '#00bcd4', colorText: '#94a3b8' } }}>
           <Progress 
             percent={75} 

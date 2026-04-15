@@ -58,8 +58,6 @@ function section(title) {
 const TEST_TOKENS = {
   pro_30days: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0aWVyIjoicHJvIiwibWF4UHJvZmlsZXMiOi0xLCJmZWF0dXJlcyI6WyJ1bmxpbWl0ZWRfcHJvZmlsZXMiLCJhdXRvbWF0aW9uIiwiYXBpX2FjY2VzcyIsInByaW9yaXR5X3N1cHBvcnQiXSwiaXNzdWVkQXQiOjE3NzYyODY4MDcsImlhdCI6MTc3NjI4NjgwNywiZXhwaXJlc0F0IjoxNzc4ODc4ODA3fQ.UldZRmB1j7NUwNu9eNVkPhkEgltFYAAZvvhAVhovv3o',
   
-  enterprise_lifetime: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0aWVyIjoiZW50ZXJwcmlzZSIsIm1heFByb2ZpbGVzIjotMSwiZmVhdHVyZXMiOlsidW5saW1pdGVkX3Byb2ZpbGVzIiwiYXV0b21hdGlvbiIsImFwaV9hY2Nlc3MiLCJwcmlvcml0eV9zdXBwb3J0IiwiY3VzdG9tX2ludGVncmF0aW9ucyIsIndoaXRlX2xhYmVsIl0sImlzc3VlZEF0IjoxNzc2Mjg2ODE1LCJpYXQiOjE3NzYyODY4MTUsImVtYWlsIjoiYWRtaW5AY29tcGFueS5jb20ifQ.JofQ0hIgL9z3woQgynFeQC0jtpZ5OIxscU5UmskjhXA',
-  
   // Expired token (expired in 2025)
   expired: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0aWVyIjoicHJvIiwibWF4UHJvZmlsZXMiOi0xLCJmZWF0dXJlcyI6W10sImlzc3VlZEF0IjoxNzAwMDAwMDAwLCJpYXQiOjE3MDAwMDAwMDAsImV4cGlyZXNBdCI6MTcwMDYwNDgwMH0.test-signature-expired',
   
@@ -133,36 +131,8 @@ function testValidLicense() {
   }
 }
 
-function testLifetimeLicense() {
-  section('Test 3: Validate Lifetime License (Enterprise)');
-  
-  try {
-    const result = verifyJwtLicense(TEST_TOKENS.enterprise_lifetime);
-    
-    if (result.valid) {
-      success('Lifetime license is valid');
-      success(`Tier: ${result.payload.tier}`);
-      success(`Max Profiles: ${result.payload.maxProfiles === -1 ? 'Unlimited' : result.payload.maxProfiles}`);
-      success(`Features: ${result.payload.features.join(', ')}`);
-      
-      if (!result.payload.expiresAt) {
-        success('✓ Lifetime license (no expiry)');
-      }
-      
-      if (result.payload.email) {
-        info(`Email: ${result.payload.email}`);
-      }
-    } else {
-      error(`License validation failed: ${result.error}`);
-    }
-    
-  } catch (err) {
-    error(`Validation error: ${err.message}`);
-  }
-}
-
 function testExpiredLicense() {
-  section('Test 4: Validate Expired License');
+  section('Test 3: Validate Expired License');
   
   try {
     const result = verifyJwtLicense(TEST_TOKENS.expired);
@@ -182,7 +152,7 @@ function testExpiredLicense() {
 }
 
 function testInvalidFormat() {
-  section('Test 5: Validate Invalid Format');
+  section('Test 4: Validate Invalid Format');
   
   try {
     const result = verifyJwtLicense(TEST_TOKENS.invalid);
@@ -200,7 +170,7 @@ function testInvalidFormat() {
 }
 
 function testMissingFields() {
-  section('Test 6: Validate Missing Required Fields');
+  section('Test 5: Validate Missing Required Fields');
   
   try {
     const result = verifyJwtLicense(TEST_TOKENS.missing_fields);
@@ -218,7 +188,7 @@ function testMissingFields() {
 }
 
 function testEmptyToken() {
-  section('Test 7: Validate Empty Token');
+  section('Test 6: Validate Empty Token');
   
   try {
     const result = verifyJwtLicense('');
@@ -246,7 +216,6 @@ function main() {
   
   testDecodePayload();
   testValidLicense();
-  testLifetimeLicense();
   testExpiredLicense();
   testInvalidFormat();
   testMissingFields();

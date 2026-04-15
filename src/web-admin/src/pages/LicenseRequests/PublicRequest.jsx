@@ -22,7 +22,7 @@ const { Option } = Select;
 
 // ─── Validation schema ────────────────────────────────────────────────────────
 const schema = yup.object({
-  tier: yup.string().oneOf(['free', 'pro', 'enterprise'], 'Please select a valid plan').required('Please select a plan'),
+  tier: yup.string().oneOf(['free', 'pro'], 'Please select a valid plan').required('Please select a plan'),
   durationDays: yup.mixed().nullable(),
   reason: yup.string().max(500, 'Maximum 500 characters'),
 });
@@ -51,7 +51,7 @@ export default function PublicRequest() {
   } = useForm({
     resolver: yupResolver(schema),
     defaultValues: {
-      tier: ['free', 'pro', 'enterprise'].includes(defaultTier) ? defaultTier : 'pro',
+      tier: ['free', 'pro'].includes(defaultTier) ? defaultTier : 'pro',
       durationDays: TIER_CONFIG[defaultTier]?.defaultDuration ?? 30,
       reason: '',
     },
@@ -104,7 +104,7 @@ export default function PublicRequest() {
         <header className="border-b border-slate-800/60 px-6 py-4 flex items-center gap-4">
           <Link
             to="/"
-            className="flex items-center gap-2 text-slate-400 hover:text-primary transition-colors text-sm"
+            className="flex items-center gap-2 text-slate-400 hover:text-primary transition-colors text-sm cursor-pointer"
           >
             <ArrowLeft size={16} />
             Home
@@ -158,8 +158,8 @@ export default function PublicRequest() {
               <label className="block text-sm font-semibold text-slate-200 mb-2">
                 Select plan <span className="text-rose-400">*</span>
               </label>
-              <div className="grid grid-cols-3 gap-3">
-                {['free', 'pro', 'enterprise'].map((t) => {
+              <div className="grid grid-cols-2 gap-3">
+                {['free', 'pro'].map((t) => {
                   const cfg = TIER_CONFIG[t];
                   const isSelected = selectedTier === t;
                   return (
@@ -167,7 +167,7 @@ export default function PublicRequest() {
                       key={t}
                       type="button"
                       onClick={() => setValue('tier', t, { shouldValidate: true })}
-                      className={`p-3 rounded-xl border text-left transition-all ${
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                         isSelected
                           ? 'border-primary bg-primary/10'
                           : 'border-slate-700/50 bg-slate-800/30 hover:border-primary/40'
@@ -250,12 +250,12 @@ export default function PublicRequest() {
                 disabled={submitting}
                 className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-background-dark
                   font-semibold text-sm hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed
-                  shadow-lg shadow-primary/20"
+                  shadow-lg shadow-primary/20 cursor-pointer"
               >
                 <Send size={16} />
                 {submitting ? 'Submitting...' : 'Submit Request'}
               </button>
-              <Link to="/" className="text-sm text-slate-400 hover:text-white transition-colors">
+              <Link to="/" className="text-sm text-slate-400 hover:text-white transition-colors cursor-pointer">
                 Cancel
               </Link>
             </div>

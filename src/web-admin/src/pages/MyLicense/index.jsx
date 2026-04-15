@@ -59,10 +59,10 @@ function LicenseCard({ request }) {
     try {
       await navigator.clipboard.writeText(request.jwt);
       setCopied(true);
-      toast.success('Đã copy JWT license key!');
+      toast.success('JWT license key copied!');
       setTimeout(() => setCopied(false), 2500);
     } catch {
-      toast.error('Không thể copy. Hãy copy thủ công.');
+      toast.error('Cannot copy. Please copy manually.');
     }
   };
 
@@ -152,7 +152,7 @@ function LicenseCard({ request }) {
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">JWT License Key</p>
             <button
               onClick={() => setShowFull((v) => !v)}
-              className="text-xs text-slate-500 hover:text-primary transition-colors"
+              className="text-xs text-slate-500 hover:text-primary transition-colors cursor-pointer"
             >
               {showFull ? 'Collapse' : 'Show full'}
             </button>
@@ -174,7 +174,7 @@ function LicenseCard({ request }) {
           <div className="flex items-center gap-3">
             <button
               onClick={handleCopy}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all cursor-pointer ${
                 copied
                   ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                   : 'bg-primary text-background-dark hover:bg-primary/90 shadow-md shadow-primary/20'
@@ -216,7 +216,7 @@ function LicenseCard({ request }) {
             {request.rejectionReason && (
               <p className="text-xs text-slate-400 mt-0.5">Reason: {request.rejectionReason}</p>
             )}
-            <Link to="/license-request" className="text-xs text-primary hover:underline mt-1 block">
+            <Link to="/license-request" className="text-xs text-primary hover:underline mt-1 block cursor-pointer">
               Submit a new request →
             </Link>
           </div>
@@ -277,7 +277,7 @@ export default function MyLicense() {
         <header className="border-b border-slate-800/60 px-6 py-4 flex items-center gap-4">
           <Link
             to="/"
-            className="flex items-center gap-2 text-slate-400 hover:text-primary transition-colors text-sm"
+            className="flex items-center gap-2 text-slate-400 hover:text-primary transition-colors text-sm cursor-pointer"
           >
             <ArrowLeft size={16} />
             Home

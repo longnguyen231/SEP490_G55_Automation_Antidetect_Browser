@@ -252,7 +252,7 @@ function PricingCard({ tier, label, price, period, description, icon, color, bor
       {/* CTA */}
       <button
         onClick={handleCta}
-        className={`w-full py-3 rounded-xl font-semibold text-sm transition-all duration-200 ${ctaStyle}`}
+        className={`w-full py-3 rounded-xl font-semibold text-sm transition-all duration-200 cursor-pointer ${ctaStyle}`}
       >
         {cta}
       </button>
@@ -373,7 +373,7 @@ const LandingPage = () => {
                 key={href}
                 href={href}
                 onClick={(e) => scrollTo(e, href)}
-                className="text-sm font-medium text-slate-400 hover:text-primary transition-colors"
+                className="text-sm font-medium text-slate-400 hover:text-primary transition-colors cursor-pointer"
               >
                 {label}
               </a>
@@ -451,7 +451,7 @@ const LandingPage = () => {
               <>
                 <Link
                   to="/login"
-                  className="text-sm font-medium text-slate-400 hover:text-primary transition-colors px-3 py-1.5"
+                  className="text-sm font-medium text-slate-400 hover:text-primary transition-colors px-3 py-1.5 cursor-pointer"
                 >
                   Sign In
                 </Link>
@@ -476,7 +476,7 @@ const LandingPage = () => {
 
           {/* Mobile hamburger */}
           <button
-            className="md:hidden text-slate-400 hover:text-primary transition-colors p-2"
+            className="md:hidden text-slate-400 hover:text-primary transition-colors p-2 cursor-pointer"
             onClick={() => setMenuOpen((v) => !v)}
             aria-label="Toggle menu"
           >
@@ -492,7 +492,7 @@ const LandingPage = () => {
                 key={href}
                 href={href}
                 onClick={(e) => scrollTo(e, href)}
-                className="block text-sm font-medium text-slate-400 hover:text-primary transition-colors py-1"
+                className="block text-sm font-medium text-slate-400 hover:text-primary transition-colors py-1 cursor-pointer"
               >
                 {label}
               </a>
@@ -500,23 +500,23 @@ const LandingPage = () => {
             {isAuthenticated ? (
               <>
                 {user?.role === 'admin' && (
-                  <Link to="/dashboard" onClick={() => setMenuOpen(false)} className="block text-sm font-medium text-primary py-1">
+                  <Link to="/dashboard" onClick={() => setMenuOpen(false)} className="block text-sm font-medium text-primary py-1 cursor-pointer">
                     Dashboard →
                   </Link>
                 )}
                 <button
                   onClick={() => { setMenuOpen(false); handleLogout(); }}
-                  className="block text-sm font-medium text-rose-400 py-1 text-left"
+                  className="block text-sm font-medium text-rose-400 py-1 text-left cursor-pointer"
                 >
                   Sign out
                 </button>
               </>
             ) : (
               <>
-                <Link to="/login" onClick={() => setMenuOpen(false)} className="block text-sm text-slate-400 hover:text-primary py-1">
+                <Link to="/login" onClick={() => setMenuOpen(false)} className="block text-sm text-slate-400 hover:text-primary py-1 cursor-pointer">
                   Sign In
                 </Link>
-                <Link to="/register" onClick={() => setMenuOpen(false)} className="block text-sm text-primary font-semibold py-1">
+                <Link to="/register" onClick={() => setMenuOpen(false)} className="block text-sm text-primary font-semibold py-1 cursor-pointer">
                   Create Account
                 </Link>
               </>
@@ -524,7 +524,7 @@ const LandingPage = () => {
             <a
               href="#download"
               onClick={(e) => scrollTo(e, '#download')}
-              className="block w-full text-center px-4 py-2 rounded-lg bg-primary text-background-dark text-sm font-semibold mt-2"
+              className="block w-full text-center px-4 py-2 rounded-lg bg-primary text-background-dark text-sm font-semibold mt-2 cursor-pointer"
             >
               Download Free
             </a>
@@ -803,7 +803,7 @@ const LandingPage = () => {
                   download
                   className="flex items-center gap-3 px-6 py-3.5 rounded-xl bg-primary text-background-dark
                     font-bold text-sm hover:bg-primary/90 transition-all duration-200
-                    shadow-xl shadow-primary/30 hover:shadow-primary/50 hover:-translate-y-0.5 w-full sm:w-auto justify-center"
+                    shadow-xl shadow-primary/30 hover:shadow-primary/50 hover:-translate-y-0.5 w-full sm:w-auto justify-center cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-xl">desktop_windows</span>
                   Windows Installer (.exe)
@@ -813,7 +813,7 @@ const LandingPage = () => {
                   download
                   className="flex items-center gap-3 px-6 py-3.5 rounded-xl border border-slate-600
                     text-slate-300 font-semibold text-sm hover:border-primary/50 hover:text-primary
-                    transition-all duration-200 w-full sm:w-auto justify-center"
+                    transition-all duration-200 w-full sm:w-auto justify-center cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-xl">folder_zip</span>
                   Portable (.zip)
@@ -843,7 +843,7 @@ const LandingPage = () => {
               href="https://github.com/OngBanTat/ObtAutomationAntidetectBrowser"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 hover:text-primary transition-colors"
+              className="flex items-center gap-1.5 hover:text-primary transition-colors cursor-pointer"
             >
               <span className="material-symbols-outlined text-base">code</span>
               View Source on GitHub
@@ -853,7 +853,7 @@ const LandingPage = () => {
                 <span className="hidden sm:block opacity-30">|</span>
                 <Link
                   to="/dashboard"
-                  className="flex items-center gap-1.5 hover:text-primary transition-colors"
+                  className="flex items-center gap-1.5 hover:text-primary transition-colors cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-base">dashboard</span>
                   Open Web Dashboard
@@ -865,7 +865,7 @@ const LandingPage = () => {
                 <span className="hidden sm:block opacity-30">|</span>
                 <Link
                   to="/login"
-                  className="flex items-center gap-1.5 hover:text-primary transition-colors"
+                  className="flex items-center gap-1.5 hover:text-primary transition-colors cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-base">login</span>
                   Admin Login
@@ -894,11 +894,11 @@ const LandingPage = () => {
               href="https://github.com/OngBanTat/ObtAutomationAntidetectBrowser"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-primary transition-colors"
+              className="hover:text-primary transition-colors cursor-pointer"
             >
               GitHub
             </a>
-            <Link to="/dashboard" className="hover:text-primary transition-colors">
+            <Link to="/dashboard" className="hover:text-primary transition-colors cursor-pointer">
               Dashboard
             </Link>
           </div>

@@ -7,14 +7,14 @@ import toast from 'react-hot-toast';
 function parseFirebaseError(err) {
   const code = err?.code || '';
   const map = {
-    'auth/user-not-found':         'Email không tồn tại trong hệ thống.',
-    'auth/invalid-email':          'Địa chỉ email không hợp lệ.',
-    'auth/too-many-requests':      'Quá nhiều yêu cầu. Vui lòng thử lại sau.',
-    'auth/network-request-failed': 'Lỗi kết nối mạng. Kiểm tra internet và thử lại.',
+    'auth/user-not-found':         'Email does not exist in the system.',
+    'auth/invalid-email':          'Invalid email address.',
+    'auth/too-many-requests':      'Too many requests. Please try again later.',
+    'auth/network-request-failed': 'Network connection error. Check your internet connection.',
     'auth/configuration-not-found':
-      'Firebase chưa được cấu hình. Vui lòng điền firebaseConfig trong src/config/firebase.config.js',
+      'Firebase not configured. Please fill firebaseConfig in src/config/firebase.config.js',
   };
-  return map[code] || err?.message || 'Đã có lỗi xảy ra. Thử lại sau.';
+  return map[code] || err?.message || 'An error occurred. Please try again.';
 }
 
 // ─── Envelope illustration ────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ const ForgotPasswordPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email.trim()) {
-      toast.error('Vui lòng nhập địa chỉ email.');
+      toast.error('Please enter your email address.');
       return;
     }
 
@@ -62,7 +62,7 @@ const ForgotPasswordPage = () => {
     try {
       await sendPasswordReset(email.trim());
       setSent(true);
-      toast.success('Email đặt lại mật khẩu đã được gửi!');
+      toast.success('Password reset email sent!');
     } catch (err) {
       toast.error(parseFirebaseError(err));
     } finally {
@@ -75,7 +75,7 @@ const ForgotPasswordPage = () => {
     setLoading(true);
     try {
       await sendPasswordReset(email.trim());
-      toast.success('Email đã được gửi lại!');
+      toast.success('Email resent!');
     } catch (err) {
       toast.error(parseFirebaseError(err));
     } finally {
@@ -106,21 +106,21 @@ const ForgotPasswordPage = () => {
               </div>
             </div>
 
-            <h2 className="text-xl font-semibold text-white mb-2">Kiểm tra hộp thư đến</h2>
+            <h2 className="text-xl font-semibold text-white mb-2">Check your inbox</h2>
             <p className="text-sm text-slate-400 mb-1">
-              Chúng tôi đã gửi liên kết đặt lại mật khẩu đến
+              We sent a password reset link to
             </p>
             <p className="text-sm font-medium text-primary mb-6 break-all">{email}</p>
 
             <div className="rounded-xl border border-slate-700/40 p-4 text-left mb-6"
                  style={{ background: 'rgba(0,188,212,0.04)' }}>
-              <p className="text-xs text-slate-400 font-medium mb-2 uppercase tracking-wide">Hướng dẫn:</p>
+              <p className="text-xs text-slate-400 font-medium mb-2 uppercase tracking-wide">Instructions:</p>
               <ol className="space-y-1.5">
                 {[
-                  'Mở email từ Vanguard Browser.',
-                  'Nhấp "Đặt lại mật khẩu" trong email.',
-                  'Tạo mật khẩu mới và lưu lại.',
-                  'Đăng nhập bằng mật khẩu mới.',
+                  'Open the email from Vanguard Browser.',
+                  'Click "Reset Password" in the email.',
+                  'Create a new password and save it.',
+                  'Log in with your new password.',
                 ].map((step, i) => (
                   <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
                     <span className="flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold text-primary"
@@ -140,18 +140,18 @@ const ForgotPasswordPage = () => {
             <button
               onClick={handleResend}
               disabled={loading}
-              className="w-full py-2.5 rounded-xl text-sm font-medium text-primary border border-primary/40 mb-4 transition-all"
+              className="w-full py-2.5 rounded-xl text-sm font-medium text-primary border border-primary/40 mb-4 transition-all cursor-pointer"
               style={{ background: 'rgba(0,188,212,0.06)' }}
               onMouseEnter={e => { if (!loading) e.currentTarget.style.background = 'rgba(0,188,212,0.12)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,188,212,0.06)'; }}
             >
-              {loading ? 'Đang gửi...' : 'Gửi lại email'}
+              {loading ? 'Sending...' : 'Resend email'}
             </button>
 
             <Link to="/login"
-              className="flex items-center justify-center gap-2 text-sm text-slate-400 hover:text-white transition-colors">
+              className="flex items-center justify-center gap-2 text-sm text-slate-400 hover:text-white transition-colors cursor-pointer">
               <ArrowLeftIcon />
-              Quay lại đăng nhập
+              Back to sign in
             </Link>
           </div>
         </div>
@@ -255,7 +255,7 @@ const ForgotPasswordPage = () => {
           {/* Back to login */}
           <div className="mt-6 text-center">
             <Link to="/login"
-              className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors">
+              className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors cursor-pointer">
               <ArrowLeftIcon />
               Quay lại đăng nhập
             </Link>
@@ -264,7 +264,7 @@ const ForgotPasswordPage = () => {
 
         <p className="text-center text-xs text-slate-600 mt-6">
           Chưa có tài khoản?{' '}
-          <Link to="/register" className="text-primary hover:text-primary/80 font-medium transition-colors">
+          <Link to="/register" className="text-primary hover:text-primary/80 font-medium transition-colors cursor-pointer">
             Đăng ký miễn phí
           </Link>
         </p>

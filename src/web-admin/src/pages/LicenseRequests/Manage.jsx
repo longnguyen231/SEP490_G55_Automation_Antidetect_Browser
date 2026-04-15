@@ -59,7 +59,7 @@ function StatusBadge({ status }) {
 }
 
 function TierBadge({ tier }) {
-  const colors = { free: 'default', pro: 'cyan', enterprise: 'gold' };
+  const colors = { free: 'default', pro: 'cyan' };
   return (
     <Tag color={colors[tier] || 'default'} className="text-xs font-bold uppercase">
       {TIER_CONFIG[tier]?.label || tier}
@@ -192,11 +192,11 @@ function JwtModal({ open, jwt, onClose }) {
         title={
           <div className="flex items-center gap-2">
             <CheckCircle size={18} className="text-emerald-400" />
-            <span>JWT License đã được tạo</span>
+            <span>JWT License Generated</span>
           </div>
         }
         onCancel={onClose}
-        footer={<Button onClick={onClose}>Đóng</Button>}
+        footer={<Button onClick={onClose}>Close</Button>}
         width={540}
       >
         <div className="pt-3 space-y-4">
@@ -213,7 +213,7 @@ function JwtModal({ open, jwt, onClose }) {
             />
             <button
               onClick={handleCopy}
-              className={`absolute top-2 right-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`absolute top-2 right-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 copied
                   ? 'bg-emerald-500/20 text-emerald-400'
                   : 'bg-slate-700 text-slate-300 hover:bg-primary/20 hover:text-primary'
@@ -308,7 +308,7 @@ export default function ManageLicenses() {
               <button
                 onClick={() => setJwtModal(r.jwt)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700/60 text-slate-300
-                  hover:bg-primary/20 hover:text-primary text-xs font-medium transition-all"
+                  hover:bg-primary/20 hover:text-primary text-xs font-medium transition-all cursor-pointer"
               >
                 <Copy size={12} /> View JWT
               </button>
@@ -320,14 +320,14 @@ export default function ManageLicenses() {
                 <button
                   onClick={() => setApproveModal(r)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-400
-                    hover:bg-emerald-500/25 text-xs font-semibold transition-all"
+                    hover:bg-emerald-500/25 text-xs font-semibold transition-all cursor-pointer"
                 >
                   <CheckCircle size={12} /> Approve
                 </button>
                 <button
                   onClick={() => handleReject(r)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/15 text-rose-400
-                    hover:bg-rose-500/25 text-xs font-semibold transition-all"
+                    hover:bg-rose-500/25 text-xs font-semibold transition-all cursor-pointer"
                 >
                   <XCircle size={12} /> Reject
                 </button>
@@ -409,10 +409,10 @@ export default function ManageLicenses() {
           <button
             onClick={fetchAllRequests}
             className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-700/50
-              text-slate-400 hover:text-primary hover:border-primary/30 text-sm transition-all"
+              text-slate-400 hover:text-primary hover:border-primary/30 text-sm transition-all cursor-pointer"
           >
             <RefreshCw size={14} className={allRequestsLoading ? 'animate-spin' : ''} />
-            Làm mới
+            Refresh
           </button>
         </div>
 
@@ -423,7 +423,7 @@ export default function ManageLicenses() {
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 statusFilter === s
                   ? 'bg-primary/20 text-primary'
                   : 'text-slate-400 hover:text-white'
@@ -506,7 +506,7 @@ export default function ManageLicenses() {
                   onClick={() => table.previousPage()}
                   disabled={!table.getCanPreviousPage()}
                   className="px-3 py-1.5 rounded-lg border border-slate-700/50 text-xs text-slate-400
-                    hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
                 >
                   ← Previous
                 </button>
@@ -514,7 +514,7 @@ export default function ManageLicenses() {
                   onClick={() => table.nextPage()}
                   disabled={!table.getCanNextPage()}
                   className="px-3 py-1.5 rounded-lg border border-slate-700/50 text-xs text-slate-400
-                    hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
                 >
                   Next →
                 </button>

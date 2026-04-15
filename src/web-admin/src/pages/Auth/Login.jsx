@@ -25,20 +25,20 @@ const OrDivider = () => (
 function parseFirebaseError(err) {
   const code = err?.code || '';
   const map = {
-    'auth/user-not-found':        'Email không tồn tại trong hệ thống.',
-    'auth/wrong-password':        'Mật khẩu không đúng.',
-    'auth/invalid-email':         'Email không hợp lệ.',
-    'auth/invalid-credential':    'Email hoặc mật khẩu không đúng.',
-    'auth/too-many-requests':     'Quá nhiều lần thử. Vui lòng thử lại sau.',
-    'auth/popup-closed-by-user':  'Đã đóng cửa sổ đăng nhập.',
-    'auth/popup-blocked':         'Trình duyệt đã chặn popup. Vui lòng cho phép popup và thử lại.',
+    'auth/user-not-found':        'Email does not exist in the system.',
+    'auth/wrong-password':        'Incorrect password.',
+    'auth/invalid-email':         'Invalid email.',
+    'auth/invalid-credential':    'Email or password is incorrect.',
+    'auth/too-many-requests':     'Too many attempts. Please try again later.',
+    'auth/popup-closed-by-user':  'Sign-in popup closed.',
+    'auth/popup-blocked':         'Browser blocked popup. Please allow popups and try again.',
     'auth/account-exists-with-different-credential':
-      'Email này đã được đăng ký bằng phương thức khác.',
-    'auth/network-request-failed': 'Lỗi kết nối mạng. Kiểm tra internet và thử lại.',
+      'This email is already registered with a different method.',
+    'auth/network-request-failed': 'Network error. Check your internet connection.',
     'auth/configuration-not-found':
-      'Firebase chưa được cấu hình. Vui lòng điền firebaseConfig trong src/config/firebase.config.js',
+      'Firebase not configured. Please fill firebaseConfig in src/config/firebase.config.js',
   };
-  return map[code] || err?.message || 'Đã có lỗi xảy ra. Thử lại sau.';
+  return map[code] || err?.message || 'An error occurred. Please try again.';
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ const LoginPage = () => {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('verified') === '1') {
-      toast.success('Email đã được xác minh! Đăng nhập để tiếp tục.');
+      toast.success('Email verified! Please login to continue.');
     }
   }, [location.search]);
 
@@ -94,7 +94,7 @@ const LoginPage = () => {
     setOauthLoading(true);
     try {
       const user = await loginWithGoogle();
-      toast.success(`Đã đăng nhập bằng Google: ${user.name}`);
+      toast.success(`Logged in with Google: ${user.name}`);
       handleRedirect(user);
     } catch (err) {
       if (err?.code !== 'auth/popup-closed-by-user') {
@@ -173,7 +173,7 @@ const LoginPage = () => {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest">Mật khẩu</label>
-                <Link to="/forgot-password" className="text-xs text-primary hover:text-primary/80 transition-colors">
+                <Link to="/forgot-password" className="text-xs text-primary hover:text-primary/80 transition-colors cursor-pointer">
                   Quên mật khẩu?
                 </Link>
               </div>
@@ -190,7 +190,7 @@ const LoginPage = () => {
                     disabled:opacity-50 transition-colors"
                 />
                 <button type="button" onClick={() => setShowPw(v => !v)} tabIndex={-1}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer">
                   <span className="material-symbols-outlined text-lg">{showPw ? 'visibility_off' : 'visibility'}</span>
                 </button>
               </div>
@@ -220,14 +220,14 @@ const LoginPage = () => {
 
           <p className="text-center text-sm text-slate-500 mt-6">
             Chưa có tài khoản?{' '}
-            <Link to="/register" className="text-primary font-semibold hover:text-primary/80 transition-colors">
+            <Link to="/register" className="text-primary font-semibold hover:text-primary/80 transition-colors cursor-pointer">
               Đăng ký ngay
             </Link>
           </p>
         </div>
 
         <div className="text-center mt-5">
-          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-primary transition-colors">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-primary transition-colors cursor-pointer">
             <span className="material-symbols-outlined text-base">arrow_back</span>
             Về trang chủ
           </Link>
