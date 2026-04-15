@@ -272,7 +272,22 @@ function App() {
     setSelectedProfile({ name }); setFormInitialTab('general'); setShowForm(true);
   };
   const handleEditProfile = (profile, tab = 'general') => { setSelectedProfile(profile); setFormInitialTab(tab); setShowForm(true); };
-  const handleDeleteProfile = async (profileId) => { if (!window.confirm('Delete this profile?')) return; try { await api.deleteProfile(profileId); await loadProfiles(); } catch (e) { console.error('Delete error', e); } };
+  const handleDeleteProfile = async (profileId) => { 
+    if (!window.confirm('Delete this profile?')) return; 
+    try { 
+      const result = await api.deleteProfile(profileId); 
+      if (result.success) {
+        // Remove from state immediately
+        setProfiles(prev => prev.filter(p => p.id !== profileId));
+        setSelectedIds(prev => { const next = { ...prev }; delete next[profileId]; return next; });
+        // Reload from disk to sync
+        setTimeout(() => loadProfiles(), 500);
+      }
+    } catch (e) { 
+      console.error('Delete error', e); 
+      alert('Error deleting profile: ' + e.message);
+    } 
+  };
 
   const handleLaunchProfile = async (profileId) => {
     // Block if already starting or running
@@ -356,7 +371,20 @@ function App() {
       if (result.success) {
         setShowForm(false);
         setSelectedProfile(null);
-        await loadProfiles();
+        
+        // Update state immediately with returned profile (fixes race condition with disk I/O)
+        if (result.profile) {
+          if (isNewProfile) {
+            // Add new profile to state
+            setProfiles(prev => [...prev, result.profile]);
+          } else {
+            // Update existing profile in state
+            setProfiles(prev => prev.map(p => p.id === result.profile.id ? result.profile : p));
+          }
+        }
+        
+        // Also reload from disk to sync any other changes
+        setTimeout(() => loadProfiles(), 500);
       } else {
         alert('Error saving profile: ' + result.error);
       }
@@ -367,7 +395,20 @@ function App() {
   const handleCancel = () => { setShowForm(false); setSelectedProfile(null); };
   const handleManageCookies = (profile) => setCookieProfile(profile);
   const handleViewLogs = (profile) => setLogProfile(profile);
-  const handleCloneProfile = async (profileId) => { try { const res = await window.electronAPI.cloneProfile(profileId, {}); if (!res.success) throw new Error(res.error || 'Clone failed'); await loadProfiles(); } catch (e) { alert('Clone error: ' + e.message); } };
+  const handleCloneProfile = async (profileId) => { 
+    try { 
+      const res = await window.electronAPI.cloneProfile(profileId, {}); 
+      if (!res.success) throw new Error(res.error || 'Clone failed'); 
+      
+      // Update state immediately with the cloned profile
+      if (res.profile) {
+        setProfiles(prev => [...prev, res.profile]);
+      }
+      
+      // Reload from disk to sync
+      setTimeout(() => loadProfiles(), 500);
+    } catch (e) { alert('Clone error: ' + e.message); } 
+  };
   const handleCopyWs = async (profileId) => { try { const res = await window.electronAPI.getProfileWs(profileId); const ws = res?.wsEndpoint; if (!ws) { alert('Profile is not running. Launch first.'); return; } await navigator.clipboard.writeText(ws); addToast('WS endpoint copied!', 'success', 2000); } catch (e) { alert('Failed to copy WS endpoint: ' + e.message); } };
 
   // Toggle a fingerprint section (e.g. display, hardware) on/off directly from the profile card badge
