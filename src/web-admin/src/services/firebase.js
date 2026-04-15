@@ -10,11 +10,13 @@ import {
   signOut,
   onAuthStateChanged,
 } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 import { firebaseConfig, ADMIN_EMAILS } from '../config/firebase.config';
 
 // ─── Initialize ────────────────────────────────────────────────────────────────
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+export const db = getFirestore(app);
 
 // ─── Providers ─────────────────────────────────────────────────────────────────
 const googleProvider = new GoogleAuthProvider();

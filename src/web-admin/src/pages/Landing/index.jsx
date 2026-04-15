@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Avatar, Dropdown, ConfigProvider } from 'antd';
-import { ChevronDown, LogOut, LayoutDashboard } from 'lucide-react';
+import { ChevronDown, LogOut, LayoutDashboard, Check, Zap, Gift } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
 
@@ -128,10 +128,137 @@ const HOW_IT_WORKS = [
 const NAV_LINKS = [
   { href: '#features', label: 'Features' },
   { href: '#how-it-works', label: 'How It Works' },
+  { href: '#pricing', label: 'Pricing' },
   { href: '#download', label: 'Download' },
 ];
 
+// ─── Pricing tier data ─────────────────────────────────────────────────────────
+const PRICING_TIERS = [
+  {
+    tier: 'free',
+    label: 'Free',
+    price: 'Free',
+    period: '',
+    description: 'Try out the core features at no cost',
+    icon: <Gift size={22} />,
+    color: 'text-primary',
+    borderColor: 'border-primary/20',
+    badgeBg: '',
+    highlighted: false,
+    maxProfiles: '5 profiles max',
+    features: [
+      'Up to 5 browser profiles',
+      'Basic fingerprint spoofing',
+      'Proxy per profile (HTTP/SOCKS)',
+      'JSON data export',
+    ],
+    disabledFeatures: ['Browser automation', 'REST API access', 'Priority support'],
+    cta: 'Request Free License',
+    ctaStyle: 'border border-primary/40 text-primary hover:bg-primary/10',
+  },
+  {
+    tier: 'pro',
+    label: 'Pro',
+    price: '$29.99',
+    period: '/month',
+    description: 'Everything you need for individuals and small teams',
+    icon: <Zap size={22} />,
+    color: 'text-primary',
+    borderColor: 'border-primary/50',
+    badgeBg: 'bg-primary text-background-dark',
+    highlighted: true,
+    badge: 'Most Popular',
+    maxProfiles: 'Unlimited profiles',
+    features: [
+      'Unlimited browser profiles',
+      'Full fingerprint spoofing',
+      'Proxy per profile (all types)',
+      'Browser automation (CDP/Playwright)',
+      'REST API access',
+      'Priority support',
+    ],
+    disabledFeatures: [],
+    cta: 'Request Pro License',
+    ctaStyle: 'bg-primary text-background-dark hover:bg-primary/90 shadow-lg shadow-primary/25',
+  },
+];
+
 // ─── Sub-components ────────────────────────────────────────────────────────────
+
+function PricingCard({ tier, label, price, period, description, icon, color, borderColor, badgeBg, highlighted, badge, maxProfiles, features, disabledFeatures, cta, ctaStyle, index, isAuthenticated, navigate }) {
+  const [ref, visible] = useInView(0.05);
+
+  const handleCta = () => {
+    if (isAuthenticated) {
+      navigate(`/license-request?tier=${tier}`);
+    } else {
+      navigate(`/login?next=/license-request?tier=${tier}`);
+    }
+  };
+
+  return (
+    <div
+      ref={ref}
+      className={`relative flex flex-col h-full rounded-2xl border ${
+        highlighted ? 'border-primary/50 bg-primary/5' : borderColor + ' bg-slate-800/50'
+      } p-7 transition-all duration-700 ease-out
+        ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}
+        ${highlighted ? 'shadow-xl shadow-primary/10' : ''}`}
+      style={{ transitionDelay: `${index * 100}ms` }}
+    >
+      {/* Popular badge */}
+      {badge && (
+        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+          <span className={`px-3 py-1 rounded-full text-xs font-bold ${badgeBg}`}>{badge}</span>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="mb-6">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${
+          highlighted ? 'bg-primary/20' : 'bg-slate-700/50'
+        } ${color}`}>
+          {icon}
+        </div>
+        <h3 className={`text-xl font-bold mb-1 ${color}`}>{label}</h3>
+        <p className="text-sm text-slate-400">{description}</p>
+      </div>
+
+      {/* Price */}
+      <div className="mb-6 pb-6 border-b border-slate-700/50">
+        <div className="flex items-end gap-1">
+          <span className="text-3xl font-extrabold text-white">{price}</span>
+          {period && <span className="text-slate-400 text-sm mb-1">{period}</span>}
+        </div>
+        <p className="text-xs text-slate-500 mt-1">• {maxProfiles}</p>
+      </div>
+
+      {/* Features */}
+      <ul className="space-y-2.5 flex-1 mb-8">
+        {features.map((f) => (
+          <li key={f} className="flex items-center gap-2.5 text-sm text-slate-300">
+            <Check size={14} className={color + ' flex-shrink-0'} />
+            {f}
+          </li>
+        ))}
+        {disabledFeatures.map((f) => (
+          <li key={f} className="flex items-center gap-2.5 text-sm text-slate-600">
+            <span className="w-3.5 h-3.5 flex-shrink-0 text-center leading-3.5 text-slate-700">—</span>
+            {f}
+          </li>
+        ))}
+      </ul>
+
+      {/* CTA */}
+      <button
+        onClick={handleCta}
+        className={`w-full py-3 rounded-xl font-semibold text-sm transition-all duration-200 ${ctaStyle}`}
+      >
+        {cta}
+      </button>
+    </div>
+  );
+}
 
 function FeatureCard({ icon, title, desc, index }) {
   const [ref, visible] = useInView(0.1);
@@ -608,6 +735,42 @@ const LandingPage = () => {
             {HOW_IT_WORKS.map((step, i) => (
               <StepCard key={step.step} {...step} index={i} />
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Pricing ────────────────────────────────────────────────────────── */}
+      <section id="pricing" className="py-24 px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <p className="text-xs text-primary font-bold uppercase tracking-widest mb-3">Pricing</p>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+              Choose the plan that fits your needs
+            </h2>
+            <p className="mt-4 text-slate-400 max-w-xl mx-auto text-sm leading-relaxed">
+              Start for free, upgrade whenever you need. Once your request is approved,
+              you receive a JWT license key to activate in the desktop app.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto items-stretch">
+            {PRICING_TIERS.map((t, i) => (
+              <PricingCard
+                key={t.tier}
+                {...t}
+                index={i}
+                isAuthenticated={isAuthenticated}
+                navigate={navigate}
+              />
+            ))}
+          </div>
+
+          {/* How it works note */}
+          <div className="mt-12 text-center">
+            <p className="text-sm text-slate-500">
+              How it works: Choose plan → Sign up / Sign in → Submit request → Admin approves → Copy JWT key →
+              <span className="text-primary"> Paste into app to activate</span>
+            </p>
           </div>
         </div>
       </section>

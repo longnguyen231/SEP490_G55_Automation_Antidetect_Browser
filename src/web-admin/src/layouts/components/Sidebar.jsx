@@ -1,8 +1,16 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Progress, ConfigProvider, theme } from 'antd';
+import { useLicenseStore } from '../../store/licenseStore';
 
 const Sidebar = () => {
+  const { pendingCount, fetchPendingCount } = useLicenseStore();
+
+  // Fetch pending count on mount to show badge
+  useEffect(() => {
+    fetchPendingCount();
+  }, [fetchPendingCount]);
+
   return (
     <aside className="w-64 flex-shrink-0 border-r border-primary/10 bg-white flex flex-col dark:bg-background-dark">
       <div className="p-6 flex items-center gap-3">
@@ -85,6 +93,26 @@ const Sidebar = () => {
         >
           <span className="material-symbols-outlined">groups</span>
           <span>Team</span>
+        </NavLink>
+
+        {/* License Requests — with pending badge */}
+        <NavLink 
+          to="/dashboard/licenses" 
+          className={({ isActive }) => 
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
+              isActive 
+                ? 'bg-primary text-white font-medium' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
+            }`
+          }
+        >
+          <span className="material-symbols-outlined">key</span>
+          <span className="flex-1">Licenses</span>
+          {pendingCount > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-400 text-[10px] font-bold leading-none">
+              {pendingCount}
+            </span>
+          )}
         </NavLink>
         
         <div className="pt-4 mt-4 border-t border-primary/10">

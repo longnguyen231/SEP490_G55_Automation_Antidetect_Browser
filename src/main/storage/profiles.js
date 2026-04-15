@@ -327,17 +327,10 @@ function generateShortId() {
   }
   return result;
 }
-// Helper: Check if license is activated
-function isLicenseActivated() {
-  try {
-    const licensePath = path.join(app.getPath('userData'), 'license.json');
-    if (!fs.existsSync(licensePath)) return false;
-    const licenseData = JSON.parse(fs.readFileSync(licensePath, 'utf8'));
-    return licenseData && licenseData.activated === true;
-  } catch {
-    return false;
-  }
-}
+
+// Import license checker từ licenseValidator
+const { isLicenseActivated } = require('../services/licenseValidator');
+
 async function deleteProfileInternal(profileId) {
   try {
     const profiles = readProfiles();
