@@ -45,6 +45,13 @@ function App() {
   // Live preview: profile being previewed (or null)
   const [previewProfile, setPreviewProfile] = useState(null);
 
+  // License info state
+  const [licenseTier, setLicenseTier] = useState('free');
+  const [licenseExpiry, setLicenseExpiry] = useState(null);
+  const [licenseFeatures, setLicenseFeatures] = useState([]);
+  const [showExpiryWarning, setShowExpiryWarning] = useState(false);
+  const [daysUntilExpiry, setDaysUntilExpiry] = useState(null);
+
   // Subscribe to app-log events at app level so logs are captured regardless of active tab
   useEffect(() => {
     if (!window.electronAPI?.onAppLog) return;
@@ -64,11 +71,65 @@ function App() {
     return !localStorage.getItem('hl-license-activated') &&
            !sessionStorage.getItem('license-skipped');
   });
+  const handleLicenseActivated = () => {
+    setShowLicenseModal(false);
+    // Reload license info after activation
+    checkLicenseStatus();
+  };
+
+  // Check license status on app startup
+  const checkLicenseStatus = async () => {
+    try {
+      const info = await window.electronAPI.getLicenseInfo();
+      
+      if (info?.valid && !info?.expired) {
+        setLicenseTier(info.tier || 'free');
+        setLicenseExpiry(info.expiresAt ? new Date(info.expiresAt) : null);
+        setLicenseFeatures(info.features || []);
+        
+        // Check if license is near expiry
+        if (info.daysRemaining !== undefined) {
+          setDaysUntilExpiry(info.daysRemaining);
+          setShowExpiryWarning(info.daysRemaining <= 7 && info.daysRemaining > 0);
+        }
+        
+        // Update localStorage with latest info
+        localStorage.setItem('hl-license-tier', info.tier);
+        if (info.expiresAt) {
+          localStorage.setItem('hl-license-expiry', info.expiresAt);
+        }
+      } else {
+        // License invalid or expired → reset to free
+        setLicenseTier('free');
+        setLicenseExpiry(null);
+        setLicenseFeatures([]);
+        setShowExpiryWarning(false);
+        
+        // Clear localStorage
+        localStorage.removeItem('hl-license-activated');
+        localStorage.removeItem('hl-license-tier');
+        localStorage.removeItem('hl-license-expiry');
+        
+        if (info?.expired) {
+          addToast('License expired. Downgraded to Free plan (5 profiles max).', 'warning');
+        }
+      }
+    } catch (error) {
+      console.error('License check failed:', error);
+      // Fallback to free tier on error
+      setLicenseTier('free');
+    }
+  };
+
+  // Run license check on app startup
+  useEffect(() => {
+    if (window.electronAPI?.getLicenseInfo) {
+      checkLicenseStatus();
+    }
+  }, []);
+
   const handleCloseLicense = () => {
     sessionStorage.setItem('license-skipped', 'true');
-    setShowLicenseModal(false);
-  };
-  const handleLicenseActivated = () => {
     setShowLicenseModal(false);
   };
 
@@ -508,6 +569,34 @@ function App() {
       )}
 
       <main className="app-main">
+        {/* License Expiry Warning Banner */}
+        {showExpiryWarning && daysUntilExpiry !== null && (
+          <div className="mx-4 mt-4 mb-2 p-3 bg-orange-100 dark:bg-orange-900/30 border-l-4 border-orange-500 rounded flex items-center gap-3">
+            <span className="text-2xl">⚠️</span>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-orange-800 dark:text-orange-300">
+                License Expiring Soon
+              </p>
+              <p className="text-xs text-orange-700 dark:text-orange-400 mt-0.5">
+                Your {licenseTier.toUpperCase()} license expires in {daysUntilExpiry} {daysUntilExpiry === 1 ? 'day' : 'days'}. 
+                Please renew to avoid losing access.
+              </p>
+            </div>
+            <button
+              onClick={() => window.electronAPI.openExternal('https://browser.hl-mck.store')}
+              className="text-xs bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded font-medium transition"
+            >
+              Renew Now
+            </button>
+            <button
+              onClick={() => setShowExpiryWarning(false)}
+              className="text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-200"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        
         {renderContent()}
       </main>
 

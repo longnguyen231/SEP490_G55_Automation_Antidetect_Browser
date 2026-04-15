@@ -60,9 +60,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadSettings: () => ipcRenderer.invoke('load-settings'),
   saveSettings: (partial) => ipcRenderer.invoke('save-settings', partial),
 
-  // Machine License
+  // Machine License (Old system - backward compatibility)
   getMachineCode: () => ipcRenderer.invoke('get-machine-code'),
   validateLicense: (key) => ipcRenderer.invoke('validate-license', key),
+
+  // JWT License System (New)
+  validateJwtLicense: (jwt) => ipcRenderer.invoke('validate-jwt-license', jwt),
+  getLicenseInfo: () => ipcRenderer.invoke('get-license-info'),
+  deactivateLicense: () => ipcRenderer.invoke('deactivate-license'),
+  
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
   // Scripts

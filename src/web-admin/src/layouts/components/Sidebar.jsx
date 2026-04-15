@@ -87,6 +87,20 @@ const Sidebar = () => {
           <span>Team</span>
         </NavLink>
         
+        <NavLink 
+          to="/dashboard/license-requests" 
+          className={({ isActive }) => 
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
+              isActive 
+                ? 'bg-primary text-white font-medium' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
+            }`
+          }
+        >
+          <span className="material-symbols-outlined">key</span>
+          <span>License Requests</span>
+        </NavLink>
+        
         <div className="pt-4 mt-4 border-t border-primary/10">
           <NavLink 
             to="/dashboard/settings" 

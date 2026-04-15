@@ -281,10 +281,17 @@ async function saveProfileInternal(profile) {
         profiles[idx] = { ...profiles[idx], ...merged, updatedAt: nowIso };
       } else {
         // Profile has ID but not found - creating new, check license limit
-        if (!isLicenseActivated() && profiles.length >= 5) {
+        const { tier, maxProfiles } = getLicenseTier();
+        if (tier === 'free' && profiles.length >= 5) {
           return {
             success: false,
             error: 'Free plan giới hạn tối đa 5 profiles. Vui lòng kích hoạt license để tạo thêm profile.'
+          };
+        }
+        if (maxProfiles > 0 && profiles.length >= maxProfiles) {
+          return {
+            success: false,
+            error: `Tier limit: Tối đa ${maxProfiles} profiles cho plan ${tier}.`
           };
         }
         const prepared = normalizeProfileInput(profile, null);
@@ -293,10 +300,17 @@ async function saveProfileInternal(profile) {
       }
     } else {
       // New profile without ID - check license limit for free users
-      if (!isLicenseActivated() && profiles.length >= 5) {
+      const { tier, maxProfiles } = getLicenseTier();
+      if (tier === 'free' && profiles.length >= 5) {
         return {
           success: false,
           error: 'Free plan giới hạn tối đa 5 profiles. Vui lòng kích hoạt license để tạo thêm profile.'
+        };
+      }
+      if (maxProfiles > 0 && profiles.length >= maxProfiles) {
+        return {
+          success: false,
+          error: `Tier limit: Tối đa ${maxProfiles} profiles cho plan ${tier}.`
         };
       }
       
@@ -327,16 +341,26 @@ function generateShortId() {
   }
   return result;
 }
-// Helper: Check if license is activated
-function isLicenseActivated() {
+// Helper: Get license tier and limits (JWT-based system)
+function getLicenseTier() {
   try {
-    const licensePath = path.join(app.getPath('userData'), 'license.json');
-    if (!fs.existsSync(licensePath)) return false;
-    const licenseData = JSON.parse(fs.readFileSync(licensePath, 'utf8'));
-    return licenseData && licenseData.activated === true;
-  } catch {
-    return false;
+    const { getLicenseTier: getTier } = require('../services/licenseValidator');
+    const tierInfo = getTier();
+    return {
+      tier: tierInfo.tier || 'free',
+      maxProfiles: tierInfo.maxProfiles || 5,
+      features: tierInfo.features || []
+    };
+  } catch (error) {
+    appendLog('system', `Failed to get license tier: ${error.message}`);
+    return { tier: 'free', maxProfiles: 5, features: [] };
   }
+}
+
+// Legacy helper for backward compatibility
+function isLicenseActivated() {
+  const { tier } = getLicenseTier();
+  return tier !== 'free';
 }
 async function deleteProfileInternal(profileId) {
   try {

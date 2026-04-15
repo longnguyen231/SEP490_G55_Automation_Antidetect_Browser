@@ -1,5 +1,5 @@
 // Clean modular Electron main process entrypoint (bootstrap)
-const { app } = require('electron');
+const { app, globalShortcut } = require('electron');
 const { createWindow } = require('./window/mainWindow');
 const { initializeDataFiles } = require('./storage/paths');
 const { loadSettings, saveSettings } = require('./storage/settings');
@@ -12,7 +12,10 @@ const { startAutomationScheduler } = require('./engine/automation');
 const { setMainWindowRef } = require('./services/browserManagerService');
 const { setMainWindowRef: setCamoufoxWindowRef } = require('./services/camoufoxManager');
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('window-all-closed', () => { 
+  globalShortcut.unregisterAll(); // Cleanup shortcuts
+  if (process.platform !== 'darwin') app.quit(); 
+});
 
 const HEARTBEAT_GRACE_MS = 20000; // don't check profiles started less than 20s ago
 
@@ -80,6 +83,23 @@ app.whenReady().then(async () => {
   const mainWindow = createWindow();
   setMainWindowRef(mainWindow);
   setCamoufoxWindowRef(mainWindow);
+
+  // 3.1 Enable DevTools keyboard shortcuts (F12, Ctrl+Shift+I)
+  try {
+    globalShortcut.register('F12', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.toggleDevTools();
+      }
+    });
+    globalShortcut.register('CommandOrControl+Shift+I', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.toggleDevTools();
+      }
+    });
+    appendLog('system', 'DevTools shortcuts registered (F12, Ctrl+Shift+I)');
+  } catch (e) {
+    appendLog('system', `Failed to register DevTools shortcuts: ${e.message}`);
+  }
 
   // 4. Update broadcaster to use actual window (non-blocking)
   const broadcaster = (state) => { try { mainWindow.webContents.send('api-server-status', state); } catch {} };

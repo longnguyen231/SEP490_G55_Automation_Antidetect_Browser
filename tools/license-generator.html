@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HL-MCK License Generator (Offline)</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 900px;
+      width: 100%;
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+    .header h1 { font-size: 28px; margin-bottom: 8px; }
+    .header p { opacity: 0.9; font-size: 14px; }
+    .warning {
+      background: #fff3cd;
+      border: 2px solid #ffc107;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .warning-icon { font-size: 24px; }
+    .content { padding: 30px; }
+    .section { margin-bottom: 30px; }
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 15px;
+      color: #333;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .form-group { margin-bottom: 20px; }
+    label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #555;
+      font-size: 14px;
+    }
+    input[type="text"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+      transition: border-color 0.3s;
+    }
+    input[type="text"]:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    textarea {
+      resize: vertical;
+      min-height: 120px;
+    }
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+    }
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #333;
+    }
+    .btn-secondary:hover { background: #e0e0e0; }
+    .btn-success {
+      background: #28a745;
+      color: white;
+    }
+    .btn-success:hover { background: #218838; }
+    .output-box {
+      background: #f8f9fa;
+      border: 2px solid #667eea;
+      border-radius: 6px;
+      padding: 15px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      word-break: break-all;
+      min-height: 120px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .payload-display {
+      background: #f8f9fa;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 15px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    .info-text {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+    .tier-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 8px;
+    }
+    .tier-free { background: #e0e0e0; color: #555; }
+    .tier-pro { background: #667eea; color: white; }
+    .success-message {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 15px;
+      display: none;
+    }
+    .error-message {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 15px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔐 HL-MCK License Generator</h1>
+      <p>Offline JWT License Generator (RS256)</p>
+    </div>
+
+    <div class="warning">
+      <div class="warning-icon">⚠️</div>
+      <div>
+        <strong>SECURITY WARNING:</strong> Never upload this file or your private key to GitHub, cloud storage, or any server. Keep it offline only!
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- Private Key Section -->
+      <div class="section">
+        <div class="section-title">🔑 1. Private Key</div>
+        <div class="form-group">
+          <label for="privateKey">Paste your private.pem key content here:</label>
+          <textarea id="privateKey" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"></textarea>
+          <div class="info-text">Or: <label for="privateKeyFile" style="display: inline; color: #667eea; cursor: pointer; text-decoration: underline;">Upload .pem file</label></div>
+          <input type="file" id="privateKeyFile" accept=".pem" style="display: none;">
+          <div class="btn-group">
+            <button class="btn btn-secondary" onclick="loadFromStorage()">Load from Browser Storage</button>
+            <button class="btn btn-secondary" onclick="clearStorage()">Clear Stored Key</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- License Form Section -->
+      <div class="section">
+        <div class="section-title">📝 2. License Details</div>
+        
+        <div class="form-group">
+          <label for="machineCode">Machine Code (from user):</label>
+          <input type="text" id="machineCode" placeholder="XXXX XXXX XXXX XXXX">
+          <div class="info-text">User gets this from their Electron app</div>
+        </div>
+
+        <div class="form-group">
+          <label for="tier">License Tier:</label>
+          <select id="tier" onchange="updateTierInfo()">
+            <option value="free">Free (5 profiles max)</option>
+            <option value="pro" selected>Pro (Unlimited profiles)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="duration">Duration:</label>
+          <select id="duration">
+            <option value="1">1 Month (30 days)</option>
+            <option value="6">6 Months (180 days)</option>
+            <option value="12" selected>1 Year (365 days)</option>
+            <option value="60">5 Years (1825 days)</option>
+            <option value="36500">Lifetime (100 years)</option>
+          </select>
+        </div>
+
+        <div class="btn-group">
+          <button class="btn btn-primary" onclick="generateJWT()">🎫 Generate JWT License</button>
+          <button class="btn btn-secondary" onclick="clearForm()">Clear Form</button>
+        </div>
+
+        <div id="successMessage" class="success-message"></div>
+        <div id="errorMessage" class="error-message"></div>
+      </div>
+
+      <!-- Output Section -->
+      <div class="section" id="outputSection" style="display: none;">
+        <div class="section-title">✅ 3. Generated JWT</div>
+        <div class="output-box" id="jwtOutput"></div>
+        <div class="btn-group">
+          <button class="btn btn-success" onclick="copyToClipboard()">📋 Copy JWT</button>
+          <button class="btn btn-secondary" onclick="downloadJWT()">💾 Download as .txt</button>
+        </div>
+      </div>
+
+      <!-- Decoder Section -->
+      <div class="section">
+        <div class="section-title">🔍 4. JWT Decoder (Debugging)</div>
+        <div class="form-group">
+          <label for="jwtToDecode">Paste any JWT to decode:</label>
+          <textarea id="jwtToDecode" placeholder="Paste JWT here..." rows="4"></textarea>
+          <button class="btn btn-secondary" onclick="decodeJWT()" style="margin-top: 10px;">Decode</button>
+        </div>
+        <div id="decodedPayload" class="payload-display" style="display: none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Include jsrsasign library for RS256 JWT signing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/11.1.0/jsrsasign-all-min.js"></script>
+  
+  <script>
+    // Load private key from file upload
+    document.getElementById('privateKeyFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          document.getElementById('privateKey').value = event.target.result;
+          showSuccess('Private key loaded from file');
+        };
+        reader.readAsText(file);
+      }
+    });
+
+    // Save private key to localStorage (Base64 encoded)
+    function saveToStorage() {
+      const key = document.getElementById('privateKey').value.trim();
+      if (key) {
+        localStorage.setItem('hl-license-private-key', btoa(key));
+        return true;
+      }
+      return false;
+    }
+
+    // Load private key from localStorage
+    function loadFromStorage() {
+      const stored = localStorage.getItem('hl-license-private-key');
+      if (stored) {
+        try {
+          document.getElementById('privateKey').value = atob(stored);
+          showSuccess('Private key loaded from storage');
+        } catch (e) {
+          showError('Failed to load stored key: ' + e.message);
+        }
+      } else {
+        showError('No private key found in storage');
+      }
+    }
+
+    // Clear localStorage
+    function clearStorage() {
+      localStorage.removeItem('hl-license-private-key');
+      showSuccess('Stored private key cleared');
+    }
+
+    // Update tier info badge
+    function updateTierInfo() {
+      const tier = document.getElementById('tier').value;
+      // Could add visual feedback here
+    }
+
+    // Generate JWT
+    function generateJWT() {
+      try {
+        // Validate inputs
+        const privateKey = document.getElementById('privateKey').value.trim();
+        const machineCode = document.getElementById('machineCode').value.trim();
+        const tier = document.getElementById('tier').value;
+        const durationMonths = parseInt(document.getElementById('duration').value);
+
+        if (!privateKey) {
+          showError('Private key is required');
+          return;
+        }
+        if (!machineCode) {
+          showError('Machine code is required');
+          return;
+        }
+
+        // Validate private key format
+        if (!privateKey.includes('BEGIN PRIVATE KEY') && !privateKey.includes('BEGIN RSA PRIVATE KEY')) {
+          showError('Invalid private key format. Must be PEM format.');
+          return;
+        }
+
+        // Calculate timestamps
+        const now = Math.floor(Date.now() / 1000);
+        const expiresAt = now + (durationMonths * 30 * 24 * 3600);
+
+        // Build payload
+        const payload = {
+          machineCode: machineCode,
+          tier: tier,
+          maxProfiles: tier === 'pro' ? -1 : 5,
+          features: tier === 'pro' ? ['unlimited_profiles', 'api_access', 'automation', 'priority_support'] : [],
+          issuedAt: now,
+          expiresAt: expiresAt
+        };
+
+        // Create JWT header
+        const header = {
+          alg: 'RS256',
+          typ: 'JWT'
+        };
+
+        // Sign JWT using jsrsasign
+        const sHeader = JSON.stringify(header);
+        const sPayload = JSON.stringify(payload);
+        const jwt = KJUR.jws.JWS.sign('RS256', sHeader, sPayload, privateKey);
+
+        // Display output
+        document.getElementById('jwtOutput').textContent = jwt;
+        document.getElementById('outputSection').style.display = 'block';
+        
+        // Save private key to storage for convenience
+        saveToStorage();
+
+        // Show success with expiry date
+        const expiryDate = new Date(expiresAt * 1000).toISOString().split('T')[0];
+        showSuccess(`JWT generated successfully! Tier: ${tier.toUpperCase()}, Expires: ${expiryDate}`);
+
+        // Auto-scroll to output
+        document.getElementById('outputSection').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+      } catch (error) {
+        showError('JWT generation failed: ' + error.message);
+        console.error(error);
+      }
+    }
+
+    // Copy JWT to clipboard
+    function copyToClipboard() {
+      const jwt = document.getElementById('jwtOutput').textContent;
+      if (!jwt) {
+        showError('No JWT to copy');
+        return;
+      }
+
+      navigator.clipboard.writeText(jwt).then(() => {
+        showSuccess('JWT copied to clipboard!');
+      }).catch(err => {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = jwt;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showSuccess('JWT copied to clipboard!');
+      });
+    }
+
+    // Download JWT as text file
+    function downloadJWT() {
+      const jwt = document.getElementById('jwtOutput').textContent;
+      if (!jwt) {
+        showError('No JWT to download');
+        return;
+      }
+
+      const blob = new Blob([jwt], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'license-jwt.txt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showSuccess('JWT downloaded as license-jwt.txt');
+    }
+
+    // Decode JWT for debugging
+    function decodeJWT() {
+      try {
+        const jwt = document.getElementById('jwtToDecode').value.trim();
+        if (!jwt) {
+          showError('Please paste a JWT to decode');
+          return;
+        }
+
+        // Split JWT into parts
+        const parts = jwt.split('.');
+        if (parts.length !== 3) {
+          showError('Invalid JWT format (must have 3 parts)');
+          return;
+        }
+
+        // Decode header and payload (Base64URL)
+        const header = JSON.parse(atob(parts[0].replace(/-/g, '+').replace(/_/g, '/')));
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+
+        // Format output
+        const output = {
+          header: header,
+          payload: {
+            ...payload,
+            issuedAtDate: new Date(payload.issuedAt * 1000).toISOString(),
+            expiresAtDate: new Date(payload.expiresAt * 1000).toISOString(),
+            daysRemaining: Math.floor((payload.expiresAt - Math.floor(Date.now() / 1000)) / (24 * 3600))
+          }
+        };
+
+        document.getElementById('decodedPayload').textContent = JSON.stringify(output, null, 2);
+        document.getElementById('decodedPayload').style.display = 'block';
+        showSuccess('JWT decoded successfully');
+
+      } catch (error) {
+        showError('Failed to decode JWT: ' + error.message);
+      }
+    }
+
+    // Clear form
+    function clearForm() {
+      document.getElementById('machineCode').value = '';
+      document.getElementById('tier').value = 'pro';
+      document.getElementById('duration').value = '12';
+      document.getElementById('jwtOutput').textContent = '';
+      document.getElementById('outputSection').style.display = 'none';
+      showSuccess('Form cleared');
+    }
+
+    // Show success message
+    function showSuccess(message) {
+      const el = document.getElementById('successMessage');
+      const errEl = document.getElementById('errorMessage');
+      errEl.style.display = 'none';
+      el.textContent = '✅ ' + message;
+      el.style.display = 'block';
+      setTimeout(() => { el.style.display = 'none'; }, 5000);
+    }
+
+    // Show error message
+    function showError(message) {
+      const el = document.getElementById('errorMessage');
+      const succEl = document.getElementById('successMessage');
+      succEl.style.display = 'none';
+      el.textContent = '❌ ' + message;
+      el.style.display = 'block';
+    }
+  </script>
+</body>
+</html>
