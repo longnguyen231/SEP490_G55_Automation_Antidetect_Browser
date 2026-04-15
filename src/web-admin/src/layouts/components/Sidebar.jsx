@@ -40,34 +40,6 @@ const Sidebar = () => {
         </NavLink>
         
         <NavLink 
-          to="/dashboard/profiles" 
-          className={({ isActive }) => 
-            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group cursor-pointer ${
-              isActive 
-                ? 'bg-primary text-white font-medium' 
-                : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
-            }`
-          }
-        >
-          <span className="material-symbols-outlined">group_work</span>
-          <span>Profiles</span>
-        </NavLink>
-        
-        <NavLink 
-          to="/dashboard/proxies" 
-          className={({ isActive }) => 
-            `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group cursor-pointer ${
-              isActive 
-                ? 'bg-primary text-white font-medium' 
-                : 'text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary'
-            }`
-          }
-        >
-          <span className="material-symbols-outlined">vpn_lock</span>
-          <span>Proxies</span>
-        </NavLink>
-        
-        <NavLink 
           to="/dashboard/groups" 
           className={({ isActive }) => 
             `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group cursor-pointer ${
@@ -140,7 +112,7 @@ const Sidebar = () => {
             percent={75} 
             showInfo={false} 
             strokeColor="#00bcd4" 
-            trailColor="rgba(30,41,59,0.5)" 
+            railColor="rgba(30,41,59,0.5)" 
             size="small" 
             className="mb-1"
           />
