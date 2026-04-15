@@ -109,6 +109,21 @@ function App() {
         const r = await fetch(base + `/api/profiles/${profileId}`, { method: 'DELETE' });
         return await r.json();
       },
+      async saveProfilesBulk(profilesList) {
+        if (hasIpc && window.electronAPI.saveProfilesBulk) return await window.electronAPI.saveProfilesBulk(profilesList);
+        const r = await fetch(base + '/api/profiles/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profilesList) });
+        return await r.json();
+      },
+      async deleteProfilesBulk(ids) {
+        if (hasIpc && window.electronAPI.deleteProfilesBulk) return await window.electronAPI.deleteProfilesBulk(ids);
+        const r = await fetch(base + '/api/profiles/bulk', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
+        return await r.json();
+      },
+      async cloneProfilesBulk(ids, overrides) {
+        if (hasIpc && window.electronAPI.cloneProfilesBulk) return await window.electronAPI.cloneProfilesBulk(ids, overrides);
+        const r = await fetch(base + '/api/profiles/bulk-clone', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, overrides }) });
+        return await r.json();
+      },
     };
   }, []);
 
@@ -317,6 +332,58 @@ function App() {
   const handleCloneProfile = async (profileId) => { try { const res = await window.electronAPI.cloneProfile(profileId, {}); if (!res.success) throw new Error(res.error || 'Clone failed'); await loadProfiles(); } catch (e) { alert('Clone error: ' + e.message); } };
   const handleCopyWs = async (profileId) => { try { const res = await window.electronAPI.getProfileWs(profileId); const ws = res?.wsEndpoint; if (!ws) { alert('Profile is not running. Launch first.'); return; } await navigator.clipboard.writeText(ws); addToast('WS endpoint copied!', 'success', 2000); } catch (e) { alert('Failed to copy WS endpoint: ' + e.message); } };
 
+  // Bulk operations
+  const handleCreateBulk = async (count, namePrefix) => {
+    try {
+      const batch = [];
+      for (let i = 1; i <= count; i++) {
+        batch.push({ name: `${namePrefix} ${i}` });
+      }
+      const res = await api.saveProfilesBulk(batch);
+      if (res.success) {
+        addToast(`Created ${res.profiles?.length || count} profiles`, 'success', 2500);
+        await loadProfiles();
+      } else {
+        addToast('Bulk create error: ' + (res.error || 'unknown'), 'error', 5000);
+      }
+    } catch (e) {
+      addToast('Bulk create error: ' + e.message, 'error', 5000);
+    }
+  };
+  const handleDeleteBulk = async (ids) => {
+    if (!ids?.length) return;
+    const runningIds = ids.filter(id => !!runningWs[id]);
+    const runningMsg = runningIds.length ? `\nNote: ${runningIds.length} running profile(s) will be stopped first.` : '';
+    if (!window.confirm(`Delete ${ids.length} selected profile(s)? This cannot be undone.${runningMsg}`)) return;
+    try {
+      const res = await api.deleteProfilesBulk(ids);
+      if (res.success) {
+        addToast(`Deleted ${res.deleted || ids.length} profiles`, 'success', 2500);
+        clearSelection();
+        await loadProfiles();
+      } else {
+        addToast('Bulk delete error: ' + (res.error || 'unknown'), 'error', 5000);
+      }
+    } catch (e) {
+      addToast('Bulk delete failed: ' + e.message, 'error', 5000);
+    }
+  };
+  const handleCloneBulk = async (ids) => {
+    if (!ids?.length) return;
+    try {
+      const res = await api.cloneProfilesBulk(ids, {});
+      if (res.success) {
+        addToast(`Cloned ${res.profiles?.length || ids.length} profiles`, 'success', 2500);
+        clearSelection();
+        await loadProfiles();
+      } else {
+        addToast('Bulk clone error: ' + (res.error || 'unknown'), 'error', 5000);
+      }
+    } catch (e) {
+      addToast('Bulk clone failed: ' + e.message, 'error', 5000);
+    }
+  };
+
   // Toggle a fingerprint section (e.g. display, hardware) on/off directly from the profile card badge
   const handleToggleFp = async (profile, section, newValue) => {
     try {
@@ -384,7 +451,8 @@ function App() {
   const getSelectedList = () => Object.keys(selectedIds).filter(id => selectedIds[id]);
   const handleStartSelected = async () => { const ids = getSelectedList(); await Promise.all(ids.map(id => handleLaunchProfile(id))); await refreshRunningStatus(); };
   const handleStopSelected = async () => { const ids = getSelectedList(); await Promise.all(ids.map(id => window.electronAPI.stopProfile(id))); await refreshRunningStatus(); };
-  const handleDeleteSelected = async () => { const ids = getSelectedList(); if (!ids.length) return; const runningIds = ids.filter(id => !!runningWs[id]); const runningMsg = runningIds.length ? `\nNote: ${runningIds.length} running profile(s) will be stopped before deletion.` : ''; if (!window.confirm(`Delete ${ids.length} selected profile(s)? This cannot be undone.${runningMsg}`)) return; try { if (runningIds.length) { await Promise.all(runningIds.map(id => window.electronAPI.stopProfile(id).catch(() => null))); await new Promise(r => setTimeout(r, 300)); } await Promise.all(ids.map(id => api.deleteProfile(id))); addToast(`Deleted ${ids.length} profile(s)`, 'success', 2500); clearSelection(); await loadProfiles(); } catch (e) { addToast('Bulk delete failed: ' + (e?.message || e), 'error', 5000); } };
+  const handleDeleteSelected = async () => { const ids = getSelectedList(); if (!ids.length) return; await handleDeleteBulk(ids); };
+  const handleCloneSelected = async () => { const ids = getSelectedList(); if (!ids.length) return; await handleCloneBulk(ids); };
 
   // API server control handlers
   const applyPortChange = async (portNum) => { if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) return; try { const res = await window.electronAPI.setApiServerPort(portNum); if (res?.success && res.state) setApiStatus(res.state); } catch (e) { console.warn('Set port failed', e); } };
@@ -448,6 +516,8 @@ function App() {
             enginePrefs={enginePrefs}
             onSetEngine={handleSetEngine}
             onDeleteSelected={handleDeleteSelected}
+            onCloneSelected={handleCloneSelected}
+            onCreateBulk={handleCreateBulk}
             errorProfiles={errorProfiles}
             profileStatuses={profileStatuses}
             onToggleFp={handleToggleFp}

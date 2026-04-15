@@ -20,6 +20,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopAllProfiles: () => ipcRenderer.invoke('stop-all-profiles'),
   getProfileLog: (profileId) => ipcRenderer.invoke('get-profile-log', profileId),
   cloneProfile: (profileId, overrides) => ipcRenderer.invoke('clone-profile', profileId, overrides),
+  saveProfilesBulk: (profiles) => ipcRenderer.invoke('save-profiles-bulk', profiles),
+  deleteProfilesBulk: (ids) => ipcRenderer.invoke('delete-profiles-bulk', ids),
+  cloneProfilesBulk: (sourceIds, overrides) => ipcRenderer.invoke('clone-profiles-bulk', sourceIds, overrides || {}),
   runAutomationNow: (profileId) => ipcRenderer.invoke('run-automation-now', profileId),
   onRunningMapChanged: (callback) => {
     const listener = (_event, payload) => callback && callback(payload);

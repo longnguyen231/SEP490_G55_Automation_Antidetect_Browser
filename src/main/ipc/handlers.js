@@ -22,7 +22,7 @@ const {
   getLocalesTimezonesInternal,
   runAutomationNowInternal,
 } = require('../controllers/profiles');
-const { getProfilesInternal, saveProfileInternal, deleteProfileInternal, cloneProfileInternal } = require('../storage/profiles');
+const { getProfilesInternal, saveProfileInternal, deleteProfileInternal, cloneProfileInternal, saveProfilesBulkInternal, deleteProfilesBulkInternal, cloneProfilesBulkInternal } = require('../storage/profiles');
 const { loadSettings, saveSettings } = require('../storage/settings');
 const { listPresetsInternal, addPresetInternal, deletePresetInternal } = require('../storage/presets');
 const { performAction } = require('../engine/actions');
@@ -131,6 +131,29 @@ function registerIpcHandlers(extra = {}) {
     const r = await cloneProfileInternal(sourceProfileId, overrides);
     if (r?.success) appendLog('system', `Profile cloned: ${sourceProfileId} → ${r.profile?.id} "${r.profile?.name}"`);
     else appendLog('system', `Profile clone failed: ${r?.error || 'unknown'}`);
+    return r;
+  });
+
+  // Bulk profile operations
+  handle('save-profiles-bulk', async (_e, profiles) => {
+    const r = await saveProfilesBulkInternal(profiles);
+    if (r?.success) appendLog('system', `Bulk saved ${r.profiles?.length || 0} profile(s)`);
+    return r;
+  });
+  handle('delete-profiles-bulk', async (_e, ids) => {
+    // Stop running profiles first
+    if (Array.isArray(ids)) {
+      for (const id of ids) {
+        try { await stopProfileInternal(id); } catch { }
+      }
+    }
+    const r = await deleteProfilesBulkInternal(ids);
+    if (r?.success) appendLog('system', `Bulk deleted ${r.deleted || 0} profile(s)`);
+    return r;
+  });
+  handle('clone-profiles-bulk', async (_e, sourceIds, overrides = {}) => {
+    const r = await cloneProfilesBulkInternal(sourceIds, overrides);
+    if (r?.success) appendLog('system', `Bulk cloned ${r.profiles?.length || 0} profile(s)`);
     return r;
   });
 

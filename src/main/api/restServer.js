@@ -37,6 +37,31 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
     const list = await handlers.getProfilesInternal();
     res.json(list);
   });
+  // Bulk operations (must be registered before /:id routes)
+  appx.post("/api/profiles/bulk", async (req, res) => {
+    if (!handlers.saveProfilesBulkInternal) return res.status(501).json({ success: false, error: 'Not implemented' });
+    const result = await handlers.saveProfilesBulkInternal(req.body || []);
+    if (result.success) broadcastProfilesUpdated();
+    res.status(result.success ? 200 : 400).json(result);
+  });
+  appx.delete("/api/profiles/bulk", async (req, res) => {
+    if (!handlers.deleteProfilesBulkInternal) return res.status(501).json({ success: false, error: 'Not implemented' });
+    const ids = req.body?.ids || [];
+    // Stop running profiles first
+    if (handlers.stopProfileInternal) {
+      for (const id of ids) { try { await handlers.stopProfileInternal(id); } catch { } }
+    }
+    const result = await handlers.deleteProfilesBulkInternal(ids);
+    if (result.success) broadcastProfilesUpdated();
+    res.status(result.success ? 200 : 400).json(result);
+  });
+  appx.post("/api/profiles/bulk-clone", async (req, res) => {
+    if (!handlers.cloneProfilesBulkInternal) return res.status(501).json({ success: false, error: 'Not implemented' });
+    const { ids, overrides } = req.body || {};
+    const result = await handlers.cloneProfilesBulkInternal(ids || [], overrides || {});
+    if (result.success) broadcastProfilesUpdated();
+    res.status(result.success ? 200 : 400).json(result);
+  });
   appx.post("/api/profiles", async (req, res) => {
     const result = await handlers.saveProfileInternal(req.body || {});
     if (result.success) broadcastProfilesUpdated();

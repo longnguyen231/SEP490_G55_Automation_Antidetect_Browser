@@ -393,11 +393,198 @@ function safeDeepClone(obj) {
   try { return JSON.parse(JSON.stringify(obj)); } catch { return { ...obj }; }
 }
 
+/**
+ * Bulk create/update multiple profiles in a single file write.
+ * @param {Array} inputProfiles - array of profile objects (with or without id)
+ * @returns {{ success: boolean, profiles?: Array, errors?: Array, error?: string }}
+ */
+async function saveProfilesBulkInternal(inputProfiles) {
+  try {
+    if (!Array.isArray(inputProfiles) || inputProfiles.length === 0) {
+      return { success: false, error: 'Payload must be a non-empty array of profiles' };
+    }
+    const maxBatch = 100;
+    if (inputProfiles.length > maxBatch) {
+      return { success: false, error: `Maximum ${maxBatch} profiles per batch` };
+    }
+
+    const profiles = readProfiles();
+    const nowIso = new Date().toISOString();
+    const created = [];
+    const errors = [];
+    const licensed = isLicenseActivated();
+
+    for (let i = 0; i < inputProfiles.length; i++) {
+      const input = inputProfiles[i];
+      if (!input || typeof input !== 'object') {
+        errors.push({ index: i, error: 'Invalid profile payload' });
+        continue;
+      }
+      if (!input.name || !String(input.name).trim()) {
+        errors.push({ index: i, error: 'Profile name is required' });
+        continue;
+      }
+      const isUpdate = !!input.id && profiles.some(p => p.id === input.id);
+      if (!isUpdate && !licensed && profiles.length >= 5) {
+        errors.push({ index: i, error: 'Free plan giới hạn tối đa 5 profiles. Vui lòng kích hoạt license.' });
+        continue;
+      }
+      const validationErrors = validateProfileInputBasic(
+        isUpdate ? normalizeProfileInput(input, profiles.find(p => p.id === input.id)) : normalizeProfileInput(input, null)
+      );
+      if (validationErrors.length) {
+        errors.push({ index: i, error: validationErrors[0] });
+        continue;
+      }
+
+      if (isUpdate) {
+        const idx = profiles.findIndex(p => p.id === input.id);
+        const merged = normalizeProfileInput(input, profiles[idx]);
+        if (merged.name && merged.name.trim().toLowerCase() !== (profiles[idx].name || '').trim().toLowerCase()) {
+          merged.name = makeUniqueName(merged.name, profiles, input.id);
+        }
+        profiles[idx] = { ...profiles[idx], ...merged, updatedAt: nowIso };
+        created.push(profiles[idx]);
+      } else {
+        let newId = generateShortId();
+        const existingIds = new Set(profiles.map(p => p.id));
+        while (existingIds.has(newId)) newId = generateShortId();
+        const prepared = normalizeProfileInput({ ...input, id: newId }, null);
+        prepared.name = makeUniqueName(prepared.name, profiles, prepared.id);
+        profiles.push({ ...prepared, createdAt: nowIso });
+        created.push(profiles[profiles.length - 1]);
+      }
+    }
+
+    if (created.length > 0) {
+      const ok = writeProfiles(profiles);
+      if (!ok) return { success: false, error: 'Failed to persist profiles file' };
+      appendLog('system', `Bulk saved ${created.length} profile(s)`);
+    }
+
+    return { success: true, profiles: created, errors: errors.length ? errors : undefined };
+  } catch (e) {
+    appendLog('system', `saveProfilesBulkInternal error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Bulk delete multiple profiles by IDs in a single file write.
+ * @param {Array<string>} ids - array of profile IDs to delete
+ * @returns {{ success: boolean, deleted?: number, errors?: Array }}
+ */
+async function deleteProfilesBulkInternal(ids) {
+  try {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return { success: false, error: 'Payload must be a non-empty array of IDs' };
+    }
+    const profiles = readProfiles();
+    const toDelete = new Set(ids);
+    const existing = new Set(profiles.map(p => p.id));
+    const errors = [];
+    const deleted = [];
+
+    for (const id of ids) {
+      if (!existing.has(id)) {
+        errors.push({ id, error: 'Profile not found' });
+      } else {
+        deleted.push(id);
+      }
+    }
+
+    if (deleted.length > 0) {
+      const deleteSet = new Set(deleted);
+      const filtered = profiles.filter(p => !deleteSet.has(p.id));
+      const ok = writeProfiles(filtered);
+      if (!ok) return { success: false, error: 'Failed to persist profiles file' };
+
+      // Cleanup storage state and CDP user data (non-blocking)
+      for (const id of deleted) {
+        try {
+          const statePath = storageStatePath(id);
+          if (fs.existsSync(statePath)) fs.unlinkSync(statePath);
+        } catch { }
+        try {
+          const cdpDir = path.join(getDataRoot(), 'cdp-user-data', String(id));
+          if (fs.existsSync(cdpDir)) fs.rmSync(cdpDir, { recursive: true, force: true });
+        } catch { }
+      }
+
+      appendLog('system', `Bulk deleted ${deleted.length} profile(s)`);
+    }
+
+    return { success: true, deleted: deleted.length, errors: errors.length ? errors : undefined };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Bulk clone multiple profiles by source IDs.
+ * @param {Array<string>} sourceIds - array of source profile IDs
+ * @param {object} [overrides] - optional overrides for all clones (e.g. { namePrefix })
+ * @returns {{ success: boolean, profiles?: Array, errors?: Array }}
+ */
+async function cloneProfilesBulkInternal(sourceIds, overrides = {}) {
+  try {
+    if (!Array.isArray(sourceIds) || sourceIds.length === 0) {
+      return { success: false, error: 'Payload must be a non-empty array of source IDs' };
+    }
+    const maxBatch = 50;
+    if (sourceIds.length > maxBatch) {
+      return { success: false, error: `Maximum ${maxBatch} clones per batch` };
+    }
+
+    const profiles = readProfiles();
+    const nowIso = new Date().toISOString();
+    const created = [];
+    const errors = [];
+
+    for (const srcId of sourceIds) {
+      const src = profiles.find(p => p.id === srcId);
+      if (!src) {
+        errors.push({ id: srcId, error: 'Source profile not found' });
+        continue;
+      }
+      let newId = generateShortId();
+      const existingIds = new Set(profiles.map(p => p.id));
+      while (existingIds.has(newId)) newId = generateShortId();
+      const cloned = safeDeepClone(src);
+      cloned.id = newId;
+      cloned.name = makeUniqueName(overrides.namePrefix ? `${overrides.namePrefix} ${src.name}` : `${src.name} (copy)`, profiles, newId);
+      cloned.createdAt = nowIso;
+      delete cloned.updatedAt;
+      profiles.push(cloned);
+      created.push(cloned);
+
+      // Copy storage state
+      try {
+        const srcState = storageStatePath(srcId);
+        const dstState = storageStatePath(newId);
+        if (fs.existsSync(srcState)) fs.copyFileSync(srcState, dstState);
+      } catch { }
+    }
+
+    if (created.length > 0) {
+      writeProfiles(profiles);
+      appendLog('system', `Bulk cloned ${created.length} profile(s)`);
+    }
+
+    return { success: true, profiles: created, errors: errors.length ? errors : undefined };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
 module.exports = {
   getProfilesInternal,
   saveProfileInternal,
   deleteProfileInternal,
   cloneProfileInternal,
+  saveProfilesBulkInternal,
+  deleteProfilesBulkInternal,
+  cloneProfilesBulkInternal,
   readProfiles,
   writeProfiles,
   updateProfileSettings,
