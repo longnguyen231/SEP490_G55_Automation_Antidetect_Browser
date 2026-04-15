@@ -1,4 +1,4 @@
-const { ipcMain, shell } = require('electron');
+const { ipcMain, shell, clipboard } = require('electron');
 const { appendLog } = require('../logging/logger');
 const {
   launchProfileInternal,
@@ -440,6 +440,16 @@ function registerIpcHandlers(extra = {}) {
   handle('open-external', async (_e, url) => {
     try { await shell.openExternal(String(url)); return { success: true }; }
     catch (e) { return { success: false, error: e?.message || String(e) }; }
+  });
+
+  // Clipboard write via main process (works even when renderer document is not focused)
+  handle('write-clipboard-text', async (_e, text) => {
+    try {
+      clipboard.writeText(String(text || ''));
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e?.message || String(e) };
+    }
   });
 
   // REST API server control handlers if restServer provided

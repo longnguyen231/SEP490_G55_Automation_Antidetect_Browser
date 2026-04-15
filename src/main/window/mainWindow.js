@@ -24,7 +24,7 @@ function createWindow() {
 
   if (process.env.NODE_ENV === 'development') {
     mainWindow.loadURL('http://localhost:5173');
-    mainWindow.webContents.openDevTools();
+    // mainWindow.webContents.openDevTools();
   } else {
     // In production, renderer index is built to dist/renderer/index.html
     // __dirname is app.asar/src/main/window -> go up to app.asar then into dist/renderer

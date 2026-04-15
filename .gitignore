@@ -146,8 +146,3 @@ data/
 # Also ignore app data kept under src/
 src/data/
 vendor/
-
-# License system private keys - NEVER commit these!
-scripts/keys/*.pem
-private-key-backup/
-*.pem

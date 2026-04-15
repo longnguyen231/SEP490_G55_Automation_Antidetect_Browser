@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react';
 
 const LICENSE_KEY = 'hl-license-activated';
-const LICENSE_TIER_KEY = 'hl-license-tier';
-const LICENSE_EXPIRY_KEY = 'hl-license-expiry';
 
 export default function LicenseModal({ onClose, onActivated }) {
-    const [licenseInput, setLicenseInput] = useState('');
+    const [licenseKey, setLicenseKey] = useState('');
     const [machineCode, setMachineCode] = useState('Loading...');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [copied, setCopied] = useState(false);
-    const [useJwt, setUseJwt] = useState(true); // Default to JWT mode
 
     useEffect(() => {
         window.electronAPI.getMachineCode()
@@ -25,57 +22,39 @@ export default function LicenseModal({ onClose, onActivated }) {
     };
 
     const handleActivate = async () => {
-        const input = licenseInput.trim();
-        if (!input) {
-            setError(useJwt ? 'Vui lòng nhập JWT license.' : 'Vui lòng nhập license key.');
+        const key = licenseKey.trim();
+        if (!key) {
+            setError('Vui lòng nhập license key.');
             return;
         }
         setLoading(true);
         setError('');
-        
         try {
-            if (useJwt) {
-                // New JWT license system
-                const result = await window.electronAPI.validateJwtLicense(input);
-                
-                if (result?.valid && result?.payload) {
-                    // Save to localStorage
-                    localStorage.setItem(LICENSE_KEY, input);
-                    localStorage.setItem(LICENSE_TIER_KEY, result.payload.tier);
-                    localStorage.setItem(LICENSE_EXPIRY_KEY, result.payload.expiresAtDate);
-                    onActivated?.();
-                } else {
-                    // Show specific error messages
-                    if (result?.machineCodeMismatch) {
-                        setError('❌ License này dành cho máy khác. Vui lòng yêu cầu license mới với Machine Code hiện tại.');
-                    } else if (result?.expired) {
-                        setError('❌ License đã hết hạn. Vui lòng gia hạn hoặc yêu cầu license mới.');
-                    } else {
-                        setError(result?.error || '❌ JWT không hợp lệ. Vui lòng kiểm tra lại.');
-                    }
-                }
+            const result = await window.electronAPI.validateLicense(key);
+            if (result?.valid) {
+                localStorage.setItem(LICENSE_KEY, key);
+                onActivated?.();
             } else {
-                // Legacy license system (backward compatibility)
-                const result = await window.electronAPI.validateLicense(input);
-                if (result?.valid) {
-                    localStorage.setItem(LICENSE_KEY, input);
-                    onActivated?.();
-                } else {
-                    setError('License key không hợp lệ với máy này.');
-                }
+                setError('License key không hợp lệ với máy này.');
             }
-        } catch (err) {
-            console.error('License validation error:', err);
-            setError('❌ Đã xảy ra lỗi. Vui lòng thử lại sau.');
+        } catch {
+            setError('Đã xảy ra lỗi. Thử lại sau.');
         } finally {
             setLoading(false);
         }
     };
 
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') handleActivate();
+    };
+
     const handleRequestKey = () => {
-        // Open web admin license request page
-        const url = `https://browser.hl-mck.store/license-request?machineCode=${encodeURIComponent(machineCode)}`;
-        window.electronAPI.openExternal(url);
+        const subject = encodeURIComponent('[Vanguard] Yêu cầu License Key');
+        const body = encodeURIComponent(
+            `Xin chào Admin,\n\nMachine Code của tôi: ${machineCode}\n\nVui lòng cấp license key cho máy này.\n\nCảm ơn!`
+        );
+        const gmailUrl = `https://mail.google.com/mail/?view=cm&to=xuankien090103%40gmail.com&su=${subject}&body=${body}`;
+        window.electronAPI.openExternal(gmailUrl);
     };
 
     return (
@@ -111,48 +90,22 @@ export default function LicenseModal({ onClose, onActivated }) {
                         onClick={handleRequestKey}
                         className="mt-2 text-[0.8rem] text-[var(--primary)] hover:underline transition"
                     >
-                        🌐 Request license online →
+                        📧 Gửi yêu cầu key qua email →
                     </button>
                 </div>
 
-                {/* License Input - Toggle between JWT and Legacy */}
+                {/* License Key input */}
                 <div className="mb-2">
-                    <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-[0.8rem] font-semibold text-[var(--muted)]">
-                            {useJwt ? 'JWT License Token' : 'Legacy License Key'}
-                        </label>
-                        <button
-                            type="button"
-                            onClick={() => { setUseJwt(!useJwt); setError(''); setLicenseInput(''); }}
-                            className="text-[0.75rem] text-[var(--primary)] hover:underline"
-                        >
-                            {useJwt ? 'Use old key format' : 'Use JWT format'}
-                        </button>
-                    </div>
-                    
-                    {useJwt ? (
-                        <textarea
-                            rows={5}
-                            placeholder="Paste JWT license token here...&#10;eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
-                            value={licenseInput}
-                            onChange={(e) => { setLicenseInput(e.target.value); setError(''); }}
-                            disabled={loading}
-                            className="w-full bg-[var(--bg)] border border-[var(--border)] text-[var(--fg)] font-mono text-[0.75rem] px-3 py-2.5 rounded-md focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition placeholder:text-[var(--muted)] disabled:opacity-50 resize-none"
-                        />
-                    ) : (
-                        <input
-                            type="text"
-                            placeholder="HL-XXXX-XXXX-XXXX"
-                            value={licenseInput}
-                            onChange={(e) => { setLicenseInput(e.target.value); setError(''); }}
-                            onKeyDown={(e) => e.key === 'Enter' && handleActivate()}
-                            disabled={loading}
-                            className="w-full bg-[var(--bg)] border border-[var(--border)] text-[var(--fg)] font-mono text-[0.85rem] px-3 py-2.5 rounded-md focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition placeholder:text-[var(--muted)] disabled:opacity-50"
-                        />
-                    )}
-                    <p className="text-[0.7rem] text-[var(--muted)] mt-1">
-                        {useJwt ? '💡 JWT tokens are long (500+ characters). Copy entire token from admin.' : '💡 Legacy format: HL-XXXX-XXXX-XXXX'}
-                    </p>
+                    <label className="block text-[0.8rem] font-semibold text-[var(--muted)] mb-1.5 mt-2">License Key</label>
+                    <input
+                        type="text"
+                        placeholder="HL-XXXX-XXXX-XXXX"
+                        value={licenseKey}
+                        onChange={(e) => { setLicenseKey(e.target.value); setError(''); }}
+                        onKeyDown={handleKeyDown}
+                        disabled={loading}
+                        className="w-full bg-[var(--bg)] border border-[var(--border)] text-[var(--fg)] font-mono text-[0.85rem] px-3 py-2.5 rounded-md focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition placeholder:text-[var(--muted)] disabled:opacity-50"
+                    />
                 </div>
 
                 {/* Error message */}

@@ -14,8 +14,6 @@ import LandingPage from './pages/Landing';
 import LoginPage from './pages/Auth/Login';
 import RegisterPage from './pages/Auth/Register';
 import ForgotPasswordPage from './pages/Auth/ForgotPassword';
-import PublicLicenseRequest from './pages/LicenseRequests/PublicRequest';
-import ManageLicenseRequests from './pages/LicenseRequests/Manage';
 import { AdminRoute, GuestRoute } from './components/ProtectedRoute';
 
 function App() {
@@ -29,7 +27,6 @@ function App() {
         <Routes>
           {/* ── Public ───────────────────────────────────────────────────── */}
           <Route path="/" element={<LandingPage />} />
-          <Route path="/license-request" element={<PublicLicenseRequest />} />
 
           {/* ── Auth (guest-only, redirect if already logged in) ─────────── */}
           <Route
@@ -73,7 +70,6 @@ function App() {
             <Route path="groups" element={<Groups />} />
             <Route path="team" element={<Team />} />
             <Route path="settings" element={<Settings />} />
-            <Route path="license-requests" element={<ManageLicenseRequests />} />
           </Route>
 
           {/* ── Fallback: mọi path không khớp → landing page ────────── */}

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n/index';
 import BrowserRuntimes from './BrowserRuntimes';
-import LicenseInfoPanel from './LicenseInfoPanel';
 
 export default function SettingsTab({
     apiStatus,
@@ -14,7 +13,11 @@ export default function SettingsTab({
     setTheme,
 }) {
     const { t } = useI18n();
+    const [licenseKey, setLicenseKey] = useState('');
     const [machineCode, setMachineCode] = useState('Loading...');
+    const [licenseStatus, setLicenseStatus] = useState(() => !!localStorage.getItem('hl-license-activated'));
+    const [licenseError, setLicenseError] = useState('');
+    const [licenseLoading, setLicenseLoading] = useState(false);
     const [autoStartApi, setAutoStartApi] = useState(false);
     const [maxBrowsers, setMaxBrowsers] = useState(5);
 
@@ -23,6 +26,32 @@ export default function SettingsTab({
             .then(code => setMachineCode(code || 'UNKNOWN'))
             .catch(console.error);
     }, []);
+
+    const handleActivateLicense = async () => {
+        const key = licenseKey.trim();
+        if (!key) { setLicenseError('Vui lòng nhập license key.'); return; }
+        setLicenseLoading(true);
+        setLicenseError('');
+        try {
+            const result = await window.electronAPI.validateLicense(key);
+            if (result?.valid) {
+                localStorage.setItem('hl-license-activated', key);
+                setLicenseStatus(true);
+            } else {
+                setLicenseError('License key không hợp lệ với máy này.');
+            }
+        } catch {
+            setLicenseError('Đã xảy ra lỗi. Thử lại sau.');
+        } finally {
+            setLicenseLoading(false);
+        }
+    };
+
+    const handleDeactivateLicense = () => {
+        localStorage.removeItem('hl-license-activated');
+        setLicenseStatus(false);
+        setLicenseKey('');
+    };
 
     return (
         <div className="w-full h-full flex flex-col p-4 overflow-y-auto">
@@ -46,8 +75,66 @@ export default function SettingsTab({
                     <p className="text-[0.7rem] text-[var(--muted)]">Current mode: {theme}</p>
                 </div>
 
-                {/* License Info */}
-                <LicenseInfoPanel />
+                {/* License */}
+                <div className="card relative p-4 mb-6 mt-4">
+                    <div className="absolute -top-3 left-4 bg-[var(--card)] px-2 text-[0.85rem] font-bold text-[var(--fg)]">License</div>
+                    <div className="flex items-center gap-2 mb-3 pt-1">
+                        <div className={`w-2 h-2 rounded-full ${licenseStatus ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+                        <span className="text-[0.85rem] font-medium text-[var(--fg)]">
+                            {licenseStatus ? 'Licensed ✔' : 'Not licensed'}
+                        </span>
+                    </div>
+                    {licenseStatus ? (
+                        <div>
+                            <p className="text-[0.7rem] text-emerald-500 mb-3">Đã kích hoạt. Không giới hạn profiles.</p>
+                            <button onClick={handleDeactivateLicense} className="text-[0.7rem] text-red-400 hover:underline">
+                                Hủy kích hoạt
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <p className="text-[0.7rem] text-red-500 mb-1">No license key configured</p>
+                            <p className="text-[0.7rem] text-[var(--muted)] mb-3">Free plan: up to 5 profiles.</p>
+                            <div className="flex gap-2 mb-1">
+                                <input
+                                    type="text"
+                                    placeholder="HL-XXXX-XXXX-XXXX"
+                                    value={licenseKey}
+                                    onChange={e => { setLicenseKey(e.target.value); setLicenseError(''); }}
+                                    onKeyDown={e => e.key === 'Enter' && handleActivateLicense()}
+                                    disabled={licenseLoading}
+                                    className="flex-1 text-[0.75rem] py-1.5"
+                                />
+                                <button
+                                    onClick={handleActivateLicense}
+                                    disabled={licenseLoading}
+                                    className="btn btn-success px-3 py-1.5 text-[0.75rem] disabled:opacity-50"
+                                >
+                                    {licenseLoading ? '...' : 'Activate'}
+                                </button>
+                            </div>
+                            {licenseError && <p className="text-[0.7rem] text-red-400 mb-2">{licenseError}</p>}
+                        </>
+                    )}
+                    <div className="mt-3">
+                        <label className="block text-[0.7rem] text-[var(--muted)] mb-1">Machine Code</label>
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <code className="bg-[var(--glass-strong)] border border-[var(--border2)] text-[var(--fg)] text-[0.7rem] px-2 py-1 rounded-md font-mono tracking-wider">{machineCode}</code>
+                            <button onClick={() => navigator.clipboard.writeText(machineCode)} className="text-[0.7rem] text-[var(--primary)] hover:text-[var(--primary-hover)] font-medium px-1">Copy</button>
+                        </div>
+                        <button
+                            onClick={() => {
+                                const subject = encodeURIComponent('[Vanguard] Yêu cầu License Key');
+                                const body = encodeURIComponent(`Xin chào Admin,\n\nMachine Code của tôi: ${machineCode}\n\nVui lòng cấp license key cho máy này.\n\nCảm ơn!`);
+                                const gmailUrl = `https://mail.google.com/mail/?view=cm&to=xuankien090103%40gmail.com&su=${subject}&body=${body}`;
+                                window.electronAPI.openExternal(gmailUrl);
+                            }}
+                            className="text-[0.7rem] text-[var(--primary)] hover:underline mt-1"
+                        >
+                            📧 Gửi yêu cầu key qua email →
+                        </button>
+                    </div>
+                </div>
 
                 {/* REST API Server */}
                 <div className="card relative p-4 mb-6 mt-4">

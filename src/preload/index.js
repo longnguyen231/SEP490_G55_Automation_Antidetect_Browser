@@ -68,6 +68,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   validateJwtLicense: (jwt) => ipcRenderer.invoke('validate-jwt-license', jwt),
   getLicenseInfo: () => ipcRenderer.invoke('get-license-info'),
   deactivateLicense: () => ipcRenderer.invoke('deactivate-license'),
+  writeClipboardText: (text) => ipcRenderer.invoke('write-clipboard-text', text),
   
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
 

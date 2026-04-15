@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { getLicenseRequestUrl } from '../config/app.config';
 
 export default function LicenseInfoPanel({ onRefresh }) {
   const [licenseInfo, setLicenseInfo] = useState(null);
@@ -39,6 +40,30 @@ export default function LicenseInfoPanel({ onRefresh }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const copyTextSafely = async (text) => {
+    const value = String(text || '');
+
+    // Preferred path: browser clipboard API (requires focused document in many environments)
+    try {
+      if (navigator?.clipboard?.writeText && document?.hasFocus?.()) {
+        await navigator.clipboard.writeText(value);
+        return true;
+      }
+    } catch (error) {
+      console.warn('navigator.clipboard.writeText failed, trying fallback:', error);
+    }
+
+    // Fallback for Electron: write from main process clipboard API
+    try {
+      const result = await window.electronAPI?.writeClipboardText?.(value);
+      if (result?.success) return true;
+    } catch (error) {
+      console.warn('electronAPI.writeClipboardText fallback failed:', error);
+    }
+
+    return false;
   };
 
   const handleDeactivate = async () => {
@@ -264,7 +289,10 @@ export default function LicenseInfoPanel({ onRefresh }) {
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-[var(--fg)]">Machine Code</span>
               <button
-                onClick={() => navigator.clipboard.writeText(machineCode)}
+                onClick={async () => {
+                  const ok = await copyTextSafely(machineCode);
+                  if (!ok) alert('Không thể copy machine code. Vui lòng chọn thủ công và copy.');
+                }}
                 className="text-xs text-[var(--primary)] hover:underline font-medium"
               >
                 📋 Copy
@@ -334,7 +362,33 @@ export default function LicenseInfoPanel({ onRefresh }) {
               Request license online with your machine code
             </p>
             <button
-              onClick={() => window.electronAPI.openExternal(`https://browser.hl-mck.store/license-request?machineCode=${encodeURIComponent(machineCode)}`)}
+              onClick={async () => {
+                const url = getLicenseRequestUrl(machineCode);
+                
+                try {
+                  const result = await window.electronAPI.openExternal(url);
+                  if (result?.success) {
+                    console.log('✅ Browser opened:', url);
+                  } else {
+                    throw new Error(result?.error || 'Failed to open browser');
+                  }
+                } catch (err) {
+                  console.error('Failed to open browser:', err);
+                  
+                  // Fallback: Try to copy URL to clipboard for manual paste
+                  let clipboardMsg = '';
+                  try {
+                    const copied = await copyTextSafely(url);
+                    if (!copied) throw new Error('Clipboard unavailable');
+                    clipboardMsg = 'URL đã được copy vào clipboard.\n';
+                  } catch (clipErr) {
+                    // Clipboard failed too - not critical
+                    clipboardMsg = 'Copy URL này và paste vào browser:\n';
+                  }
+                  
+                  alert(`⚠️ Không thể mở browser tự động.\n\n${clipboardMsg}${url}`);
+                }
+              }}
               className="text-xs bg-white text-purple-600 hover:bg-gray-100 px-3 py-1.5 rounded font-semibold transition"
             >
               Request Pro License →
