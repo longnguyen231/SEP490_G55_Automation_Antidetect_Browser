@@ -242,7 +242,9 @@ function App() {
     if (st === 'STARTING' || st === 'RUNNING' || st === 'STOPPING') return;
     setErrorProfiles(prev => { const n = { ...prev }; delete n[profileId]; return n; });
     try {
-      const headless = !!headlessPrefs[profileId];
+      // Launch button → always visible browser (headless=false)
+      const headless = false;
+      setHeadlessPrefs(prev => ({ ...prev, [profileId]: false }));
       const engine = enginePrefs[profileId] || 'playwright';
 
       // Only check Playwright engines (cdp uses system Chrome, no install needed)
@@ -291,8 +293,13 @@ function App() {
     return (st === 'RUNNING' || runningWs[profileId]) ? handleStopProfile(profileId) : handleLaunchProfile(profileId);
   };
   const handleLaunchHeadless = async (profileId) => {
+    // Block if already starting or running
+    const st = profileStatuses[profileId]?.status;
+    if (st === 'STARTING' || st === 'RUNNING' || st === 'STOPPING') return;
     setErrorProfiles(prev => { const n = { ...prev }; delete n[profileId]; return n; });
     try {
+      // Headless button → always hidden (headless=true), show View button after launch
+      setHeadlessPrefs(prev => ({ ...prev, [profileId]: true }));
       const engine = enginePrefs[profileId] || 'playwright';
       const options = { headless: true, engine };
       const result = await window.electronAPI.launchProfile(profileId, options);
