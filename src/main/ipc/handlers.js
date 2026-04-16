@@ -22,7 +22,7 @@ const {
   getLocalesTimezonesInternal,
   runAutomationNowInternal,
 } = require('../controllers/profiles');
-const { getProfilesInternal, saveProfileInternal, deleteProfileInternal, cloneProfileInternal } = require('../storage/profiles');
+const { getProfilesInternal, saveProfileInternal, deleteProfileInternal, cloneProfileInternal, saveProfilesBulkInternal, deleteProfilesBulkInternal, cloneProfilesBulkInternal } = require('../storage/profiles');
 const { loadSettings, saveSettings } = require('../storage/settings');
 const { listPresetsInternal, addPresetInternal, deletePresetInternal } = require('../storage/presets');
 const { performAction } = require('../engine/actions');
@@ -134,6 +134,29 @@ function registerIpcHandlers(extra = {}) {
     return r;
   });
 
+  // Bulk profile operations
+  handle('save-profiles-bulk', async (_e, profiles) => {
+    const r = await saveProfilesBulkInternal(profiles);
+    if (r?.success) appendLog('system', `Bulk saved ${r.profiles?.length || 0} profile(s)`);
+    return r;
+  });
+  handle('delete-profiles-bulk', async (_e, ids) => {
+    // Stop running profiles first
+    if (Array.isArray(ids)) {
+      for (const id of ids) {
+        try { await stopProfileInternal(id); } catch { }
+      }
+    }
+    const r = await deleteProfilesBulkInternal(ids);
+    if (r?.success) appendLog('system', `Bulk deleted ${r.deleted || 0} profile(s)`);
+    return r;
+  });
+  handle('clone-profiles-bulk', async (_e, sourceIds, overrides = {}) => {
+    const r = await cloneProfilesBulkInternal(sourceIds, overrides);
+    if (r?.success) appendLog('system', `Bulk cloned ${r.profiles?.length || 0} profile(s)`);
+    return r;
+  });
+
   // Automation
   handle('run-automation-now', async (_e, profileId) => await runAutomationNowInternal(profileId));
 
@@ -141,6 +164,29 @@ function registerIpcHandlers(extra = {}) {
   handle('profile-action', async (_e, profileId, actionName, params = {}) => {
     try { return await performAction(profileId, String(actionName), params || {}); }
     catch (e) { return { success: false, error: e?.message || String(e) }; }
+  });
+
+  // Live preview screencast controls
+  handle('start-preview', async (_e, profileId) => {
+    try {
+      const { startScreencast, isScreencasting } = require('../engine/screencast');
+      if (isScreencasting(profileId)) return { success: true, already: true };
+      startScreencast(profileId);
+      return { success: true };
+    } catch (e) { return { success: false, error: e?.message || String(e) }; }
+  });
+  handle('stop-preview', async (_e, profileId) => {
+    try {
+      const { stopScreencast } = require('../engine/screencast');
+      stopScreencast(profileId);
+      return { success: true };
+    } catch (e) { return { success: false, error: e?.message || String(e) }; }
+  });
+  handle('screencast-status', async (_e, profileId) => {
+    try {
+      const { isScreencasting } = require('../engine/screencast');
+      return { success: true, streaming: isScreencasting(profileId) };
+    } catch (e) { return { success: false, streaming: false }; }
   });
 
   // Presets management

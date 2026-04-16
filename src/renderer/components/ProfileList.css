@@ -347,3 +347,341 @@
   outline: none;
   border-color: var(--primary);
 }
+
+/* ===== Toolbar: Search / Filter / Sort ===== */
+.pl-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.pl-search {
+  position: relative;
+  flex: 1;
+  min-width: 180px;
+}
+
+.pl-search input {
+  width: 100%;
+  padding: 0.45rem 2rem 0.45rem 2.2rem;
+  border-radius: 6px;
+  border: 1px solid var(--border2);
+  background: var(--card);
+  color: var(--fg);
+  font-size: 0.78rem;
+  outline: none;
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.pl-search input:focus {
+  border-color: var(--primary);
+}
+
+.pl-search input::placeholder {
+  color: var(--muted);
+}
+
+.pl-search-icon {
+  position: absolute;
+  left: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.pl-search-clear {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.pl-search-clear:hover {
+  color: var(--fg);
+}
+
+.pl-filter-select {
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border2);
+  background: var(--card);
+  color: var(--fg);
+  font-size: 0.72rem;
+  padding: 0 0.5rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.pl-filter-select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.pl-count {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.pl-result-count {
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.pl-clear-filters {
+  background: none;
+  border: none;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: inherit;
+  font-family: inherit;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.pl-clear-filters:hover {
+  color: var(--fg);
+}
+
+/* ===== Improved Empty State ===== */
+.pl-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  gap: 0.75rem;
+}
+
+.pl-empty-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--glass-strong);
+  margin-bottom: 0.5rem;
+}
+
+.pl-empty-state h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0;
+}
+
+.pl-empty-state p {
+  font-size: 0.82rem;
+  color: var(--muted);
+  max-width: 320px;
+  text-align: center;
+  margin: 0;
+}
+
+/* ===== Bulk Selection ===== */
+.pl-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.pl-select-all {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.pl-select-all input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.pl-bulk-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+  margin-top: 0.5rem;
+  z-index: 10;
+}
+
+.pl-bulk-count {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--fg);
+  margin-right: auto;
+}
+
+/* ===== Status Labels ===== */
+.pl-status-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.pl-status-running {
+  color: #28c76f;
+}
+
+.pl-status-starting {
+  color: #6366f1;
+  animation: pl-pulse 1s ease-in-out infinite;
+}
+
+.pl-status-error {
+  color: #dc3545;
+}
+
+/* ===== Bulk Create Modal ===== */
+.pl-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  animation: pl-fade-in 0.15s ease;
+}
+
+@keyframes pl-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.pl-modal-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 440px;
+  max-width: 90vw;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  animation: pl-slide-up 0.2s ease;
+  overflow: hidden;
+}
+
+@keyframes pl-slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.pl-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pl-modal-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.pl-modal-close:hover {
+  color: var(--fg);
+  background: var(--glass-strong);
+}
+
+.pl-modal-body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pl-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pl-modal-field label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--fg);
+  opacity: 0.85;
+}
+
+.pl-modal-field input[type="text"],
+.pl-modal-field input[type="number"] {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border2);
+  background: var(--card2);
+  color: var(--fg);
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.pl-modal-field input[type="text"]:focus,
+.pl-modal-field input[type="number"]:focus {
+  border-color: var(--primary);
+}
+
+.pl-modal-field input[type="range"] {
+  accent-color: var(--primary);
+  height: 4px;
+  cursor: pointer;
+}
+
+.pl-modal-preview {
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: var(--glass-strong);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.pl-modal-preview strong {
+  color: var(--fg);
+}
+
+.pl-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--border);
+}

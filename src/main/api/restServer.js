@@ -1,6 +1,7 @@
 const path = require("path");
 const express = require("express");
 const cors = require("cors");
+const { WebSocketServer } = require("ws");
 
 function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   const apiKey = rest.apiKey || process.env.REST_API_KEY;
@@ -35,6 +36,31 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   appx.get("/api/profiles", async (_req, res) => {
     const list = await handlers.getProfilesInternal();
     res.json(list);
+  });
+  // Bulk operations (must be registered before /:id routes)
+  appx.post("/api/profiles/bulk", async (req, res) => {
+    if (!handlers.saveProfilesBulkInternal) return res.status(501).json({ success: false, error: 'Not implemented' });
+    const result = await handlers.saveProfilesBulkInternal(req.body || []);
+    if (result.success) broadcastProfilesUpdated();
+    res.status(result.success ? 200 : 400).json(result);
+  });
+  appx.delete("/api/profiles/bulk", async (req, res) => {
+    if (!handlers.deleteProfilesBulkInternal) return res.status(501).json({ success: false, error: 'Not implemented' });
+    const ids = req.body?.ids || [];
+    // Stop running profiles first
+    if (handlers.stopProfileInternal) {
+      for (const id of ids) { try { await handlers.stopProfileInternal(id); } catch { } }
+    }
+    const result = await handlers.deleteProfilesBulkInternal(ids);
+    if (result.success) broadcastProfilesUpdated();
+    res.status(result.success ? 200 : 400).json(result);
+  });
+  appx.post("/api/profiles/bulk-clone", async (req, res) => {
+    if (!handlers.cloneProfilesBulkInternal) return res.status(501).json({ success: false, error: 'Not implemented' });
+    const { ids, overrides } = req.body || {};
+    const result = await handlers.cloneProfilesBulkInternal(ids || [], overrides || {});
+    if (result.success) broadcastProfilesUpdated();
+    res.status(result.success ? 200 : 400).json(result);
   });
   appx.post("/api/profiles", async (req, res) => {
     const result = await handlers.saveProfileInternal(req.body || {});
@@ -532,6 +558,9 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
 
 function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
   let restHttpServer = null;
+  let wss = null;
+  // Map<WebSocket, string> — tracks which profileId each client is subscribed to
+  const wsClients = new Map();
   const restServerState = {
     enabled: true,
     running: false,
@@ -585,6 +614,10 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
         restServerState.running = true;
         restServerState.error = null;
         broadcast();
+        // Attach WebSocket server for live preview streaming
+        try { attachPreviewWebSocket(); } catch (e) {
+          appendLog("system", `Preview WebSocket attach failed: ${e?.message || e}`);
+        }
         appendLog(
           "system",
           `REST API server started on ${host}:${port} — Swagger UI at /docs`,
@@ -668,7 +701,85 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
     return { ...restServerState };
   }
 
-  return { start, stop, setEnabled, setPort, getState, startWithPassword };
+  function setBroadcaster(fn) { broadcaster = fn; }
+
+  /**
+   * Attach WebSocket server on /preview path for live screenshot streaming.
+   * Uses noServer mode to share port 4000 with Express.
+   */
+  function attachPreviewWebSocket() {
+    if (!restHttpServer) return;
+    // Clean up previous WSS if server was restarted
+    if (wss) {
+      try { wss.close(); } catch {}
+      wss = null;
+      wsClients.clear();
+    }
+    wss = new WebSocketServer({ noServer: true });
+
+    restHttpServer.on('upgrade', (request, socket, head) => {
+      const url = new URL(request.url || '', 'http://localhost');
+      if (url.pathname === '/preview') {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit('connection', ws, request);
+        });
+      } else {
+        socket.destroy();
+      }
+    });
+
+    wss.on('connection', (ws, request) => {
+      // Client sends { action: 'subscribe', profileId } to start receiving frames
+      ws.on('message', (data) => {
+        try {
+          const msg = JSON.parse(String(data));
+          if (msg.action === 'subscribe' && msg.profileId) {
+            wsClients.set(ws, msg.profileId);
+          } else if (msg.action === 'unsubscribe') {
+            wsClients.delete(ws);
+          }
+        } catch { /* ignore non-JSON messages */ }
+      });
+
+      ws.on('close', () => {
+        wsClients.delete(ws);
+      });
+
+      ws.on('error', () => {
+        wsClients.delete(ws);
+      });
+    });
+
+    // Register broadcast function with ScreencastManager
+    try {
+      const { setWsBroadcast } = require('../engine/screencast');
+      setWsBroadcast(broadcastPreviewFrame);
+    } catch (e) {
+      appendLog('system', `ScreencastManager broadcast setup failed: ${e?.message || e}`);
+    }
+
+    appendLog('system', 'Preview WebSocket server attached on /preview');
+  }
+
+  /**
+   * Broadcast a JPEG frame (base64) to all WebSocket clients subscribed to this profile.
+   * Implements backpressure: skips frame if client's send buffer > 128KB.
+   */
+  function broadcastPreviewFrame(profileId, base64Frame) {
+    if (!wss) return;
+    const message = JSON.stringify({ profileId, frame: base64Frame });
+    for (const [client, subscribedId] of wsClients.entries()) {
+      if (subscribedId !== profileId) continue;
+      if (client.readyState !== 1) continue; // WebSocket.OPEN = 1
+      // Backpressure: skip frame if client is behind (> 128KB buffered)
+      if (client.bufferedAmount > 131072) continue;
+      try {
+        client.send(message);
+      } catch { /* client may have disconnected */ }
+    }
+  }
+
+  return { start, stop, setEnabled, setPort, getState, startWithPassword, setBroadcaster };
 }
 
 module.exports = { createRestServer };

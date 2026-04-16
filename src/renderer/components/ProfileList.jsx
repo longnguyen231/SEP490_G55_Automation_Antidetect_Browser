@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Search, X } from 'lucide-react';
 import './ProfileList.css';
 
 function ProxyPickerPopup({ profile, isRunning = false, onClose, onSaved }) {
@@ -225,20 +226,106 @@ export default function ProfileList({
   selectedIds = {}, onToggleSelect, onSelectAll, onClearSelection,
   onStartSelected, onStopSelected, onCloneProfile,
   headlessPrefs = {}, onSetHeadless, enginePrefs = {}, onSetEngine, onDeleteSelected,
+  onCloneSelected,
+  onCreateBulk,
   errorProfiles = {},
   profileStatuses = {},
   onToggleFp,
   onReloadProfiles,
+  onViewLiveScreen,
 }) {
+  // Search, filter, sort
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [engineFilter, setEngineFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('created-desc');
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const totalPages = Math.max(1, Math.ceil((profiles || []).length / pageSize));
-  useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages); }, [profiles?.length, pageSize]);
-  const paginatedProfiles = (profiles || []).slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  // Reset page on filter/sort change
+  useEffect(() => { setCurrentPage(1); }, [searchQuery, statusFilter, engineFilter, sortBy]);
+
+  // Filtered + sorted profiles
+  const filteredProfiles = useMemo(() => {
+    let list = profiles || [];
+
+    // Search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(p =>
+        (p.name || '').toLowerCase().includes(q) ||
+        (p.id || '').toLowerCase().includes(q) ||
+        (p.settings?.proxy?.server || '').toLowerCase().includes(q)
+      );
+    }
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      list = list.filter(p => {
+        const st = profileStatuses[p.id]?.status;
+        const isRunning = st === 'RUNNING' || (!st && !!runningWs[p.id]);
+        const isError = st === 'ERROR' || (!!errorProfiles[p.id] && !isRunning);
+        if (statusFilter === 'running') return isRunning || st === 'STARTING';
+        if (statusFilter === 'stopped') return !isRunning && !isError && st !== 'STARTING' && st !== 'STOPPING';
+        if (statusFilter === 'error') return isError;
+        return true;
+      });
+    }
+
+    // Engine filter
+    if (engineFilter !== 'all') {
+      list = list.filter(p => {
+        const eng = (p.settings?.engine || 'playwright').toLowerCase();
+        if (engineFilter === 'chromium') return eng === 'playwright' || eng === 'cdp';
+        if (engineFilter === 'firefox') return eng === 'playwright-firefox' || eng === 'firefox';
+        if (engineFilter === 'camoufox') return eng === 'camoufox';
+        return true;
+      });
+    }
+
+    // Sort
+    list = [...list].sort((a, b) => {
+      switch (sortBy) {
+        case 'name-asc': return (a.name || '').localeCompare(b.name || '');
+        case 'name-desc': return (b.name || '').localeCompare(a.name || '');
+        case 'created-asc': return (a.createdAt || '').localeCompare(b.createdAt || '');
+        case 'created-desc': return (b.createdAt || '').localeCompare(a.createdAt || '');
+        case 'status': {
+          const rank = (p) => {
+            const st = profileStatuses[p.id]?.status;
+            if (st === 'RUNNING' || st === 'STARTING' || runningWs[p.id]) return 0;
+            if (st === 'ERROR' || errorProfiles[p.id]) return 2;
+            return 1;
+          };
+          return rank(a) - rank(b);
+        }
+        default: return 0;
+      }
+    });
+
+    return list;
+  }, [profiles, searchQuery, statusFilter, engineFilter, sortBy, profileStatuses, runningWs, errorProfiles]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProfiles.length / pageSize));
+  useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages); }, [filteredProfiles.length, pageSize]);
+  const paginatedProfiles = filteredProfiles.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const isFiltered = searchQuery || statusFilter !== 'all' || engineFilter !== 'all';
+  const clearFilters = () => { setSearchQuery(''); setStatusFilter('all'); setEngineFilter('all'); };
+
+  // Bulk selection
+  const selectedCount = Object.keys(selectedIds).filter(id => selectedIds[id]).length;
 
   // Proxy picker popup
   const [proxyPickerProfile, setProxyPickerProfile] = useState(null);
+
+  // Bulk create modal
+  const [showBulkCreate, setShowBulkCreate] = useState(false);
+  const [bulkCount, setBulkCount] = useState(5);
+  const [bulkPrefix, setBulkPrefix] = useState('Profile');
+  const [bulkCreating, setBulkCreating] = useState(false);
 
   const shortId = (id) => (id || '').substring(0, 6);
 
@@ -253,17 +340,87 @@ export default function ProfileList({
     <div className="pl-container" style={{ padding: '1rem' }}>
       {/* Header */}
       <div className="pl-header">
-        <h1 className="pl-title">Profiles</h1>
-        <button className="pl-new-btn" onClick={onCreateProfile} style={{ background: 'var(--success)', borderRadius: '8px' }}>
-          + New Profile
-        </button>
+        <h1 className="pl-title">Profiles {profiles && profiles.length > 0 && <span className="pl-count">({profiles.length})</span>}</h1>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {onCreateBulk && (
+            <button className="pl-new-btn" onClick={() => setShowBulkCreate(true)} style={{ background: '#6366f1', borderRadius: '8px' }}>
+              + Create Multiple
+            </button>
+          )}
+          <button className="pl-new-btn" onClick={onCreateProfile} style={{ background: 'var(--success)', borderRadius: '8px' }}>
+            + New Profile
+          </button>
+        </div>
       </div>
+
+      {/* Search / Filter / Sort Toolbar */}
+      {profiles && profiles.length > 0 && (
+        <div className="pl-toolbar">
+          <label className="pl-select-all">
+            <input
+              type="checkbox"
+              checked={selectedCount > 0 && selectedCount === (profiles || []).length}
+              onChange={selectedCount > 0 ? onClearSelection : onSelectAll}
+            />
+            <span>{selectedCount > 0 ? `${selectedCount}` : 'All'}</span>
+          </label>
+          <div className="pl-search">
+            <Search size={14} className="pl-search-icon" />
+            <input
+              placeholder="Search by name, ID, proxy..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button className="pl-search-clear" onClick={() => setSearchQuery('')}>
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <select className="pl-filter-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            <option value="all">All Status</option>
+            <option value="running">Running</option>
+            <option value="stopped">Stopped</option>
+            <option value="error">Error</option>
+          </select>
+          <select className="pl-filter-select" value={engineFilter} onChange={e => setEngineFilter(e.target.value)}>
+            <option value="all">All Engines</option>
+            <option value="chromium">Chromium</option>
+            <option value="firefox">Firefox</option>
+            <option value="camoufox">Camoufox</option>
+          </select>
+          <select className="pl-filter-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+            <option value="created-desc">Newest first</option>
+            <option value="created-asc">Oldest first</option>
+            <option value="name-asc">Name A–Z</option>
+            <option value="name-desc">Name Z–A</option>
+            <option value="status">Status</option>
+          </select>
+          {isFiltered && (
+            <span className="pl-result-count">
+              {filteredProfiles.length} of {profiles.length}
+              {' '}<button className="pl-clear-filters" onClick={clearFilters}>Clear</button>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Cards */}
       <div className="pl-cards" style={{ overflowY: 'auto', flex: 1 }}>
         {(!profiles || profiles.length === 0) ? (
+          <div className="pl-empty-state">
+            <div className="pl-empty-icon">
+              <Search size={32} strokeWidth={1.5} style={{ color: 'var(--muted)' }} />
+            </div>
+            <h3>No profiles yet</h3>
+            <p>Create your first browser profile to get started with antidetect browsing.</p>
+            <button className="pl-new-btn" onClick={onCreateProfile} style={{ background: 'var(--success)', borderRadius: '8px' }}>
+              + New Profile
+            </button>
+          </div>
+        ) : filteredProfiles.length === 0 ? (
           <div className="pl-empty">
-            No profiles yet. Click <strong>+ New Profile</strong> to create one.
+            No profiles match your filters. <button className="pl-clear-filters" onClick={clearFilters}>Clear filters</button>
           </div>
         ) : (
           paginatedProfiles.map(profile => {
@@ -289,6 +446,14 @@ export default function ProfileList({
 
             return (
               <div key={profile.id} className={cardClass}>
+                {/* Selection checkbox */}
+                <input
+                  type="checkbox"
+                  className="pl-checkbox"
+                  checked={!!selectedIds[profile.id]}
+                  onChange={() => onToggleSelect(profile.id)}
+                  onClick={(e) => e.stopPropagation()}
+                />
                 {/* Dot */}
                 <div className={`pl-dot ${isRunning || isStarting ? 'pl-dot-active' : ''} ${hasError ? 'pl-dot-error' : ''} ${isStarting ? 'pl-dot-starting' : ''}`} />
 
@@ -311,6 +476,10 @@ export default function ProfileList({
                       {engineLabel}
                     </span>
                     <span className="pl-name">{profile.name || 'Profile'}</span>
+                    {isRunning && <span className="pl-status-label pl-status-running">Running</span>}
+                    {isStarting && <span className="pl-status-label pl-status-starting">Starting...</span>}
+                    {isStopping && <span className="pl-status-label pl-status-starting">Stopping...</span>}
+                    {hasError && <span className="pl-status-label pl-status-error">Error</span>}
                   </div>
 
                   {/* Row 2: OS + browser + resolution tags */}
@@ -369,7 +538,23 @@ export default function ProfileList({
                   ) : isStopping ? (
                     <button className="pl-btn" style={{ background: '#f59e0b', opacity: 0.8, cursor: 'wait' }} disabled>Stopping...</button>
                   ) : isRunning ? (
-                    <button className="pl-btn" style={{ background: '#c07e15' }} onClick={() => onStopProfile(profile.id)}>Stop</button>
+                    <>
+                      <button className="pl-btn" style={{ background: '#c07e15' }} onClick={() => onStopProfile(profile.id)}>Stop</button>
+                      {!!headlessPrefs[profile.id] && onViewLiveScreen && (
+                        <button
+                          className="pl-btn"
+                          style={{
+                            background: 'rgba(139, 92, 246, 0.2)',
+                            color: '#a78bfa',
+                            border: '1px solid rgba(139, 92, 246, 0.4)',
+                          }}
+                          onClick={() => onViewLiveScreen(profile)}
+                          title="View live headless screen"
+                        >
+                          👁 View
+                        </button>
+                      )}
+                    </>
                   ) : (
                     <>
                       <button className="pl-btn pl-btn-launch" onClick={() => onToggleProfile(profile.id)}>Launch</button>
@@ -387,15 +572,31 @@ export default function ProfileList({
         )}
       </div>
 
-      {/* Pagination */}
-      {profiles && profiles.length > pageSize && (
+      {/* Floating Bulk Action Bar */}
+      {selectedCount > 0 && (
+        <div className="pl-bulk-bar">
+          <span className="pl-bulk-count">{selectedCount} selected</span>
+          <button className="pl-btn pl-btn-launch" onClick={onStartSelected}>Launch ({selectedCount})</button>
+          <button className="pl-btn" style={{ background: '#c07e15' }} onClick={onStopSelected}>Stop ({selectedCount})</button>
+          {onCloneSelected && <button className="pl-btn pl-btn-clone" onClick={onCloneSelected}>Clone ({selectedCount})</button>}
+          <button className="pl-btn pl-btn-delete" onClick={onDeleteSelected}>Delete ({selectedCount})</button>
+          <button className="pl-btn pl-btn-edit" onClick={onClearSelection}>Clear</button>
+        </div>
+      )}
+
+      {/* Pagination — always show when there are profiles */}
+      {profiles && profiles.length > 0 && (
         <div className="pl-pagination">
           <div className="pl-pagination-info">
-            Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, profiles.length)} of {profiles.length} profiles
+            {filteredProfiles.length > 0
+              ? <>Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filteredProfiles.length)} of {filteredProfiles.length} profiles
+                  {isFiltered && ` (filtered from ${profiles.length})`}
+                </>
+              : <>0 profiles{isFiltered && ` (filtered from ${profiles.length})`}</>}
           </div>
           <div className="pl-pagination-controls">
             <select className="pl-pagination-size" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}>
-              {[5, 10, 20, 50].map(n => <option key={n} value={n}>{n} / page</option>)}
+              {[5, 10, 20, 50, 100].map(n => <option key={n} value={n}>{n} / page</option>)}
             </select>
             <button className="pl-pagination-btn" disabled={currentPage <= 1} onClick={() => setCurrentPage(1)} title="First">«</button>
             <button className="pl-pagination-btn" disabled={currentPage <= 1} onClick={() => setCurrentPage(p => p - 1)} title="Previous">‹</button>
@@ -434,6 +635,73 @@ export default function ProfileList({
             }
           }}
         />
+      )}
+
+      {/* Bulk Create Modal */}
+      {showBulkCreate && (
+        <div className="pl-modal-backdrop">
+          <div className="pl-modal-card">
+            <div className="pl-modal-header">
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--fg)' }}>Create Multiple Profiles</h3>
+              <button className="pl-modal-close" onClick={() => setShowBulkCreate(false)}>✕</button>
+            </div>
+            <div className="pl-modal-body">
+              <div className="pl-modal-field">
+                <label>Name Prefix</label>
+                <input
+                  type="text"
+                  value={bulkPrefix}
+                  onChange={e => setBulkPrefix(e.target.value)}
+                  placeholder="Profile"
+                  maxLength={60}
+                />
+              </div>
+              <div className="pl-modal-field">
+                <label>Number of Profiles</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <input
+                    type="range"
+                    min={1}
+                    max={100}
+                    value={bulkCount}
+                    onChange={e => setBulkCount(Number(e.target.value))}
+                    style={{ flex: 1 }}
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={bulkCount}
+                    onChange={e => { const v = Math.max(1, Math.min(100, Number(e.target.value) || 1)); setBulkCount(v); }}
+                    style={{ width: '60px', textAlign: 'center' }}
+                  />
+                </div>
+              </div>
+              <div className="pl-modal-preview">
+                Preview: <strong>{bulkPrefix || 'Profile'} 1</strong> ... <strong>{bulkPrefix || 'Profile'} {bulkCount}</strong>
+              </div>
+            </div>
+            <div className="pl-modal-footer">
+              <button className="pl-btn pl-btn-edit" onClick={() => setShowBulkCreate(false)} disabled={bulkCreating}>Cancel</button>
+              <button
+                className="pl-btn pl-btn-launch"
+                disabled={bulkCreating || !bulkPrefix.trim() || bulkCount < 1}
+                onClick={async () => {
+                  setBulkCreating(true);
+                  try {
+                    await onCreateBulk(bulkCount, bulkPrefix.trim() || 'Profile');
+                    setShowBulkCreate(false);
+                    setBulkCount(5);
+                    setBulkPrefix('Profile');
+                  } catch { }
+                  setBulkCreating(false);
+                }}
+              >
+                {bulkCreating ? 'Creating...' : `Create ${bulkCount} Profiles`}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

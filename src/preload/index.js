@@ -20,6 +20,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopAllProfiles: () => ipcRenderer.invoke('stop-all-profiles'),
   getProfileLog: (profileId) => ipcRenderer.invoke('get-profile-log', profileId),
   cloneProfile: (profileId, overrides) => ipcRenderer.invoke('clone-profile', profileId, overrides),
+  saveProfilesBulk: (profiles) => ipcRenderer.invoke('save-profiles-bulk', profiles),
+  deleteProfilesBulk: (ids) => ipcRenderer.invoke('delete-profiles-bulk', ids),
+  cloneProfilesBulk: (sourceIds, overrides) => ipcRenderer.invoke('clone-profiles-bulk', sourceIds, overrides || {}),
   runAutomationNow: (profileId) => ipcRenderer.invoke('run-automation-now', profileId),
   onRunningMapChanged: (callback) => {
     const listener = (_event, payload) => callback && callback(payload);
@@ -123,4 +126,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('app-log', listener);
   },
   removeAllAppLog: () => ipcRenderer.removeAllListeners('app-log'),
+
+  // Backend ready signal — fired when all IPC handlers are registered
+  onBackendReady: (callback) => {
+    const listener = (_event, ready) => callback && callback(ready);
+    ipcRenderer.on('backend-ready', listener);
+    return () => ipcRenderer.removeListener('backend-ready', listener);
+  },
+  // Live preview screencast controls
+  startPreview: (profileId) => ipcRenderer.invoke('start-preview', profileId),
+  stopPreview: (profileId) => ipcRenderer.invoke('stop-preview', profileId),
+  getScreencastStatus: (profileId) => ipcRenderer.invoke('screencast-status', profileId),
 });

@@ -12,6 +12,7 @@ import SettingsTab from './components/SettingsTab';
 import LicenseModal from './components/LicenseModal';
 import EngineInstallModal from './components/EngineInstallModal';
 import LinkProxyModal from './components/LinkProxyModal';
+import LivePreviewPanel from './components/LivePreviewPanel';
 import './App.css';
 import { useI18n } from './i18n/index';
  
@@ -34,12 +35,15 @@ function App() {
   const [toasts, setToasts] = useState([]);
   const [enginePrefs, setEnginePrefs] = useState({});
   const [errorProfiles, setErrorProfiles] = useState({});
+  const [backendReady, setBackendReady] = useState(false);
   const [apiStatus, setApiStatus] = useState({ enabled: true, running: false, host: '127.0.0.1', port: 4000, error: null });
   const [apiDesiredPort, setApiDesiredPort] = useState(4000);
   const apiPortTimerRef = useRef(null);
   const [showApiPwdModal, setShowApiPwdModal] = useState(false);
   const [apiPwdInput, setApiPwdInput] = useState('');
   const [appLogs, setAppLogs] = useState([]);
+  // Live preview: profile being previewed (or null)
+  const [previewProfile, setPreviewProfile] = useState(null);
 
   // Subscribe to app-log events at app level so logs are captured regardless of active tab
   useEffect(() => {
@@ -105,19 +109,47 @@ function App() {
         const r = await fetch(base + `/api/profiles/${profileId}`, { method: 'DELETE' });
         return await r.json();
       },
+      async saveProfilesBulk(profilesList) {
+        if (hasIpc && window.electronAPI.saveProfilesBulk) return await window.electronAPI.saveProfilesBulk(profilesList);
+        const r = await fetch(base + '/api/profiles/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profilesList) });
+        return await r.json();
+      },
+      async deleteProfilesBulk(ids) {
+        if (hasIpc && window.electronAPI.deleteProfilesBulk) return await window.electronAPI.deleteProfilesBulk(ids);
+        const r = await fetch(base + '/api/profiles/bulk', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
+        return await r.json();
+      },
+      async cloneProfilesBulk(ids, overrides) {
+        if (hasIpc && window.electronAPI.cloneProfilesBulk) return await window.electronAPI.cloneProfilesBulk(ids, overrides);
+        const r = await fetch(base + '/api/profiles/bulk-clone', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, overrides }) });
+        return await r.json();
+      },
     };
   }, []);
 
-  // Effects: initial load, subscribe to running map & API status
-  useEffect(() => { 
-    loadProfiles(); 
+  // Wait for backend IPC to be ready, then load data
+  useEffect(() => {
     let unsub = null;
-    if (window.electronAPI.onProfilesUpdated) {
+    const init = () => { setBackendReady(true); loadProfiles(); };
+    // In production, IPC handlers may register after window loads.
+    // Listen for explicit 'backend-ready' signal from main process.
+    if (window.electronAPI?.onBackendReady) {
+      unsub = window.electronAPI.onBackendReady(() => init());
+    }
+    // Also try immediately — in dev, handlers are usually ready already
+    loadProfiles();
+    return () => { try { unsub?.(); } catch {} };
+  }, []);
+
+  // Subscribe to profile updates
+  useEffect(() => {
+    let unsub = null;
+    if (window.electronAPI?.onProfilesUpdated) {
       unsub = window.electronAPI.onProfilesUpdated(() => loadProfiles());
     }
     return () => {
-      try { unsub && unsub(); } catch {}
-      try { window.electronAPI.removeAllProfilesUpdated?.(); } catch {}
+      try { unsub?.(); } catch {}
+      try { window.electronAPI?.removeAllProfilesUpdated?.(); } catch {}
     };
   }, []);
   useEffect(() => {
@@ -210,7 +242,9 @@ function App() {
     if (st === 'STARTING' || st === 'RUNNING' || st === 'STOPPING') return;
     setErrorProfiles(prev => { const n = { ...prev }; delete n[profileId]; return n; });
     try {
-      const headless = !!headlessPrefs[profileId];
+      // Launch button → always visible browser (headless=false)
+      const headless = false;
+      setHeadlessPrefs(prev => ({ ...prev, [profileId]: false }));
       const engine = enginePrefs[profileId] || 'playwright';
 
       // Only check Playwright engines (cdp uses system Chrome, no install needed)
@@ -259,8 +293,13 @@ function App() {
     return (st === 'RUNNING' || runningWs[profileId]) ? handleStopProfile(profileId) : handleLaunchProfile(profileId);
   };
   const handleLaunchHeadless = async (profileId) => {
+    // Block if already starting or running
+    const st = profileStatuses[profileId]?.status;
+    if (st === 'STARTING' || st === 'RUNNING' || st === 'STOPPING') return;
     setErrorProfiles(prev => { const n = { ...prev }; delete n[profileId]; return n; });
     try {
+      // Headless button → always hidden (headless=true), show View button after launch
+      setHeadlessPrefs(prev => ({ ...prev, [profileId]: true }));
       const engine = enginePrefs[profileId] || 'playwright';
       const options = { headless: true, engine };
       const result = await window.electronAPI.launchProfile(profileId, options);
@@ -299,6 +338,58 @@ function App() {
   const handleViewLogs = (profile) => setLogProfile(profile);
   const handleCloneProfile = async (profileId) => { try { const res = await window.electronAPI.cloneProfile(profileId, {}); if (!res.success) throw new Error(res.error || 'Clone failed'); await loadProfiles(); } catch (e) { alert('Clone error: ' + e.message); } };
   const handleCopyWs = async (profileId) => { try { const res = await window.electronAPI.getProfileWs(profileId); const ws = res?.wsEndpoint; if (!ws) { alert('Profile is not running. Launch first.'); return; } await navigator.clipboard.writeText(ws); addToast('WS endpoint copied!', 'success', 2000); } catch (e) { alert('Failed to copy WS endpoint: ' + e.message); } };
+
+  // Bulk operations
+  const handleCreateBulk = async (count, namePrefix) => {
+    try {
+      const batch = [];
+      for (let i = 1; i <= count; i++) {
+        batch.push({ name: `${namePrefix} ${i}` });
+      }
+      const res = await api.saveProfilesBulk(batch);
+      if (res.success) {
+        addToast(`Created ${res.profiles?.length || count} profiles`, 'success', 2500);
+        await loadProfiles();
+      } else {
+        addToast('Bulk create error: ' + (res.error || 'unknown'), 'error', 5000);
+      }
+    } catch (e) {
+      addToast('Bulk create error: ' + e.message, 'error', 5000);
+    }
+  };
+  const handleDeleteBulk = async (ids) => {
+    if (!ids?.length) return;
+    const runningIds = ids.filter(id => !!runningWs[id]);
+    const runningMsg = runningIds.length ? `\nNote: ${runningIds.length} running profile(s) will be stopped first.` : '';
+    if (!window.confirm(`Delete ${ids.length} selected profile(s)? This cannot be undone.${runningMsg}`)) return;
+    try {
+      const res = await api.deleteProfilesBulk(ids);
+      if (res.success) {
+        addToast(`Deleted ${res.deleted || ids.length} profiles`, 'success', 2500);
+        clearSelection();
+        await loadProfiles();
+      } else {
+        addToast('Bulk delete error: ' + (res.error || 'unknown'), 'error', 5000);
+      }
+    } catch (e) {
+      addToast('Bulk delete failed: ' + e.message, 'error', 5000);
+    }
+  };
+  const handleCloneBulk = async (ids) => {
+    if (!ids?.length) return;
+    try {
+      const res = await api.cloneProfilesBulk(ids, {});
+      if (res.success) {
+        addToast(`Cloned ${res.profiles?.length || ids.length} profiles`, 'success', 2500);
+        clearSelection();
+        await loadProfiles();
+      } else {
+        addToast('Bulk clone error: ' + (res.error || 'unknown'), 'error', 5000);
+      }
+    } catch (e) {
+      addToast('Bulk clone failed: ' + e.message, 'error', 5000);
+    }
+  };
 
   // Toggle a fingerprint section (e.g. display, hardware) on/off directly from the profile card badge
   const handleToggleFp = async (profile, section, newValue) => {
@@ -367,7 +458,8 @@ function App() {
   const getSelectedList = () => Object.keys(selectedIds).filter(id => selectedIds[id]);
   const handleStartSelected = async () => { const ids = getSelectedList(); await Promise.all(ids.map(id => handleLaunchProfile(id))); await refreshRunningStatus(); };
   const handleStopSelected = async () => { const ids = getSelectedList(); await Promise.all(ids.map(id => window.electronAPI.stopProfile(id))); await refreshRunningStatus(); };
-  const handleDeleteSelected = async () => { const ids = getSelectedList(); if (!ids.length) return; const runningIds = ids.filter(id => !!runningWs[id]); const runningMsg = runningIds.length ? `\nNote: ${runningIds.length} running profile(s) will be stopped before deletion.` : ''; if (!window.confirm(`Delete ${ids.length} selected profile(s)? This cannot be undone.${runningMsg}`)) return; try { if (runningIds.length) { await Promise.all(runningIds.map(id => window.electronAPI.stopProfile(id).catch(() => null))); await new Promise(r => setTimeout(r, 300)); } await Promise.all(ids.map(id => api.deleteProfile(id))); addToast(`Deleted ${ids.length} profile(s)`, 'success', 2500); clearSelection(); await loadProfiles(); } catch (e) { addToast('Bulk delete failed: ' + (e?.message || e), 'error', 5000); } };
+  const handleDeleteSelected = async () => { const ids = getSelectedList(); if (!ids.length) return; await handleDeleteBulk(ids); };
+  const handleCloneSelected = async () => { const ids = getSelectedList(); if (!ids.length) return; await handleCloneBulk(ids); };
 
   // API server control handlers
   const applyPortChange = async (portNum) => { if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) return; try { const res = await window.electronAPI.setApiServerPort(portNum); if (res?.success && res.state) setApiStatus(res.state); } catch (e) { console.warn('Set port failed', e); } };
@@ -431,10 +523,13 @@ function App() {
             enginePrefs={enginePrefs}
             onSetEngine={handleSetEngine}
             onDeleteSelected={handleDeleteSelected}
+            onCloneSelected={handleCloneSelected}
+            onCreateBulk={handleCreateBulk}
             errorProfiles={errorProfiles}
             profileStatuses={profileStatuses}
             onToggleFp={handleToggleFp}
             onReloadProfiles={loadProfiles}
+            onViewLiveScreen={(profile) => setPreviewProfile(profile)}
           />
         );
 
@@ -516,6 +611,13 @@ function App() {
       {cookieProfile && <CookieManager profile={cookieProfile} onClose={() => setCookieProfile(null)} />}
       {logProfile && <LogViewer profile={logProfile} onClose={() => setLogProfile(null)} />}
       {linkProxyProfile && <LinkProxyModal profile={linkProxyProfile} onClose={() => setLinkProxyProfile(null)} onLink={handleLinkProxy} />}
+      {previewProfile && (
+        <LivePreviewPanel
+          profile={previewProfile}
+          apiPort={apiStatus.port || 4000}
+          onClose={() => setPreviewProfile(null)}
+        />
+      )}
       <Toasts toasts={toasts} onDismiss={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />
 
       {/* API Password Modal */}
