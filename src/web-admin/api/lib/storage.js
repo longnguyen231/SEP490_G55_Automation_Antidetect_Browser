@@ -1,10 +1,33 @@
 /**
- * Storage abstraction — in-memory for local dev, Firestore for production.
- * Uses in-memory Map when FIREBASE_SERVICE_ACCOUNT env var is not set.
+ * Storage abstraction — JSON file for local dev, Firestore for production.
+ * Uses a local JSON file when FIREBASE_SERVICE_ACCOUNT env var is not set,
+ * so data persists across server restarts.
  */
 
-// ── In-memory fallback ────────────────────────────────────────────────────────
-const mem = new Map();
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// ── JSON file fallback ────────────────────────────────────────────────────────
+const DATA_DIR = join(__dirname, '../../.data');
+const ORDERS_FILE = join(DATA_DIR, 'orders.json');
+
+function loadFile() {
+  try {
+    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+    if (!existsSync(ORDERS_FILE)) return {};
+    return JSON.parse(readFileSync(ORDERS_FILE, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function saveFile(data) {
+  if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+  writeFileSync(ORDERS_FILE, JSON.stringify(data, null, 2), 'utf8');
+}
 
 // ── Firestore (lazy init) ─────────────────────────────────────────────────────
 let _db = null;
@@ -35,8 +58,10 @@ export async function saveOrder(orderCode, data) {
     const { Timestamp } = await import('firebase-admin/firestore');
     await db.collection('orders').doc(key).set({ ...data, createdAt: Timestamp.now() });
   } else {
-    mem.set(key, { ...data, createdAt: new Date().toISOString() });
-    console.log(`[storage:mem] saved order ${key}`);
+    const all = loadFile();
+    all[key] = { ...data, createdAt: new Date().toISOString() };
+    saveFile(all);
+    console.log(`[storage:file] saved order ${key}`);
   }
 }
 
@@ -48,7 +73,8 @@ export async function getOrder(orderCode) {
     const doc = await db.collection('orders').doc(key).get();
     return doc.exists ? doc.data() : null;
   }
-  return mem.get(key) ?? null;
+  const all = loadFile();
+  return all[key] ?? null;
 }
 
 export async function updateOrder(orderCode, updates) {
@@ -59,8 +85,58 @@ export async function updateOrder(orderCode, updates) {
     const { Timestamp } = await import('firebase-admin/firestore');
     await db.collection('orders').doc(key).update({ ...updates, updatedAt: Timestamp.now() });
   } else {
-    const existing = mem.get(key) ?? {};
-    mem.set(key, { ...existing, ...updates });
-    console.log(`[storage:mem] updated order ${key}`, updates);
+    const all = loadFile();
+    all[key] = { ...(all[key] ?? {}), ...updates, updatedAt: new Date().toISOString() };
+    saveFile(all);
+    console.log(`[storage:file] updated order ${key}`, updates);
   }
+}
+
+/**
+ * Find any activated order belonging to an email.
+ * Checks both `email` (set at checkout) and `userEmail` (set at activation).
+ */
+export async function getActivatedOrderByEmail(email) {
+  const entry = await findOrderEntryByEmail(email);
+  return entry ? entry.order : null;
+}
+
+/**
+ * Like getActivatedOrderByEmail but also returns the orderCode key.
+ * Returns { orderCode, order } or null.
+ */
+export async function findOrderEntryByEmail(email) {
+  if (!email) return null;
+  const normalised = email.toLowerCase().trim();
+  const db = await getDb();
+
+  if (db) {
+    // Try userEmail first
+    let snap = await db.collection('orders')
+      .where('userEmail', '==', normalised)
+      .where('status', '==', 'paid')
+      .limit(1)
+      .get();
+    if (!snap.empty) return { orderCode: snap.docs[0].id, order: snap.docs[0].data() };
+
+    // Fallback: checkout email
+    snap = await db.collection('orders')
+      .where('email', '==', normalised)
+      .where('status', '==', 'paid')
+      .limit(1)
+      .get();
+    if (!snap.empty) return { orderCode: snap.docs[0].id, order: snap.docs[0].data() };
+    return null;
+  }
+
+  // JSON file scan — match userEmail OR checkout email
+  const all = loadFile();
+  for (const [orderCode, order] of Object.entries(all)) {
+    const matchUser = order.userEmail?.toLowerCase() === normalised;
+    const matchCheckout = order.email?.toLowerCase() === normalised;
+    if ((matchUser || matchCheckout) && order.status === 'paid') {
+      return { orderCode, order };
+    }
+  }
+  return null;
 }

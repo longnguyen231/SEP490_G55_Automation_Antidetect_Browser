@@ -27,3 +27,10 @@ export function getLicenseRequestUrl(tier) {
 export function getPricingUrl() {
   return `${WEB_ADMIN_URL}/#pricing`;
 }
+
+/**
+ * Returns the checkout URL for upgrading to Pro.
+ */
+export function getCheckoutUrl() {
+  return `${WEB_ADMIN_URL}/checkout?tier=pro`;
+}

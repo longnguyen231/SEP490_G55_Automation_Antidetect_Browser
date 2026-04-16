@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n/index';
 import BrowserRuntimes from './BrowserRuntimes';
+import { getCheckoutUrl } from '../config/app.config';
 
 export default function SettingsTab({
     apiStatus,
@@ -118,21 +119,18 @@ export default function SettingsTab({
                     )}
                     <div className="mt-3">
                         <label className="block text-[0.7rem] text-[var(--muted)] mb-1">Machine Code</label>
-                        <div className="flex items-center gap-2 mb-1.5">
+                        <div className="flex items-center gap-2 mb-2">
                             <code className="bg-[var(--glass-strong)] border border-[var(--border2)] text-[var(--fg)] text-[0.7rem] px-2 py-1 rounded-md font-mono tracking-wider">{machineCode}</code>
                             <button onClick={() => navigator.clipboard.writeText(machineCode)} className="text-[0.7rem] text-[var(--primary)] hover:text-[var(--primary-hover)] font-medium px-1">Copy</button>
                         </div>
-                        <button
-                            onClick={() => {
-                                const subject = encodeURIComponent('[Vanguard] Yêu cầu License Key');
-                                const body = encodeURIComponent(`Xin chào Admin,\n\nMachine Code của tôi: ${machineCode}\n\nVui lòng cấp license key cho máy này.\n\nCảm ơn!`);
-                                const gmailUrl = `https://mail.google.com/mail/?view=cm&to=xuankien090103%40gmail.com&su=${subject}&body=${body}`;
-                                window.electronAPI.openExternal(gmailUrl);
-                            }}
-                            className="text-[0.7rem] text-[var(--primary)] hover:underline mt-1"
-                        >
-                            📧 Gửi yêu cầu key qua email →
-                        </button>
+                        {!licenseStatus && (
+                            <button
+                                onClick={() => window.electronAPI.openExternal(getCheckoutUrl())}
+                                className="w-full mt-1 flex items-center justify-center gap-2 bg-gradient-to-r from-[var(--primary)] to-purple-500 hover:brightness-110 text-white font-semibold text-[0.78rem] py-2 px-4 rounded-md transition"
+                            >
+                                ⚡ Upgrade to Pro →
+                            </button>
+                        )}
                     </div>
                 </div>
 

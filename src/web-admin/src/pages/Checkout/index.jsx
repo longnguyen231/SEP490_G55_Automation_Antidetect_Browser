@@ -31,6 +31,12 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Sync email if auth state loads after component mounts (e.g. after redirect from login)
+  useEffect(() => {
+    if (user?.email && !email) setEmail(user.email);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email]);
+
   const tierInfo = TIER_INFO[tier];
 
   useEffect(() => {

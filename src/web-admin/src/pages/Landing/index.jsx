@@ -219,7 +219,7 @@ function StatItem({ value, label, index }) {
   );
 }
 
-function PricingCard({ tier, index, isAuthenticated, navigate, scrollTo }) {
+function PricingCard({ tier, index, isAuthenticated, isPro, navigate, scrollTo }) {
   const [ref, visible] = useInView(0.1);
 
   const handleCta = (e) => {
@@ -280,17 +280,30 @@ function PricingCard({ tier, index, isAuthenticated, navigate, scrollTo }) {
       </ul>
 
       {/* CTA button */}
-      <a
-        href={tier.ctaHref}
-        onClick={handleCta}
-        className={`flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-bold text-sm transition-all duration-200 cursor-pointer
-          ${ tier.ctaStyle === 'primary'
-            ? 'bg-primary text-background-dark hover:bg-primary/90 shadow-xl shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5'
-            : 'border border-slate-600 text-slate-300 hover:border-primary/50 hover:text-primary'
-          }`}
-      >
-        {tier.ctaLabel}
-      </a>
+      {isPro && tier.highlight ? (
+        // Đã là Pro — hiện badge đã kích hoạt
+        <div className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-bold text-sm bg-emerald-500/15 border border-emerald-500/40 text-emerald-400">
+          <span className="material-symbols-outlined text-base">verified</span>
+          Your Current Plan
+        </div>
+      ) : isPro && !tier.highlight ? (
+        // Đã là Pro — ẩn nút free
+        <div className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm text-slate-600 border border-slate-700/40">
+          Downgrade not available
+        </div>
+      ) : (
+        <a
+          href={tier.ctaHref}
+          onClick={handleCta}
+          className={`flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-bold text-sm transition-all duration-200 cursor-pointer
+            ${ tier.ctaStyle === 'primary'
+              ? 'bg-primary text-background-dark hover:bg-primary/90 shadow-xl shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5'
+              : 'border border-slate-600 text-slate-300 hover:border-primary/50 hover:text-primary'
+            }`}
+        >
+          {tier.ctaLabel}
+        </a>
+      )}
     </div>
   );
 }
@@ -322,7 +335,7 @@ function StepCard({ step, title, desc, icon, index }) {
 // ─── Main Component ────────────────────────────────────────────────────────────
 const LandingPage = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, user, logout } = useAuthStore();
+  const { isAuthenticated, user, logout, isPro } = useAuthStore();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -401,11 +414,24 @@ const LandingPage = () => {
                                   admin
                                 </span>
                               )}
+                              {isPro && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white">
+                                  ⚡ PRO
+                                </span>
+                              )}
                             </div>
                           </div>
                         ),
                       },
                       { type: 'divider' },
+                      ...(isPro ? [{
+                        key: 'my-license',
+                        label: (
+                          <Link to="/my-license" className="flex items-center gap-2 text-amber-400">
+                            🔑 Get My License Key
+                          </Link>
+                        ),
+                      }] : []),
                       ...(user?.role === 'admin' ? [{
                         key: 'dashboard',
                         label: (
@@ -441,6 +467,11 @@ const LandingPage = () => {
                     <span className="text-sm font-medium text-slate-300 group-hover:text-white transition-colors max-w-[90px] truncate">
                       {user?.name}
                     </span>
+                    {isPro && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white leading-none">
+                        PRO
+                      </span>
+                    )}
                     <ChevronDown size={12} className="text-slate-500 group-hover:text-slate-300 transition-colors" />
                   </button>
                 </Dropdown>
@@ -756,6 +787,7 @@ const LandingPage = () => {
                 tier={tier}
                 index={i}
                 isAuthenticated={isAuthenticated}
+                isPro={isPro}
                 navigate={navigate}
                 scrollTo={scrollTo}
               />

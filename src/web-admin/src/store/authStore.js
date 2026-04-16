@@ -26,6 +26,8 @@ export const useAuthStore = create(
       isAuthenticated: false,
       /** true while Firebase is still restoring session on page load */
       loading: true,
+      /** true khi tài khoản đã mua gói Pro */
+      isPro: false,
 
       // ── Bootstrap: called once in main.jsx to sync Firebase state ───────────
       initAuth: () => {
@@ -35,25 +37,43 @@ export const useAuthStore = create(
             import('../services/firebase').then(({ normaliseUser }) => {
               const user = normaliseUser(firebaseUser);
               set({ user, isAuthenticated: true, loading: false });
+              // Kiểm tra trạng thái Pro ngay sau khi đăng nhập
+              get().checkProStatus(user.email);
             });
           } else {
-            set({ user: null, isAuthenticated: false, loading: false });
+            set({ user: null, isAuthenticated: false, loading: false, isPro: false });
           }
         });
         return unsub; // caller can unsubscribe
+      },
+
+      // ── Kiểm tra user có gói Pro không bằng cách gọi API ──────────────────────
+      checkProStatus: async (email) => {
+        if (!email) return;
+        try {
+          const res = await fetch(`/api/user-status?email=${encodeURIComponent(email)}`);
+          if (res.ok) {
+            const data = await res.json();
+            set({ isPro: data.isPro === true });
+          }
+        } catch {
+          // Không ảnh hưởng đến luồng đăng nhập nếu API bị lỗi
+        }
       },
 
       // ── Google OAuth ─────────────────────────────────────────────────────────
       loginWithGoogle: async () => {
         const user = await signInWithGoogle();
         set({ user, isAuthenticated: true });
+        get().checkProStatus(user.email);
         return user;
       },
 
-      // ── Email + password login ────────────────────────────────────────────
+      // ── Email + password login ──────────────────────────────────
       login: async ({ email, password }) => {
         const user = await signInWithEmail(email, password);
         set({ user, isAuthenticated: true });
+        get().checkProStatus(user.email);
         return user;
       },
 
@@ -78,7 +98,7 @@ export const useAuthStore = create(
       // ── Logout ────────────────────────────────────────────────────────────────
       logout: async () => {
         await firebaseSignOut();
-        set({ user: null, isAuthenticated: false });
+        set({ user: null, isAuthenticated: false, isPro: false });
       },
 
       // ── Refresh current user (after email verified) ───────────────────────────
