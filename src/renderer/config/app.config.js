@@ -11,14 +11,10 @@
 export const WEB_ADMIN_URL = 'http://localhost:5174';
 
 /**
- * Returns the URL for the license request page on the web admin.
- * @param {string} [tier] - Optional tier to pre-select (free/pro)
+ * Returns the URL for the "Get My License Key" page on the web admin.
  */
-export function getLicenseRequestUrl(tier) {
-  if (tier) {
-    return `${WEB_ADMIN_URL}/license-request?tier=${tier}`;
-  }
-  return `${WEB_ADMIN_URL}/license-request`;
+export function getLicenseRequestUrl() {
+  return `${WEB_ADMIN_URL}/my-license`;
 }
 
 /**

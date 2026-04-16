@@ -424,14 +424,6 @@ const LandingPage = () => {
                         ),
                       },
                       { type: 'divider' },
-                      ...(isPro ? [{
-                        key: 'my-license',
-                        label: (
-                          <Link to="/my-license" className="flex items-center gap-2 text-amber-400">
-                            🔑 Get My License Key
-                          </Link>
-                        ),
-                      }] : []),
                       ...(user?.role === 'admin' ? [{
                         key: 'dashboard',
                         label: (

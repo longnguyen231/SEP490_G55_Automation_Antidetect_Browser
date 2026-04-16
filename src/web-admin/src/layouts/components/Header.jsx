@@ -82,14 +82,6 @@ const Header = () => {
       disabled: true,
     },
     { type: 'divider' },
-    ...(isPro ? [{
-      key: 'my-license',
-      label: (
-        <a href="/my-license" className="flex items-center gap-2 text-amber-400 font-medium">
-          🔑 Get My License Key
-        </a>
-      ),
-    }] : []),
     {
       key: 'logout',
       label: (
