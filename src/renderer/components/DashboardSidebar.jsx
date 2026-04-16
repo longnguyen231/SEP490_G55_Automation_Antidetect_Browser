@@ -2,16 +2,12 @@ import React, { useState } from 'react';
 import { Offcanvas } from 'react-bootstrap';
 import { Menu, X } from 'lucide-react';
 import { useI18n } from '../i18n/index';
-import { getLicenseRequestUrl } from '../config/app.config';
 
 export default function DashboardSidebar({
     activeNav,
     onNavigate,
     onCreateProfile,
     apiStatus = {},
-    licenseInfo = { tier: 'free', maxProfiles: 5, valid: false },
-    profileCount = 0,
-    onUpgrade,
 }) {
     const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -48,60 +44,6 @@ export default function DashboardSidebar({
                     </div>
                 ))}
             </nav>
-
-            {/* License Upgrade Banner - Show only for Free tier */}
-            {licenseInfo?.tier === 'free' && (
-                <div className="mx-2 mt-4 mb-2 p-4 rounded-xl bg-gradient-to-br from-[var(--primary)]/10 to-[var(--primary)]/5 border border-[var(--primary)]/20">
-                    <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-bold text-[var(--primary)] uppercase tracking-wider">FREE PLAN</p>
-                        <span className="text-xs font-semibold text-[var(--muted)]">
-                            {profileCount}/{licenseInfo.maxProfiles}
-                        </span>
-                    </div>
-                    <p className="text-xs text-[var(--muted)] mb-3 leading-relaxed">
-                        Upgrade to <strong className="text-[var(--fg)]">PRO</strong> for unlimited profiles, automation & API access
-                    </p>
-                    <button 
-                        onClick={async () => { 
-                            // Open web admin pricing page in browser
-                            const url = getLicenseRequestUrl('pro');
-                            if (window.electronAPI?.openExternal) {
-                                await window.electronAPI.openExternal(url);
-                            } else {
-                                window.open(url, '_blank');
-                            }
-                            closeMobile && closeMobile(); 
-                        }}
-                        className="w-full bg-[var(--primary)] hover:brightness-110 text-white text-sm font-semibold py-2 px-3 rounded-lg transition shadow-sm cursor-pointer"
-                    >
-                        🚀 Get Pro License
-                    </button>
-                    <button 
-                        onClick={() => { 
-                            onUpgrade?.(); 
-                            closeMobile && closeMobile(); 
-                        }}
-                        className="w-full bg-transparent hover:bg-[var(--glass)] text-[var(--primary)] text-xs font-medium py-2 px-3 rounded-lg transition mt-2 border border-[var(--primary)]/30 cursor-pointer"
-                    >
-                        📋 I have a license key
-                    </button>
-                </div>
-            )}
-
-            {/* Pro tier badge - Show checkmark for activated users */}
-            {licenseInfo?.tier === 'pro' && licenseInfo?.valid && (
-                <div className="mx-2 mt-4 mb-2 p-3 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20">
-                    <div className="flex items-center gap-2">
-                        <span className="text-lg">✅</span>
-                        <div className="flex-1">
-                            <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">PRO LICENSE</p>
-                            <p className="text-xs text-[var(--muted)] mt-0.5">
-                                {licenseInfo.maxProfiles === -1 ? '∞ Unlimited' : licenseInfo.maxProfiles} profiles
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            )}
         </>
     );
 

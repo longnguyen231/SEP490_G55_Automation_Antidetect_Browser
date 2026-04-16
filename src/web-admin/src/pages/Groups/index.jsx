@@ -61,7 +61,7 @@ const Groups = () => {
           <GroupCard key={group.id} group={group} />
         ))}
         
-        <button className="flex flex-col items-center justify-center gap-4 bg-transparent border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-8 hover:border-primary/50 hover:bg-primary/5 transition-all group min-h-[250px] cursor-pointer">
+        <button className="flex flex-col items-center justify-center gap-4 bg-transparent border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-8 hover:border-primary/50 hover:bg-primary/5 transition-all group min-h-[250px]">
           <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
             <PlusCircle size={24} />
           </div>

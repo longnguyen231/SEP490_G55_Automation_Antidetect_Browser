@@ -6,7 +6,7 @@ const GroupCard = ({ group }) => {
   const isRunning = group.status === 'Running';
   
   return (
-    <div className="group bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden hover:border-primary/50 transition-all flex flex-col h-full cursor-pointer">
+    <div className="group bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden hover:border-primary/50 transition-all flex flex-col h-full">
       <div className="h-32 relative shrink-0">
         <div className={`absolute inset-0 bg-gradient-to-br ${group.gradient}`}></div>
         <div className={`absolute top-4 right-4 text-[10px] font-bold px-2 py-1 rounded-full border uppercase ${

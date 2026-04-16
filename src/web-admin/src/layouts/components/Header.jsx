@@ -108,7 +108,7 @@ const Header = () => {
           <span className="text-xs font-bold uppercase tracking-wider text-primary leading-none">System Online</span>
         </div>
 
-        <button className="text-slate-500 hover:text-primary transition-colors flex items-center justify-center mt-1 cursor-pointer">
+        <button className="text-slate-500 hover:text-primary transition-colors flex items-center justify-center mt-1">
           <Badge dot color="#f43f5e" offset={[-2, 4]}>
             <Bell size={22} className="text-slate-500 hover:text-primary transition-colors" />
           </Badge>
@@ -117,7 +117,7 @@ const Header = () => {
         <div className="flex items-center gap-3 pl-6 border-l border-primary/10">
           <ConfigProvider theme={{ token: { colorBgElevated: '#1e293b', colorText: '#e2e8f0', colorTextSecondary: '#94a3b8', colorSplit: 'rgba(148,163,184,0.12)', borderRadius: 10 } }}>
             <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
-              <button className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
+              <button className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                 <div className="text-right hidden sm:block">
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-200 truncate max-w-[120px]">
                     {user?.name || 'Admin'}

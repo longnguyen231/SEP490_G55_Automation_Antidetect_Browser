@@ -14,10 +14,7 @@ import LandingPage from './pages/Landing';
 import LoginPage from './pages/Auth/Login';
 import RegisterPage from './pages/Auth/Register';
 import ForgotPasswordPage from './pages/Auth/ForgotPassword';
-import ManageLicenses from './pages/LicenseRequests/Manage';
-import PublicRequest from './pages/LicenseRequests/PublicRequest';
-import MyLicense from './pages/MyLicense';
-import { AdminRoute, GuestRoute, UserRoute } from './components/ProtectedRoute';
+import { AdminRoute, GuestRoute } from './components/ProtectedRoute';
 
 function App() {
   return (
@@ -28,10 +25,10 @@ function App() {
           toastOptions={{ className: 'dark:bg-slate-800 dark:text-white border border-primary/20' }}
         />
         <Routes>
-          {/* ── Public ───────────────────────────────────────────────── */}
+          {/* ── Public ───────────────────────────────────────────────────── */}
           <Route path="/" element={<LandingPage />} />
 
-          {/* ── Auth (guest-only, redirect if already logged in) ─────────────── */}
+          {/* ── Auth (guest-only, redirect if already logged in) ─────────── */}
           <Route
             path="/login"
             element={
@@ -57,24 +54,6 @@ function App() {
             }
           />
 
-          {/* ── User pages (requires any authenticated user) ─────────────── */}
-          <Route
-            path="/license-request"
-            element={
-              <UserRoute>
-                <PublicRequest />
-              </UserRoute>
-            }
-          />
-          <Route
-            path="/my-license"
-            element={
-              <UserRoute>
-                <MyLicense />
-              </UserRoute>
-            }
-          />
-
           {/* ── Admin dashboard (requires role === 'admin') ──────────────── */}
           <Route
             path="/dashboard"
@@ -91,10 +70,9 @@ function App() {
             <Route path="groups" element={<Groups />} />
             <Route path="team" element={<Team />} />
             <Route path="settings" element={<Settings />} />
-            <Route path="licenses" element={<ManageLicenses />} />
           </Route>
 
-          {/* ── Fallback: redirect unknown paths → landing page ────────────── */}
+          {/* ── Fallback: mọi path không khớp → landing page ────────── */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

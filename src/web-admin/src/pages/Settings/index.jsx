@@ -10,7 +10,7 @@ const Settings = () => {
     <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: '#00bcd4', borderRadius: 8, controlHeight: 40 } }}>
       <Button 
         type="primary" 
-        onClick={() => toast.success('Settings saved successfully!')}
+        onClick={() => toast.success('Cài đặt đã được lưu thành công!')}
         className="flex items-center justify-center gap-2 font-semibold shadow-lg shadow-primary/20"
       >
         Save Changes

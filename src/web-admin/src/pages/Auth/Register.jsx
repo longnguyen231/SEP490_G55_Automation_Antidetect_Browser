@@ -40,16 +40,16 @@ function getStrength(pw) {
 function parseFirebaseError(err) {
   const code = err?.code || '';
   const map = {
-    'auth/email-already-in-use':   'This email is already registered.',
-    'auth/invalid-email':          'Invalid email.',
-    'auth/weak-password':          'Password too weak (minimum 6 characters).',
-    'auth/popup-closed-by-user':   'Sign-in popup closed.',
-    'auth/popup-blocked':          'Browser blocked popup. Please allow popups.',
-    'auth/network-request-failed': 'Network connection error.',
+    'auth/email-already-in-use':   'Email này đã được đăng ký.',
+    'auth/invalid-email':          'Email không hợp lệ.',
+    'auth/weak-password':          'Mật khẩu quá yếu (tối thiểu 6 ký tự).',
+    'auth/popup-closed-by-user':   'Đã đóng cửa sổ đăng nhập.',
+    'auth/popup-blocked':          'Trình duyệt đã chặn popup. Vui lòng cho phép popup.',
+    'auth/network-request-failed': 'Lỗi kết nối mạng.',
     'auth/configuration-not-found':
-      'Firebase not configured. Fill firebaseConfig in src/config/firebase.config.js',
+      'Firebase chưa được cấu hình. Điền firebaseConfig trong src/config/firebase.config.js',
   };
-  return map[code] || err?.message || 'An error occurred.';
+  return map[code] || err?.message || 'Đã có lỗi xảy ra.';
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -76,15 +76,15 @@ const RegisterPage = () => {
   // ── Email register ──────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!agree)              { toast.error('Please agree to the terms of use.'); return; }
-    if (password !== confirm){ toast.error('Passwords do not match.'); return; }
-    if (password.length < 6) { toast.error('Password must be at least 6 characters.'); return; }
+    if (!agree)              { toast.error('Vui lòng đồng ý với điều khoản sử dụng.'); return; }
+    if (password !== confirm){ toast.error('Mật khẩu xác nhận không khớp.'); return; }
+    if (password.length < 6) { toast.error('Mật khẩu tối thiểu 6 ký tự.'); return; }
     setLoading(true);
     try {
       await authRegister({ name: name.trim(), email: email.trim(), password });
       setRegisteredEmail(email.trim());
       setShowVerifyBanner(true);
-      toast.success('Account created! Check your email to verify.', { duration: 5000 });
+      toast.success('Tài khoản đã được tạo! Kiểm tra email để xác minh.', { duration: 5000 });
     } catch (err) {
       toast.error(parseFirebaseError(err));
     } finally {
@@ -97,7 +97,7 @@ const RegisterPage = () => {
     setOauthLoading(true);
     try {
       const user = await loginWithGoogle();
-      toast.success(`Registered successfully with Google: ${user.name}`);
+      toast.success(`Đăng ký thành công bằng Google: ${user.name}`);
       navigate('/', { replace: true });
     } catch (err) {
       if (err?.code !== 'auth/popup-closed-by-user') {
@@ -123,18 +123,18 @@ const RegisterPage = () => {
               <span className="material-symbols-outlined text-primary text-5xl">mark_email_unread</span>
             </div>
 
-            <h2 className="text-2xl font-extrabold text-white mb-2">Verify your email</h2>
+            <h2 className="text-2xl font-extrabold text-white mb-2">Xác minh email của bạn</h2>
             <p className="text-slate-400 text-sm mb-1">
-              We sent a verification email to:
+              Chúng tôi đã gửi email xác minh đến:
             </p>
             <p className="text-primary font-semibold text-sm mb-6 break-all">{registeredEmail}</p>
 
             <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 text-left mb-6 space-y-2">
               {[
-                'Open your inbox',
-                'Find email from Firebase / Vanguard',
-                'Click the "Verify email" link',
-                'Return here and sign in',
+                'Mở hộp thư của bạn',
+                'Tìm email từ Firebase / Vanguard',
+                'Nhấn vào link "Verify email"',
+                'Quay lại và đăng nhập',
               ].map((step, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -151,16 +151,16 @@ const RegisterPage = () => {
                   try {
                     const { resendVerificationEmail } = await import('../../services/firebase');
                     await resendVerificationEmail();
-                    toast.success('Verification email resent!');
+                    toast.success('Đã gửi lại email xác minh!');
                   } catch {
-                    toast.error('Cannot resend. Try logging in first.');
+                    toast.error('Không thể gửi lại. Thử đăng nhập trước.');
                   }
                 }}
                 className="w-full py-2.5 rounded-xl border border-slate-700/60 text-slate-300 text-sm font-medium
-                  hover:border-primary/50 hover:text-primary transition-all duration-200 cursor-pointer"
+                  hover:border-primary/50 hover:text-primary transition-all duration-200"
               >
                 <span className="material-symbols-outlined text-base align-middle mr-1.5">refresh</span>
-                Resend email
+                Gửi lại email
               </button>
 
               <Link
@@ -170,7 +170,7 @@ const RegisterPage = () => {
                   hover:bg-primary/90 transition-colors"
               >
                 <span className="material-symbols-outlined text-lg">login</span>
-                Go to sign in
+                Đến trang đăng nhập
               </Link>
             </div>
 
@@ -276,7 +276,7 @@ const RegisterPage = () => {
                     disabled:opacity-50 transition-colors"
                 />
                 <button type="button" onClick={() => setShowPw(v => !v)} tabIndex={-1}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors">
                   <span className="material-symbols-outlined text-lg">{showPw ? 'visibility_off' : 'visibility'}</span>
                 </button>
               </div>
@@ -351,14 +351,14 @@ const RegisterPage = () => {
 
           <p className="text-center text-sm text-slate-500 mt-6">
             Đã có tài khoản?{' '}
-            <Link to="/login" className="text-primary font-semibold hover:text-primary/80 transition-colors cursor-pointer">
+            <Link to="/login" className="text-primary font-semibold hover:text-primary/80 transition-colors">
               Đăng nhập
             </Link>
           </p>
         </div>
 
         <div className="text-center mt-5">
-          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-primary transition-colors cursor-pointer">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-primary transition-colors">
             <span className="material-symbols-outlined text-base">arrow_back</span>
             Về trang chủ
           </Link>

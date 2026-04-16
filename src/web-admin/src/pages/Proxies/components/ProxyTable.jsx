@@ -85,7 +85,7 @@ const columns = [
               percent={isDead ? 100 : percent} 
               showInfo={false} 
               strokeColor={isDead ? '#94a3b8' : strokeColor}
-              railColor="rgba(30, 41, 59, 0.5)"
+              trailColor="rgba(30, 41, 59, 0.5)"
               size="small"
             />
           </div>

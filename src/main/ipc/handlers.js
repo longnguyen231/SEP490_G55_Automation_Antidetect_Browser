@@ -1,4 +1,4 @@
-const { ipcMain, shell, clipboard } = require('electron');
+const { ipcMain, shell } = require('electron');
 const { appendLog } = require('../logging/logger');
 const {
   launchProfileInternal,
@@ -38,12 +38,6 @@ const {
 } = require('../storage/proxies');
 const { checkProxy, checkProxiesBatch } = require('../services/ProxyChecker');
 const { getMachineCode, validateLicenseKey } = require('../services/machineId');
-const { 
-  verifyJwtLicense, 
-  loadLicenseFromDisk, 
-  saveLicenseToDisk, 
-  deactivateLicense 
-} = require('../services/licenseValidator');
 const { checkBrowserStatus, installBrowser, uninstallBrowser, reinstallBrowser } = require('../services/browserManagerService');
 
 function registerIpcHandlers(extra = {}) {
@@ -53,56 +47,9 @@ function registerIpcHandlers(extra = {}) {
     ipcMain.handle(channel, fn);
   };
 
-  // Machine Code & License (Old system - kept for backward compatibility)
+  // Machine Code & License
   handle('get-machine-code', () => getMachineCode());
   handle('validate-license', (_e, key) => validateLicenseKey(key));
-
-  // JWT License System (New)
-  handle('validate-jwt-license', async (_e, jwtString) => {
-    try {
-      const result = verifyJwtLicense(jwtString);
-      if (result.valid) {
-        // Save valid license to disk
-        saveLicenseToDisk(jwtString, result.payload);
-        appendLog('system', `JWT license activated: tier=${result.payload.tier}`);
-      } else {
-        appendLog('system', `JWT license validation failed: ${result.error}`);
-      }
-      return result;
-    } catch (error) {
-      appendLog('system', `JWT validation error: ${error.message}`);
-      return { valid: false, error: error.message };
-    }
-  });
-
-  handle('get-license-info', async () => {
-    try {
-      const info = loadLicenseFromDisk();
-      return info;
-    } catch (error) {
-      appendLog('system', `Failed to load license info: ${error.message}`);
-      return {
-        valid: false,
-        tier: 'free',
-        maxProfiles: 5,
-        features: [],
-        error: error.message
-      };
-    }
-  });
-
-  handle('deactivate-license', async () => {
-    try {
-      const success = deactivateLicense();
-      if (success) {
-        appendLog('system', 'License deactivated by user');
-      }
-      return { success };
-    } catch (error) {
-      appendLog('system', `License deactivation failed: ${error.message}`);
-      return { success: false, error: error.message };
-    }
-  });
 
   // Browser Runtime Manager
   handle('browser-runtime-status', async (_e, name) => checkBrowserStatus(name));
@@ -440,16 +387,6 @@ function registerIpcHandlers(extra = {}) {
   handle('open-external', async (_e, url) => {
     try { await shell.openExternal(String(url)); return { success: true }; }
     catch (e) { return { success: false, error: e?.message || String(e) }; }
-  });
-
-  // Clipboard write via main process (works even when renderer document is not focused)
-  handle('write-clipboard-text', async (_e, text) => {
-    try {
-      clipboard.writeText(String(text || ''));
-      return { success: true };
-    } catch (e) {
-      return { success: false, error: e?.message || String(e) };
-    }
   });
 
   // REST API server control handlers if restServer provided
