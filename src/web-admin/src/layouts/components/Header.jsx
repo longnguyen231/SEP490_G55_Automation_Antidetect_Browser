@@ -30,7 +30,7 @@ const PROVIDER_LABELS = {
 
 const Header = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user, logout, isPro } = useAuthStore();
 
   const handleLogout = () => {
     logout();
@@ -70,6 +70,12 @@ const Header = () => {
             <span className="inline-block text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary font-bold uppercase tracking-wider">
               {user?.role}
             </span>
+            {/* PRO badge */}
+            {isPro && (
+              <span className="inline-block text-[10px] px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold uppercase tracking-wider">
+                ⚡ PRO
+              </span>
+            )}
           </div>
         </div>
       ),
@@ -122,11 +128,17 @@ const Header = () => {
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-200 truncate max-w-[120px]">
                     {user?.name || 'Admin'}
                   </p>
-                  {/* Provider sub-label */}
-                  <div className="flex items-center justify-end gap-1">
-                    {providerIcon && <span className="opacity-70">{providerIcon}</span>}
-                    <p className="text-xs text-slate-500">{providerLabel}</p>
-                  </div>
+                  {/* PRO badge hoặc Provider sub-label */}
+                  {isPro ? (
+                    <span className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold uppercase tracking-widest leading-none">
+                      ⚡ PRO
+                    </span>
+                  ) : (
+                    <div className="flex items-center justify-end gap-1">
+                      {providerIcon && <span className="opacity-70">{providerIcon}</span>}
+                      <p className="text-xs text-slate-500">{providerLabel}</p>
+                    </div>
+                  )}
                 </div>
                 <Avatar
                   size={40}

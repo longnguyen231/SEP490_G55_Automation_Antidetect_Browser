@@ -61,7 +61,9 @@ const LoginPage = () => {
     }
   }, [location.search]);
 
-  const from = location.state?.from?.pathname || null;
+  const from = location.state?.from
+    ? location.state.from.pathname + (location.state.from.search || '')
+    : null;
 
   const handleRedirect = (user) => {
     if (from && from !== '/login' && from !== '/register') {

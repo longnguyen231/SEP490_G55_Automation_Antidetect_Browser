@@ -23,6 +23,24 @@ export const AdminRoute = ({ children }) => {
 };
 
 /**
+ * UserRoute — requires any authenticated user (admin or regular).
+ * Unauthenticated → redirect to /login (with returnTo so user comes back after login).
+ */
+export const UserRoute = ({ children }) => {
+  const { isAuthenticated, loading } = useAuthStore();
+  const location = useLocation();
+
+  // Still restoring session — don't redirect yet
+  if (loading) return null;
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return children;
+};
+
+/**
  * GuestRoute — redirect away if already logged in.
  * Admin → /dashboard, regular user → / (landing).
  * Used for /login and /register so authenticated users don't see them again.
