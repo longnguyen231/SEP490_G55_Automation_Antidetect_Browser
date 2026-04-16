@@ -15,6 +15,8 @@ import LoginPage from './pages/Auth/Login';
 import RegisterPage from './pages/Auth/Register';
 import ForgotPasswordPage from './pages/Auth/ForgotPassword';
 import { AdminRoute, GuestRoute } from './components/ProtectedRoute';
+import CheckoutPage from './pages/Checkout';
+import CheckoutSuccessPage from './pages/Checkout/Success';
 
 function App() {
   return (
@@ -27,6 +29,8 @@ function App() {
         <Routes>
           {/* ── Public ───────────────────────────────────────────────────── */}
           <Route path="/" element={<LandingPage />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
 
           {/* ── Auth (guest-only, redirect if already logged in) ─────────── */}
           <Route
