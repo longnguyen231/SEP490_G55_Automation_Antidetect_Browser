@@ -128,7 +128,56 @@ const HOW_IT_WORKS = [
 const NAV_LINKS = [
   { href: '#features', label: 'Features' },
   { href: '#how-it-works', label: 'How It Works' },
+  { href: '#pricing', label: 'Pricing' },
   { href: '#download', label: 'Download' },
+];
+
+const PRICING_TIERS = [
+  {
+    id: 'free',
+    name: 'Free',
+    icon: '🆓',
+    price: '$0',
+    period: 'forever',
+    description: 'Perfect for individuals getting started with antidetect browsing.',
+    highlight: false,
+    ctaLabel: 'Download Free',
+    ctaHref: '#download',
+    ctaStyle: 'outline',
+    features: [
+      { text: '5 browser profiles', included: true },
+      { text: 'Basic fingerprint spoofing', included: true },
+      { text: 'Proxy per profile', included: true },
+      { text: 'Manual browser launch', included: true },
+      { text: 'Community support', included: true },
+      { text: 'Automation & Scripts', included: false },
+      { text: 'REST API access', included: false },
+      { text: 'Priority support', included: false },
+    ],
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    icon: '👑',
+    price: 'Contact',
+    period: 'admin for pricing',
+    description: 'For power users and teams who need unlimited profiles and automation.',
+    highlight: true,
+    badge: '⭐ Most Popular',
+    ctaLabel: 'Request Pro License',
+    ctaHref: '/login?next=/license-request?tier=pro',
+    ctaStyle: 'primary',
+    features: [
+      { text: 'Unlimited browser profiles', included: true },
+      { text: 'Advanced fingerprint spoofing', included: true },
+      { text: 'Proxy per profile', included: true },
+      { text: 'Manual & headless launch', included: true },
+      { text: 'Priority support', included: true },
+      { text: 'Automation & Scripts', included: true },
+      { text: 'REST API access', included: true },
+      { text: 'Team collaboration', included: true },
+    ],
+  },
 ];
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
@@ -166,6 +215,82 @@ function StatItem({ value, label, index }) {
     >
       <span className="text-4xl font-extrabold text-primary tracking-tight">{value}</span>
       <span className="text-sm text-slate-400 text-center">{label}</span>
+    </div>
+  );
+}
+
+function PricingCard({ tier, index, isAuthenticated, navigate, scrollTo }) {
+  const [ref, visible] = useInView(0.1);
+
+  const handleCta = (e) => {
+    if (tier.ctaHref.startsWith('#')) {
+      scrollTo(e, tier.ctaHref);
+    } else {
+      e.preventDefault();
+      navigate(tier.ctaHref);
+    }
+  };
+
+  return (
+    <div
+      ref={ref}
+      className={`relative flex flex-col rounded-2xl border p-8 transition-all duration-700 ease-out
+        ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}
+        ${tier.highlight
+          ? 'border-primary/50 bg-gradient-to-b from-primary/10 to-slate-800/60 shadow-2xl shadow-primary/10 scale-[1.03]'
+          : 'border-slate-700/60 bg-slate-800/40'
+        }`}
+      style={{ transitionDelay: `${index * 120}ms` }}
+    >
+      {/* Popular badge */}
+      {tier.badge && (
+        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+          <span className="px-4 py-1 rounded-full bg-primary text-background-dark text-xs font-bold tracking-wide shadow-lg">
+            {tier.badge}
+          </span>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="mb-6">
+        <div className="mb-3">
+          <h3 className="text-xl font-extrabold text-white">{tier.name}</h3>
+        </div>
+        <div className="flex items-baseline gap-1.5 mb-3">
+          <span className="text-4xl font-black text-white">{tier.price}</span>
+          <span className="text-slate-400 text-sm">/ {tier.period}</span>
+        </div>
+        <p className="text-sm text-slate-400 leading-relaxed">{tier.description}</p>
+      </div>
+
+      {/* Features list */}
+      <ul className="flex flex-col gap-3 mb-8 flex-1">
+        {tier.features.map((f) => (
+          <li key={f.text} className="flex items-center gap-2.5">
+            {f.included ? (
+              <span className="material-symbols-outlined text-primary text-base flex-shrink-0">check_circle</span>
+            ) : (
+              <span className="material-symbols-outlined text-slate-600 text-base flex-shrink-0">cancel</span>
+            )}
+            <span className={`text-sm ${f.included ? 'text-slate-200' : 'text-slate-500 line-through'}`}>
+              {f.text}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      {/* CTA button */}
+      <a
+        href={tier.ctaHref}
+        onClick={handleCta}
+        className={`flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-bold text-sm transition-all duration-200 cursor-pointer
+          ${ tier.ctaStyle === 'primary'
+            ? 'bg-primary text-background-dark hover:bg-primary/90 shadow-xl shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5'
+            : 'border border-slate-600 text-slate-300 hover:border-primary/50 hover:text-primary'
+          }`}
+      >
+        {tier.ctaLabel}
+      </a>
     </div>
   );
 }
@@ -611,7 +736,38 @@ const LandingPage = () => {
           </div>
         </div>
       </section>
+      {/* ── Pricing ────────────────────────────────────────────────────────────── */}
+      <section id="pricing" className="py-24 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16">
+            <p className="text-xs text-primary font-bold uppercase tracking-widest mb-3">Simple pricing</p>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+              Choose the plan that fits your needs
+            </h2>
+            <p className="mt-4 text-slate-400 max-w-xl mx-auto text-sm leading-relaxed">
+              Start free with 5 profiles. Upgrade to Pro for unlimited profiles, automation, and API access.
+            </p>
+          </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto">
+            {PRICING_TIERS.map((tier, i) => (
+              <PricingCard
+                key={tier.id}
+                tier={tier}
+                index={i}
+                isAuthenticated={isAuthenticated}
+                navigate={navigate}
+                scrollTo={scrollTo}
+              />
+            ))}
+          </div>
+
+          {/* Bottom note */}
+          <p className="text-center text-xs text-slate-500 mt-10">
+            All plans include core antidetect features. Pro license is issued manually by admin after review.
+          </p>
+        </div>
+      </section>
       {/* ── Download ───────────────────────────────────────────────────────── */}
       <section id="download" className="py-24 px-6">
         <div className="max-w-3xl mx-auto">

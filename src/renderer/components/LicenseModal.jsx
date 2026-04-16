@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getLicenseRequestUrl, WEB_ADMIN_URL } from '../config/app.config';
 
 const LICENSE_KEY = 'hl-license-activated';
 
@@ -24,21 +25,25 @@ export default function LicenseModal({ onClose, onActivated }) {
     const handleActivate = async () => {
         const key = licenseKey.trim();
         if (!key) {
-            setError('Vui lòng nhập license key.');
+            setError('Please enter your license key.');
             return;
         }
         setLoading(true);
         setError('');
         try {
-            const result = await window.electronAPI.validateLicense(key);
+            const result = await window.electronAPI.validateJwtLicense(key);
             if (result?.valid) {
-                localStorage.setItem(LICENSE_KEY, key);
-                onActivated?.();
+                localStorage.setItem(LICENSE_KEY, 'true');
+                localStorage.setItem('hl-license-tier', result.payload?.tier || 'free');
+                if (result.payload?.expiresAt) {
+                    localStorage.setItem('hl-license-expiry', result.payload.expiresAt);
+                }
+                onActivated?.(result.payload);
             } else {
-                setError('License key không hợp lệ với máy này.');
+                setError(result?.error || 'Invalid license key.');
             }
         } catch {
-            setError('Đã xảy ra lỗi. Thử lại sau.');
+            setError('An error occurred. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -64,7 +69,7 @@ export default function LicenseModal({ onClose, onActivated }) {
                     Activate License
                 </h2>
                 <p className="text-[0.95rem] text-[var(--muted)] mb-6 font-medium">
-                    Free plan: tối đa <strong className="font-semibold text-[var(--fg)]">5 profiles</strong>. Nhập license key để mở khóa toàn bộ.
+                    Free plan: max <strong className="font-semibold text-[var(--fg)]">5 profiles</strong>. Enter your JWT license key to unlock all features.
                 </p>
 
                 {/* Machine Code */}
@@ -90,7 +95,7 @@ export default function LicenseModal({ onClose, onActivated }) {
                         onClick={handleRequestKey}
                         className="mt-2 text-[0.8rem] text-[var(--primary)] hover:underline transition"
                     >
-                        📧 Gửi yêu cầu key qua email →
+                        📧 Request license key via email →
                     </button>
                 </div>
 
@@ -99,7 +104,7 @@ export default function LicenseModal({ onClose, onActivated }) {
                     <label className="block text-[0.8rem] font-semibold text-[var(--muted)] mb-1.5 mt-2">License Key</label>
                     <input
                         type="text"
-                        placeholder="HL-XXXX-XXXX-XXXX"
+                        placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                         value={licenseKey}
                         onChange={(e) => { setLicenseKey(e.target.value); setError(''); }}
                         onKeyDown={handleKeyDown}
@@ -133,9 +138,9 @@ export default function LicenseModal({ onClose, onActivated }) {
                 <div className="mt-7 text-center w-full">
                     <span className="text-[0.85rem] font-medium text-[var(--muted)]">
                         Get a license at{' '}
-                        <a href="https://browser.hl-mck.store" target="_blank" rel="noreferrer"
+                        <a href={getLicenseRequestUrl()} target="_blank" rel="noreferrer"
                            className="text-[var(--primary)] hover:underline opacity-90 hover:opacity-100 transition">
-                            browser.hl-mck.store
+                            {WEB_ADMIN_URL.replace('http://', '')}
                         </a>
                     </span>
                 </div>
