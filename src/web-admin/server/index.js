@@ -7,13 +7,19 @@ import verifyPayment from '../api/verify-payment.js';
 import activateLicense from '../api/activate-license.js';
 import userStatus from '../api/user-status.js';
 import myLicense from '../api/my-license.js';
+import adminConfig from '../api/admin/config.js';
+import adminStats from '../api/admin/stats.js';
+import { listOrders, markPaid } from '../api/admin/orders.js';
+import { listLicenses, resetMachine, revokeLicense } from '../api/admin/licenses.js';
+import adminUsers from '../api/admin/users.js';
+import { requireAdmin } from '../api/admin/middleware.js';
 
 const app = express();
 const PORT = 3001;
 
 app.use(express.json());
 
-// ── API routes ────────────────────────────────────────────────────────────────
+// ── Public API routes ─────────────────────────────────────────────────────────
 app.post('/api/create-payment', createPayment);
 app.get('/api/get-order', getOrder);
 app.post('/api/payos-webhook', payosWebhook);
@@ -21,6 +27,17 @@ app.get('/api/verify-payment', verifyPayment);
 app.post('/api/activate-license', activateLicense);
 app.get('/api/user-status', userStatus);
 app.post('/api/my-license', myLicense);
+
+// ── Admin API routes (bearer token required) ──────────────────────────────────
+app.get('/api/admin/stats', requireAdmin, adminStats);
+app.get('/api/admin/orders', requireAdmin, listOrders);
+app.post('/api/admin/orders/:code/mark-paid', requireAdmin, markPaid);
+app.get('/api/admin/licenses', requireAdmin, listLicenses);
+app.post('/api/admin/licenses/:email/reset', requireAdmin, resetMachine);
+app.post('/api/admin/licenses/:email/revoke', requireAdmin, revokeLicense);
+app.get('/api/admin/users', requireAdmin, adminUsers);
+app.get('/api/admin/config', requireAdmin, adminConfig);
+app.post('/api/admin/config', requireAdmin, adminConfig);
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 const server = app.listen(PORT, () => {

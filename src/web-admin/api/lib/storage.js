@@ -140,3 +140,18 @@ export async function findOrderEntryByEmail(email) {
   }
   return null;
 }
+
+/**
+ * Returns all orders as a flat array, each item augmented with _orderCode.
+ */
+export async function getAllOrders() {
+  const db = await getDb();
+
+  if (db) {
+    const snap = await db.collection('orders').get();
+    return snap.docs.map(d => ({ _orderCode: d.id, ...d.data() }));
+  }
+
+  const all = loadFile();
+  return Object.entries(all).map(([orderCode, order]) => ({ _orderCode: orderCode, ...order }));
+}

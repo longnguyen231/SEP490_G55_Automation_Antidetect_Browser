@@ -6,6 +6,7 @@
   "description": "Web Admin Dashboard for HL-MCK Antidetect Browser",
   "scripts": {
     "dev": "concurrently -k -n \"API,WEB\" -c \"cyan,green\" \"node server/index.js\" \"vite\"",
+    "dev:fresh": "npx kill-port 3001 5174 2>nul & concurrently -k -n \"API,WEB\" -c \"cyan,green\" \"node server/index.js\" \"vite\"",
     "dev:api": "node server/index.js",
     "dev:web": "vite",
     "build": "vite build",
