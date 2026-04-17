@@ -1,67 +1,65 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import StatCard from '../../components/StatCard';
-import ProfileTable from '../../components/ProfileTable';
-import CreateProfileModal from './components/CreateProfileModal';
 import PageHeader from '../../components/PageHeader';
-import { mockProfilesData } from '../../dataweb/mockProfiles';
-import { mockProxiesData } from '../../dataweb/mockProxies';
-import { Button, ConfigProvider, theme } from 'antd';
-import { PlusCircle } from 'lucide-react';
+import { useAdminApi } from '../../hooks/useAdminApi';
 import toast from 'react-hot-toast';
 
-const Dashboard = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+function formatVnd(amount) {
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
+}
 
-  // Tính toán dữ liệu động
-  const totalProfiles = mockProfilesData.length;
-  const runningCount = mockProfilesData.filter(p => p.status === 'Running').length;
-  const activeProxiesCount = mockProxiesData.filter(p => p.status === 'Live').length;
-  const expiringSoonCount = Math.floor(totalProfiles * 0.05); 
+export default function Dashboard() {
+  const { getStats } = useAdminApi();
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleProfileCreated = (data) => {
-    console.log('New Profile Data to update table:', data);
-    // Future API logic here
-  };
-
-  const headerExtra = (
-    <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: '#00bcd4', borderRadius: 8, controlHeight: 40 } }}>
-      <Button 
-        type="primary" 
-        onClick={() => setIsModalOpen(true)}
-        className="flex items-center justify-center gap-2 font-semibold shadow-lg shadow-primary/20"
-      >
-        <PlusCircle size={18} />
-        <span>Create New Profile</span>
-      </Button>
-    </ConfigProvider>
-  );
+  useEffect(() => {
+    getStats()
+      .then(setStats)
+      .catch(err => toast.error('Không tải được thống kê: ' + err.message))
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <>
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard title="Total Profiles" value={totalProfiles.toLocaleString()} change="+12%" icon="browser_updated" />
-        <StatCard title="Running" value={runningCount.toLocaleString()} change="+5%" icon="play_circle" />
-        <StatCard title="Proxies Active" value={activeProxiesCount.toLocaleString()} change="-2%" icon="hub" iconClass="text-amber-500" />
-        <StatCard title="Expiring Soon" value={expiringSoonCount.toLocaleString()} change="+1%" icon="timer" iconClass="text-rose-500" />
-      </section>
+      <PageHeader title="Tổng quan" description="Revenue & license activity" />
 
-      <section className="space-y-4">
-        <PageHeader 
-          title="Browser Profiles" 
-          description="Manage and launch your isolated browsing sessions"
-          extra={headerExtra}
-        />
-        
-        <ProfileTable />
-        
-        <CreateProfileModal 
-          isOpen={isModalOpen} 
-          onClose={() => setIsModalOpen(false)}
-          onSuccess={handleProfileCreated}
-        />
-      </section>
+      {loading ? (
+        <div className="text-slate-400 text-sm py-8 text-center">Đang tải...</div>
+      ) : stats ? (
+        <>
+          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <StatCard title="Tổng doanh thu" value={formatVnd(stats.totalRevenue)} icon="payments" iconClass="text-emerald-400" />
+            <StatCard title="License đã bán" value={stats.paidOrders} change={`CVR ${stats.conversionRate}%`} icon="verified" iconClass="text-primary" />
+            <StatCard title="Đã kích hoạt" value={stats.activatedLicenses} icon="key" iconClass="text-amber-400" />
+            <StatCard title="Đơn chờ" value={stats.pendingOrders} icon="pending" iconClass="text-rose-400" />
+          </section>
+
+          <section className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl p-6">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-5">Đơn hàng 7 ngày qua</h3>
+            <div className="flex items-end gap-3 h-28">
+              {stats.last7Days.map((day, i) => {
+                const maxCount = Math.max(...stats.last7Days.map(d => d.count), 1);
+                const heightPct = (day.count / maxCount) * 100;
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                    <span className="text-xs text-slate-400">{day.count > 0 ? day.count : ''}</span>
+                    <div className="w-full rounded-t bg-primary/70 transition-all" style={{ height: `${Math.max(heightPct, day.count > 0 ? 8 : 2)}%`, minHeight: '4px' }} />
+                    <span className="text-[10px] text-slate-400 whitespace-nowrap">{day.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 flex gap-6 text-sm text-slate-500">
+              <span>Tổng đơn: <strong className="text-slate-700 dark:text-slate-200">{stats.totalOrders}</strong></span>
+              <span>Paid: <strong className="text-emerald-500">{stats.paidOrders}</strong></span>
+              <span>Revoked: <strong className="text-rose-400">{stats.revokedOrders}</strong></span>
+            </div>
+          </section>
+        </>
+      ) : (
+        <div className="text-slate-400 text-sm py-8 text-center">Không có dữ liệu.</div>
+      )}
     </>
   );
-};
-
-export default Dashboard;
+}

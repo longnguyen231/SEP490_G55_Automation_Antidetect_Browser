@@ -4,12 +4,10 @@ import { Toaster } from 'react-hot-toast';
 import { ConfigProvider } from 'antd';
 import AdminLayout from './layouts/AdminLayout';
 import Dashboard from './pages/Dashboard';
-import Profiles from './pages/Profiles';
-import Proxies from './pages/Proxies';
-import Groups from './pages/Groups';
-import Team from './pages/Team';
-import Settings from './pages/Settings';
-import EditProfile from './pages/Profiles/EditProfile';
+import OrdersPage from './pages/Orders';
+import LicensesPage from './pages/Licenses';
+import UsersPage from './pages/Users';
+import ConfigPage from './pages/Config';
 import LandingPage from './pages/Landing';
 import LoginPage from './pages/Auth/Login';
 import RegisterPage from './pages/Auth/Register';
@@ -37,50 +35,20 @@ function App() {
           <Route path="/my-license" element={<UserRoute><MyLicensePage /></UserRoute>} />
 
           {/* ── Auth (guest-only, redirect if already logged in) ─────────── */}
-          <Route
-            path="/login"
-            element={
-              <GuestRoute>
-                <LoginPage />
-              </GuestRoute>
-            }
-          />
-          <Route
-            path="/register"
-            element={
-              <GuestRoute>
-                <RegisterPage />
-              </GuestRoute>
-            }
-          />
-          <Route
-            path="/forgot-password"
-            element={
-              <GuestRoute>
-                <ForgotPasswordPage />
-              </GuestRoute>
-            }
-          />
+          <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+          <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
+          <Route path="/forgot-password" element={<GuestRoute><ForgotPasswordPage /></GuestRoute>} />
 
           {/* ── Admin dashboard (requires role === 'admin') ──────────────── */}
-          <Route
-            path="/dashboard"
-            element={
-              <AdminRoute>
-                <AdminLayout />
-              </AdminRoute>
-            }
-          >
+          <Route path="/dashboard" element={<AdminRoute><AdminLayout /></AdminRoute>}>
             <Route index element={<Dashboard />} />
-            <Route path="profiles" element={<Profiles />} />
-            <Route path="profiles/edit/:id" element={<EditProfile />} />
-            <Route path="proxies" element={<Proxies />} />
-            <Route path="groups" element={<Groups />} />
-            <Route path="team" element={<Team />} />
-            <Route path="settings" element={<Settings />} />
+            <Route path="orders" element={<OrdersPage />} />
+            <Route path="licenses" element={<LicensesPage />} />
+            <Route path="users" element={<UsersPage />} />
+            <Route path="config" element={<ConfigPage />} />
           </Route>
 
-          {/* ── Fallback: mọi path không khớp → landing page ────────── */}
+          {/* ── Fallback ──────────────────────────────────────────────────── */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
