@@ -157,15 +157,15 @@ const PRICING_TIERS = [
   },
   {
     id: 'pro',
-    name: 'Pro',
-    icon: '👑',
-    price: '10.000₫',
-    period: 'one-time license',
-    description: 'For power users and teams who need unlimited profiles and automation.',
+    name: 'Pro Trial',
+    icon: '🚀',
+    price: 'Free',
+    period: '30-day trial',
+    description: 'Unlock all Pro features for 30 days — no payment required.',
     highlight: true,
-    badge: '⭐ Most Popular',
-    ctaLabel: 'Buy Pro License',
-    ctaHref: '/checkout?tier=pro',
+    badge: '🎉 Free Trial',
+    ctaLabel: 'Start Free Trial',
+    ctaHref: '/my-license',
     ctaStyle: 'primary',
     features: [
       { text: 'Unlimited browser profiles', included: true },
@@ -219,7 +219,7 @@ function StatItem({ value, label, index }) {
   );
 }
 
-function PricingCard({ tier, index, isAuthenticated, isPro, navigate, scrollTo }) {
+function PricingCard({ tier, index, isAuthenticated, isPro, isTrial, navigate, scrollTo }) {
   const [ref, visible] = useInView(0.1);
 
   const handleCta = (e) => {
@@ -227,7 +227,11 @@ function PricingCard({ tier, index, isAuthenticated, isPro, navigate, scrollTo }
       scrollTo(e, tier.ctaHref);
     } else {
       e.preventDefault();
-      navigate(tier.ctaHref);
+      if (!isAuthenticated) {
+        navigate('/login');
+      } else {
+        navigate(tier.ctaHref);
+      }
     }
   };
 
@@ -281,13 +285,13 @@ function PricingCard({ tier, index, isAuthenticated, isPro, navigate, scrollTo }
 
       {/* CTA button */}
       {isPro && tier.highlight ? (
-        // Đã là Pro — hiện badge đã kích hoạt
+        // Đã có license (trial hoặc paid) — hiện badge đã kích hoạt
         <div className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-bold text-sm bg-emerald-500/15 border border-emerald-500/40 text-emerald-400">
           <span className="material-symbols-outlined text-base">verified</span>
-          Your Current Plan
+          {isTrial ? 'Trial Active' : 'Your Current Plan'}
         </div>
       ) : isPro && !tier.highlight ? (
-        // Đã là Pro — ẩn nút free
+        // Đã có license — ẩn nút free
         <div className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm text-slate-600 border border-slate-700/40">
           Downgrade not available
         </div>
@@ -335,7 +339,7 @@ function StepCard({ step, title, desc, icon, index }) {
 // ─── Main Component ────────────────────────────────────────────────────────────
 const LandingPage = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, user, logout, isPro } = useAuthStore();
+  const { isAuthenticated, user, logout, isPro, isTrial } = useAuthStore();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -416,7 +420,7 @@ const LandingPage = () => {
                               )}
                               {isPro && (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white">
-                                  ⚡ PRO
+                                  {isTrial ? '🚀 TRIAL' : '⚡ PRO'}
                                 </span>
                               )}
                             </div>
@@ -461,7 +465,7 @@ const LandingPage = () => {
                     </span>
                     {isPro && (
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white leading-none">
-                        PRO
+                        {isTrial ? 'TRIAL' : 'PRO'}
                       </span>
                     )}
                     <ChevronDown size={12} className="text-slate-500 group-hover:text-slate-300 transition-colors" />
@@ -768,7 +772,7 @@ const LandingPage = () => {
               Choose the plan that fits your needs
             </h2>
             <p className="mt-4 text-slate-400 max-w-xl mx-auto text-sm leading-relaxed">
-              Start free with 5 profiles. Upgrade to Pro for unlimited profiles, automation, and API access.
+              Start free with 5 profiles. Try Pro features for 30 days — no credit card required.
             </p>
           </div>
 
@@ -780,6 +784,7 @@ const LandingPage = () => {
                 index={i}
                 isAuthenticated={isAuthenticated}
                 isPro={isPro}
+                isTrial={isTrial}
                 navigate={navigate}
                 scrollTo={scrollTo}
               />
@@ -788,7 +793,7 @@ const LandingPage = () => {
 
           {/* Bottom note */}
           <p className="text-center text-xs text-slate-500 mt-10">
-            All plans include core antidetect features. Pro license is issued manually by admin after review.
+            Free trial includes all Pro features. One trial per account. No payment required.
           </p>
         </div>
       </section>
@@ -816,8 +821,7 @@ const LandingPage = () => {
               {/* Platform buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
                 <a
-                  href="/release/Vanguard-Setup.exe"
-                  download
+                  href="/api/download/windows"
                   className="flex items-center gap-3 px-6 py-3.5 rounded-xl bg-primary text-background-dark
                     font-bold text-sm hover:bg-primary/90 transition-all duration-200
                     shadow-xl shadow-primary/30 hover:shadow-primary/50 hover:-translate-y-0.5 w-full sm:w-auto justify-center"
@@ -826,8 +830,7 @@ const LandingPage = () => {
                   Windows Installer (.exe)
                 </a>
                 <a
-                  href="/release/Vanguard-Portable.zip"
-                  download
+                  href="/api/download/portable"
                   className="flex items-center gap-3 px-6 py-3.5 rounded-xl border border-slate-600
                     text-slate-300 font-semibold text-sm hover:border-primary/50 hover:text-primary
                     transition-all duration-200 w-full sm:w-auto justify-center"

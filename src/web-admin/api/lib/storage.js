@@ -33,7 +33,9 @@ function saveFile(data) {
 let _db = null;
 
 async function getDb() {
-  if (!process.env.FIREBASE_SERVICE_ACCOUNT) return null;
+  // Only use Firestore if explicitly opted in via USE_FIRESTORE=true
+  // FIREBASE_SERVICE_ACCOUNT alone only enables Firebase Auth (users list)
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT || process.env.USE_FIRESTORE !== 'true') return null;
   if (_db) return _db;
 
   const { initializeApp, getApps, cert } = await import('firebase-admin/app');
@@ -135,6 +137,46 @@ export async function findOrderEntryByEmail(email) {
     const matchUser = order.userEmail?.toLowerCase() === normalised;
     const matchCheckout = order.email?.toLowerCase() === normalised;
     if ((matchUser || matchCheckout) && order.status === 'paid') {
+      return { orderCode, order };
+    }
+  }
+  return null;
+}
+
+/**
+ * Like findOrderEntryByEmail but also matches 'trial' status (not just 'paid').
+ * Returns { orderCode, order } or null.
+ */
+export async function findActiveOrderByEmail(email) {
+  if (!email) return null;
+  const normalised = email.toLowerCase().trim();
+  const db = await getDb();
+
+  if (db) {
+    for (const status of ['paid', 'trial']) {
+      let snap = await db.collection('orders')
+        .where('userEmail', '==', normalised)
+        .where('status', '==', status)
+        .limit(1)
+        .get();
+      if (!snap.empty) return { orderCode: snap.docs[0].id, order: snap.docs[0].data() };
+
+      snap = await db.collection('orders')
+        .where('email', '==', normalised)
+        .where('status', '==', status)
+        .limit(1)
+        .get();
+      if (!snap.empty) return { orderCode: snap.docs[0].id, order: snap.docs[0].data() };
+    }
+    return null;
+  }
+
+  const all = loadFile();
+  for (const [orderCode, order] of Object.entries(all)) {
+    const matchUser = order.userEmail?.toLowerCase() === normalised;
+    const matchCheckout = order.email?.toLowerCase() === normalised;
+    const isActive = order.status === 'paid' || order.status === 'trial';
+    if ((matchUser || matchCheckout) && isActive) {
       return { orderCode, order };
     }
   }

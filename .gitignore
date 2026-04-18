@@ -141,3 +141,6 @@ data/
 # Also ignore app data kept under src/
 src/data/
 vendor/
+
+*firebase-adminsdk*.json
+.env.local

@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Input, Badge, Avatar, ConfigProvider, theme, Dropdown } from 'antd';
 import { Search, Bell, LogOut, User, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
+import { useNotifications } from '../../hooks/useNotifications';
 import toast from 'react-hot-toast';
 
 // ─── Provider badge (mini) ────────────────────────────────────────────────────
@@ -31,6 +32,18 @@ const PROVIDER_LABELS = {
 const Header = () => {
   const navigate = useNavigate();
   const { user, logout, isPro } = useAuthStore();
+  const { notifications, unreadCount, open: notiOpen, toggle: toggleNoti, close: closeNoti } = useNotifications();
+  const notiRef = useRef(null);
+
+  // Close notification panel when clicking outside
+  useEffect(() => {
+    if (!notiOpen) return;
+    function handleClick(e) {
+      if (notiRef.current && !notiRef.current.contains(e.target)) closeNoti();
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [notiOpen, closeNoti]);
 
   const handleLogout = () => {
     logout();
@@ -108,17 +121,66 @@ const Header = () => {
         </ConfigProvider>
       </div>
 
-      <div className="flex items-center gap-6 ml-8">
+      <div className="flex items-center gap-6 ml-8 relative">
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
           <span className="h-2 w-2 rounded-full bg-primary" />
           <span className="text-xs font-bold uppercase tracking-wider text-primary leading-none">System Online</span>
         </div>
 
-        <button className="text-slate-500 hover:text-primary transition-colors flex items-center justify-center mt-1">
-          <Badge dot color="#f43f5e" offset={[-2, 4]}>
-            <Bell size={22} className="text-slate-500 hover:text-primary transition-colors" />
+        <button className="text-slate-500 hover:text-primary transition-colors flex items-center justify-center mt-1" onClick={toggleNoti} aria-label="Thông báo">
+          <Badge count={unreadCount} size="small" style={{ backgroundColor: '#f43f5e' }} offset={[-2, 2]}>
+            <Bell size={22} className={`transition-colors ${notiOpen ? 'text-primary' : 'text-slate-500 hover:text-primary'}`} />
           </Badge>
         </button>
+
+        {/* Notification Panel */}
+        {notiOpen && (
+          <div
+            ref={notiRef}
+            className="absolute right-4 top-14 z-50 w-80 rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl shadow-black/50 overflow-hidden"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/50">
+              <span className="text-sm font-bold text-slate-200">Thông báo</span>
+              {unreadCount > 0 && (
+                <span className="text-xs text-primary font-semibold">{unreadCount} mới</span>
+              )}
+            </div>
+
+            {/* List */}
+            <div className="max-h-[420px] overflow-y-auto divide-y divide-slate-800/60">
+              {notifications.length === 0 ? (
+                <div className="py-10 text-center text-slate-500 text-sm">
+                  <Bell size={28} className="mx-auto mb-2 opacity-30" />
+                  Chưa có thông báo nào
+                </div>
+              ) : (
+                notifications.map((n) => (
+                  <div key={n.id} className="flex items-start gap-3 px-4 py-3 hover:bg-slate-800/50 transition-colors">
+                    <div className={`w-8 h-8 rounded-lg ${n.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                      <span className={`material-symbols-outlined text-base ${n.color}`}>{n.icon}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-slate-200 leading-tight">{n.title}</p>
+                      <p className="text-xs text-slate-400 truncate mt-0.5">{n.body}</p>
+                      <p className="text-[10px] text-slate-600 mt-1">{n.meta}</p>
+                    </div>
+                    <span className="text-[10px] text-slate-600 flex-shrink-0 mt-0.5">
+                      {new Date(n.time).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            {notifications.length > 0 && (
+              <div className="px-4 py-2.5 border-t border-slate-700/50 text-center">
+                <span className="text-xs text-slate-500">{notifications.length} sự kiện gần nhất</span>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center gap-3 pl-6 border-l border-primary/10">
           <ConfigProvider theme={{ token: { colorBgElevated: '#1e293b', colorText: '#e2e8f0', colorTextSecondary: '#94a3b8', colorSplit: 'rgba(148,163,184,0.12)', borderRadius: 10 } }}>
