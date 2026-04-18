@@ -16,11 +16,11 @@ const DATA_DIR = join(__dirname, '../.data');
 const DOWNLOADS_FILE = join(DATA_DIR, 'downloads.json');
 const CONFIG_FILE = join(DATA_DIR, 'config.json');
 
-const GITHUB_BASE = 'https://github.com/OngBanTat/ObtAutomationAntidetectBrowser/releases/latest/download';
+const GITHUB_BASE = 'https://github.com/longnguyen231/SEP490_G55_Automation_Antidetect_Browser/releases/latest/download';
 
 const DEFAULT_URLS = {
-  windows: `${GITHUB_BASE}/HL-MCK.Antidetect.Browser.Setup.exe`,
-  portable: `${GITHUB_BASE}/HL-MCK.Antidetect.Browser.Portable.zip`,
+  windows: `${GITHUB_BASE}/HL-MCK.Antidetect.Browser.Setup.1.0.0.exe`,
+  portable: `${GITHUB_BASE}/HL-MCK.Antidetect.Browser.Portable.1.0.0.zip`,
   linux: `${GITHUB_BASE}/HL-MCK.Antidetect.Browser.AppImage`,
   macos: `${GITHUB_BASE}/HL-MCK.Antidetect.Browser.dmg`,
 };
@@ -85,4 +85,25 @@ export function downloadStats(req, res) {
   const counts = loadDownloads();
   const total = Object.values(counts).reduce((s, c) => s + (c.count || 0), 0);
   return res.status(200).json({ total, platforms: counts });
+}
+
+/**
+ * GET /api/download/info  — public endpoint, returns version + available platforms
+ * Used by Landing page to show dynamic version without requiring admin auth.
+ */
+export function downloadInfo(req, res) {
+  const config = getConfig();
+  const urls = { ...DEFAULT_URLS, ...(config.downloadUrls || {}) };
+  // Only include platforms that have a non-empty URL
+  const available = Object.entries(urls)
+    .filter(([, v]) => v && v.trim())
+    .map(([platform]) => platform);
+
+  return res.status(200).json({
+    version: config.appVersion || '1.0.0',
+    available,
+    platforms: Object.fromEntries(
+      available.map(p => [p, `/api/download/${p}`])
+    ),
+  });
 }

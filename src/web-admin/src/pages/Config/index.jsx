@@ -3,11 +3,11 @@ import PageHeader from '../../components/PageHeader';
 import { useAdminApi } from '../../hooks/useAdminApi';
 import toast from 'react-hot-toast';
 
-const GITHUB_BASE = 'https://github.com/OngBanTat/ObtAutomationAntidetectBrowser/releases/latest/download';
+const GITHUB_BASE = 'https://github.com/longnguyen231/SEP490_G55_Automation_Antidetect_Browser/releases/latest/download';
 
 const DEFAULT_DOWNLOAD_URLS = {
-  windows: `${GITHUB_BASE}/HL-MCK.Antidetect.Browser.Setup.exe`,
-  portable: `${GITHUB_BASE}/HL-MCK.Antidetect.Browser.Portable.zip`,
+  windows: `${GITHUB_BASE}/HL-MCK.Antidetect.Browser.Setup.1.0.0.exe`,
+  portable: `${GITHUB_BASE}/HL-MCK.Antidetect.Browser.Portable.1.0.0.zip`,
   linux: `${GITHUB_BASE}/HL-MCK.Antidetect.Browser.AppImage`,
   macos: `${GITHUB_BASE}/HL-MCK.Antidetect.Browser.dmg`,
 };

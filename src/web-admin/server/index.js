@@ -1,6 +1,3 @@
-import dotenv from 'dotenv';
-dotenv.config(); // load .env
-dotenv.config({ path: '.env.local', override: true }); // local overrides (gitignored)
 import express from 'express';
 import createPayment from '../api/create-payment.js';
 import getOrder from '../api/get-order.js';
@@ -10,7 +7,7 @@ import activateLicense from '../api/activate-license.js';
 import userStatus from '../api/user-status.js';
 import myLicense from '../api/my-license.js';
 import requestTrial from '../api/request-trial.js';
-import { downloadRedirect, downloadStats } from '../api/download.js';
+import { downloadRedirect, downloadStats, downloadInfo } from '../api/download.js';
 import adminConfig from '../api/admin/config.js';
 import adminStats from '../api/admin/stats.js';
 import { listOrders, markPaid } from '../api/admin/orders.js';
@@ -35,6 +32,7 @@ app.post('/api/my-license', myLicense);
 app.post('/api/request-trial', requestTrial);
 
 // Download tracking + redirect
+app.get('/api/download/info', downloadInfo);
 app.get('/api/download/stats', downloadStats);
 app.get('/api/download/:platform', downloadRedirect);
 

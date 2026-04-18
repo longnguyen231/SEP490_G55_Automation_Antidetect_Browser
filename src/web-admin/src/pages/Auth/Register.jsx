@@ -132,7 +132,7 @@ const RegisterPage = () => {
             <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 text-left mb-6 space-y-2">
               {[
                 'Mở hộp thư của bạn',
-                'Tìm email từ Firebase / Vanguard',
+                'Tìm email từ Firebase / HL-MCK',
                 'Nhấn vào link "Verify email"',
                 'Quay lại và đăng nhập',
               ].map((step, i) => (
@@ -199,7 +199,7 @@ const RegisterPage = () => {
               <div className="bg-primary/20 p-2 rounded-xl">
                 <span className="material-symbols-outlined text-primary text-3xl">shield_person</span>
               </div>
-              <span className="text-2xl font-extrabold tracking-tight text-white">Vanguard</span>
+              <span className="text-2xl font-extrabold tracking-tight text-white">HL-MCK</span>
             </div>
             <h1 className="text-xl font-bold text-white">Tạo tài khoản</h1>
             <p className="text-sm text-slate-400 mt-1">Miễn phí · Không cần thẻ tín dụng</p>
