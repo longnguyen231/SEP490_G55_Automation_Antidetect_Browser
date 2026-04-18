@@ -26,8 +26,12 @@ export const useAuthStore = create(
       isAuthenticated: false,
       /** true while Firebase is still restoring session on page load */
       loading: true,
-      /** true khi tài khoản đã mua gói Pro */
+      /** true khi tài khoản đã mua gói Pro hoặc đang dùng trial */
       isPro: false,
+      /** true khi đang dùng trial (subset of isPro) */
+      isTrial: false,
+      /** ISO string — khi nào trial hết hạn */
+      trialExpiresAt: null,
 
       // ── Bootstrap: called once in main.jsx to sync Firebase state ───────────
       initAuth: () => {
@@ -54,7 +58,11 @@ export const useAuthStore = create(
           const res = await fetch(`/api/user-status?email=${encodeURIComponent(email)}`);
           if (res.ok) {
             const data = await res.json();
-            set({ isPro: data.isPro === true });
+            set({
+              isPro: data.isPro === true,
+              isTrial: data.isTrial === true,
+              trialExpiresAt: data.trialExpiresAt || null,
+            });
           }
         } catch {
           // Không ảnh hưởng đến luồng đăng nhập nếu API bị lỗi
@@ -98,7 +106,7 @@ export const useAuthStore = create(
       // ── Logout ────────────────────────────────────────────────────────────────
       logout: async () => {
         await firebaseSignOut();
-        set({ user: null, isAuthenticated: false, isPro: false });
+        set({ user: null, isAuthenticated: false, isPro: false, isTrial: false, trialExpiresAt: null });
       },
 
       // ── Refresh current user (after email verified) ───────────────────────────

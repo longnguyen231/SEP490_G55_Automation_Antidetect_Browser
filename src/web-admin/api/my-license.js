@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { findOrderEntryByEmail, updateOrder } from './lib/storage.js';
+import { findActiveOrderByEmail, updateOrder } from './lib/storage.js';
 
 const LICENSE_SECRET = 'HL-MCK-SEP490-G55-2024';
 
@@ -41,10 +41,10 @@ export default async function handler(req, res) {
   const normalizedMachine = machineCode.trim().toUpperCase();
 
   try {
-    const entry = await findOrderEntryByEmail(email);
+    const entry = await findActiveOrderByEmail(email);
 
     if (!entry) {
-      return res.status(404).json({ error: 'No Pro license found for this account.' });
+      return res.status(404).json({ error: 'No active license found for this account. Please request a free trial first.' });
     }
 
     const { orderCode, order } = entry;

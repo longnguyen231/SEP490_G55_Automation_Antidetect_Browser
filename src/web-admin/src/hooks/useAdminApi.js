@@ -34,8 +34,9 @@ export function useAdminApi() {
   const resetMachine = useCallback((email) => adminFetch(`/api/admin/licenses/${encodeURIComponent(email)}/reset`, { method: 'POST' }), []);
   const revokeLicense = useCallback((email) => adminFetch(`/api/admin/licenses/${encodeURIComponent(email)}/revoke`, { method: 'POST' }), []);
   const getUsers = useCallback(() => adminFetch('/api/admin/users'), []);
+  const getNotifications = useCallback((limit = 30) => adminFetch(`/api/admin/notifications?limit=${limit}`), []);
   const getConfig = useCallback(() => adminFetch('/api/admin/config'), []);
   const saveConfig = useCallback((body) => adminFetch('/api/admin/config', { method: 'POST', body: JSON.stringify(body) }), []);
 
-  return { getStats, getOrders, markPaid, getLicenses, resetMachine, revokeLicense, getUsers, getConfig, saveConfig };
+  return { getStats, getOrders, markPaid, getLicenses, resetMachine, revokeLicense, getUsers, getNotifications, getConfig, saveConfig };
 }

@@ -15,6 +15,8 @@ const DEFAULTS = {
   maintenanceMode: false,
   maintenanceBanner: '',
   payosWebhookUrl: process.env.PAYOS_WEBHOOK_URL || '',
+  appVersion: '1.0.0',
+  downloadUrls: {},
 };
 
 function readConfig() {
@@ -37,13 +39,15 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { proPriceVnd, maintenanceMode, maintenanceBanner } = req.body || {};
+    const { proPriceVnd, maintenanceMode, maintenanceBanner, downloadUrls, appVersion } = req.body || {};
     const current = readConfig();
     const updated = {
       ...current,
       ...(proPriceVnd !== undefined && { proPriceVnd: Math.max(1000, parseInt(proPriceVnd, 10)) }),
       ...(maintenanceMode !== undefined && { maintenanceMode: Boolean(maintenanceMode) }),
       ...(maintenanceBanner !== undefined && { maintenanceBanner: String(maintenanceBanner).slice(0, 200) }),
+      ...(downloadUrls !== undefined && { downloadUrls: downloadUrls }),
+      ...(appVersion !== undefined && { appVersion: String(appVersion).slice(0, 20) }),
       updatedAt: new Date().toISOString(),
       updatedBy: req.adminEmail,
     };

@@ -10,11 +10,16 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end();
 
   try {
-    // Build pro-email set from orders
+    // Build pro-email set from orders (paid + trial)
     const orders = await getAllOrders();
     const proEmails = new Set(
       orders
-        .filter(o => o.status === 'paid')
+        .filter(o => o.status === 'paid' || o.status === 'trial')
+        .flatMap(o => [o.email, o.userEmail].filter(Boolean).map(e => e.toLowerCase()))
+    );
+    const trialEmails = new Set(
+      orders
+        .filter(o => o.status === 'trial')
         .flatMap(o => [o.email, o.userEmail].filter(Boolean).map(e => e.toLowerCase()))
     );
 
@@ -27,6 +32,7 @@ export default async function handler(req, res) {
         lastSignIn: null,
         createdAt: o.createdAt,
         isPro: proEmails.has((o.userEmail || o.email)?.toLowerCase()),
+        isTrial: trialEmails.has((o.userEmail || o.email)?.toLowerCase()),
         provider: 'unknown',
       }));
       return res.status(200).json({ users: usersFromOrders, source: 'orders-fallback' });
@@ -48,6 +54,7 @@ export default async function handler(req, res) {
       createdAt: u.metadata.creationTime,
       emailVerified: u.emailVerified,
       isPro: proEmails.has(u.email?.toLowerCase()),
+      isTrial: trialEmails.has(u.email?.toLowerCase()),
       provider: u.providerData?.[0]?.providerId || 'password',
     }));
 

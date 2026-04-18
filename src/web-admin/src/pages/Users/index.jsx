@@ -24,9 +24,30 @@ export default function Users() {
     return matchSearch && matchPro;
   });
 
+  const trialCount = users.filter(u => u.isTrial).length;
+  const paidCount = users.filter(u => u.isPro && !u.isTrial).length;
+
   return (
     <>
       <PageHeader title="Người dùng" description="Danh sách tài khoản Firebase" />
+
+      {/* Quick stats */}
+      {!loading && users.length > 0 && (
+        <div className="flex flex-wrap gap-4 mb-6">
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5">
+            <span className="text-xs text-slate-400">Tổng users</span>
+            <span className="text-base font-bold text-slate-700 dark:text-slate-200">{users.length}</span>
+          </div>
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5">
+            <span className="text-xs text-cyan-400">🚀 Trial</span>
+            <span className="text-base font-bold text-cyan-400">{trialCount}</span>
+          </div>
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5">
+            <span className="text-xs text-amber-400">⚡ Paid</span>
+            <span className="text-base font-bold text-amber-400">{paidCount}</span>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-3 mb-6">
         <input
@@ -40,11 +61,10 @@ export default function Users() {
           onClick={() => setFilterPro(v => !v)}
           className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${filterPro ? 'bg-amber-500 text-black border-amber-500' : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-amber-400 hover:text-amber-400'}`}
         >
-          ⚡ Pro only
+          ⚡ Pro & Trial
         </button>
         <span className="ml-auto text-xs text-slate-400 self-center">
-          {visible.length} user{source === 'orders-fallback' && ' (từ orders, không có Firebase Admin)'}
-        </span>
+          {visible.length} user{source === 'orders-fallback' && ' (từ orders — cần Firebase Admin để xem tất cả)'}</span>
       </div>
 
       <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
@@ -67,9 +87,14 @@ export default function Users() {
                   <td className="px-4 py-3 text-slate-700 dark:text-slate-200">{u.email || '—'}</td>
                   <td className="px-4 py-3 text-slate-500">{u.displayName || <span className="italic text-slate-300">—</span>}</td>
                   <td className="px-4 py-3">
-                    {u.isPro && (
+                    {u.isPro && !u.isTrial && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">
                         ⚡ PRO
+                      </span>
+                    )}
+                    {u.isTrial && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/20">
+                        🚀 TRIAL
                       </span>
                     )}
                   </td>
