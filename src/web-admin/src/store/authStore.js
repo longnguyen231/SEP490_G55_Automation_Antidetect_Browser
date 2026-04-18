@@ -124,7 +124,7 @@ export const useAuthStore = create(
       isAdmin: () => get().user?.role === 'admin',
     }),
     {
-      name: 'vanguard-auth',
+      name: 'hlmck-auth',
       partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
     }
   )

@@ -6,6 +6,8 @@ import { useCallback } from 'react';
 import { auth } from '../services/firebase';
 
 async function getIdToken() {
+  // Wait for Firebase to restore session after page refresh before checking currentUser
+  await auth.authStateReady();
   const user = auth.currentUser;
   if (!user) throw new Error('Not authenticated');
   return user.getIdToken();

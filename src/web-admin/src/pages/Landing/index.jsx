@@ -5,6 +5,18 @@ import { ChevronDown, LogOut, LayoutDashboard } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
 
+// ─── Download info (fetched from public API, no auth needed) ─────────────
+function useDownloadInfo() {
+  const [info, setInfo] = useState({ version: '1.0.0', available: ['windows', 'portable'] });
+  useEffect(() => {
+    fetch('/api/download/info')
+      .then(r => r.json())
+      .then(d => setInfo(d))
+      .catch(() => {}); // silently fall back to defaults
+  }, []);
+  return info;
+}
+
 // ─── Provider icon helpers ────────────────────────────────────────────────
 const PROVIDER_META = {
   google: {
@@ -340,6 +352,7 @@ function StepCard({ step, title, desc, icon, index }) {
 const LandingPage = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user, logout, isPro, isTrial } = useAuthStore();
+  const downloadInfo = useDownloadInfo();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -378,7 +391,7 @@ const LandingPage = () => {
             <div className="bg-primary/20 p-1.5 rounded-lg">
               <span className="material-symbols-outlined text-primary text-2xl">shield_person</span>
             </div>
-            <span className="text-lg font-bold tracking-tight text-white">Vanguard</span>
+            <span className="text-lg font-bold tracking-tight text-white">HL-MCK</span>
           </div>
 
           {/* Desktop nav */}
@@ -588,7 +601,7 @@ const LandingPage = () => {
           </h1>
 
           <p className="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Vanguard is a free antidetect browser for Windows that lets you manage hundreds of isolated browser
+            HL-MCK is a free antidetect browser for Windows that lets you manage hundreds of isolated browser
             profiles — each with a unique fingerprint, proxy, and automation stack — all from one clean dashboard.
           </p>
 
@@ -652,7 +665,7 @@ const LandingPage = () => {
                 <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
               </div>
               <div className="flex-1 mx-4 bg-slate-700/50 rounded-full h-5 flex items-center px-3">
-                <span className="text-xs text-slate-500 truncate">https://app.vanguard.local/dashboard</span>
+                <span className="text-xs text-slate-500 truncate">https://app.hl-mck.local/dashboard</span>
               </div>
             </div>
 
@@ -733,7 +746,7 @@ const LandingPage = () => {
               Built for professionals who care about privacy
             </h2>
             <p className="mt-4 text-slate-400 max-w-xl mx-auto text-sm leading-relaxed">
-              From solo testers to full automation teams — Vanguard's feature set covers every use-case without the bloat.
+              From solo testers to full automation teams — HL-MCK's feature set covers every use-case without the bloat.
             </p>
           </div>
 
@@ -813,13 +826,14 @@ const LandingPage = () => {
               </div>
 
               <h2 className="text-3xl font-extrabold text-white mb-3 tracking-tight">
-                Download Vanguard
+                Download HL-MCK
               </h2>
               <p className="text-slate-400 text-sm mb-2">Latest stable release · Windows 10/11 · 64-bit</p>
               <p className="text-slate-500 text-xs mb-8">Free &amp; open source — no account, no telemetry.</p>
 
               {/* Platform buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
+                {downloadInfo.available.includes('windows') && (
                 <a
                   href="/api/download/windows"
                   className="flex items-center gap-3 px-6 py-3.5 rounded-xl bg-primary text-background-dark
@@ -829,6 +843,8 @@ const LandingPage = () => {
                   <span className="material-symbols-outlined text-xl">desktop_windows</span>
                   Windows Installer (.exe)
                 </a>
+                )}
+                {downloadInfo.available.includes('portable') && (
                 <a
                   href="/api/download/portable"
                   className="flex items-center gap-3 px-6 py-3.5 rounded-xl border border-slate-600
@@ -838,12 +854,24 @@ const LandingPage = () => {
                   <span className="material-symbols-outlined text-xl">folder_zip</span>
                   Portable (.zip)
                 </a>
+                )}
+                {downloadInfo.available.includes('linux') && (
+                <a
+                  href="/api/download/linux"
+                  className="flex items-center gap-3 px-6 py-3.5 rounded-xl border border-slate-600
+                    text-slate-300 font-semibold text-sm hover:border-primary/50 hover:text-primary
+                    transition-all duration-200 w-full sm:w-auto justify-center"
+                >
+                  <span className="material-symbols-outlined text-xl">terminal</span>
+                  Linux (.AppImage)
+                </a>
+                )}
               </div>
 
-              {/* Version info & checksum */}
+              {/* Version info */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-slate-700/50">
                 {[
-                  { icon: 'info', label: 'Version', value: 'v1.0.0' },
+                  { icon: 'info', label: 'Version', value: `v${downloadInfo.version}` },
                   { icon: 'storage', label: 'Size', value: '~95 MB' },
                   { icon: 'update', label: 'Released', value: 'Apr 2026' },
                 ].map(({ icon, label, value }) => (
@@ -903,7 +931,7 @@ const LandingPage = () => {
             <div className="bg-primary/20 p-1.5 rounded-lg">
               <span className="material-symbols-outlined text-primary text-xl">shield_person</span>
             </div>
-            <span className="text-base font-bold text-white">Vanguard</span>
+            <span className="text-base font-bold text-white">HL-MCK</span>
             <span className="text-slate-600 text-sm">— Antidetect Browser</span>
           </div>
           <p className="text-xs text-slate-600 text-center">

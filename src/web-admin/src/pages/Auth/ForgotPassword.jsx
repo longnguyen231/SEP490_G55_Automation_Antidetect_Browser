@@ -117,7 +117,7 @@ const ForgotPasswordPage = () => {
               <p className="text-xs text-slate-400 font-medium mb-2 uppercase tracking-wide">Hướng dẫn:</p>
               <ol className="space-y-1.5">
                 {[
-                  'Mở email từ Vanguard Browser.',
+                  'Mở email từ HL-MCK Browser.',
                   'Nhấp "Đặt lại mật khẩu" trong email.',
                   'Tạo mật khẩu mới và lưu lại.',
                   'Đăng nhập bằng mật khẩu mới.',
@@ -181,7 +181,7 @@ const ForgotPasswordPage = () => {
                 <path d="M3 17l9 5 9-5" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="none" opacity="0.6"/>
               </svg>
             </div>
-            <span className="text-lg font-bold text-white tracking-tight">Vanguard Browser</span>
+            <span className="text-lg font-bold text-white tracking-tight">HL-MCK Browser</span>
           </div>
         </div>
 

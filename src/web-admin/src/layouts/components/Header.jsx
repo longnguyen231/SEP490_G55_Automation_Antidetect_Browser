@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { Input, Badge, Avatar, ConfigProvider, theme, Dropdown } from 'antd';
-import { Search, Bell, LogOut, User, ChevronDown } from 'lucide-react';
+import { Search, Bell, LogOut, User, ChevronDown, Home } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -122,6 +122,15 @@ const Header = () => {
       </div>
 
       <div className="flex items-center gap-6 ml-8 relative">
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/10 transition-all text-xs font-semibold"
+          title="Về trang chủ"
+        >
+          <Home size={15} />
+          Trang chủ
+        </button>
+
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
           <span className="h-2 w-2 rounded-full bg-primary" />
           <span className="text-xs font-bold uppercase tracking-wider text-primary leading-none">System Online</span>
