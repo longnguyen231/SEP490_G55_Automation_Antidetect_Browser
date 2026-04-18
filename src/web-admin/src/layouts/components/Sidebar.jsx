@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 
 const NAV_ITEMS = [
   { to: '/dashboard', end: true, icon: 'bar_chart', label: 'Tổng quan' },
-  { to: '/dashboard/orders', icon: 'receipt_long', label: 'Đơn hàng' },
+  // { to: '/dashboard/orders', icon: 'receipt_long', label: 'Đơn hàng' }, // v1.1.0
   { to: '/dashboard/licenses', icon: 'key', label: 'Licenses' },
   { to: '/dashboard/users', icon: 'group', label: 'Người dùng' },
 ];
