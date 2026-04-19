@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   // { to: '/dashboard/orders', icon: 'receipt_long', label: 'Đơn hàng' }, // v1.1.0
   { to: '/dashboard/licenses', icon: 'key', label: 'Licenses' },
   { to: '/dashboard/users', icon: 'group', label: 'Người dùng' },
+  { to: '/dashboard/releases', icon: 'cloud_upload', label: 'Builds' },
 ];
 
 const NAV_BOTTOM = [

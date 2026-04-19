@@ -136,6 +136,10 @@ vite.config.ts.timestamp-*
 # Electron build output
 release/
 
+# Self-hosted release uploads (web-admin backend)
+src/web-admin/uploads/
+src/web-admin/.data/
+
 # App data (profiles, logs, settings) - keep out of VCS
 data/
 # Also ignore app data kept under src/

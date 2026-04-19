@@ -8,6 +8,7 @@ import OrdersPage from './pages/Orders';
 import LicensesPage from './pages/Licenses';
 import UsersPage from './pages/Users';
 import ConfigPage from './pages/Config';
+import ReleasesPage from './pages/Releases';
 import LandingPage from './pages/Landing';
 import LoginPage from './pages/Auth/Login';
 import RegisterPage from './pages/Auth/Register';
@@ -45,6 +46,7 @@ function App() {
             <Route path="orders" element={<OrdersPage />} />
             <Route path="licenses" element={<LicensesPage />} />
             <Route path="users" element={<UsersPage />} />
+            <Route path="releases" element={<ReleasesPage />} />
             <Route path="config" element={<ConfigPage />} />
           </Route>
 

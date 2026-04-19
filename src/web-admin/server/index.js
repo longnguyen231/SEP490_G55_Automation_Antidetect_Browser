@@ -15,6 +15,14 @@ import { listLicenses, resetMachine, revokeLicense } from '../api/admin/licenses
 import adminUsers from '../api/admin/users.js';
 import adminNotifications from '../api/admin/notifications.js';
 import { requireAdmin } from '../api/admin/middleware.js';
+import { requireAdminOrUploadToken } from '../api/admin/uploadAuth.js';
+import {
+  listReleases,
+  createRelease,
+  deleteRelease,
+  uploadMiddleware,
+} from '../api/admin/releases.js';
+import { getLatestRelease, downloadRelease } from '../api/releases.js';
 
 const app = express();
 const PORT = 3001;
@@ -36,6 +44,10 @@ app.get('/api/download/info', downloadInfo);
 app.get('/api/download/stats', downloadStats);
 app.get('/api/download/:platform', downloadRedirect);
 
+// Self-hosted releases (public reads, admin/token writes)
+app.get('/api/releases/latest', getLatestRelease);
+app.get('/api/releases/:id/download', downloadRelease);
+
 // ── Admin API routes (bearer token required) ──────────────────────────────────
 app.get('/api/admin/stats', requireAdmin, adminStats);
 app.get('/api/admin/orders', requireAdmin, listOrders);
@@ -47,6 +59,11 @@ app.get('/api/admin/users', requireAdmin, adminUsers);
 app.get('/api/admin/notifications', requireAdmin, adminNotifications);
 app.get('/api/admin/config', requireAdmin, adminConfig);
 app.post('/api/admin/config', requireAdmin, adminConfig);
+
+// Release management: list requires admin, upload/delete accept admin OR upload token
+app.get('/api/admin/releases', requireAdminOrUploadToken, listReleases);
+app.post('/api/admin/releases', requireAdminOrUploadToken, uploadMiddleware, createRelease);
+app.delete('/api/admin/releases/:id', requireAdminOrUploadToken, deleteRelease);
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 const server = app.listen(PORT, () => {
