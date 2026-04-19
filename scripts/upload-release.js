@@ -48,8 +48,8 @@ function loadEnv(paths) {
 loadEnv([
   path.join(ROOT, '.env'),
   path.join(ROOT, '.env.local'),
-  path.join(ROOT, 'src', 'web-admin', '.env'),
-  path.join(ROOT, 'src', 'web-admin', '.env.local'),
+  path.join(ROOT, 'src', 'web-admin', 'backend', '.env'),
+  path.join(ROOT, 'src', 'web-admin', 'backend', '.env.local'),
 ]);
 
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));

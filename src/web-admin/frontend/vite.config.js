@@ -12,13 +12,14 @@ export default defineConfig({
   resolve: {
     dedupe: ['react', 'react-dom'],
     alias: {
-      // Shared code aliases (relative to project root)
-      '@shared': path.resolve(__dirname, '../shared'),
-      '@components': path.resolve(__dirname, '../shared/components'),
-      '@hooks': path.resolve(__dirname, '../shared/hooks'),
-      '@services': path.resolve(__dirname, '../shared/services'),
-      '@utils': path.resolve(__dirname, '../shared/utils'),
-      '@styles': path.resolve(__dirname, '../shared/styles')
+      // Shared code aliases point at the electron app's src/shared
+      // (../../shared from src/web-admin/frontend/)
+      '@shared': path.resolve(__dirname, '../../shared'),
+      '@components': path.resolve(__dirname, '../../shared/components'),
+      '@hooks': path.resolve(__dirname, '../../shared/hooks'),
+      '@services': path.resolve(__dirname, '../../shared/services'),
+      '@utils': path.resolve(__dirname, '../../shared/utils'),
+      '@styles': path.resolve(__dirname, '../../shared/styles')
     }
   },
   server: {
