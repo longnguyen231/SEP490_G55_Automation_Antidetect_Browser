@@ -57,7 +57,7 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
     return;
   }
 
-  // Init scripts for persistent context (optional via settings.cdpApplyInitScript; default enabled)
+  // Chạy các script tiền khởi tạo cho persistent context (tuỳ chọn qua cài đặt cdpApplyInitScript; mặc định bật)
   const shouldApplyInitScript = (() => {
     try {
       if (Object.prototype.hasOwnProperty.call(settings || {}, 'cdpApplyInitScript')) return !!settings.cdpApplyInitScript;
@@ -88,7 +88,7 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
           const langs = (typeof adv.languages === 'string' && adv.languages.trim()) ? adv.languages : locale;
           params.acceptLanguage = String(langs || locale);
         }
-        // Build User-Agent Client Hints (Sec-CH-UA) — Cloudflare checks these
+        // Khởi tạo User-Agent Client Hints (Sec-CH-UA) — Bypass kiểm tra của hệ thống Cloudflare
         try {
           const versionMatch = userAgent.match(/Chrome\/(\d+)\.(\d+)\.(\d+)\.(\d+)/);
           if (versionMatch) {
@@ -100,9 +100,9 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
       }
       if (applyViewport && viewport) {
         try {
-          // Disable setDeviceMetricsOverride so the browser window isn't forcibly zoomed or scaled.
-          // The JS initialization script (fingerprintInit.js) already spoofs window.screen.* variables perfectly.
-          // We don't want CDP to artificially lock the viewport to 3840x2160 if the user's screen is smaller.
+          // Vô hiệu hóa tính năng setDeviceMetricsOverride mặc định của CDP để trình duyệt không bị khóa/zoom tỷ lệ.
+          // File js khởi tạo (fingerprintInit.js) đã giả mạo biến window.screen.* hoàn hảo ở cấp độ JS rồi.
+          // Ta không muốn CDP khóa cứng viewport ở 3840x2160 nếu màn hình thật của người dùng nhỏ hơn.
           /*
           await session.send('Emulation.setDeviceMetricsOverride', {
             width: viewport.width,
@@ -127,7 +127,7 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
     } catch {}
   };
 
-  // Apply to existing pages
+  // Áp dụng CDP Overrides vào các trang (tabs) đang mở sẵn
   try {
     const isHttpUrl = (u) => { try { const url = new URL(u); return url.protocol === 'http:' || url.protocol === 'https:'; } catch { return false; } };
     const pages = context.pages?.() || [];
@@ -135,7 +135,7 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
       // eslint-disable-next-line no-await-in-loop
       await applyToPage(p);
     }
-    // Restore session tabs or navigate to startUrl
+    // Khôi phục các tab từ lần chạy trước hoặc chuyển hướng đến StartUrl mặc định
     const restoredTabs = Array.isArray(savedTabs) ? savedTabs : [];
 
     if (restoredTabs.length > 0) {
@@ -181,17 +181,17 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
     }
   } catch {}
 
-  // Apply to future pages
+  // Tự động Áp dụng CDP vào các trang (tabs) sẽ được mở trong tương lai
   try { context.on?.('page', (p) => { applyToPage(p).catch(()=>{}); }); } catch {}
 
-  // Retain a controller connection so the page listener stays alive
+  // Giữ lại kết nối Điều khiển để bộ lắng nghe (listener) của trang không bị tắt
   try {
     if (runningProfiles) {
       const info = runningProfiles.get(profileId) || {};
       info.cdpControl = { browser, context };
       runningProfiles.set(profileId, info);
     }
-    // React to unexpected disconnects to update running state immediately
+    // Lắng nghe sự cố mất kết nối đột ngột để cập nhật trạng thái "Running" lập tức trên UI
     try {
       browser.on?.('disconnected', () => {
         try {
