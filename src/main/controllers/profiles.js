@@ -507,19 +507,19 @@ async function launchProfileInternal(profileId, options = {}) {
     if (detectedChromeVersion) appendLog(profileId, `[binary] detected version=${detectedChromeVersion}`);
 
 
-    // safeMode: true (default) → skip CDP emulation commands (userAgent, locale,
-    // timezone, geolocation) that Cloudflare enterprise detects.
-    // Only viewport and proxy are safe because they don't use CDP Emulation APIs.
-    // safeMode: skip Object.defineProperty overrides to bypass Cloudflare Enterprise (Chrome only).
-    // Firefox can't bypass Cloudflare regardless (TLS fingerprint), so force safeMode=false
-    // to enable full fingerprint injection on Firefox.
-    const safeMode = isFirefox ? false : (settings?.safeMode !== false);
+    // safeMode: opt-IN — set settings.safeMode=true to skip JS Object.defineProperty overrides
+    // (hardware, navigator, webgl vendor) that Cloudflare Enterprise detects.
+    // Default OFF so fingerprint spoofing works out of the box.
+    // Firefox always uses safeMode=false because it can't bypass Cloudflare regardless (TLS fingerprint).
+    const safeMode = isFirefox ? false : (settings?.safeMode === true);
     const apply = (settings && settings.applyOverrides) || {};
-    const applyUA = !safeMode && apply.userAgent !== false;
-    const applyLang = !safeMode && apply.language !== false;
-    const applyTz = !safeMode && apply.timezone !== false;
-    const applyViewport = apply.viewport !== false; // viewport is safe even in safeMode
-    const applyGeo = !safeMode && apply.geolocation !== false;
+    // Context-level options use Playwright's native API, not CDP or JS overrides.
+    // They are safe and undetectable — always apply them.
+    const applyUA = apply.userAgent !== false;
+    const applyLang = apply.language !== false;
+    const applyTz = apply.timezone !== false;
+    const applyViewport = apply.viewport !== false;
+    const applyGeo = apply.geolocation !== false;
     const contextOptions = { proxy, extraHTTPHeaders: {} };
 
     // Force UA to match the actual binary version — prevents binary/UA mismatch detection.
