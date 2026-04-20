@@ -634,10 +634,10 @@ function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
         <div className="pf-field pf-mt" style={{ marginTop: '16px' }}>
           <label className="pf-checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
             <input type="checkbox" className="pf-checkbox" checked={!!formData.settings.safeMode} onChange={e => setS('safeMode', e.target.checked)} />
-            <span style={{ fontWeight: 600, color: '#f59e0b' }}>🛡️ Enable Cloudflare Bypass (Safe Mode)</span>
+            <span style={{ fontWeight: 600, color: '#f59e0b' }}>🛡️ Enable Safe Mode</span>
           </label>
           <p className="pf-hint" style={{ marginTop: '6px', lineHeight: '1.4' }}>
-            <strong>Antidetect Paradox:</strong> When enabled, disables Javascript-level fingerprint tampering to trick Cloudflare's WAF. However, this stops Canvas/WebGL spoofing, so multiple profiles will have the identical base hardware fingerprint. Toggle this ON only for sites that block you.
+            When enabled, prevents Javascript-level fingerprint injection (WebGL, Canvas, Audio). When disabled, injects the fake fingerprint data.
           </p>
         </div>
       </fieldset>
