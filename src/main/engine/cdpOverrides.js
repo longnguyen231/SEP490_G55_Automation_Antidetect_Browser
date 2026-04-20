@@ -68,7 +68,7 @@ async function applyCdpOverrides(profileId, wsEndpoint, profile, settings, start
   if (shouldApplyInitScript) {
     try {
       const { applyFingerprintInitScripts } = require('./fingerprintInit');
-      const safeMode = settings?.safeMode !== false; // default ON
+      const safeMode = settings?.safeMode === true; // default OFF
       await applyFingerprintInitScripts(context, profile, settings, { overrideUserAgent: userAgent, safeMode });
     } catch (e) {
       appendLog && appendLog(profileId, `CDP: addInitScript failed: ${e?.message || e}`);

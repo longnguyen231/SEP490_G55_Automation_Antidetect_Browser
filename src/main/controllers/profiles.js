@@ -513,7 +513,7 @@ async function launchProfileInternal(profileId, options = {}) {
     // safeMode: skip Object.defineProperty overrides to bypass Cloudflare Enterprise (Chrome only).
     // Firefox can't bypass Cloudflare regardless (TLS fingerprint), so force safeMode=false
     // to enable full fingerprint injection on Firefox.
-    const safeMode = isFirefox ? false : (settings?.safeMode !== false);
+    const safeMode = isFirefox ? false : (settings?.safeMode === true);
     const apply = (settings && settings.applyOverrides) || {};
     const applyUA = !safeMode && apply.userAgent !== false;
     const applyLang = !safeMode && apply.language !== false;
