@@ -46,12 +46,9 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   const applyUA = !safeMode && apply.userAgent !== false;
   const applyWebgl = !safeMode && apply.webgl !== false;
   const applyLang = !safeMode && apply.language !== false;
-  // Canvas, Audio, and Viewport noise ALWAYS apply regardless of safeMode.
-  // These are critical for generating unique fingerprint hashes per profile.
-  // They don't override navigator properties, so Cloudflare cannot detect them.
-  const applyViewport = apply.viewport !== false;
-  const applyCanvas = apply.canvas !== false;
-  const applyAudio = apply.audio !== false;
+  const applyViewport = !safeMode && apply.viewport !== false;
+  const applyCanvas = !safeMode && apply.canvas !== false;
+  const applyAudio = !safeMode && apply.audio !== false;
   // Always run anti-automation cleanup regardless of safeMode — removing webdriver/CDP artifacts
   // is safe and necessary. Can be disabled only via explicit applyOverrides.antiDetection=false.
   const applyAntiDetection = apply.antiDetection !== false;
