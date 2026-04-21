@@ -43,6 +43,13 @@ function logPath(profileId) {
   return path.join(dir, `${profileId}.log`);
 }
 
+function auditLogPath() {
+  const dir = path.join(getDataRoot(), 'logs');
+  ensureDir(dir);
+  return path.join(dir, 'system_audit.log');
+}
+
+
 function profilesFilePath() {
   return path.join(getDataRoot(), 'profiles.json');
 }
@@ -101,6 +108,7 @@ module.exports = {
   ensureDir,
   storageStatePath,
   logPath,
+  auditLogPath,
   profilesFilePath,
   settingsFilePath,
   presetsFilePath,

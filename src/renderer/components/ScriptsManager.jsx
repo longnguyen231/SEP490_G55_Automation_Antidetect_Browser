@@ -645,6 +645,7 @@ function BulkRunModal({ script, profiles = [], onClose }) {
     const [selectedIds, setSelectedIds] = useState([]);
     const [concurrency, setConcurrency] = useState(3);
     const [browserMode, setBrowserMode] = useState('visible');
+    const [showWarning, setShowWarning] = useState(false);
     const [running, setRunning] = useState(false);
     const [done, setDone] = useState(false);
     // Per-profile status: { [profileId]: 'pending' | 'running' | 'success' | 'error' | 'stopped' }
@@ -661,8 +662,17 @@ function BulkRunModal({ script, profiles = [], onClose }) {
 
     const setStatus = (id, status) => setStatuses(prev => ({ ...prev, [id]: status }));
 
-    const handleRun = async () => {
+    const handleRunClick = () => {
         if (!selectedIds.length) return;
+        if (selectedIds.length >= 5 && !showWarning) {
+            setShowWarning(true);
+            return;
+        }
+        executeRun();
+    };
+
+    const executeRun = async () => {
+        setShowWarning(false);
         abortRef.current = false;
         setRunning(true);
         setDone(false);
@@ -878,16 +888,51 @@ function BulkRunModal({ script, profiles = [], onClose }) {
                                 onClick={onClose}>
                                 Cancel
                             </button>
-                            <button className="px-5 py-2 rounded-lg text-[0.78rem] font-semibold text-white flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 transition"
+                            <button className="px-5 py-2 rounded-lg text-[0.78rem] font-semibold text-white flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 hover:shadow-lg transition"
                                 style={{ background: selectedIds.length ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#4b5563' }}
                                 disabled={!selectedIds.length}
-                                onClick={handleRun}>
+                                onClick={handleRunClick}>
                                 <Play size={14} /> Run {selectedIds.length > 0 ? `${selectedIds.length} profiles` : ''}
                             </button>
                         </>
                     )}
                 </div>
             </div>
+
+            {/* Red Warning Modal (DDoS Prevention) */}
+            {showWarning && (
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }} onClick={() => setShowWarning(false)}>
+                    <div className="rounded-xl p-6 w-[420px] shadow-[0_0_40px_rgba(239,68,68,0.3)] flex flex-col" style={{ background: '#1e1e2e', border: '2px solid #ef4444' }} onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-red-500/20">
+                                <span className="text-red-500 text-[1.5rem]">⚠️</span>
+                            </div>
+                            <div>
+                                <h3 className="text-[1.1rem] font-bold text-red-500">Cảnh Báo Đạo Đức / Security</h3>
+                                <p className="text-[0.75rem] text-rose-300">High-Concurrency Execution Alert</p>
+                            </div>
+                        </div>
+                        <div className="text-[0.8rem] mb-5 space-y-2 text-rose-100">
+                            <p>Bạn đang chuẩn bị chạy kịch bản tự động trên <strong>{selectedIds.length}</strong> tab trình duyệt cùng lúc.</p>
+                            <p className="font-semibold text-white">Rủi ro tiềm ẩn:</p>
+                            <ul className="list-disc pl-5 opacity-90 space-y-1">
+                                <li><strong>Tốn tải băng thông (Bandwidth abuse)</strong> của máy chủ đích.</li>
+                                <li>Hành vi của bạn có thể vô tình cấu thành một cuộc tấn công <strong>Từ Chối Dịch Vụ (DDoS)</strong> nếu kịch bản liên tục tải lại hoặc request API nhanh.</li>
+                                <li>Mọi hành vi vi phạm đạo đức đều được ghi lại vào nhật ký Audit không thể xóa.</li>
+                            </ul>
+                            <p className="mt-3 text-[0.75rem] opacity-75">Bạn có chắc chắn muốn phát động phiên chạy này không?</p>
+                        </div>
+                        <div className="flex gap-3 justify-end mt-2">
+                            <button className="px-4 py-2 rounded flex-1 text-[0.8rem] font-medium hover:bg-white/10 text-white transition border border-white/20" onClick={() => setShowWarning(false)}>
+                                Hủy bỏ (Cancel)
+                            </button>
+                            <button className="px-4 py-2 flex-1 rounded text-[0.8rem] font-bold text-white transition-all hover:brightness-125" style={{ background: '#ef4444', boxShadow: '0 0 15px rgba(239, 68, 68, 0.4)' }} onClick={executeRun}>
+                                Tôi chịu trách nhiệm (Run)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

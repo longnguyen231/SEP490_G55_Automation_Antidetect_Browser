@@ -30,6 +30,7 @@ const { listScriptsInternal, getScriptInternal, saveScriptInternal, deleteScript
 const { addTaskLog, getTaskLogs, getTaskLogById, deleteTaskLog, clearTaskLogs } = require('../storage/taskLogs');
 const { listModules, installModule, uninstallModule } = require('../storage/scriptModules');
 const { executeScript, stopScript, pauseScript, resumeScript, isScriptRunning } = require('../engine/scriptRuntime');
+const { getAuditLogContent } = require('../logging/auditLogger');
 const {
   getProxiesInternal, getProxyByIdInternal,
   createProxyInternal, updateProxyInternal,
@@ -227,6 +228,18 @@ function registerIpcHandlers(extra = {}) {
       const scriptName = scriptResult.script.name || scriptId;
       appendLog(profileId, `Script execute: "${scriptName}"`);
 
+      // Linter: Ethical Domain Checking & Attack Pattern Scanner (BR_01)
+      // Dời Linter lên tận cửa ngõ IPC Handler. Quét code và cấm mở Profile nếu Vi phạm.
+      const restrictedDomainPattern = /\.gov|\.mil|\.edu|\b(bank|paypal|vnpay|momo|zalopay|shopeepay|viettelpay|agribank|vietcombank|techcombank|mbbank|sacombank|vpbank|bidv|crypto|binance|bitcoin|usdt)\b/i;
+      const ddosPattern = /while\s*\(\s*true\s*\)\s*\{[^{}]*(fetch|actions\.)/i;
+      
+      if (restrictedDomainPattern.test(code) || ddosPattern.test(code)) {
+        const { appendAuditLog } = require('../logging/auditLogger');
+        appendAuditLog('VIOLATION_BLOCKED', `Script attempted to access restricted patterns`, profileId);
+        appendLog(profileId, 'EthicalViolationError: Restricted domain access or spam patterns are strictly prohibited.');
+        return { success: false, error: 'EthicalViolationError: Restricted domain access or sensitive patterns are strictly prohibited by system policies.' };
+      }
+
       const { runningProfiles } = require('../state/runtime');
       if (!runningProfiles.has(profileId)) {
         const headless = !!(opts && opts.headless);
@@ -289,6 +302,12 @@ function registerIpcHandlers(extra = {}) {
     const r = await clearTaskLogs();
     if (r?.success) appendLog('system', 'All task logs cleared');
     return r;
+  });
+
+  // Hỗ trợ xuất Audit Log (Ethical Rule UC_11.03)
+  handle('system-export-audit', async () => {
+    appendLog('system', 'System Audit Log exported by user.');
+    return { success: true, content: getAuditLogContent() };
   });
 
   // Quản lý thư viện bổ sung cho Kịch bản (NPM Packages / Script modules)
