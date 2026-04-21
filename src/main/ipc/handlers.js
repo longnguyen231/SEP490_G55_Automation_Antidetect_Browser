@@ -41,17 +41,17 @@ const { getMachineCode, validateLicenseKey } = require('../services/machineId');
 const { checkBrowserStatus, installBrowser, uninstallBrowser, reinstallBrowser } = require('../services/browserManagerService');
 
 function registerIpcHandlers(extra = {}) {
-  // Safe handle: remove existing handler first to support hot-reload
+  // Hàm đăng ký an toàn: Xóa handler cũ nếu có để hỗ trợ tính năng hot-reload (tải lại nóng) trong quá trình dev
   const handle = (channel, fn) => {
     try { ipcMain.removeHandler(channel); } catch {}
     ipcMain.handle(channel, fn);
   };
 
-  // Machine Code & License
+  // Quản lý Mã máy (Machine Code) & Giấy phép (License)
   handle('get-machine-code', () => getMachineCode());
   handle('validate-license', (_e, key) => validateLicenseKey(key));
 
-  // Browser Runtime Manager
+  // Quản lý Môi trường chạy Trình duyệt (Browser Runtime Manager)
   handle('browser-runtime-status', async (_e, name) => checkBrowserStatus(name));
   handle('browser-runtime-install', async (_e, name) => {
     appendLog('system', `Browser runtime: installing "${name}"...`);
@@ -134,14 +134,14 @@ function registerIpcHandlers(extra = {}) {
     return r;
   });
 
-  // Bulk profile operations
+  // Xử lý Profile hàng loạt (Thêm, Sửa, Xóa nhiều Profile cùng lúc)
   handle('save-profiles-bulk', async (_e, profiles) => {
     const r = await saveProfilesBulkInternal(profiles);
     if (r?.success) appendLog('system', `Bulk saved ${r.profiles?.length || 0} profile(s)`);
     return r;
   });
   handle('delete-profiles-bulk', async (_e, ids) => {
-    // Stop running profiles first
+    // Ép dừng các profile đang chạy trước khi xóa
     if (Array.isArray(ids)) {
       for (const id of ids) {
         try { await stopProfileInternal(id); } catch { }
@@ -157,16 +157,16 @@ function registerIpcHandlers(extra = {}) {
     return r;
   });
 
-  // Automation
+  // Tự động hóa (Automation)
   handle('run-automation-now', async (_e, profileId) => await runAutomationNowInternal(profileId));
 
-  // Generic action performer: (profileId, actionName, params)
+  // Bộ thực thi hành động chung nhận từ Frontend: (profileId, actionName, params)
   handle('profile-action', async (_e, profileId, actionName, params = {}) => {
     try { return await performAction(profileId, String(actionName), params || {}); }
     catch (e) { return { success: false, error: e?.message || String(e) }; }
   });
 
-  // Live preview screencast controls
+  // Điều khiển truyền phát Stream màn hình trực tiếp (Screencast / Live Preview)
   handle('start-preview', async (_e, profileId) => {
     try {
       const { startScreencast, isScreencasting } = require('../engine/screencast');
@@ -189,7 +189,7 @@ function registerIpcHandlers(extra = {}) {
     } catch (e) { return { success: false, streaming: false }; }
   });
 
-  // Presets management
+  // Quản lý bộ Cấu hình mẫu (Presets)
   handle('presets-list', async () => await listPresetsInternal());
   handle('presets-add', async (_e, preset) => {
     const r = await addPresetInternal(preset || {});
@@ -202,7 +202,7 @@ function registerIpcHandlers(extra = {}) {
     return r;
   });
 
-  // Scripts management
+  // Quản lý Kịch bản Tự động hóa (Scripts)
   handle('scripts-list', async () => await listScriptsInternal());
   handle('scripts-get', async (_e, id) => await getScriptInternal(id));
   handle('scripts-save', async (_e, script) => {
@@ -248,8 +248,9 @@ function registerIpcHandlers(extra = {}) {
         appendLog(profileId, `Script finished OK: "${scriptName}"`);
         await addTaskLog({ scriptId, scriptName, profileId, status: 'completed', startedAt, finishedAt, logs: result.logs || [] });
       } else {
-        appendLog(profileId, `Script error: ${result.error}`);
-        await addTaskLog({ scriptId, scriptName, profileId, status: 'error', startedAt, finishedAt, logs: result.logs || [], error: result.error });
+        const isStopped = result.error && String(result.error).includes('stopped by user');
+        appendLog(profileId, isStopped ? `Script stopped by user` : `Script error: ${result.error}`);
+        await addTaskLog({ scriptId, scriptName, profileId, status: isStopped ? 'stopped' : 'error', startedAt, finishedAt, logs: result.logs || [], error: result.error });
       }
       return result;
     }
@@ -259,7 +260,7 @@ function registerIpcHandlers(extra = {}) {
     }
   });
 
-  // Script execution control
+  // Điều khiển tiến trình chạy Kịch bản (Thực thi, Dừng, Tạm dừng, Tiếp tục)
   handle('script-stop', (_e, profileId) => {
     stopScript(profileId);
     return { success: true };
@@ -276,7 +277,7 @@ function registerIpcHandlers(extra = {}) {
     return { running: isScriptRunning(profileId) };
   });
 
-  // Task logs
+  // Quản lý nhật ký tác vụ theo thời gian thực (Task logs)
   handle('task-logs-list', async () => getTaskLogs());
   handle('task-logs-get', async (_e, id) => getTaskLogById(id));
   handle('task-logs-delete', async (_e, id) => {
@@ -290,7 +291,7 @@ function registerIpcHandlers(extra = {}) {
     return r;
   });
 
-  // Script modules (npm packages)
+  // Quản lý thư viện bổ sung cho Kịch bản (NPM Packages / Script modules)
   handle('script-modules-list', async () => {
     try { return { success: true, modules: listModules() }; }
     catch (e) { return { success: false, error: e.message }; }
@@ -304,7 +305,7 @@ function registerIpcHandlers(extra = {}) {
     catch (e) { return { success: false, error: e.message }; }
   });
 
-  // Proxy management
+  // Quản lý danh sách Proxy
   handle('proxy-get-all', async () => await getProxiesInternal());
   handle('proxy-get-by-id', async (_e, id) => await getProxyByIdInternal(id));
   handle('proxy-create', async (_e, data) => {
@@ -328,7 +329,7 @@ function registerIpcHandlers(extra = {}) {
   });
   handle('proxy-export', async (_e, ids) => await exportProxiesInternal(ids));
 
-  // Proxy checker
+  // Trình kiểm tra trạng thái sống chết của Proxy (Checker)
   handle('proxy-check', async (_e, cfg) => {
     try { return await checkProxy(cfg); }
     catch (e) { return { success: false, alive: false, error: e?.message || String(e) }; }
@@ -339,7 +340,7 @@ function registerIpcHandlers(extra = {}) {
       const results = {};
       await checkProxiesBatch(proxies, (id, result) => {
         results[id] = result;
-        // Update proxy status in storage
+        // Cập nhật trạng thái mới nhất của proxy vào máy chủ lưu trữ (JSON/DB)
         try {
           updateProxyInternal(id, {
             status: result.alive ? 'alive' : 'dead',
@@ -356,7 +357,7 @@ function registerIpcHandlers(extra = {}) {
     } catch (e) { return { success: false, error: e?.message || String(e) }; }
   });
 
-  // Proxy Rotator (from huy branch)
+  // Trình xoay vòng Proxy (Được gộp từ nhánh phát triển huy)
   handle('proxy-rotate', async (_e, id) => {
     try {
       const getRes = await getProxyByIdInternal(id);
@@ -393,7 +394,7 @@ function registerIpcHandlers(extra = {}) {
     }
   });
 
-  // Settings direct save (optional future use)
+  // Lưu trữ cài đặt trực tiếp (Dự phòng cho quá trình mở rộng sau này)
   handle('load-settings', async () => {
     try { const s = loadSettings(); return { success: true, settings: s || {} }; }
     catch (e) { return { success: false, error: e?.message || String(e) }; }
@@ -406,13 +407,13 @@ function registerIpcHandlers(extra = {}) {
     return { success: ok };
   });
 
-  // Open external link
+  // Mở liên kết ngoài mạng bằng trình duyệt mặc định của hệ điều hành OS
   handle('open-external', async (_e, url) => {
     try { await shell.openExternal(String(url)); return { success: true }; }
     catch (e) { return { success: false, error: e?.message || String(e) }; }
   });
 
-  // REST API server control handlers if restServer provided
+  // Các bộ điều khiển Máy chủ Local REST API (Chỉ kích hoạt nếu restServer được truyền vào lúc khởi động)
   if (extra.restServer) {
     const rest = extra.restServer;
     const handlers = extra.handlers || {};

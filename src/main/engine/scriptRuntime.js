@@ -1,8 +1,8 @@
 /**
- * scriptRuntime.js — Enhanced script execution engine.
+ * scriptRuntime.js — Engine nâng cao thực thi kịch bản tự động hóa (script).
  * 
- * Exposes both `page`/`context` objects (Playwright API) and `actions` proxy
- * to user scripts. Collects structured logs.
+ * Cung cấp các đối tượng `page`/`context` (Playwright API) và proxy `actions`
+ * cho các script của người dùng. Đồng thời thu thập và cấu trúc dữ liệu log.
  */
 
 const vm = require('vm');
@@ -12,7 +12,7 @@ const { performAction, getActionNames } = require('./actions');
 const { runningProfiles } = require('../state/runtime');
 const { getModulesDir } = require('../storage/scriptModules');
 
-// Safe require for user-installed script modules
+// Require an toàn cho các thư viện module NPM được cài đặt thêm
 function makeScriptRequire(profileId) {
   const modulesDir = (() => { try { return getModulesDir(); } catch { return null; } })();
   const ALLOWED_BUILTINS = new Set(['path', 'url', 'querystring', 'crypto', 'buffer', 'stream', 'events', 'util', 'os', 'zlib']);
@@ -32,12 +32,29 @@ function makeScriptRequire(profileId) {
 function ok(v = {}) { return { success: true, ...v }; }
 function err(message, extra = {}) { return { success: false, error: String(message || 'unknown error'), ...extra }; }
 
-// Per-profile execution control
+// Kiểm soát trạng thái thực thi script lữu trữ theo cấu trúc Map (Key: profileId)
 const _runningScripts = new Map(); // profileId -> { aborted, paused }
 
 function stopScript(profileId) {
   const ctrl = _runningScripts.get(profileId);
-  if (ctrl) { ctrl.aborted = true; ctrl.paused = false; }
+  if (ctrl) {
+    ctrl.aborted = true; 
+    ctrl.paused = false;
+    
+    // Hủy bỏ (Reject) ngay lập tức Promise (Thoát khỏi vòng lặp vô tận nếu có)
+    if (ctrl.rejectAbort) {
+      ctrl.rejectAbort(new Error('Script stopped by user'));
+    }
+
+    // Đóng ép buộc trang đang active để ném Exeption vào tiến trình Playwright đang bị treo ngầm
+    try {
+      if (ctrl.pageHandle && ctrl.pageHandle.page && !ctrl.pageHandle.page.isClosed()) {
+        ctrl.pageHandle.page.close().catch(() => {});
+      }
+    } catch (e) {
+      // Bỏ qua các lỗi dọn dẹp bộ nhớ (cleanup) vì ta đang ép dừng khẩn cấp
+    }
+  }
 }
 
 function pauseScript(profileId) {
@@ -55,7 +72,7 @@ function isScriptRunning(profileId) {
 }
 
 /**
- * Get a Playwright page from a running profile.
+ * Gắn kết và lấy đối tượng Playwright Page từ profile Local đang chạy.
  */
 async function getPageForProfile(profileId) {
   const running = runningProfiles.get(profileId);
@@ -64,7 +81,7 @@ async function getPageForProfile(profileId) {
     return null;
   }
 
-  // All Playwright-based engines (chromium, firefox, camoufox) store context directly
+  // Toàn bộ các engine mang nhân Playwright (chromium, firefox, camoufox) lưu context trực tiếp trên bộ nhớ hệ thống
   const isPlaywrightEngine = running.engine !== 'cdp' && running.context;
   if (isPlaywrightEngine) {
     const context = running.context;
@@ -84,7 +101,7 @@ async function getPageForProfile(profileId) {
     return { page, context, browser: running.browser, cleanup: async () => {} };
   }
 
-  // CDP: connect via Playwright for unified API
+  // CDP: Kết nối với Chrome DevTools Protocol nhưng gọi qua Playwright để đồng nhất API Interface
   if (!running.wsEndpoint) {
     appendLog(profileId, 'Script: CDP wsEndpoint not available');
     return null;
@@ -116,12 +133,12 @@ async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
   if (!src) return err('code is empty');
   if (_runningScripts.has(profileId)) return err('A script is already running for this profile');
 
-  const ctrl = { aborted: false, paused: false };
+  const ctrl = { aborted: false, paused: false, rejectAbort: null, pageHandle: null };
   _runningScripts.set(profileId, ctrl);
 
   appendLog(profileId, `Script: starting execution (timeout=${timeoutMs}ms)`);
 
-  // Collect logs
+  // Quá trình thu thập log để xuất ra UI
   const logs = [];
   const log = (...args) => {
     const msg = args.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' ');
@@ -130,7 +147,7 @@ async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
     try { appendLog(profileId, '[script] ' + msg); } catch {}
   };
 
-  // Abort/pause-aware sleep — checks flags every 100ms
+  // Hàm sleep có kiểm tra cờ dừng (abort) và tạm dừng (pause) — check liên tục mỗi 100ms
   const sleep = (ms) => new Promise((resolve, reject) => {
     const total = Math.min(Math.max(0, Number(ms) || 0), 10 * 60 * 1000);
     let elapsed = 0;
@@ -145,7 +162,7 @@ async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
     tick();
   });
 
-  // Actions proxy (legacy compatibility)
+  // Proxy linh hoạt bọc thư viện hành động (Tương thích chuẩn cũ)
   const actions = new Proxy({}, {
     get(_t, prop) {
       const name = String(prop);
@@ -154,6 +171,7 @@ async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
         return async () => ({ success: false, error: `Unknown action '${name}'` });
       }
       return async (params) => {
+        if (ctrl.aborted) throw new Error('Script stopped by user');
         try { return await performAction(profileId, name, params || {}); }
         catch (e) {
           appendLog(profileId, `Script: action '${name}' threw — ${e?.message || e}`);
@@ -164,17 +182,18 @@ async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
   });
   const assert = (cond, msg = 'Assertion failed') => { if (!cond) throw new Error(String(msg)); };
 
-  // Get page object for direct Playwright API access
+  // Khởi tạo các biến page để cấp quyền truy cập trực tiếp Playwright API cho Script
   let pageHandle = null;
   let page = null;
   let context = null;
   let cdpSession = null;
   try {
     pageHandle = await getPageForProfile(profileId);
+    ctrl.pageHandle = pageHandle; // Lưu trữ để ngắt khẩn cấp ngay khi bị ấn dừng (energetic termination)
     if (pageHandle) {
       page = pageHandle.page;
       context = pageHandle.context;
-      // Provide CDP session access if available
+      // Thiết lập tính khả dụng của gói CDP nếu được yêu cầu
       try {
         cdpSession = await context.newCDPSession(page);
       } catch (e) {
@@ -187,7 +206,7 @@ async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
     appendLog(profileId, `Script: failed to get page — ${e?.message || e}`);
   }
 
-  // Sandbox context
+  // Khởi tạo môi trường Sandbox Node.js cô lập (Cô lập quyền hạn và cách ly Object)
   const sandbox = {
     profileId,
     log,
@@ -233,6 +252,7 @@ async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
     const result = await Promise.race([
       script.runInContext(vmContext, { displayErrors: true }),
       new Promise((_, reject) => setTimeout(() => reject(new Error(`Script timeout after ${timeoutMs}ms`)), Math.min(timeoutMs, 300000))),
+      new Promise((_, reject) => { ctrl.rejectAbort = reject; })
     ]);
     _runningScripts.delete(profileId);
     if (pageHandle?.cleanup) await pageHandle.cleanup();

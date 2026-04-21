@@ -1,8 +1,0 @@
-is_global = true
-build_property.RootNamespace = ObtWebAutomationSDK
-build_property.ProjectDir = D:\Đồ án\SEP490_G55_Automation_Antidetect_Browser\ObtWebAutomationSDK\
-build_property.EnableComHosting = 
-build_property.EnableGeneratedComInterfaceComImportInterop = 
-build_property.CsWinRTUseWindowsUIXamlProjections = false
-build_property.EffectiveAnalysisLevelStyle = 
-build_property.EnableCodeStyleSeverity = 

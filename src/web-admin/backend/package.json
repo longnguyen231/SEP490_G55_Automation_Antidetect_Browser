@@ -1,0 +1,21 @@
+{
+  "name": "web-admin-backend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Web Admin API — Express server + Vercel serverless handlers",
+  "main": "server/index.js",
+  "scripts": {
+    "dev": "node --env-file=.env --env-file-if-exists=.env.local server/index.js",
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "@payos/node": "^2.0.5",
+    "express": "^5.2.1",
+    "firebase-admin": "^13.8.0",
+    "multer": "^2.1.1"
+  },
+  "devDependencies": {
+    "dotenv": "^17.4.2"
+  }
+}

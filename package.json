@@ -11,6 +11,8 @@
     "icons": "node scripts/make-icons.js",
     "build": "npm run icons && vite build && electron-builder",
     "build:vite": "vite build",
+    "dist": "npm run build && npm run upload:release",
+    "upload:release": "node scripts/upload-release.js",
     "start": "electron .",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -70,40 +72,29 @@
     "npmRebuild": false,
     "nodeGypRebuild": false,
     "mac": {
-      "category": "public.app-category.developer-tools",
-      "extraResources": [
-        {
-          "from": "vendor/chromium-mac/Chromium.app",
-          "to": "Chromium.app",
-          "filter": [
-            "**/*"
-          ]
-        }
-      ]
+      "category": "public.app-category.developer-tools"
     },
     "win": {
-      "target": "nsis",
-      "extraResources": [
+      "target": [
         {
-          "from": "vendor/chrome-win",
-          "to": "chrome",
-          "filter": [
-            "**/*"
+          "target": "nsis",
+          "arch": [
+            "x64"
           ]
         }
-      ]
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "HL-MCK Antidetect Browser"
     },
     "linux": {
-      "target": "AppImage",
-      "extraResources": [
-        {
-          "from": "vendor/chrome-linux",
-          "to": "chrome",
-          "filter": [
-            "**/*"
-          ]
-        }
-      ]
+      "target": "AppImage"
     },
     "afterPack": "./scripts/afterPack-obfuscate.js"
   },
@@ -171,5 +162,8 @@
     "xlsx": "^0.18.5",
     "zod": "^3.24.0",
     "zustand": "^5.0.0"
+  },
+  "overrides": {
+    "playwright-core": "1.56.1"
   }
 }

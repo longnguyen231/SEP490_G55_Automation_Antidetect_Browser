@@ -44,12 +44,15 @@ async function main() {
   }
 
   const faviconIco = path.join(publicDir, 'favicon.ico');
+  const buildIco = path.join(buildDir, 'icon.ico');
   try {
     const buf = await pngToIco(src);
     await fsp.writeFile(faviconIco, buf);
     console.log('[icons] Generated favicon ->', path.relative(root, faviconIco));
+    await fsp.writeFile(buildIco, buf);
+    console.log('[icons] Generated build icon ->', path.relative(root, buildIco));
   } catch (e) {
-    console.warn('[icons] Failed to generate favicon.ico:', e && e.message ? e.message : e);
+    console.warn('[icons] Failed to generate icon.ico:', e && e.message ? e.message : e);
   }
 }
 

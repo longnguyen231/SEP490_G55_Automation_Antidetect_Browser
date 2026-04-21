@@ -631,6 +631,15 @@ function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
             </div>
           )}
         </div>
+        <div className="pf-field pf-mt" style={{ marginTop: '16px' }}>
+          <label className="pf-checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input type="checkbox" className="pf-checkbox" checked={!!formData.settings.safeMode} onChange={e => setS('safeMode', e.target.checked)} />
+            <span style={{ fontWeight: 600, color: '#f59e0b' }}>🛡️ Enable Safe Mode</span>
+          </label>
+          <p className="pf-hint" style={{ marginTop: '6px', lineHeight: '1.4' }}>
+            When enabled, prevents Javascript-level fingerprint injection (WebGL, Canvas, Audio). When disabled, injects the fake fingerprint data.
+          </p>
+        </div>
       </fieldset>
 
       {/* Startup */}
