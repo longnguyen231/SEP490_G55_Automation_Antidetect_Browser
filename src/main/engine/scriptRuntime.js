@@ -8,6 +8,7 @@
 const vm = require('vm');
 const path = require('path');
 const { appendLog } = require('../logging/logger');
+const { appendAuditLog } = require('../logging/auditLogger');
 const { performAction, getActionNames } = require('./actions');
 const { runningProfiles } = require('../state/runtime');
 const { getModulesDir } = require('../storage/scriptModules');
@@ -162,6 +163,10 @@ async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
     tick();
   });
 
+  // Cấu trúc Rate Limiter Token Bucket (BR_02)
+  let actionCountThisSecond = 0;
+  let lastActionTime = Date.now();
+
   // Proxy linh hoạt bọc thư viện hành động (Tương thích chuẩn cũ)
   const actions = new Proxy({}, {
     get(_t, prop) {
@@ -172,6 +177,19 @@ async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
       }
       return async (params) => {
         if (ctrl.aborted) throw new Error('Script stopped by user');
+
+        // Rate Limiting Logic (BR_02): Không được quá 20 action / 1 giây
+        const now = Date.now();
+        if (now - lastActionTime > 1000) {
+            actionCountThisSecond = 0;
+            lastActionTime = now;
+        }
+        actionCountThisSecond++;
+        if (actionCountThisSecond > 20) {
+            appendAuditLog('RATE_LIMIT_EXCEEDED', `Action '${name}' exceeded 20/sec limit`, profileId);
+            throw new Error('RateLimitExceeded: Automation actions exceed 20/sec ethical limit.');
+        }
+
         try { return await performAction(profileId, name, params || {}); }
         catch (e) {
           appendLog(profileId, `Script: action '${name}' threw — ${e?.message || e}`);
@@ -184,18 +202,18 @@ async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
 
   // Khởi tạo các biến page để cấp quyền truy cập trực tiếp Playwright API cho Script
   let pageHandle = null;
-  let page = null;
-  let context = null;
-  let cdpSession = null;
+  let rawPage = null;
+  let rawContext = null;
+  let rawCdpSession = null;
   try {
     pageHandle = await getPageForProfile(profileId);
     ctrl.pageHandle = pageHandle; // Lưu trữ để ngắt khẩn cấp ngay khi bị ấn dừng (energetic termination)
     if (pageHandle) {
-      page = pageHandle.page;
-      context = pageHandle.context;
+      rawPage = pageHandle.page;
+      rawContext = pageHandle.context;
       // Thiết lập tính khả dụng của gói CDP nếu được yêu cầu
       try {
-        cdpSession = await context.newCDPSession(page);
+        rawCdpSession = await rawContext.newCDPSession(rawPage);
       } catch (e) {
         appendLog(profileId, `Script: CDP session unavailable — ${e?.message || e}. cdp will be null.`);
       }
@@ -205,6 +223,47 @@ async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
   } catch (e) {
     appendLog(profileId, `Script: failed to get page — ${e?.message || e}`);
   }
+
+  // Bọc (Wrap) đối tượng gốc của Playwright thành Safe Proxy để Rate Limiter đếm được cả 'page.click' thay vì chỉ 'actions.click'
+  function createRateLimitedProxy(targetObj, objectName) {
+    if (!targetObj) return targetObj;
+    return new Proxy(targetObj, {
+      get(target, prop) {
+        const val = target[prop];
+        if (typeof val === 'function') {
+          return function(...args) {
+            const now = Date.now();
+            if (now - lastActionTime > 1000) {
+                actionCountThisSecond = 0;
+                lastActionTime = now;
+            }
+            actionCountThisSecond++;
+            if (actionCountThisSecond > 20) {
+                appendAuditLog('RATE_LIMIT_EXCEEDED', `Method '${objectName}.${String(prop)}' exceeded 20/sec limit`, profileId);
+                throw new Error('RateLimitExceeded: Automation actions exceed 20/sec ethical limit.');
+            }
+            // Bind methods to original target to avoid Playwright "Illegal Invocation" errors
+            const result = val.apply(targetObj, args);
+            // Also recursively wrap promises to ensure chained actions are bound to original objects
+            if (result instanceof Promise) {
+                 return result.then(res => {
+                    if (res && res.constructor && ['Page', 'BrowserContext', 'Frame', 'Locator', 'ElementHandle'].includes(res.constructor.name)) {
+                       return createRateLimitedProxy(res, res.constructor.name.toLowerCase());
+                    }
+                    return res;
+                 });
+            }
+            return result;
+          };
+        }
+        return val;
+      }
+    });
+  }
+
+  const page = createRateLimitedProxy(rawPage, 'page');
+  const context = createRateLimitedProxy(rawContext, 'context');
+  const cdpSession = createRateLimitedProxy(rawCdpSession, 'cdp');
 
   // Khởi tạo môi trường Sandbox Node.js cô lập (Cô lập quyền hạn và cách ly Object)
   const sandbox = {
@@ -248,6 +307,7 @@ async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
   const vmContext = vm.createContext(sandbox, { name: 'scriptSandbox' });
   const wrapped = `(async () => {\n${src}\n})()`;
   try {
+    appendAuditLog('SCRIPT_RUN', `Started execution`, profileId);
     const script = new vm.Script(wrapped, { filename: 'automation-script.js', displayErrors: true });
     const result = await Promise.race([
       script.runInContext(vmContext, { displayErrors: true }),
