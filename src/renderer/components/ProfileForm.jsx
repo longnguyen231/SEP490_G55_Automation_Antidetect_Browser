@@ -605,6 +605,11 @@ function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
             </option>
           </select>
 
+          {/* Engine info hint */}
+          <p className="pf-hint" style={{ marginTop: '6px' }}>
+            Chromium supports full fingerprint injection. Firefox has limited CDP support.
+          </p>
+
           {/* Inline warning + Install button when selected engine is not installed */}
           {(formData.settings.engine === 'playwright' && engineStatus.chromium.status !== 'installed' && engineStatus.chromium.status !== 'loading') && (
             <div className="pf-engine-warn">
@@ -630,15 +635,6 @@ function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
               </button>
             </div>
           )}
-        </div>
-        <div className="pf-field pf-mt" style={{ marginTop: '16px' }}>
-          <label className="pf-checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-            <input type="checkbox" className="pf-checkbox" checked={!!formData.settings.safeMode} onChange={e => setS('safeMode', e.target.checked)} />
-            <span style={{ fontWeight: 600, color: '#f59e0b' }}>🛡️ Enable Safe Mode</span>
-          </label>
-          <p className="pf-hint" style={{ marginTop: '6px', lineHeight: '1.4' }}>
-            When enabled, prevents Javascript-level fingerprint injection (WebGL, Canvas, Audio). When disabled, injects the fake fingerprint data.
-          </p>
         </div>
       </fieldset>
 
