@@ -140,7 +140,7 @@ function validateProfileInputBasic(p) {
     errors.push('Unsupported browser value');
   }
   const engine = p.settings?.engine;
-  if (engine && !['playwright','playwright-firefox','camoufox','cdp','auto'].includes(engine)) errors.push('settings.engine must be playwright, playwright-firefox, camoufox, cdp, or auto');
+  if (engine && !['playwright','playwright-firefox','cdp','auto'].includes(engine)) errors.push('settings.engine must be playwright, playwright-firefox, cdp, or auto');
   const cpu = p.settings?.cpuCores; if (cpu != null && (!Number.isInteger(cpu) || cpu < 1 || cpu > 64)) errors.push('cpuCores must be 1-64');
   const mem = p.settings?.memoryGB; if (mem != null && (!Number.isInteger(mem) || mem < 1 || mem > 256)) errors.push('memoryGB must be 1-256');
   return errors;
@@ -149,11 +149,22 @@ function validateProfileInputBasic(p) {
 function normalizeProfileInput(input = {}, existing = null) {
   const base = existing || {};
   const isNewProfile = !existing || !existing.id;
+  
+  let fallbackFp = FALLBACK_FINGERPRINT;
+  let fallbackSettings = DEFAULT_SETTINGS;
+
+  // Generate a random fingerprint for completely new profiles if not explicitly provided
+  if (isNewProfile && (!input.fingerprint || Object.keys(input.fingerprint).length === 0)) {
+    const generated = generateDefaultFingerprint();
+    fallbackFp = generated.fingerprint || FALLBACK_FINGERPRINT;
+    fallbackSettings = generated.settings || FALLBACK_SETTINGS;
+  }
+
   const name = (input.name != null ? String(input.name) : String(base.name || ''))?.trim();
   const description = input.description != null ? String(input.description) : (base.description || '');
   const startUrl = normalizeStartUrl(input.startUrl || base.startUrl || 'https://www.google.com');
-  const fingerprint = deepMerge(FALLBACK_FINGERPRINT, deepMerge(base.fingerprint || {}, input.fingerprint || {}));
-  const settings = deepMerge(DEFAULT_SETTINGS, deepMerge(base.settings || {}, input.settings || {}));
+  const fingerprint = deepMerge(fallbackFp, deepMerge(base.fingerprint || {}, input.fingerprint || {}));
+  const settings = deepMerge(fallbackSettings, deepMerge(base.settings || {}, input.settings || {}));
   if (!settings.engine || settings.engine === 'auto') {
     const { resolveChromeExecutable } = require('./settings');
     if (resolveChromeExecutable && resolveChromeExecutable()) {
@@ -272,7 +283,6 @@ async function saveProfileInternal(profile) {
     if (profile.id) {
       const idx = profiles.findIndex(p => p.id === profile.id);
       if (idx !== -1) {
-        // Updating existing profile - no license check needed
         const merged = normalizeProfileInput(profile, profiles[idx]);
         // Ensure unique name if changed
         if (merged.name && merged.name.trim().toLowerCase() !== (profiles[idx].name||'').trim().toLowerCase()) {
@@ -280,26 +290,11 @@ async function saveProfileInternal(profile) {
         }
         profiles[idx] = { ...profiles[idx], ...merged, updatedAt: nowIso };
       } else {
-        // Profile has ID but not found - creating new, check license limit
-        if (!isLicenseActivated() && profiles.length >= 5) {
-          return {
-            success: false,
-            error: 'Free plan giới hạn tối đa 5 profiles. Vui lòng kích hoạt license để tạo thêm profile.'
-          };
-        }
         const prepared = normalizeProfileInput(profile, null);
         prepared.name = makeUniqueName(prepared.name, profiles, prepared.id);
         profiles.push({ ...prepared, createdAt: nowIso });
       }
     } else {
-      // New profile without ID - check license limit for free users
-      if (!isLicenseActivated() && profiles.length >= 5) {
-        return {
-          success: false,
-          error: 'Free plan giới hạn tối đa 5 profiles. Vui lòng kích hoạt license để tạo thêm profile.'
-        };
-      }
-      
       let newId = generateShortId();
       // Ensure uniqueness just in case
       const existingIds = new Set((profiles || []).map(p => p.id));
@@ -320,24 +315,18 @@ async function saveProfileInternal(profile) {
 }
 
 function generateShortId() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  for (let i = 0; i < 6; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
-// Helper: Check if license is activated
-function isLicenseActivated() {
   try {
-    const licensePath = path.join(app.getPath('userData'), 'license.json');
-    if (!fs.existsSync(licensePath)) return false;
-    const licenseData = JSON.parse(fs.readFileSync(licensePath, 'utf8'));
-    return licenseData && licenseData.activated === true;
+    // Prefer crypto random for entropy
+    const bytes = crypto.randomBytes(6).toString('hex'); // 12 hex chars
+    const t = Date.now().toString(36); // timestamp base36
+    return (t + bytes.slice(0, 6)).toLowerCase(); // ~ 6+6 = 12 chars
   } catch {
-    return false;
+    const t = Date.now().toString(36);
+    const r = Math.random().toString(36).slice(2, 8);
+    return (t + r).toLowerCase();
   }
 }
+
 async function deleteProfileInternal(profileId) {
   try {
     const profiles = readProfiles();
@@ -393,10 +382,20 @@ function safeDeepClone(obj) {
   try { return JSON.parse(JSON.stringify(obj)); } catch { return { ...obj }; }
 }
 
+// Helper: Check if license is activated
+function isLicenseActivated() {
+  try {
+    const licensePath = path.join(app.getPath('userData'), 'license.json');
+    if (!fs.existsSync(licensePath)) return false;
+    const licenseData = JSON.parse(fs.readFileSync(licensePath, 'utf8'));
+    return licenseData && licenseData.activated === true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Bulk create/update multiple profiles in a single file write.
- * @param {Array} inputProfiles - array of profile objects (with or without id)
- * @returns {{ success: boolean, profiles?: Array, errors?: Array, error?: string }}
  */
 async function saveProfilesBulkInternal(inputProfiles) {
   try {
@@ -471,8 +470,6 @@ async function saveProfilesBulkInternal(inputProfiles) {
 
 /**
  * Bulk delete multiple profiles by IDs in a single file write.
- * @param {Array<string>} ids - array of profile IDs to delete
- * @returns {{ success: boolean, deleted?: number, errors?: Array }}
  */
 async function deleteProfilesBulkInternal(ids) {
   try {
@@ -522,9 +519,6 @@ async function deleteProfilesBulkInternal(ids) {
 
 /**
  * Bulk clone multiple profiles by source IDs.
- * @param {Array<string>} sourceIds - array of source profile IDs
- * @param {object} [overrides] - optional overrides for all clones (e.g. { namePrefix })
- * @returns {{ success: boolean, profiles?: Array, errors?: Array }}
  */
 async function cloneProfilesBulkInternal(sourceIds, overrides = {}) {
   try {

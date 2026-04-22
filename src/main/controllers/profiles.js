@@ -6,33 +6,9 @@ const { runningProfiles, setProfileStatus, generateInstanceId, buildStatusMap } 
 const { applyCdpOverrides } = require('../engine/cdpOverrides');
 const { findFreePort, fetchJsonVersion, killProcessTreeWin, userDataDirFor, launchChromeCdp } = require('../engine/cdp');
 const { readProfiles, writeProfiles, updateProfileSettings } = require('../storage/profiles');
-const { startScreencast, stopScreencast } = require('../engine/screencast');
 
 // Lock set to prevent concurrent launches of the same profile
 const launchingProfiles = new Set();
-
-const PROXY_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-
-/**
- * Determines if a proxy is alive using cached status when fresh,
- * falling back to TCP check when cache is missing or stale.
- */
-async function resolveProxyAlive(proxy, appendLog, profileId) {
-  const status = proxy._status;
-  if (status && typeof status.alive === 'boolean' && status.checkedAt) {
-    const age = Date.now() - status.checkedAt;
-    if (age < PROXY_CACHE_TTL) {
-      const ageStr = age < 60000 ? `${Math.round(age / 1000)}s` : `${Math.round(age / 60000)}m`;
-      appendLog(profileId, `[proxy] Cached status: ${status.alive ? 'alive' : 'DEAD'} (checked ${ageStr} ago${status.latency ? `, ${status.latency}ms` : ''})`);
-      return status.alive;
-    }
-    appendLog(profileId, `[proxy] Cache stale (${Math.round((Date.now() - status.checkedAt) / 60000)}m) — running TCP check`);
-  }
-  const { checkProxyReachable } = require('../engine/proxyForwarder');
-  const alive = await checkProxyReachable(proxy, 5000);
-  appendLog(profileId, `[proxy] TCP check: ${alive ? 'reachable' : 'UNREACHABLE'}`);
-  return alive;
-}
 
 /**
  * Reads the actual Chrome version from a binary by running `chrome --version`.
@@ -105,7 +81,7 @@ async function launchProfileInternal(profileId, options = {}) {
     if (startUrl === 'https://www.google.com' || startUrl === 'https://www.google.com/') {
       startUrl = 'https://www.google.com/?hl=en';
     }
-    const engine = (options && options.engine) ? String(options.engine).toLowerCase() : (settings.engine || 'playwright');
+    const engine = (options && options.engine) ? String(options.engine).toLowerCase() : (settings.engine === 'cdp' ? 'cdp' : 'playwright');
     const requestedHeadless = (options && typeof options.headless === 'boolean') ? options.headless : undefined;
     const headless = (requestedHeadless !== undefined) ? requestedHeadless : !!settings.headless;
 
@@ -113,7 +89,7 @@ async function launchProfileInternal(profileId, options = {}) {
     // race conditions when multiple profiles are launched concurrently.
     try {
       updateProfileSettings(profileId, {
-        engine,
+        engine: engine === 'cdp' ? 'cdp' : 'playwright',
         headless: !!headless,
       });
     } catch { }
@@ -153,13 +129,6 @@ async function launchProfileInternal(profileId, options = {}) {
         const proxyType = (settings.proxy?.type || '').toLowerCase();
         const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(serverStr);
         if (settings.proxy && (hasAuth || isSocks)) {
-          const alive = await resolveProxyAlive(settings.proxy, appendLog, profileId);
-          if (!alive) {
-            appendLog(profileId, `[proxy] Proxy unreachable — launch blocked to prevent IP leak`);
-            try { await forwarder?.stop?.(); } catch {}
-            launchingProfiles.delete(profileId);
-            return { success: false, error: `Proxy is dead or unreachable (${settings.proxy.server}). Fix or remove the proxy before launching.` };
-          }
           const { startProxyForwarder } = require('../engine/proxyForwarder');
           forwarder = await startProxyForwarder(settings.proxy, { appendLog, profileId });
           proxyForChrome = { server: forwarder.url };
@@ -269,8 +238,8 @@ async function launchProfileInternal(profileId, options = {}) {
     // rebrowser-playwright patches CDP leak at network level (Runtime.enable, bindings).
     // Combined with safeMode ON (no JS Object.defineProperty overrides), this bypasses
     // Cloudflare enterprise WAF.
-    const engineMode = engine;
-    const isFirefox = engineMode === 'playwright-firefox' || engineMode === 'firefox' || engineMode === 'camoufox';
+    const engineMode = settings.engine || 'playwright';
+    const isFirefox = engineMode === 'playwright-firefox' || engineMode === 'firefox';
     const { chromium, firefox } = require('playwright'); // rebrowser-playwright — must NOT use playwright-core (standard, unpatched)
     const pwEngine = isFirefox ? firefox : chromium;
 
@@ -342,13 +311,6 @@ async function launchProfileInternal(profileId, options = {}) {
       const hasAuth = !!(settings.proxy.username || settings.proxy.password);
       if (hasAuth || isSocks) {
         try {
-          const alive = await resolveProxyAlive(settings.proxy, appendLog, profileId);
-          if (!alive) {
-            appendLog(profileId, `[proxy] Proxy unreachable — launch blocked to prevent IP leak`);
-            try { await forwarder?.stop?.(); } catch {}
-            launchingProfiles.delete(profileId);
-            return { success: false, error: `Proxy is dead or unreachable (${settings.proxy.server}). Fix or remove the proxy before launching.` };
-          }
           const { startProxyForwarder } = require('../engine/proxyForwarder');
           forwarder = await startProxyForwarder(settings.proxy, { appendLog, profileId });
           proxy = { server: forwarder.url };
@@ -427,55 +389,13 @@ async function launchProfileInternal(profileId, options = {}) {
       'network.cookie.cookieBehavior': 0,
       'browser.aboutConfig.showWarning': false,
       'general.warnOnAboutConfig': false,
-      // Extra automation signal removal
-      'dom.automation': false,
-      'dom.automation.enabled': false,
-      'browser.tabs.remote.autostart': false,
-      'extensions.autoDisableScopes': 0,
-      'devtools.chrome.enabled': false,
-      'devtools.debugger.remote-enabled': false,
-      'devtools.debugger.prompt-connection': false,
-      // HTTP/2 settings to match real Firefox profile
-      'network.http.spdy.enabled.http2': true,
-      'network.http.spdy.enabled': true,
-      'security.ssl.enable_false_start': true,
-      // Disable first-run pages that signal fresh/automation profile
-      'browser.startup.homepage_override.mstone': 'ignore',
-      'startup.homepage_welcome_url': '',
-      'startup.homepage_welcome_url.additional': '',
-      'browser.usedOnWindows10.introURL': '',
-      // Fingerprinting-related
-      'webgl.disabled': false,
-      'media.navigator.enabled': true,
-      'media.peerconnection.enabled': true,
     } : undefined;
-
-    const camoufoxArgs = engineMode === 'camoufox' ? [
-      '--no-remote',
-      '--new-instance',
-    ] : [];
-    let firefoxLaunchOpts = { headless: false, args: [...args, ...camoufoxArgs], proxy, firefoxUserPrefs };
-    if (engineMode === 'camoufox') {
-      // Camoufox must run non-headless — headless leaks GPU/screen metrics that Cloudflare detects.
-      try {
-        const camoufoxMgr = require('../services/camoufoxManager');
-        const exe = camoufoxMgr.getCamoufoxExecutable();
-        if (exe) {
-          firefoxLaunchOpts.executablePath = exe;
-          appendLog(profileId, `[camoufox] Using Camoufox: ${exe}`);
-        } else {
-          appendLog(profileId, '[camoufox] Not installed — falling back to Playwright Firefox');
-        }
-      } catch (e) {
-        appendLog(profileId, `[camoufox] Resolve error: ${e?.message || e}`);
-      }
-    }
 
     let server;
     let browser;
     try {
       if (isFirefox) {
-        server = await pwEngine.launchServer(firefoxLaunchOpts);
+        server = await pwEngine.launchServer({ headless, args, proxy, firefoxUserPrefs });
         browser = await pwEngine.connect(server.wsEndpoint());
       } else {
         browser = await pwEngine.launch(chromiumLaunchOpts);
@@ -490,7 +410,7 @@ async function launchProfileInternal(profileId, options = {}) {
         const ok = await runPlaywrightInstall(bname);
         if (!ok) { try { await forwarder?.stop?.(); } catch { } return { success: false, error: 'Playwright browsers not installed.' }; }
         if (isFirefox) {
-          server = await pwEngine.launchServer(firefoxLaunchOpts);
+          server = await pwEngine.launchServer({ headless, args, proxy, firefoxUserPrefs });
           browser = await pwEngine.connect(server.wsEndpoint());
         } else {
           browser = await pwEngine.launch(chromiumLaunchOpts);
@@ -513,7 +433,7 @@ async function launchProfileInternal(profileId, options = {}) {
     // safeMode: skip Object.defineProperty overrides to bypass Cloudflare Enterprise (Chrome only).
     // Firefox can't bypass Cloudflare regardless (TLS fingerprint), so force safeMode=false
     // to enable full fingerprint injection on Firefox.
-    const safeMode = isFirefox ? false : (settings?.safeMode === true);
+    const safeMode = isFirefox ? false : (settings?.safeMode !== false);
     const apply = (settings && settings.applyOverrides) || {};
     const applyUA = !safeMode && apply.userAgent !== false;
     const applyLang = !safeMode && apply.language !== false;
@@ -546,10 +466,12 @@ async function launchProfileInternal(profileId, options = {}) {
     if (applyUA && fp.userAgent) contextOptions.userAgent = fp.userAgent;
     // Apply viewport and device scale like CDP DeviceMetricsOverride
     try {
-      // Fix: Setting viewport null lets the OS window respond naturally.
-      // fingerprintInit.js applies actual screen.width/height spoofing via JS, 
-      // preventing Playwright from stretching/zooming the UI on physical monitors.
-      contextOptions.viewport = null;
+      if (applyViewport) {
+        const m = (fp.screenResolution || '').match(/^(\d+)x(\d+)$/);
+        if (m) contextOptions.viewport = { width: Math.max(1, parseInt(m[1], 10)), height: Math.max(1, parseInt(m[2], 10)) };
+        const dpr = Number((settings.advanced || {}).devicePixelRatio || 1);
+        if (dpr > 0) contextOptions.deviceScaleFactor = dpr;
+      }
     } catch { }
     if (applyGeo && settings.geolocation && settings.geolocation.latitude != null && settings.geolocation.longitude != null) {
       contextOptions.geolocation = {
@@ -641,8 +563,6 @@ async function launchProfileInternal(profileId, options = {}) {
     const cleanupPlaywright = async (reason) => {
       if (playwrightCleaned) return;
       playwrightCleaned = true;
-      // Stop screencast before cleanup
-      try { stopScreencast(profileId); } catch {}
       await saveState();
       try { await forwarder?.stop?.(); } catch { }
       runningProfiles.delete(profileId);
@@ -666,18 +586,11 @@ async function launchProfileInternal(profileId, options = {}) {
     };
     try { for (const p of context.pages()) { p.on('close', onPageClose); } } catch { }
     context.on('page', (newPage) => { try { newPage.on('close', onPageClose); } catch { } });
-    runningProfiles.set(profileId, { engine: engineMode, server, browser, context, wsEndpoint, forwarder, startedAt: Date.now() });
+    runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder, startedAt: Date.now() });
     setProfileStatus(profileId, 'RUNNING', instanceId);
     broadcastRunningMap();
-    // Auto-start live preview screencast for headless profiles
-    if (headless) {
-      try {
-        // Small delay to let the first page finish initial navigation
-        setTimeout(() => startScreencast(profileId), 800);
-      } catch (e) { appendLog(profileId, `[screencast] Auto-start failed: ${e?.message || e}`); }
-    }
     // Post-launch automation script (if configured)
-    try { await runAutomationPostLaunch(profile, { engine: engineMode, wsEndpoint, context, browser }); } catch (e) { appendLog(profileId, `Automation post-launch error: ${e?.message || e}`); }
+    try { await runAutomationPostLaunch(profile, { engine: 'playwright', wsEndpoint, context, browser }); } catch (e) { appendLog(profileId, `Automation post-launch error: ${e?.message || e}`); }
     return { success: true, wsEndpoint };
   } catch (error) {
     setProfileStatus(profileId, 'ERROR', instanceId);
@@ -790,9 +703,6 @@ async function stopProfileInternal(profileId) {
     setProfileStatus(profileId, 'STOPPING');
     broadcastRunningMap();
 
-    // Stop screencast loop before any cleanup
-    try { stopScreencast(profileId); } catch {}
-
     if (running.engine === 'cdp') {
       // CDP: kill child process
       try { running.heartbeat && clearInterval(running.heartbeat); } catch { }
@@ -811,30 +721,15 @@ async function stopProfileInternal(profileId) {
 
     // Playwright: close context/browser/server
     const { server, context, browser } = running;
-
-    const withTimeout = (promise, ms) =>
-      Promise.race([promise, new Promise(r => setTimeout(r, ms))]);
-
     try {
       const statePath = storageStatePath(profileId);
-      const state = await withTimeout(context.storageState(), 3000);
-      if (state) fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+      const state = await context.storageState();
+      fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
       appendLog(profileId, 'Saved storage state before stop');
     } catch (e) { appendLog(profileId, `Failed saving state on stop: ${e.message}`); }
-
-    try { await withTimeout(context.close(), 2000); } catch { }
-    try { await withTimeout(browser?.close?.(), 2000); } catch { }
-
-    // server.close() can hang waiting for Firefox/Camoufox process to exit.
-    // Kill the underlying process directly, then close with short timeout.
-    try {
-      const proc = server?.process?.();
-      if (proc?.pid) {
-        proc.kill('SIGKILL');
-      }
-    } catch { }
-    try { await withTimeout(server?.close?.(), 1500); } catch { }
-
+    try { await context.close(); } catch { }
+    try { await browser?.close?.(); } catch { }
+    try { await server?.close?.(); } catch { }
     runningProfiles.delete(profileId);
     setProfileStatus(profileId, 'STOPPED');
     appendLog(profileId, 'Stopped profile');
@@ -1003,17 +898,17 @@ async function setGeolocationInternal(profileId, { latitude, longitude, accuracy
 
 async function getProfileLogInternal(profileId) { try { const p = require('path').join(getDataRoot(), 'logs', `${profileId}.log`); if (!fs.existsSync(p)) return { success: true, log: '' }; return { success: true, log: fs.readFileSync(p, 'utf8') }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function getCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine !== 'cdp' && running.context) { const cookies = await running.context.cookies(); return { success: true, cookies }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, cookies: state.cookies || [] }; } return { success: true, cookies: [] }; } catch (error) { return { success: false, error: error.message }; } }
+async function getCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const cookies = await running.context.cookies(); return { success: true, cookies }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, cookies: state.cookies || [] }; } return { success: true, cookies: [] }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function importCookiesInternal(profileId, cookies) { try { if (!Array.isArray(cookies)) throw new Error('Invalid cookies payload'); const validated = cookies.map(c => { if (!c.name || !c.value || !c.domain) throw new Error('Each cookie must have name, value, and domain'); return { name: String(c.name), value: String(c.value), domain: String(c.domain), path: String(c.path || '/'), expires: c.expires ? Number(c.expires) : -1, httpOnly: !!c.httpOnly, secure: !!c.secure, sameSite: ['Strict', 'Lax', 'None'].includes(c.sameSite) ? c.sameSite : 'Lax' }; }); if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine !== 'cdp' && running.context) { await running.context.addCookies(validated); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true, count: validated.length }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; for (const nc of validated) { const idx = existing.findIndex(e => e.name === nc.name && e.domain === nc.domain && e.path === nc.path); if (idx >= 0) existing[idx] = nc; else existing.push(nc); } state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true, count: validated.length }; } catch (error) { return { success: false, error: error.message }; } }
+async function importCookiesInternal(profileId, cookies) { try { if (!Array.isArray(cookies)) throw new Error('Invalid cookies payload'); const validated = cookies.map(c => { if (!c.name || !c.value || !c.domain) throw new Error('Each cookie must have name, value, and domain'); return { name: String(c.name), value: String(c.value), domain: String(c.domain), path: String(c.path || '/'), expires: c.expires ? Number(c.expires) : -1, httpOnly: !!c.httpOnly, secure: !!c.secure, sameSite: ['Strict', 'Lax', 'None'].includes(c.sameSite) ? c.sameSite : 'Lax' }; }); if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies(validated); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true, count: validated.length }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; for (const nc of validated) { const idx = existing.findIndex(e => e.name === nc.name && e.domain === nc.domain && e.path === nc.path); if (idx >= 0) existing[idx] = nc; else existing.push(nc); } state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true, count: validated.length }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function deleteCookieInternal(profileId, { name, domain, path: cookiePath }) { try { if (!name || !domain) throw new Error('name and domain are required'); const targetPath = cookiePath || '/'; if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine !== 'cdp' && running.context) { await running.context.addCookies([{ name, domain, path: targetPath, value: '', expires: 0 }]); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); if (!fs.existsSync(statePath)) return { success: true }; const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); state.cookies = (state.cookies || []).filter(c => !(c.name === name && c.domain === domain && (c.path || '/') === targetPath)); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
+async function deleteCookieInternal(profileId, { name, domain, path: cookiePath }) { try { if (!name || !domain) throw new Error('name and domain are required'); const targetPath = cookiePath || '/'; if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies([{ name, domain, path: targetPath, value: '', expires: 0 }]); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); if (!fs.existsSync(statePath)) return { success: true }; const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); state.cookies = (state.cookies || []).filter(c => !(c.name === name && c.domain === domain && (c.path || '/') === targetPath)); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function clearCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine !== 'cdp' && running.context) { await running.context.clearCookies(); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); state.cookies = []; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); } return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
+async function clearCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.clearCookies(); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); state.cookies = []; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); } return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function editCookieInternal(profileId, cookie) { try { if (!cookie || !cookie.name || !cookie.domain) throw new Error('cookie with name and domain is required'); const validated = { name: String(cookie.name), value: String(cookie.value || ''), domain: String(cookie.domain), path: String(cookie.path || '/'), expires: cookie.expires ? Number(cookie.expires) : -1, httpOnly: !!cookie.httpOnly, secure: !!cookie.secure, sameSite: ['Strict', 'Lax', 'None'].includes(cookie.sameSite) ? cookie.sameSite : 'Lax' }; if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine !== 'cdp' && running.context) { await running.context.addCookies([validated]); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; const idx = existing.findIndex(e => e.name === validated.name && e.domain === validated.domain && (e.path || '/') === validated.path); if (idx >= 0) existing[idx] = validated; else existing.push(validated); state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
+async function editCookieInternal(profileId, cookie) { try { if (!cookie || !cookie.name || !cookie.domain) throw new Error('cookie with name and domain is required'); const validated = { name: String(cookie.name), value: String(cookie.value || ''), domain: String(cookie.domain), path: String(cookie.path || '/'), expires: cookie.expires ? Number(cookie.expires) : -1, httpOnly: !!cookie.httpOnly, secure: !!cookie.secure, sameSite: ['Strict', 'Lax', 'None'].includes(cookie.sameSite) ? cookie.sameSite : 'Lax' }; if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies([validated]); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; const idx = existing.findIndex(e => e.name === validated.name && e.domain === validated.domain && (e.path || '/') === validated.path); if (idx >= 0) existing[idx] = validated; else existing.push(validated); state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function getStorageStateInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine !== 'cdp' && running.context) { const state = await running.context.storageState(); return { success: true, state }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, state }; } return { success: true, state: { cookies: [], origins: [] } }; } catch (error) { return { success: false, error: error.message }; } }
+async function getStorageStateInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const state = await running.context.storageState(); return { success: true, state }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, state }; } return { success: true, state: { cookies: [], origins: [] } }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function getProfileWsInternal(profileId) {
   try {
@@ -1023,7 +918,7 @@ async function getProfileWsInternal(profileId) {
     const age = running.startedAt ? (Date.now() - running.startedAt) : Infinity;
     if (age < 20000) return { success: true, wsEndpoint: running.wsEndpoint || 'pipe', running: true };
 
-    if (running.engine !== 'cdp') {
+    if (running.engine === 'playwright') {
       if (running.context?.isClosed?.() || running.browser?.isConnected?.() === false) {
         runningProfiles.delete(profileId);
         setProfileStatus(profileId, 'STOPPED');
@@ -1056,7 +951,7 @@ async function getRunningMapInternal() {
       if (age < GRACE_MS) { result[id] = info.wsEndpoint || 'pipe'; continue; }
 
       let alive = true;
-      if (info.engine !== 'cdp') {
+      if (info.engine === 'playwright') {
         if (info.context?.isClosed?.() || info.browser?.isConnected?.() === false) alive = false;
       } else {
         if (!(await require('../engine/health').isWsAlive(info.wsEndpoint))) alive = false;
@@ -1100,8 +995,7 @@ async function runAutomationNowInternal(profileId) {
     appendLog(profileId, `Automation: manual run (${steps.length} steps)`);
     if (!steps.length) return { success: true, steps: 0 };
     const launchCtx = { engine, wsEndpoint };
-    // All Playwright-based engines (chromium, firefox, camoufox) store browser+context
-    if (engine !== 'cdp') {
+    if (engine === 'playwright') {
       launchCtx.browser = running.browser;
       launchCtx.context = running.context;
     }

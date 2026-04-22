@@ -10,9 +10,9 @@ function setMainWindowRef(win) {
 }
 
 function getBrowsersPath() {
-    // Phải sử dụng bộ thư viện 'rebrowser-playwright' (được alias bằng tên 'playwright') — KHÔNG dùng 'playwright-core' bản chuẩn.
-    // Gói rebrowser-playwright tải xuống mã nguồn chromium bản vá 1169 (Chrome 136), trong khi
-    // gói playwright-core@1.58.2 gốc thì dùng phiên bản 1194 (Chrome 141) — Sinh ra lỗ hổng đường dẫn khác nhau.
+    // Must use rebrowser-playwright (aliased as 'playwright') — NOT standard playwright-core.
+    // rebrowser-playwright installs chromium revision 1169 (Chrome 136), while
+    // standard playwright-core@1.58.2 targets revision 1194 (Chrome 141) — different paths.
     try {
         const { chromium } = require('playwright');
         const exePath = chromium.executablePath();
@@ -34,9 +34,6 @@ function getExecutableConfig() {
  * Returns: { status: 'installed' | 'missing' | 'broken', path: string | null, version: string | null, size: string | null }
  */
 async function checkBrowserStatus(browserName) {
-    if (browserName === 'camoufox') {
-        return require('./camoufoxManager').checkStatus();
-    }
     try {
         const pw = require('playwright');
         const engine = browserName === 'firefox' ? pw.firefox : pw.chromium;
@@ -90,12 +87,11 @@ async function getFolderSize(dirPath) {
     return totalSize;
 }
 
-// Lưu mảng tiến trình đang cài đặt Toàn cục để tránh bị tải đè nhiều bước
+// Global active installs to avoid overlaps
 const activeInstalls = new Set();
 const lastLogs = { chromium: '', firefox: '' };
 
 async function installBrowser(browserName) {
-    if (browserName === 'camoufox') return require('./camoufoxManager').install();
     if (activeInstalls.has(browserName)) {
         return { success: false, error: `${browserName} is already installing.` };
     }
@@ -104,15 +100,15 @@ async function installBrowser(browserName) {
 
     return new Promise((resolve) => {
         try {
-            // KHÔNG set biến môi trường PLAYWRIGHT_BROWSERS_PATH — Hãy cứ để Playwright cài vào thư mục mặc định của nó
-            // (Thường là C:\Users\...\AppData\Local\ms-playwright), đây cũng chính là nơi nó tìm kiếm lại khi khởi chạy.
-            // KHÔNG set biến môi trường PLAYWRIGHT_DOWNLOAD_HOST — Bản Playwright v1.58+ gọi đến cdn.playwright.dev 
-            // với định dạng URL hoàn toàn mới (cft/ builds) khiến cho các máy chủ mirror của bên thứ ba không còn hỗ trợ nữa.
+            // Do NOT set PLAYWRIGHT_BROWSERS_PATH — let Playwright install to its default location
+            // (C:\Users\...\AppData\Local\ms-playwright) which is the same place it looks when launching.
+            // Do NOT set PLAYWRIGHT_DOWNLOAD_HOST — Playwright v1.58+ uses cdn.playwright.dev with
+            // a new URL format (cft/ builds) that third-party mirrors don't support.
             const env = Object.assign({}, process.env, {
                 ELECTRON_RUN_AS_NODE: '1',
             });
 
-            // Trỏ đường dẫn đến cục Playwright CLI (Command Line Interface)
+            // Resolve playwright CLI
             const pwCorePath = require.resolve('playwright-core');
             const playwrightCliPath = path.join(path.dirname(pwCorePath), 'cli.js');
 
@@ -129,9 +125,9 @@ async function installBrowser(browserName) {
                 const lastLine = text.trim().split('\n').pop() || '';
                 lastLogs[browserName] = lastLine;
 
-                // Phân tích cú pháp tính toán % phần trăm tải trang dựa vào luồng Output của Playwright CLI:
-                // Format dạng 1: "136.8 Mb [====================] 100% 0.0s"
-                // Format dạng 2: "XX.X Mb / YYY.Y Mb" → bắt buộc tính tay phần trăm từ dung lượng tải xuống
+                // Parse percent from Playwright CLI output formats:
+                // "136.8 Mb [====================] 100% 0.0s"
+                // "XX.X Mb / YYY.Y Mb" → calculate percent from sizes
                 let percent = null;
                 const pctMatch = lastLine.match(/(\d+)%/);
                 if (pctMatch) {
@@ -179,7 +175,6 @@ async function installBrowser(browserName) {
 }
 
 async function uninstallBrowser(browserName) {
-    if (browserName === 'camoufox') return require('./camoufoxManager').uninstall();
     try {
         const browsersPath = getBrowsersPath();
         if (!fs.existsSync(browsersPath)) return { success: true };
@@ -194,7 +189,7 @@ async function uninstallBrowser(browserName) {
             const targetPath = path.join(browsersPath, f.name);
             let deleted = false;
 
-            // Trên HĐH Windows: Bắt buộc dùng PowerShell tách nhân tiến trình (Tránh lỗi trình duyệt EBUSY giam lỏng tệp tin do Electron)
+            // On Windows: try PowerShell which spawns a separate process (bypasses EBUSY from Electron)
             if (process.platform === 'win32') {
                 try {
                     await new Promise((res, rej) => {
@@ -207,12 +202,12 @@ async function uninstallBrowser(browserName) {
                     });
                     deleted = true;
                 } catch (psErr) {
-                    // Khởi động module dự phòng fall-back xóa bằng file-system fs.rmSync với cơ chế retries (Thử lại)
+                    // Fallback to fs.rmSync with retry
                 }
             }
 
             if (!deleted) {
-                // Cố gắng xóa lại 5 lần, mỗi lần cách nhau 1 giây (1s delay)
+                // Retry up to 5x with 1s delay
                 for (let attempt = 1; attempt <= 5; attempt++) {
                     try {
                         fs.rmSync(targetPath, { recursive: true, force: true });
