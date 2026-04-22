@@ -543,6 +543,14 @@ function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
     }
     if (!finalSettings.engine) finalSettings.engine = 'playwright';
 
+    // Ghi trạng thái toggle của từng section vào settings để badge ở ProfileList sáng đúng
+    ['identity', 'display', 'hardware', 'canvas', 'webgl', 'audio', 'media', 'network', 'battery'].forEach(section => {
+      finalSettings[section] = {
+        ...(finalSettings[section] || {}),
+        enabled: !!sectionToggles[section],
+      };
+    });
+
     const payload = {
       ...formData,
       settings: finalSettings,
