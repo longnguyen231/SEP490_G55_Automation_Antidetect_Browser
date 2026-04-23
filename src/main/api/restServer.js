@@ -201,12 +201,133 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
   });
   appx.put("/api/profiles/:id", async (req, reply) => {
     try {
+      const profileId = req.params.id;
       const list = await handlers.getProfilesInternal();
-      if (!list.find((p) => p.id === req.params.id)) {
+      const existing = list.find((p) => p.id === profileId);
+      if (!existing) {
         return reply.code(404).send({ success: false, error: "Profile not found" });
       }
-      const body = { ...(req.body || {}), id: req.params.id };
-      const result = await handlers.saveProfileInternal(body);
+
+      const body = req.body || {};
+
+      // ── Build the update payload by merging only provided fields ──
+      // We start with the existing profile and overlay only what the caller sent.
+      const updatePayload = { id: profileId };
+
+      // name — only update if provided and non-empty
+      if (body.name != null && String(body.name).trim()) {
+        updatePayload.name = String(body.name).trim();
+      }
+
+      // description — update if provided
+      if (body.description != null) {
+        updatePayload.description = String(body.description);
+      }
+
+      // startUrl — update if provided
+      if (body.startUrl != null) {
+        updatePayload.startUrl = body.startUrl;
+      }
+
+      // Build partial settings — only overlay provided settings fields
+      const settingsUpdate = {};
+
+      // headless lives in settings.headless
+      if (body.headless != null) {
+        settingsUpdate.headless = !!body.headless;
+      }
+
+      // engine
+      if (body.engine != null) {
+        settingsUpdate.engine = body.engine;
+      }
+
+      // proxy — map from API format { type, host, port, username, password }
+      if (body.proxy != null) {
+        const px = body.proxy;
+        if (px.host && px.host !== 'string' && px.port) {
+          const scheme = px.type || 'http';
+          settingsUpdate.proxy = {
+            server: `${scheme}://${px.host}:${px.port}`,
+            username: (px.username && px.username !== 'string') ? px.username : '',
+            password: (px.password && px.password !== 'string') ? px.password : '',
+          };
+        } else if (px.server != null) {
+          // Also accept raw server string format
+          settingsUpdate.proxy = {
+            server: px.server || '',
+            username: px.username || '',
+            password: px.password || '',
+          };
+        }
+      }
+
+      // webrtc
+      if (body.webrtc != null) {
+        settingsUpdate.webrtc = body.webrtc;
+      }
+
+      // Pass through any raw settings fields the caller provides
+      if (body.settings && typeof body.settings === 'object') {
+        Object.assign(settingsUpdate, body.settings);
+      }
+
+      if (Object.keys(settingsUpdate).length > 0) {
+        updatePayload.settings = settingsUpdate;
+      }
+
+      // fingerprintOptions — regenerate or merge fingerprint
+      if (body.fingerprintOptions && typeof body.fingerprintOptions === 'object') {
+        const fpOpts = body.fingerprintOptions;
+        const osMap = { windows: 'Windows', macos: 'macOS', linux: 'Linux' };
+        const browserMap = { chrome: 'Chrome', firefox: 'Firefox', edge: 'Chrome' };
+        const BCP47_RE = /^[a-z]{2,3}-[A-Z]{2,4}(-[A-Za-z0-9]+)*$/;
+
+        const genOpts = {};
+        if (fpOpts.os) genOpts.os = osMap[fpOpts.os] || fpOpts.os;
+        if (fpOpts.browser) genOpts.browser = browserMap[fpOpts.browser] || fpOpts.browser;
+        if (fpOpts.locale && BCP47_RE.test(fpOpts.locale)) {
+          genOpts.language = fpOpts.locale;
+        }
+
+        // Regenerate fingerprint with new options, merging over existing
+        const { generateFingerprint } = require('../engine/fingerprintGenerator');
+        const generated = generateFingerprint(genOpts);
+        const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+        const randFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+        updatePayload.fingerprint = {
+          ...existing.fingerprint,
+          ...generated.fingerprint,
+          canvasNoise: randInt(100000000, 2100000000),
+          canvasNoiseIntensity: randFrom([1, 2, 3, 4, 5]),
+          webglNoise: randInt(100000000, 2100000000),
+          maxTextureSize: randFrom([4096, 8192, 16384]),
+          webglExtensions: randFrom([
+            'EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float',
+            'ANGLE_instanced_arrays, OES_texture_float, WEBGL_depth_texture, OES_vertex_array_object',
+            'EXT_texture_filter_anisotropic, WEBGL_compressed_texture_s3tc, OES_element_index_uint',
+          ]),
+          audioNoise: randInt(100000000, 2100000000),
+          audioSampleRate: randFrom([44100, 48000, 96000]),
+          audioChannels: randFrom(['Mono', 'Stereo', 'Surround']),
+          colorDepth: randFrom([24, 32]),
+          pixelRatio: randFrom([1, 1, 1, 1.25, 1.5, 2]),
+        };
+        // Also update settings with new generated hardware values
+        updatePayload.settings = {
+          ...settingsUpdate,
+          ...generated.settings,
+          ...(settingsUpdate.proxy ? { proxy: settingsUpdate.proxy } : {}),
+        };
+      }
+
+      // Pass through raw fingerprint fields if caller provides them directly
+      if (body.fingerprint && typeof body.fingerprint === 'object') {
+        updatePayload.fingerprint = { ...(existing.fingerprint || {}), ...body.fingerprint };
+      }
+
+      const result = await handlers.saveProfileInternal(updatePayload);
       if (result.success) broadcastProfilesUpdated();
       reply.code(result.success ? 200 : 400).send(result);
     } catch (e) {
@@ -220,6 +341,12 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
         return reply.code(404).send({ success: false, error: "Profile not found" });
       }
       const id = req.params.id;
+      
+      // Stop the profile first if it's currently running
+      if (handlers.stopProfileInternal) {
+        try { await handlers.stopProfileInternal(id); } catch (e) {}
+      }
+      
       const result = await handlers.deleteProfileInternal(id);
       if (result.success) broadcastProfilesUpdated();
       reply.code(result.success ? 200 : 400).send(result);
