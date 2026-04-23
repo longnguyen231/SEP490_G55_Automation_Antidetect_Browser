@@ -135,48 +135,63 @@ export default function SettingsTab({
                 </div>
 
                 {/* REST API Server */}
-                <div className="card relative p-4 mb-6 mt-4">
-                    <div className="absolute -top-3 left-4 bg-[var(--card)] px-2 text-[0.85rem] font-bold text-[var(--fg)]">REST API Server</div>
-                    <div className="flex items-center justify-between mb-3 pt-1">
-                        <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${apiStatus?.running ? 'bg-emerald-500' : 'bg-slate-400'}`}></div>
-                            <span className="text-[0.85rem] font-medium text-[var(--fg)]">{apiStatus?.running ? 'Running' : 'Stopped'}</span>
+                <div className="card border border-[var(--border)] rounded-md overflow-hidden mb-6 mt-4">
+                    <div className="bg-[var(--card)] px-4 py-3 border-b border-[var(--border)]">
+                        <h2 className="text-[0.85rem] font-bold text-[var(--fg)] uppercase tracking-wider">REST API SERVER</h2>
+                    </div>
+                    <div className="p-4">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <div className={`w-2.5 h-2.5 rounded-full ${apiStatus?.running ? 'bg-emerald-500' : 'bg-slate-400'}`}></div>
+                                <span className="text-[0.95rem] font-medium text-[var(--fg)]">{apiStatus?.running ? 'Running' : 'Stopped'}</span>
+                            </div>
+                            {apiStatus?.running && (
+                                <button
+                                    onClick={() => window.electronAPI.openExternal(`http://localhost:${apiDesiredPort || 4000}/docs`)}
+                                    className="text-[0.85rem] text-[var(--primary)] hover:underline flex items-center gap-1 font-medium"
+                                >
+                                    Swagger UI <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                </button>
+                            )}
                         </div>
+
                         {apiStatus?.running && (
-                            <button
-                                onClick={() => window.electronAPI.openExternal(`http://localhost:${apiDesiredPort || 4000}/docs`)}
-                                className="text-[0.8rem] text-[var(--primary)] hover:underline flex items-center gap-1"
-                            >
-                                Open Swagger UI ↗
-                            </button>
+                            <div className="mb-5">
+                                <div className="bg-[var(--bg)] border border-[var(--border)] rounded-md px-3 py-2 text-[0.85rem] text-[var(--muted)] font-mono flex items-center">
+                                    http://localhost:{apiDesiredPort || 4000}/docs
+                                </div>
+                            </div>
                         )}
-                    </div>
-                    {apiStatus?.running && (
-                        <div className="mb-3 text-[0.8rem] text-[var(--fg)] font-mono">
-                            http://localhost:{apiDesiredPort || 4000}/docs
+
+                        <div className="flex items-center gap-3 mb-4">
+                            <span className="text-[0.85rem] text-[var(--muted)]">Port</span>
+                            <input
+                                type="number"
+                                min="1" max="65535"
+                                value={apiDesiredPort || 4000}
+                                onChange={e => { setApiDesiredPort(e.target.value); applyPortChange(Number(e.target.value)); }}
+                                className="w-[80px] text-[0.85rem] py-1 px-2 rounded border border-[var(--border)] bg-[var(--bg)]"
+                                disabled={apiStatus?.running}
+                            />
+                            <button
+                                onClick={handleToggleApiRun}
+                                className={`btn px-4 py-1.5 text-[0.85rem] font-medium ${apiStatus?.running ? 'btn-danger' : 'btn-success'}`}
+                            >
+                                {apiStatus?.running ? 'Stop' : 'Start Server'}
+                            </button>
                         </div>
-                    )}
-                    <div className="flex items-center gap-3 mb-3">
-                        <span className="text-[0.75rem] text-[var(--muted)] font-medium">Port</span>
-                        <input
-                            type="number"
-                            min="1" max="65535"
-                            value={apiDesiredPort || 4000}
-                            onChange={e => { setApiDesiredPort(e.target.value); applyPortChange(Number(e.target.value)); }}
-                            className="w-[80px] text-[0.75rem] py-1"
-                        />
-                        <button
-                            onClick={handleToggleApiRun}
-                            className={`btn px-3 py-1.5 text-[0.75rem] ${apiStatus?.running ? 'btn-danger' : 'btn-success'}`}
-                        >
-                            {apiStatus?.running ? 'Stop Server' : 'Start Server'}
-                        </button>
+
+                        <label className="flex items-center gap-2 text-[0.85rem] text-[var(--fg)] mb-2 cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={autoStartApi} 
+                                onChange={e => setAutoStartApi(e.target.checked)} 
+                                className="rounded border-[var(--border)] w-4 h-4 cursor-pointer" 
+                            />
+                            Auto-start server on app launch
+                        </label>
+                        <p className="text-[0.8rem] text-[var(--muted)]">Exposes REST API for automation scripting. Swagger docs at /docs.</p>
                     </div>
-                    <label className="flex items-center gap-2 text-[0.7rem] text-[var(--muted)] mb-2 cursor-pointer">
-                        <input type="checkbox" checked={autoStartApi} onChange={e => setAutoStartApi(e.target.checked)} className="rounded cursor-pointer" />
-                        Auto-start server on app launch
-                    </label>
-                    <p className="text-[0.7rem] text-[var(--muted)]">Exposes REST API for automation scripting. Swagger docs available at /docs when running.</p>
                 </div>
 
                 {/* Playwright Engines Control */}

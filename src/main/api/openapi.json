@@ -2,13 +2,9 @@
   "openapi": "3.0.3",
   "info": {
     "title": "HL-MCK Automation Antidetect Browser API",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "description": "[http://localhost:4000/docs/json](http://localhost:4000/docs/json)\n\nREST API for browser profile management and automation. Access Swagger UI at /docs."
   },
-  "servers": [
-    {
-      "url": "http://127.0.0.1:4000"
-    }
-  ],
   "components": {},
   "paths": {
     "/api/health": {

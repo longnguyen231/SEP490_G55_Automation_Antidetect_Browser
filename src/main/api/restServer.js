@@ -1,13 +1,12 @@
 const path = require("path");
-const express = require("express");
-const cors = require("cors");
+const Fastify = require("fastify");
+const fastifyCors = require("@fastify/cors");
 const { WebSocketServer } = require("ws");
 
-function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
+async function buildFastifyApp(rest, openapiPath, handlers) {
   const apiKey = rest.apiKey || process.env.REST_API_KEY;
-  const appx = express();
-  appx.use(express.json({ limit: "2mb" }));
-  appx.use(cors({ origin: rest.allowedOrigins || true }));
+  const appx = Fastify({ logger: false, bodyLimit: 2097152, ignoreTrailingSlash: true });
+  await appx.register(fastifyCors, { origin: rest.allowedOrigins || true });
 
   function broadcastProfilesUpdated() {
     try {
@@ -20,32 +19,32 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
     } catch {}
   }
 
-  // API key middleware (optional) — docs and openapi spec are always public
-  appx.use((req, res, next) => {
-    const isPublic = req.path === "/openapi.json" || req.path.startsWith("/docs") || req.path === "/api/health";
+  // API key hook (optional) — docs are always public
+  appx.addHook("preHandler", async (req, reply) => {
+    const reqPath = req.url.split("?")[0];
+    const isPublic = reqPath === "/openapi.json" || reqPath.startsWith("/docs") || reqPath === "/api/health";
     if (apiKey && !isPublic && req.headers["x-api-key"] !== apiKey) {
-      return res.status(401).json({ success: false, error: "Unauthorized" });
+      return reply.code(401).send({ success: false, error: "Unauthorized" });
     }
-    next();
   });
 
   // Health
-  appx.get("/api/health", (_req, res) => res.json({ ok: true }));
+  appx.get("/api/health", (_req, reply) => reply.send({ ok: true }));
 
   // Profiles CRUD
-  appx.get("/api/profiles", async (_req, res) => {
+  appx.get("/api/profiles", async (_req, reply) => {
     const list = await handlers.getProfilesInternal();
-    res.json(list);
+    reply.send(list);
   });
   // Bulk operations (must be registered before /:id routes)
-  appx.post("/api/profiles/bulk", async (req, res) => {
-    if (!handlers.saveProfilesBulkInternal) return res.status(501).json({ success: false, error: 'Not implemented' });
+  appx.post("/api/profiles/bulk", async (req, reply) => {
+    if (!handlers.saveProfilesBulkInternal) return reply.code(501).send({ success: false, error: 'Not implemented' });
     const result = await handlers.saveProfilesBulkInternal(req.body || []);
     if (result.success) broadcastProfilesUpdated();
-    res.status(result.success ? 200 : 400).json(result);
+    reply.code().send(result);
   });
-  appx.delete("/api/profiles/bulk", async (req, res) => {
-    if (!handlers.deleteProfilesBulkInternal) return res.status(501).json({ success: false, error: 'Not implemented' });
+  appx.delete("/api/profiles/bulk", async (req, reply) => {
+    if (!handlers.deleteProfilesBulkInternal) return reply.code(501).send({ success: false, error: 'Not implemented' });
     const ids = req.body?.ids || [];
     // Stop running profiles first
     if (handlers.stopProfileInternal) {
@@ -53,112 +52,112 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
     }
     const result = await handlers.deleteProfilesBulkInternal(ids);
     if (result.success) broadcastProfilesUpdated();
-    res.status(result.success ? 200 : 400).json(result);
+    reply.code().send(result);
   });
-  appx.post("/api/profiles/bulk-clone", async (req, res) => {
-    if (!handlers.cloneProfilesBulkInternal) return res.status(501).json({ success: false, error: 'Not implemented' });
+  appx.post("/api/profiles/bulk-clone", async (req, reply) => {
+    if (!handlers.cloneProfilesBulkInternal) return reply.code(501).send({ success: false, error: 'Not implemented' });
     const { ids, overrides } = req.body || {};
     const result = await handlers.cloneProfilesBulkInternal(ids || [], overrides || {});
     if (result.success) broadcastProfilesUpdated();
-    res.status(result.success ? 200 : 400).json(result);
+    reply.code().send(result);
   });
-  appx.post("/api/profiles", async (req, res) => {
+  appx.post("/api/profiles", async (req, reply) => {
     const result = await handlers.saveProfileInternal(req.body || {});
     if (result.success) broadcastProfilesUpdated();
-    res.status(result.success ? 200 : 500).json(result);
+    reply.code().send(result);
   });
-  appx.put("/api/profiles/:id", async (req, res) => {
+  appx.put("/api/profiles/:id", async (req, reply) => {
     const list = await handlers.getProfilesInternal();
     if (!list.find((p) => p.id === req.params.id)) {
-      return res.status(404).json({ error: "Profile not found" });
+      return reply.code(404).send({ error: "Profile not found" });
     }
     const body = { ...(req.body || {}), id: req.params.id };
     const result = await handlers.saveProfileInternal(body);
     if (result.success) broadcastProfilesUpdated();
-    res.status(result.success ? 200 : 500).json(result);
+    reply.code().send(result);
   });
-  appx.delete("/api/profiles/:id", async (req, res) => {
+  appx.delete("/api/profiles/:id", async (req, reply) => {
     const list = await handlers.getProfilesInternal();
     if (!list.find((p) => p.id === req.params.id)) {
-      return res.status(404).json({ error: "Profile not found" });
+      return reply.code(404).send({ error: "Profile not found" });
     }
     const id = req.params.id;
     const result = await handlers.deleteProfileInternal(id);
     if (result.success) broadcastProfilesUpdated();
-    res.status(result.success ? 200 : 500).json(result);
+    reply.code().send(result);
   });
 
   // Launch/stop
-  appx.post("/api/profiles/:id/launch", async (req, res) => {
+  appx.post("/api/profiles/:id/launch", async (req, reply) => {
     const result = await handlers.launchProfileInternal(
       req.params.id,
       req.body || {},
     );
-    res.status(result.success ? 200 : 500).json(result);
+    reply.code().send(result);
   });
-  appx.post("/api/profiles/:id/stop", async (req, res) => {
+  appx.post("/api/profiles/:id/stop", async (req, reply) => {
     const result = await handlers.stopProfileInternal(req.params.id);
-    res.status(result.success ? 200 : 500).json(result);
+    reply.code().send(result);
   });
   // Run automation now
-  appx.post("/api/profiles/:id/automation/run", async (req, res) => {
+  appx.post("/api/profiles/:id/automation/run", async (req, reply) => {
     if (!handlers.runAutomationNowInternal)
-      return res.status(501).json({ success: false, error: "Not implemented" });
+      return reply.code(501).send({ success: false, error: "Not implemented" });
     const result = await handlers.runAutomationNowInternal(req.params.id);
-    res.status(result.success ? 200 : 500).json(result);
+    reply.code().send(result);
   });
-  appx.post("/api/stop-all", async (_req, res) => {
+  appx.post("/api/stop-all", async (_req, reply) => {
     const result = await handlers.stopAllProfilesInternal();
-    res.status(result.success ? 200 : 500).json(result);
+    reply.code().send(result);
   });
 
   // ── Browsers API (matching instructor spec) ──
   // POST /api/browsers/:profileId/launch
-  appx.post("/api/browsers/:profileId/launch", async (req, res) => {
+  appx.post("/api/browsers/:profileId/launch", async (req, reply) => {
     try {
       const { profileId } = req.params;
       const body = req.body || {};
       const opts = {};
       if (body.headless !== undefined) opts.headless = !!body.headless;
       const result = await handlers.launchProfileInternal(profileId, opts);
-      res.status(result.success ? 200 : 500).json(result);
+      reply.code().send(result);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // POST /api/browsers/:profileId/close
-  appx.post("/api/browsers/:profileId/close", async (req, res) => {
+  appx.post("/api/browsers/:profileId/close", async (req, reply) => {
     try {
       const result = await handlers.stopProfileInternal(req.params.profileId);
-      res.status(result.success ? 200 : 500).json(result);
+      reply.code().send(result);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // GET /api/browsers/:profileId/status
-  appx.get("/api/browsers/:profileId/status", async (req, res) => {
+  appx.get("/api/browsers/:profileId/status", async (req, reply) => {
     try {
       const { profileId } = req.params;
       const { runningProfiles } = require("../state/runtime");
       const running = runningProfiles.get(profileId);
-      res.json({ success: true, running: !!running, profileId });
+      reply.send({ success: true, running: !!running, profileId });
     } catch (e) {
-      res.status(400).json({ error: e?.message || String(e) });
+      reply.code(400).send({ error: e?.message || String(e) });
     }
   });
 
   // POST /api/browsers/:profileId/execute — generic Playwright page method dispatcher
-  appx.post("/api/browsers/:profileId/execute", async (req, res) => {
+  appx.post("/api/browsers/:profileId/execute", async (req, reply) => {
     try {
       const { profileId } = req.params;
       const { method, args = [], chain = [] } = req.body || {};
-      if (!method) return res.status(400).json({ success: false, error: '"method" is required' });
+      if (!method) return reply.code(400).send({ success: false, error: '"method" is required' });
 
       const { runningProfiles } = require("../state/runtime");
       const running = runningProfiles.get(profileId);
-      if (!running) return res.status(404).json({ success: false, error: 'Profile not running' });
+      if (!running) return reply.code(404).send({ success: false, error: 'Profile not running' });
 
       // Get active page
       let page;
@@ -169,7 +168,7 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
         const pages = running.cdpControl.context.pages();
         page = pages[pages.length - 1] || pages[0];
       }
-      if (!page) return res.status(400).json({ success: false, error: 'No active page available' });
+      if (!page) return reply.code(400).send({ success: false, error: 'No active page available' });
 
       // Execute method on page
       let target = page;
@@ -184,7 +183,7 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
             break;
           }
         }
-        if (!found) return res.status(400).json({ success: false, error: `Method "${method}" not found on page` });
+        if (!found) return reply.code(400).send({ success: false, error: `Method "${method}" not found on page` });
       }
 
       let result = await target[method](...args);
@@ -193,7 +192,7 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
       for (const step of chain) {
         if (!step.method) continue;
         if (typeof result[step.method] !== 'function') {
-          return res.status(400).json({ success: false, error: `Chain method "${step.method}" not found` });
+          return reply.code(400).send({ success: false, error: `Chain method "${step.method}" not found` });
         }
         result = await result[step.method](...(step.args || []));
       }
@@ -203,39 +202,39 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
       if (Buffer.isBuffer(result)) serialized = result.toString('base64');
       else if (typeof result === 'function') serialized = '[Function]';
 
-      res.json({ success: true, result: serialized });
+      reply.send({ success: true, result: serialized });
     } catch (e) {
-      res.status(400).json({ success: false, error: e?.message || String(e) });
+      reply.code(400).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // Running and WS
-  appx.get("/api/running-map", async (_req, res) => {
+  appx.get("/api/running-map", async (_req, reply) => {
     const r = await handlers.getRunningMapInternal();
-    res.json(r);
+    reply.send(r);
   });
-  appx.get("/api/profiles/:id/ws", async (req, res) => {
+  appx.get("/api/profiles/:id/ws", async (req, reply) => {
     const r = await handlers.getProfileWsInternal(req.params.id);
-    res.json(r);
+    reply.send(r);
   });
 
   // Cookies
-  appx.get("/api/profiles/:id/cookies", async (req, res) => {
+  appx.get("/api/profiles/:id/cookies", async (req, reply) => {
     const r = await handlers.getCookiesInternal(req.params.id);
-    res.json(r);
+    reply.send(r);
   });
-  appx.post("/api/profiles/:id/cookies", async (req, res) => {
+  appx.post("/api/profiles/:id/cookies", async (req, reply) => {
     const r = await handlers.importCookiesInternal(
       req.params.id,
       req.body || [],
     );
-    res.json(r);
+    reply.send(r);
   });
-  appx.put("/api/profiles/:id/cookies", async (req, res) => {
+  appx.put("/api/profiles/:id/cookies", async (req, reply) => {
     const r = await handlers.editCookieInternal(req.params.id, req.body || {});
-    res.json(r);
+    reply.send(r);
   });
-  appx.delete("/api/profiles/:id/cookies", async (req, res) => {
+  appx.delete("/api/profiles/:id/cookies", async (req, reply) => {
     const { name, domain, path: p } = req.query || {};
     if (name && domain) {
       const r = await handlers.deleteCookieInternal(req.params.id, {
@@ -243,35 +242,35 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
         domain,
         path: p,
       });
-      res.json(r);
+      reply.send(r);
     } else {
       const r = await handlers.clearCookiesInternal(req.params.id);
-      res.json(r);
+      reply.send(r);
     }
   });
 
   // Logs and clone
-  appx.get("/api/profiles/:id/log", async (req, res) => {
+  appx.get("/api/profiles/:id/log", async (req, reply) => {
     const r = await handlers.getProfileLogInternal(req.params.id);
-    res.json(r);
+    reply.send(r);
   });
-  appx.post("/api/profiles/:id/clone", async (req, res) => {
+  appx.post("/api/profiles/:id/clone", async (req, reply) => {
     const r = await handlers.cloneProfileInternal(
       req.params.id,
       req.body || {},
     );
-    res.json(r);
+    reply.send(r);
   });
 
   // Browser control endpoints (Mapped from Swagger)
-  const mapAction = (actionName) => async (req, res) => {
+  const mapAction = (actionName) => async (req, reply) => {
     try {
       const { performAction } = require("../engine/actions");
       const param = req.method === "GET" ? req.query : req.body;
       const result = await performAction(req.params.profileId, actionName, param || {});
-      res.status(result.success ? 200 : 500).json(result);
+      reply.code().send(result);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   };
 
@@ -339,38 +338,38 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   appx.post("/api/browsers/:profileId/actions/mouse/wheel", mapAction("mouse.wheel"));
 
   // Context endpoints
-  appx.get("/api/browsers/:profileId/context/storage-state", async (req, res) => {
+  appx.get("/api/browsers/:profileId/context/storage-state", async (req, reply) => {
     const r = await (handlers.getStorageStateInternal
       ? handlers.getStorageStateInternal(req.params.profileId)
       : { success: false, error: "Not implemented" });
-    res.json(r);
+    reply.send(r);
   });
   appx.post("/api/browsers/:profileId/context/new-page", mapAction("tab.new"));
-  appx.get("/api/browsers/:profileId/context/pages", async (req, res) => {
+  appx.get("/api/browsers/:profileId/context/pages", async (req, reply) => {
     const r = await handlers.listPagesInternal(req.params.profileId);
-    res.json(r);
+    reply.send(r);
   });
   appx.post("/api/browsers/:profileId/context/extra-http-headers", mapAction("headers.setExtra"));
-  appx.post("/api/browsers/:profileId/context/grant-permissions", async (req, res) => {
+  appx.post("/api/browsers/:profileId/context/grant-permissions", async (req, reply) => {
     const r = await handlers.grantPermissionsInternal(req.params.profileId, req.body || {});
-    res.json(r);
+    reply.send(r);
   });
-  appx.post("/api/browsers/:profileId/context/clear-permissions", async (req, res) => {
+  appx.post("/api/browsers/:profileId/context/clear-permissions", async (req, reply) => {
     const r = await handlers.clearPermissionsInternal(req.params.profileId);
-    res.json(r);
+    reply.send(r);
   });
   appx.post("/api/browsers/:profileId/context/geolocation", mapAction("geolocation.set"));
 
   // Generic action dispatcher and helpers
-  appx.get("/api/actions", async (_req, res) => {
+  appx.get("/api/actions", async (_req, reply) => {
     try {
       const { getActionNames } = require("../engine/actions");
-      res.json({ success: true, actions: getActionNames() });
+      reply.send({ success: true, actions: getActionNames() });
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
-  appx.post("/api/profiles/:id/action/:name", async (req, res) => {
+  appx.post("/api/profiles/:id/action/:name", async (req, reply) => {
     try {
       const { performAction } = require("../engine/actions");
       const result = await performAction(
@@ -378,43 +377,34 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
         req.params.name,
         req.body || {},
       );
-      res.status(result.success ? 200 : 500).json(result);
+      reply.code().send(result);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // ── Tasks API ──
   // GET /api/tasks/ — list tasks (optionally filtered by profileId)
-  appx.get("/api/tasks", async (req, res) => {
+  appx.get("/api/tasks", async (req, reply) => {
     try {
       const { getTaskLogs } = require("../storage/taskLogs");
       let list = await getTaskLogs();
       if (req.query.profileId) list = list.filter(t => t.profileId === req.query.profileId);
-      res.json({ success: true, tasks: list });
+      reply.send({ success: true, tasks: list });
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
-  appx.get("/api/tasks/", async (req, res) => {
-    try {
-      const { getTaskLogs } = require("../storage/taskLogs");
-      let list = await getTaskLogs();
-      if (req.query.profileId) list = list.filter(t => t.profileId === req.query.profileId);
-      res.json({ success: true, tasks: list });
-    } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
-    }
-  });
+
 
   // POST /api/tasks/ — create a new task
-  appx.post("/api/tasks", async (req, res) => {
+  appx.post("/api/tasks", async (req, reply) => {
     try {
       const { addTaskLog } = require("../storage/taskLogs");
       const body = req.body || {};
-      if (!body.profileId) return res.status(400).json({ success: false, error: '"profileId" is required' });
-      if (!body.name) return res.status(400).json({ success: false, error: '"name" is required' });
-      if (!body.scriptContent) return res.status(400).json({ success: false, error: '"scriptContent" is required' });
+      if (!body.profileId) return reply.code(400).send({ success: false, error: '"profileId" is required' });
+      if (!body.name) return reply.code(400).send({ success: false, error: '"name" is required' });
+      if (!body.scriptContent) return reply.code(400).send({ success: false, error: '"scriptContent" is required' });
 
       const entry = {
         scriptId: body.scriptId || '',
@@ -428,47 +418,23 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
         _scriptContent: body.scriptContent,
       };
       const r = await addTaskLog(entry);
-      res.status(r.success ? 200 : 400).json(r);
+      reply.code().send(r);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
-  appx.post("/api/tasks/", async (req, res) => {
-    try {
-      const { addTaskLog } = require("../storage/taskLogs");
-      const body = req.body || {};
-      if (!body.profileId) return res.status(400).json({ success: false, error: '"profileId" is required' });
-      if (!body.name) return res.status(400).json({ success: false, error: '"name" is required' });
-      if (!body.scriptContent) return res.status(400).json({ success: false, error: '"scriptContent" is required' });
 
-      const entry = {
-        scriptId: body.scriptId || '',
-        scriptName: body.name,
-        profileId: body.profileId,
-        status: 'pending',
-        startedAt: new Date().toISOString(),
-        finishedAt: null,
-        logs: [],
-        _scriptType: body.scriptType || 'inline',
-        _scriptContent: body.scriptContent,
-      };
-      const r = await addTaskLog(entry);
-      res.status(r.success ? 200 : 400).json(r);
-    } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
-    }
-  });
 
   // POST /api/tasks/:id/run — enqueue a task for execution
-  appx.post("/api/tasks/:id/run", async (req, res) => {
+  appx.post("/api/tasks/:id/run", async (req, reply) => {
     try {
       const { getTaskLogById, addTaskLog } = require("../storage/taskLogs");
       const { executeScript } = require("../engine/scriptRuntime");
       const found = await getTaskLogById(req.params.id);
-      if (!found.success) return res.status(404).json(found);
+      if (!found.success) return reply.code(404).send(found);
       const task = found.taskLog;
       if (!task._scriptContent) {
-        return res.status(400).json({ success: false, error: 'Task has no scriptContent to execute' });
+        return reply.code(400).send({ success: false, error: 'Task has no scriptContent to execute' });
       }
       // Run async (fire and forget — update status after)
       executeScript(task.profileId, task._scriptContent, { timeoutMs: 120000 }).then(async (result) => {
@@ -481,57 +447,49 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
           logs: result.logs || [],
         });
       }).catch(() => {});
-      res.json({ success: true, message: 'Task enqueued', taskId: req.params.id });
+      reply.send({ success: true, message: 'Task enqueued', taskId: req.params.id });
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // POST /api/tasks/:id/cancel
-  appx.post("/api/tasks/:id/cancel", async (req, res) => {
+  appx.post("/api/tasks/:id/cancel", async (req, reply) => {
     try {
       const { stopScript } = require("../engine/scriptRuntime");
       const r = stopScript ? stopScript(req.params.id) : { success: true };
-      res.json({ success: true, message: 'Cancel requested', result: r });
+      reply.send({ success: true, message: 'Cancel requested', result: r });
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // DELETE /api/tasks/:id
-  appx.delete("/api/tasks/:id", async (req, res) => {
+  appx.delete("/api/tasks/:id", async (req, reply) => {
     try {
       const { deleteTaskLog } = require("../storage/taskLogs");
       const r = await deleteTaskLog(req.params.id);
-      res.status(r.success ? 200 : 404).json(r);
+      reply.code().send(r);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // ── Proxies API ──
   // GET /api/proxies/
-  appx.get("/api/proxies", async (_req, res) => {
+  appx.get("/api/proxies", async (_req, reply) => {
     try {
       const { getProxiesInternal } = require("../storage/proxies");
       const list = await getProxiesInternal();
-      res.json({ success: true, proxies: list });
+      reply.send({ success: true, proxies: list });
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
-    }
-  });
-  appx.get("/api/proxies/", async (_req, res) => {
-    try {
-      const { getProxiesInternal } = require("../storage/proxies");
-      const list = await getProxiesInternal();
-      res.json({ success: true, proxies: list });
-    } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
+
   // GET /api/proxies/unassigned — proxies not assigned to any profile
-  appx.get("/api/proxies/unassigned", async (_req, res) => {
+  appx.get("/api/proxies/unassigned", async (_req, reply) => {
     try {
       const { getProxiesInternal } = require("../storage/proxies");
       const { getProfilesInternal } = require("../storage/profiles");
@@ -542,99 +500,91 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
         profiles.map(p => p.proxy?.id).filter(Boolean)
       );
       const unassigned = proxies.filter(px => !assignedIds.has(px.id));
-      res.json({ success: true, proxies: unassigned });
+      reply.send({ success: true, proxies: unassigned });
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // POST /api/proxies/ — create a new proxy
-  appx.post("/api/proxies", async (req, res) => {
+  appx.post("/api/proxies", async (req, reply) => {
     try {
       const { createProxyInternal } = require("../storage/proxies");
       const r = await createProxyInternal(req.body || {});
-      res.status(r.success ? 200 : 400).json(r);
+      reply.code().send(r);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
-    }
-  });
-  appx.post("/api/proxies/", async (req, res) => {
-    try {
-      const { createProxyInternal } = require("../storage/proxies");
-      const r = await createProxyInternal(req.body || {});
-      res.status(r.success ? 200 : 400).json(r);
-    } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
+
   // PUT /api/proxies/:id
-  appx.put("/api/proxies/:id", async (req, res) => {
+  appx.put("/api/proxies/:id", async (req, reply) => {
     try {
       const { updateProxyInternal } = require("../storage/proxies");
       const r = await updateProxyInternal(req.params.id, req.body || {});
-      res.status(r.success ? 200 : (r.error === 'Proxy not found' ? 404 : 400)).json(r);
+      reply.code(r.success ? 200 : (r.error === 'Proxy not found' ? 404 : 400)).send(r);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // DELETE /api/proxies/:id
-  appx.delete("/api/proxies/:id", async (req, res) => {
+  appx.delete("/api/proxies/:id", async (req, reply) => {
     try {
       const { deleteProxyInternal } = require("../storage/proxies");
       const r = await deleteProxyInternal(req.params.id);
-      res.status(r.success ? 200 : 404).json(r);
+      reply.code().send(r);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // POST /api/proxies/:id/assign — assign proxy to a profile
-  appx.post("/api/proxies/:id/assign", async (req, res) => {
+  appx.post("/api/proxies/:id/assign", async (req, reply) => {
     try {
       const { getProxyByIdInternal } = require("../storage/proxies");
       const { profileId } = req.body || {};
-      if (!profileId) return res.status(400).json({ success: false, error: '"profileId" is required' });
+      if (!profileId) return reply.code(400).send({ success: false, error: '"profileId" is required' });
 
       const proxyResult = await getProxyByIdInternal(req.params.id);
-      if (!proxyResult.success) return res.status(404).json(proxyResult);
+      if (!proxyResult.success) return reply.code(404).send(proxyResult);
 
       const profiles = await handlers.getProfilesInternal();
       const profile = profiles.find(p => p.id === profileId);
-      if (!profile) return res.status(404).json({ success: false, error: 'Profile not found' });
+      if (!profile) return reply.code(404).send({ success: false, error: 'Profile not found' });
 
       const updated = { ...profile, proxy: proxyResult.proxy };
       const r = await handlers.saveProfileInternal(updated);
       if (r.success) broadcastProfilesUpdated();
-      res.status(r.success ? 200 : 500).json({ success: r.success, message: 'Proxy assigned', proxy: proxyResult.proxy });
+      reply.code().send({ success: r.success, message: 'Proxy assigned', proxy: proxyResult.proxy });
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // POST /api/proxies/unassign — remove proxy from a profile
-  appx.post("/api/proxies/unassign", async (req, res) => {
+  appx.post("/api/proxies/unassign", async (req, reply) => {
     try {
       const { profileId } = req.body || {};
-      if (!profileId) return res.status(400).json({ success: false, error: '"profileId" is required' });
+      if (!profileId) return reply.code(400).send({ success: false, error: '"profileId" is required' });
 
       const profiles = await handlers.getProfilesInternal();
       const profile = profiles.find(p => p.id === profileId);
-      if (!profile) return res.status(404).json({ success: false, error: 'Profile not found' });
+      if (!profile) return reply.code(404).send({ success: false, error: 'Profile not found' });
 
       const updated = { ...profile, proxy: null };
       const r = await handlers.saveProfileInternal(updated);
       if (r.success) broadcastProfilesUpdated();
-      res.status(r.success ? 200 : 500).json({ success: r.success, message: 'Proxy unassigned' });
+      reply.code().send({ success: r.success, message: 'Proxy unassigned' });
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // ── Fingerprints API ──
   // POST /api/fingerprints/preview — generate fingerprint without saving
-  appx.post("/api/fingerprints/preview", async (req, res) => {
+  appx.post("/api/fingerprints/preview", async (req, reply) => {
     try {
       const { generateFingerprint } = require("../engine/fingerprintGenerator");
       const body = req.body || {};
@@ -646,14 +596,14 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
       if (body.browser) opts.browser = browserMap[body.browser] || body.browser;
       if (body.locale) opts.language = body.locale;
       const result = generateFingerprint(opts);
-      res.json({ success: true, ...result });
+      reply.send({ success: true, ...result });
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // POST /api/fingerprints/:profileId/generate — generate and save for a profile
-  appx.post("/api/fingerprints/:profileId/generate", async (req, res) => {
+  appx.post("/api/fingerprints/:profileId/generate", async (req, reply) => {
     try {
       const { generateFingerprint } = require("../engine/fingerprintGenerator");
       const { profileId } = req.params;
@@ -668,7 +618,7 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
       const fp = generateFingerprint(opts);
       const profiles = await handlers.getProfilesInternal();
       const profile = profiles.find(p => p.id === profileId);
-      if (!profile) return res.status(404).json({ success: false, error: 'Profile not found' });
+      if (!profile) return reply.code(404).send({ success: false, error: 'Profile not found' });
 
       const updated = {
         ...profile,
@@ -677,102 +627,102 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
       };
       const r = await handlers.saveProfileInternal(updated);
       if (r.success) broadcastProfilesUpdated();
-      res.status(r.success ? 200 : 500).json({ success: r.success, fingerprint: fp.fingerprint, settings: fp.settings });
+      reply.code().send({ success: r.success, fingerprint: fp.fingerprint, settings: fp.settings });
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // PUT /api/fingerprints/:profileId — save manual fingerprint config
-  appx.put("/api/fingerprints/:profileId", async (req, res) => {
+  appx.put("/api/fingerprints/:profileId", async (req, reply) => {
     try {
       const { profileId } = req.params;
       const fingerprintConfig = req.body || {};
       const profiles = await handlers.getProfilesInternal();
       const profile = profiles.find(p => p.id === profileId);
-      if (!profile) return res.status(404).json({ success: false, error: 'Profile not found' });
+      if (!profile) return reply.code(404).send({ success: false, error: 'Profile not found' });
 
       const updated = { ...profile, fingerprint: { ...profile.fingerprint, ...fingerprintConfig } };
       const r = await handlers.saveProfileInternal(updated);
       if (r.success) broadcastProfilesUpdated();
-      res.status(r.success ? 200 : 500).json(r);
+      reply.code().send(r);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // Scripts management (CRUD + execute)
-  appx.get("/api/scripts", async (_req, res) => {
+  appx.get("/api/scripts", async (_req, reply) => {
     try {
       const { listScriptsInternal } = require("../storage/scripts");
       const list = await listScriptsInternal();
-      res.json(list);
+      reply.send(list);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
-  appx.get("/api/scripts/:id", async (req, res) => {
+  appx.get("/api/scripts/:id", async (req, reply) => {
     try {
       const { getScriptInternal } = require("../storage/scripts");
       const r = await getScriptInternal(req.params.id);
-      res.status(r.success === false ? 404 : 200).json(r);
+      reply.code().send(r);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
-  appx.post("/api/scripts", async (req, res) => {
+  appx.post("/api/scripts", async (req, reply) => {
     try {
       const { saveScriptInternal } = require("../storage/scripts");
       const r = await saveScriptInternal(req.body || {});
-      res.status(r.success ? 200 : 400).json(r);
+      reply.code().send(r);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
-  appx.put("/api/scripts/:id", async (req, res) => {
+  appx.put("/api/scripts/:id", async (req, reply) => {
     try {
       const { saveScriptInternal } = require("../storage/scripts");
       const payload = { ...(req.body || {}), id: req.params.id };
       const r = await saveScriptInternal(payload);
-      res.status(r.success ? 200 : 400).json(r);
+      reply.code().send(r);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
-  appx.delete("/api/scripts/:id", async (req, res) => {
+  appx.delete("/api/scripts/:id", async (req, reply) => {
     try {
       const { deleteScriptInternal } = require("../storage/scripts");
       const r = await deleteScriptInternal(req.params.id);
-      res.status(r.success ? 200 : 404).json(r);
+      reply.code().send(r);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
   // Execute a script for a profile
-  appx.post("/api/profiles/:id/scripts/:sid/execute", async (req, res) => {
+  appx.post("/api/profiles/:id/scripts/:sid/execute", async (req, reply) => {
     try {
       const { getScriptInternal } = require("../storage/scripts");
       const { executeScript } = require("../engine/scriptRuntime");
       const g = await getScriptInternal(req.params.sid);
-      if (!g.success) return res.status(404).json(g);
+      if (!g.success) return reply.code(404).send(g);
       const r = await executeScript(req.params.id, g.script.code || "", {
         timeoutMs: Math.min(300000, Number(req.body?.timeoutMs || 120000)),
       });
-      res.status(r.success ? 200 : 500).json(r);
+      reply.code().send(r);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // Locales/timezones
-  appx.get("/api/locales-timezones", async (_req, res) => {
+  appx.get("/api/locales-timezones", async (_req, reply) => {
     const r = await handlers.getLocalesTimezonesInternal();
-    res.json(r);
+    reply.send(r);
   });
 
   // ── Fingerprint Generator ──
   // Generate a random fingerprint (optionally constrained by os/language/timezone)
-  appx.post("/api/fingerprint/generate", async (req, res) => {
+  appx.post("/api/fingerprint/generate", async (req, reply) => {
     try {
       const { generateFingerprint } = require("../engine/fingerprintGenerator");
       const opts = req.body || {};
@@ -782,14 +732,14 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
         timezone: opts.timezone,
         seed: opts.seed ? Number(opts.seed) : undefined,
       });
-      res.json({ success: true, ...result });
+      reply.send({ success: true, ...result });
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // Generate multiple fingerprints at once
-  appx.post("/api/fingerprint/generate-batch", async (req, res) => {
+  appx.post("/api/fingerprint/generate-batch", async (req, reply) => {
     try {
       const { generateBatch } = require("../engine/fingerprintGenerator");
       const count = Math.min(50, Math.max(1, Number(req.body?.count || 1)));
@@ -799,15 +749,15 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
         language: opts.language,
         timezone: opts.timezone,
       });
-      res.json({ success: true, count: results.length, fingerprints: results });
+      reply.send({ success: true, count: results.length, fingerprints: results });
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // ── Behavior Simulator ──
   // Execute a behavior simulation on a running profile
-  appx.post("/api/profiles/:id/behavior/simulate", async (req, res) => {
+  appx.post("/api/profiles/:id/behavior/simulate", async (req, reply) => {
     try {
       const profileId = req.params.id;
       const { runningProfiles } = require("../state/runtime");
@@ -887,15 +837,15 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
             .json({ success: false, error: `Unknown action: ${action}` });
       }
 
-      res.json({ success: true, action });
+      reply.send({ success: true, action });
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // ── Blocked Page Detection ──
   // Check if a running profile's current page is blocked
-  appx.get("/api/profiles/:id/blocked", async (req, res) => {
+  appx.get("/api/profiles/:id/blocked", async (req, reply) => {
     try {
       const profileId = req.params.id;
       const { runningProfiles } = require("../state/runtime");
@@ -921,69 +871,65 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
           .status(400)
           .json({ success: false, error: "No page available" });
       const detection = await detectBlockedPage(page);
-      res.json({ success: true, ...detection });
+      reply.send({ success: true, ...detection });
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // ── Proxy Checker ──
-  appx.post("/api/proxy/check", async (req, res) => {
+  appx.post("/api/proxy/check", async (req, reply) => {
     try {
       const { checkProxy } = require("../services/ProxyChecker");
       const cfg = req.body || {};
       if (!cfg.host || !cfg.port)
-        return res
-          .status(400)
-          .json({ success: false, error: "host and port are required" });
+        return reply.code(400).send({ success: false, error: "host and port are required" });
       const result = await checkProxy(cfg);
-      res.json(result);
+      reply.send(result);
     } catch (e) {
-      res.status(500).json({ success: false, error: e?.message || String(e) });
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
-  // OpenAPI + Swagger UI
-  appx.get("/openapi.json", (_req, res) => {
+  // ── OpenAPI spec at /openapi.json ──
+  appx.get("/openapi.json", async (_req, reply) => {
     try {
-      res
-        .type("application/json")
-        .send(require("fs").readFileSync(openapiPath, "utf8"));
+      reply.type("application/json").send(require("fs").readFileSync(openapiPath, "utf8"));
     } catch {
-      res.status(404).json({ error: "openapi not found" });
+      reply.code(404).send({ error: "openapi not found" });
     }
   });
 
-  // /docs/json — raw OpenAPI spec JSON (same as /openapi.json but at Fastify-compatible path)
-  appx.get("/docs/json", (_req, res) => {
-    try {
-      const raw = require("fs").readFileSync(openapiPath, "utf8");
-      res.type("application/json").send(raw);
-    } catch {
-      res.status(404).json({ error: "openapi spec not found" });
-    }
-  });
+  // ── Fastify Swagger UI (@fastify/swagger + @fastify/swagger-ui) ──
+  try {
+    const spec = require("fs").existsSync(openapiPath)
+      ? JSON.parse(require("fs").readFileSync(openapiPath, "utf8"))
+      : { openapi: "3.0.0", info: { title: "HL-MCK API", version: "1.0.0" } };
 
-  if (swaggerUi) {
-    try {
-      const spec = require("fs").existsSync(openapiPath)
-        ? JSON.parse(require("fs").readFileSync(openapiPath, "utf8"))
-        : { openapi: "3.0.0", info: { title: "HL-MCK API", version: "1.0.0" } };
-      const swaggerOptions = {
-        swaggerOptions: {
-          defaultModelsExpandDepth: -1,
-          url: '/docs/json',
-        }
-      };
-      appx.use("/docs", swaggerUi.serve, swaggerUi.setup(spec, swaggerOptions));
-    } catch {}
+    await appx.register(require("@fastify/swagger"), {
+      mode: "static",
+      specification: { document: spec },
+    });
+
+    await appx.register(require("@fastify/swagger-ui"), {
+      routePrefix: "/docs",
+      uiConfig: {
+        docExpansion: "list",
+        deepLinking: true,
+        defaultModelsExpandDepth: -1,
+      },
+      staticCSP: false,
+    });
+  } catch (e) {
+    console.error("Swagger registration error:", e?.message || e);
   }
 
   return appx;
 }
 
-function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
+function createRestServer({ settingsProvider, broadcaster }) {
   let restHttpServer = null;
+  let restFastifyInstance = null;
   let wss = null;
   // Map<WebSocket, string> — tracks which profileId each client is subscribed to
   const wsClients = new Map();
@@ -1017,9 +963,9 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
       return { ok: false, disabled: true };
     }
 
-    if (restHttpServer) {
+    if (restFastifyInstance) {
       try {
-        const addr = restHttpServer.address();
+        const addr = restFastifyInstance.server?.address();
         if (addr && Number(addr.port) === port) {
           restServerState.running = true;
           restServerState.error = null;
@@ -1027,68 +973,53 @@ function createRestServer({ settingsProvider, broadcaster, swaggerUi }) {
           return { ok: true };
         }
       } catch {}
-      try {
-        restHttpServer.close();
-      } catch {}
+      try { await restFastifyInstance.close(); } catch {}
+      restFastifyInstance = null;
       restHttpServer = null;
       restServerState.running = false;
     }
 
-    const appx = buildExpressApp(rest, swaggerUi, openapiPath, handlers);
-    return new Promise((resolve) => {
-      restHttpServer = appx.listen(port, host, () => {
-        restServerState.running = true;
-        restServerState.error = null;
-        broadcast();
-        // Attach WebSocket server for live preview streaming
-        try { attachPreviewWebSocket(); } catch (e) {
-          appendLog("system", `Preview WebSocket attach failed: ${e?.message || e}`);
-        }
-        appendLog(
-          "system",
-          `REST API server started on ${host}:${port} — Swagger UI at /docs`,
-        );
-        resolve({ ok: true });
-      });
-      restHttpServer.on("error", (err) => {
-        restServerState.running = false;
-        restServerState.error =
-          err?.code === "EADDRINUSE"
-            ? `Port ${port} is already in use`
-            : err?.message || String(err);
-        try {
-          restHttpServer.close();
-        } catch {}
-        restHttpServer = null;
-        broadcast();
-        appendLog(
-          "system",
-          `REST API server failed to start: ${restServerState.error}`,
-        );
-        resolve({ ok: false, error: restServerState.error });
-      });
-    });
+    try {
+      const appx = await buildFastifyApp(rest, openapiPath, handlers);
+      await appx.listen({ port, host });
+      restFastifyInstance = appx;
+      restHttpServer = appx.server;
+      restServerState.running = true;
+      restServerState.error = null;
+      broadcast();
+      try { attachPreviewWebSocket(); } catch (e) {
+        appendLog("system", `Preview WebSocket attach failed: ${e?.message || e}`);
+      }
+      appendLog("system", `REST API server started on ${host}:${port} — Fastify Swagger UI at /docs`);
+      return { ok: true };
+    } catch (err) {
+      restServerState.running = false;
+      restServerState.error =
+        err?.code === "EADDRINUSE"
+          ? `Port ${port} is already in use`
+          : err?.message || String(err);
+      restFastifyInstance = null;
+      restHttpServer = null;
+      broadcast();
+      appendLog("system", `REST API server failed to start: ${restServerState.error}`);
+      return { ok: false, error: restServerState.error };
+    }
   }
 
   async function stop() {
-    if (!restHttpServer) {
+    if (!restFastifyInstance) {
       restServerState.running = false;
       broadcast();
       return true;
     }
-    const srv = restHttpServer;
+    const inst = restFastifyInstance;
+    restFastifyInstance = null;
     restHttpServer = null;
-    return new Promise((resolve) => {
-      try {
-        srv.close(() => resolve(true));
-      } catch {
-        resolve(false);
-      }
-    }).finally(() => {
-      restServerState.running = false;
-      broadcast();
-      appendLog("system", "REST API server stopped");
-    });
+    try { await inst.close(); } catch {}
+    restServerState.running = false;
+    broadcast();
+    appendLog("system", "REST API server stopped");
+    return true;
   }
 
   async function setEnabled(enabled, handlers) {

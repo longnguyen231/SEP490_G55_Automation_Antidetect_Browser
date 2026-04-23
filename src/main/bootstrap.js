@@ -71,8 +71,7 @@ app.whenReady().then(async () => {
   //    This ensures all handlers are ready before renderer can call them.
   const settingsProvider = () => loadSettings();
   settingsProvider.set = (st) => { try { saveSettings(st); } catch {} };
-  let swaggerUi = null; try { swaggerUi = require('swagger-ui-express'); } catch {}
-  const restServer = createRestServer({ settingsProvider, broadcaster: () => {}, swaggerUi });
+  const restServer = createRestServer({ settingsProvider, broadcaster: () => {} });
   const handlers = { ...require('./controllers/profiles'), ...require('./storage/profiles') };
   registerIpcHandlers({ restServer, handlers });
 
