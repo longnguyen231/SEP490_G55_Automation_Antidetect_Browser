@@ -140,7 +140,7 @@ function validateProfileInputBasic(p) {
     errors.push('Unsupported browser value');
   }
   const engine = p.settings?.engine;
-  if (engine && !['playwright','playwright-firefox','cdp','auto'].includes(engine)) errors.push('settings.engine must be playwright, playwright-firefox, cdp, or auto');
+  if (engine && !['playwright','playwright-firefox','cdp','auto','camoufox'].includes(engine)) errors.push('settings.engine must be playwright, playwright-firefox, camoufox, cdp, or auto');
   const cpu = p.settings?.cpuCores; if (cpu != null && (!Number.isInteger(cpu) || cpu < 1 || cpu > 64)) errors.push('cpuCores must be 1-64');
   const mem = p.settings?.memoryGB; if (mem != null && (!Number.isInteger(mem) || mem < 1 || mem > 256)) errors.push('memoryGB must be 1-256');
   return errors;
@@ -225,18 +225,18 @@ function withWriteLock(fn) {
 }
 
 function writeProfiles(list) {
-  // Fire-and-forget async write; returns immediately so callers don't block
-  withWriteLock(async () => {
+  return withWriteLock(async () => {
     try {
       const p = profilesFilePath();
       const tmp = p + '.tmp';
       await fs.promises.writeFile(tmp, JSON.stringify(list, null, 2));
       await fs.promises.rename(tmp, p);
+      return true;
     } catch (e) {
       appendLog('system', `writeProfiles error: ${e.message}`);
+      return false;
     }
   });
-  return true;
 }
 
 /**
@@ -304,7 +304,7 @@ async function saveProfileInternal(profile) {
       profiles.push({ ...prepared, createdAt: nowIso });
       profile.id = newId;
     }
-    const ok = writeProfiles(profiles);
+    const ok = await writeProfiles(profiles);
     if (!ok) return { success: false, error: 'Failed to persist profiles file' };
     appendLog('system', `Saved profile ${profile.id} (${profile.name})`);
     return { success: true, profile: profiles.find(p => p.id === profile.id) };
@@ -336,7 +336,7 @@ async function deleteProfileInternal(profileId) {
   try {
     const profiles = readProfiles();
     const filtered = profiles.filter(p => p.id !== profileId);
-    const ok = writeProfiles(filtered);
+    const ok = await writeProfiles(filtered);
     try {
       const statePath = storageStatePath(profileId);
       if (fs.existsSync(statePath)) fs.unlinkSync(statePath);
@@ -372,7 +372,7 @@ async function cloneProfileInternal(sourceProfileId, overrides = {}) {
     cloned.createdAt = nowIso;
     delete cloned.updatedAt;
     profiles.push(cloned);
-    writeProfiles(profiles);
+    await writeProfiles(profiles);
     const srcState = storageStatePath(sourceProfileId);
     const dstState = storageStatePath(newId);
     try { if (fs.existsSync(srcState)) fs.copyFileSync(srcState, dstState); } catch (e) { appendLog(newId, `Failed copy storage state: ${e.message}`); }
@@ -461,7 +461,7 @@ async function saveProfilesBulkInternal(inputProfiles) {
     }
 
     if (created.length > 0) {
-      const ok = writeProfiles(profiles);
+      const ok = await writeProfiles(profiles);
       if (!ok) return { success: false, error: 'Failed to persist profiles file' };
       appendLog('system', `Bulk saved ${created.length} profile(s)`);
     }
@@ -498,7 +498,7 @@ async function deleteProfilesBulkInternal(ids) {
     if (deleted.length > 0) {
       const deleteSet = new Set(deleted);
       const filtered = profiles.filter(p => !deleteSet.has(p.id));
-      const ok = writeProfiles(filtered);
+      const ok = await writeProfiles(filtered);
       if (!ok) return { success: false, error: 'Failed to persist profiles file' };
 
       // Cleanup storage state and CDP user data (non-blocking)
@@ -566,7 +566,7 @@ async function cloneProfilesBulkInternal(sourceIds, overrides = {}) {
     }
 
     if (created.length > 0) {
-      writeProfiles(profiles);
+      await writeProfiles(profiles);
       appendLog('system', `Bulk cloned ${created.length} profile(s)`);
     }
 

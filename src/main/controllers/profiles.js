@@ -81,7 +81,7 @@ async function launchProfileInternal(profileId, options = {}) {
     if (startUrl === 'https://www.google.com' || startUrl === 'https://www.google.com/') {
       startUrl = 'https://www.google.com/?hl=en';
     }
-    const engine = (options && options.engine) ? String(options.engine).toLowerCase() : (settings.engine === 'cdp' ? 'cdp' : 'playwright');
+    const engine = (options && options.engine) ? String(options.engine).toLowerCase() : (settings.engine || 'playwright');
     const requestedHeadless = (options && typeof options.headless === 'boolean') ? options.headless : undefined;
     const headless = (requestedHeadless !== undefined) ? requestedHeadless : !!settings.headless;
 
@@ -89,7 +89,7 @@ async function launchProfileInternal(profileId, options = {}) {
     // race conditions when multiple profiles are launched concurrently.
     try {
       updateProfileSettings(profileId, {
-        engine: engine === 'cdp' ? 'cdp' : 'playwright',
+        engine: engine,
         headless: !!headless,
       });
     } catch { }
@@ -239,7 +239,8 @@ async function launchProfileInternal(profileId, options = {}) {
     // Combined with safeMode ON (no JS Object.defineProperty overrides), this bypasses
     // Cloudflare enterprise WAF.
     const engineMode = settings.engine || 'playwright';
-    const isFirefox = engineMode === 'playwright-firefox' || engineMode === 'firefox';
+    const isCamoufox = engineMode === 'camoufox';
+    const isFirefox = engineMode === 'playwright-firefox' || engineMode === 'firefox' || isCamoufox;
     const { chromium, firefox } = require('playwright'); // rebrowser-playwright — must NOT use playwright-core (standard, unpatched)
     const pwEngine = isFirefox ? firefox : chromium;
 
@@ -334,7 +335,18 @@ async function launchProfileInternal(profileId, options = {}) {
     let executablePath;
     let binarySource = 'bundled';
     let detectedChromeVersion = null;
-    if (!isFirefox) {
+    if (isCamoufox) {
+      const { getCamoufoxExecutable } = require('../services/camoufoxManager');
+      const cfExe = getCamoufoxExecutable();
+      if (!cfExe) {
+        appendLog(profileId, 'Camoufox executable not found. Please install it first.');
+        if (forwarder) { try { await forwarder.stop(); } catch {} }
+        return { success: false, error: 'Camoufox not installed' };
+      }
+      executablePath = cfExe;
+      binarySource = 'camoufox';
+      appendLog(profileId, `[binary] source=${binarySource} path=${executablePath}`);
+    } else if (!isFirefox) {
       const vendorPath = resolveVendorChromePath();
       if (vendorPath) {
         executablePath = vendorPath;
@@ -395,7 +407,9 @@ async function launchProfileInternal(profileId, options = {}) {
     let browser;
     try {
       if (isFirefox) {
-        server = await pwEngine.launchServer({ headless, args, proxy, firefoxUserPrefs });
+        const ffOpts = { headless, args, proxy, firefoxUserPrefs };
+        if (executablePath) ffOpts.executablePath = executablePath;
+        server = await pwEngine.launchServer(ffOpts);
         browser = await pwEngine.connect(server.wsEndpoint());
       } else {
         browser = await pwEngine.launch(chromiumLaunchOpts);
@@ -410,7 +424,9 @@ async function launchProfileInternal(profileId, options = {}) {
         const ok = await runPlaywrightInstall(bname);
         if (!ok) { try { await forwarder?.stop?.(); } catch { } return { success: false, error: 'Playwright browsers not installed.' }; }
         if (isFirefox) {
-          server = await pwEngine.launchServer({ headless, args, proxy, firefoxUserPrefs });
+          const ffOpts = { headless, args, proxy, firefoxUserPrefs };
+          if (executablePath) ffOpts.executablePath = executablePath;
+          server = await pwEngine.launchServer(ffOpts);
           browser = await pwEngine.connect(server.wsEndpoint());
         } else {
           browser = await pwEngine.launch(chromiumLaunchOpts);

@@ -245,7 +245,8 @@ function App() {
       // Launch button → always visible browser (headless=false)
       const headless = false;
       setHeadlessPrefs(prev => ({ ...prev, [profileId]: false }));
-      const engine = enginePrefs[profileId] || 'playwright';
+      const p = profiles.find(x => x.id === profileId);
+      const engine = p?.settings?.engine || 'playwright';
 
       // Only check Playwright engines (cdp uses system Chrome, no install needed)
       if (engine !== 'cdp') {
@@ -269,8 +270,9 @@ function App() {
   };
 
   const doLaunchProfile = async (profileId, { headless, engine } = {}) => {
-    const h = headless !== undefined ? headless : !!headlessPrefs[profileId];
-    const eng = engine || enginePrefs[profileId] || 'playwright';
+    const p = profiles.find(x => x.id === profileId);
+    const h = headless !== undefined ? headless : !!p?.settings?.headless;
+    const eng = engine || p?.settings?.engine || 'playwright';
     try {
       const options = { headless: h, engine: eng };
       const result = await window.electronAPI.launchProfile(profileId, options);
@@ -300,7 +302,8 @@ function App() {
     try {
       // Headless button → always hidden (headless=true), show View button after launch
       setHeadlessPrefs(prev => ({ ...prev, [profileId]: true }));
-      const engine = enginePrefs[profileId] || 'playwright';
+      const p = profiles.find(x => x.id === profileId);
+      const engine = p?.settings?.engine || 'playwright';
       const options = { headless: true, engine };
       const result = await window.electronAPI.launchProfile(profileId, options);
       if (!result.success) { setErrorProfiles(prev => ({ ...prev, [profileId]: true })); alert('Error launching headless: ' + result.error); }
@@ -601,7 +604,7 @@ function App() {
             // Relaunch automatically after successful install
             doLaunchProfile(profileId, {
               headless,
-              engine: engine === 'firefox' ? 'playwright-firefox' : 'playwright',
+              engine: engine === 'firefox' ? 'playwright-firefox' : engine === 'camoufox' ? 'camoufox' : 'playwright',
             });
           }}
         />
