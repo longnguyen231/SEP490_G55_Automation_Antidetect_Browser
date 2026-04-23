@@ -9,254 +9,7 @@
       "url": "http://127.0.0.1:4000"
     }
   ],
-  "tags": [
-    {
-      "name": "profiles",
-      "description": "Browser profile CRUD"
-    },
-    {
-      "name": "browsers",
-      "description": "Browser lifecycle control"
-    },
-    {
-      "name": "browser-actions",
-      "description": "Full Playwright API over REST: navigation, clicks, keyboard, mouse, waits, evaluate, cookies, screenshots, context operations"
-    },
-    {
-      "name": "tasks",
-      "description": "Automation task management"
-    },
-    {
-      "name": "proxies",
-      "description": "Proxy pool management and profile assignment"
-    },
-    {
-      "name": "scripts",
-      "description": "Script library with optional cron scheduling"
-    },
-    {
-      "name": "fingerprints",
-      "description": "Fingerprint generation and management"
-    },
-    {
-      "name": "health"
-    }
-  ],
-  "components": {
-    "schemas": {
-      "Profile": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "startUrl": {
-            "type": "string"
-          },
-          "settings": {
-            "type": "object"
-          }
-        }
-      },
-      "CreateProfileRequest": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "example": "string"
-          },
-          "headless": {
-            "type": "boolean",
-            "example": true
-          },
-          "fingerprintOptions": {
-            "type": "object",
-            "properties": {
-              "os": {
-                "type": "string",
-                "example": "windows"
-              },
-              "browser": {
-                "type": "string",
-                "example": "chrome"
-              },
-              "device": {
-                "type": "string",
-                "example": "desktop"
-              },
-              "locale": {
-                "type": "string",
-                "example": "string"
-              }
-            }
-          },
-          "proxy": {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "example": "http"
-              },
-              "host": {
-                "type": "string",
-                "example": "string"
-              },
-              "port": {
-                "type": "integer",
-                "example": 65535
-              },
-              "username": {
-                "type": "string",
-                "example": "string"
-              },
-              "password": {
-                "type": "string",
-                "example": "string"
-              }
-            }
-          }
-        }
-      },
-      "UpdateProfileRequest": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "example": "string"
-          },
-          "headless": {
-            "type": "boolean",
-            "example": true
-          }
-        }
-      },
-      "LaunchOptions": {
-        "type": "object",
-        "properties": {
-          "headless": {
-            "type": "boolean"
-          },
-          "engine": {
-            "type": "string"
-          }
-        }
-      },
-      "Cookies": {
-        "type": "array",
-        "items": {
-          "type": "object"
-        }
-      },
-      "NavigateRequest": {
-        "type": "object",
-        "properties": {
-          "url": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "url"
-        ]
-      },
-      "NewPageRequest": {
-        "type": "object",
-        "properties": {
-          "url": {
-            "type": "string"
-          }
-        }
-      },
-      "ClosePageRequest": {
-        "type": "object",
-        "properties": {
-          "index": {
-            "type": "integer"
-          }
-        }
-      },
-      "ScreenshotRequest": {
-        "type": "object",
-        "properties": {
-          "index": {
-            "type": "integer"
-          },
-          "path": {
-            "type": "string"
-          },
-          "fullPage": {
-            "type": "boolean"
-          }
-        }
-      },
-      "EvalRequest": {
-        "type": "object",
-        "properties": {
-          "index": {
-            "type": "integer"
-          },
-          "expression": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "expression"
-        ]
-      },
-      "PagesResponse": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "pages": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          }
-        }
-      },
-      "ActionParams": {
-        "type": "object",
-        "additionalProperties": true
-      },
-      "ActionResponse": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "error": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": true
-      },
-      "Script": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "language": {
-            "type": "string"
-          },
-          "code": {
-            "type": "string"
-          }
-        }
-      }
-    }
-  },
+  "components": {},
   "paths": {
     "/api/health": {
       "get": {
@@ -480,7 +233,18 @@
           "200": {
             "description": "OK"
           }
-        }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "profileId",
+            "required": false,
+            "description": "Filter by profile ID"
+          }
+        ]
       },
       "post": {
         "summary": "Create a new automation task",
@@ -490,6 +254,46 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "profileId": {
+                    "type": "string",
+                    "description": "ID of the profile to run the task on"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "scriptType": {
+                    "type": "string",
+                    "enum": [
+                      "file",
+                      "inline"
+                    ],
+                    "description": "file = path to script file, inline = script string"
+                  },
+                  "scriptContent": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Script file path or inline script"
+                  }
+                },
+                "required": [
+                  "profileId",
+                  "name",
+                  "scriptType",
+                  "scriptContent"
+                ]
+              }
+            }
           }
         }
       }
@@ -584,6 +388,52 @@
           "200": {
             "description": "OK"
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "Optional proxy label"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "http",
+                      "https",
+                      "socks4",
+                      "socks5"
+                    ]
+                  },
+                  "host": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "port": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535
+                  },
+                  "username": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "host",
+                  "port"
+                ]
+              }
+            }
+          }
         }
       }
     },
@@ -619,6 +469,48 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "http",
+                      "https",
+                      "socks4",
+                      "socks5"
+                    ]
+                  },
+                  "host": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "port": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535
+                  },
+                  "username": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "password": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -664,6 +556,24 @@
           "200": {
             "description": "OK"
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "profileId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "profileId"
+                ]
+              }
+            }
+          }
         }
       }
     },
@@ -676,6 +586,24 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "profileId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "profileId"
+                ]
+              }
+            }
           }
         }
       }
@@ -701,7 +629,56 @@
           "200": {
             "description": "OK"
           }
-        }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Optional description"
+                  },
+                  "content": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Script source code"
+                  },
+                  "headless": {
+                    "type": "boolean",
+                    "description": "Run in headless mode when triggered by cron"
+                  },
+                  "cronSchedule": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Cron expression e.g. 0 * * * * (hourly)"
+                  },
+                  "cronEnabled": {
+                    "type": "boolean",
+                    "description": "Enable scheduled execution"
+                  },
+                  "cronProfileId": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Profile ID to use for cron-triggered runs"
+                  }
+                },
+                "required": [
+                  "name",
+                  "content"
+                ]
+              }
+            }
+          }
+        },
+        "description": "Scripts receive page, context, profileId, and log(msg) globals when executed. Optionally schedule with a cron expression."
       }
     },
     "/api/scripts/{id}": {
@@ -723,6 +700,44 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "headless": {
+                    "type": "boolean"
+                  },
+                  "cronSchedule": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "cronEnabled": {
+                    "type": "boolean"
+                  },
+                  "cronProfileId": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -758,7 +773,47 @@
           "200": {
             "description": "OK"
           }
-        }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "os": {
+                    "type": "string",
+                    "enum": [
+                      "windows",
+                      "macos",
+                      "linux"
+                    ]
+                  },
+                  "browser": {
+                    "type": "string",
+                    "enum": [
+                      "chrome",
+                      "firefox",
+                      "edge"
+                    ]
+                  },
+                  "device": {
+                    "type": "string",
+                    "enum": [
+                      "desktop",
+                      "mobile"
+                    ]
+                  },
+                  "locale": {
+                    "type": "string",
+                    "description": "BCP-47 locale e.g. en-US, vi-VN"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "Returns a generated fingerprint config without persisting it. Useful for previewing before applying."
       }
     },
     "/api/fingerprints/{profileId}/generate": {
@@ -780,6 +835,45 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "os": {
+                    "type": "string",
+                    "enum": [
+                      "windows",
+                      "macos",
+                      "linux"
+                    ]
+                  },
+                  "browser": {
+                    "type": "string",
+                    "enum": [
+                      "chrome",
+                      "firefox",
+                      "edge"
+                    ]
+                  },
+                  "device": {
+                    "type": "string",
+                    "enum": [
+                      "desktop",
+                      "mobile"
+                    ]
+                  },
+                  "locale": {
+                    "type": "string",
+                    "description": "BCP-47 locale e.g. en-US, vi-VN"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -804,7 +898,19 @@
           "200": {
             "description": "OK"
           }
-        }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Full FingerprintConfig object"
+              }
+            }
+          }
+        },
+        "description": "Persists the provided fingerprint config directly without regenerating."
       }
     },
     "/api/browsers/{profileId}/actions/navigate": {
@@ -3047,5 +3153,35 @@
         }
       }
     }
-  }
+  },
+  "tags": [
+    {
+      "name": "profiles",
+      "description": "Browser profile CRUD"
+    },
+    {
+      "name": "browsers",
+      "description": "Browser lifecycle control"
+    },
+    {
+      "name": "browser-actions",
+      "description": "Full Playwright API over REST: navigation, clicks, keyboard, mouse, waits, evaluate, cookies, screenshots, context operations"
+    },
+    {
+      "name": "tasks",
+      "description": "Automation task management"
+    },
+    {
+      "name": "proxies",
+      "description": "Proxy pool management and profile assignment"
+    },
+    {
+      "name": "scripts",
+      "description": "Script library with optional cron scheduling"
+    },
+    {
+      "name": "fingerprints",
+      "description": "Fingerprint generation and management"
+    }
+  ]
 }

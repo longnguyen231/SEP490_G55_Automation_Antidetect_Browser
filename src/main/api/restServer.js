@@ -22,7 +22,7 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
 
   // API key middleware (optional) — docs and openapi spec are always public
   appx.use((req, res, next) => {
-    const isPublic = req.path === "/openapi.json" || req.path.startsWith("/docs");
+    const isPublic = req.path === "/openapi.json" || req.path.startsWith("/docs") || req.path === "/api/health";
     if (apiKey && !isPublic && req.headers["x-api-key"] !== apiKey) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
@@ -110,6 +110,103 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
   appx.post("/api/stop-all", async (_req, res) => {
     const result = await handlers.stopAllProfilesInternal();
     res.status(result.success ? 200 : 500).json(result);
+  });
+
+  // ── Browsers API (matching instructor spec) ──
+  // POST /api/browsers/:profileId/launch
+  appx.post("/api/browsers/:profileId/launch", async (req, res) => {
+    try {
+      const { profileId } = req.params;
+      const body = req.body || {};
+      const opts = {};
+      if (body.headless !== undefined) opts.headless = !!body.headless;
+      const result = await handlers.launchProfileInternal(profileId, opts);
+      res.status(result.success ? 200 : 500).json(result);
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // POST /api/browsers/:profileId/close
+  appx.post("/api/browsers/:profileId/close", async (req, res) => {
+    try {
+      const result = await handlers.stopProfileInternal(req.params.profileId);
+      res.status(result.success ? 200 : 500).json(result);
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // GET /api/browsers/:profileId/status
+  appx.get("/api/browsers/:profileId/status", async (req, res) => {
+    try {
+      const { profileId } = req.params;
+      const { runningProfiles } = require("../state/runtime");
+      const running = runningProfiles.get(profileId);
+      res.json({ success: true, running: !!running, profileId });
+    } catch (e) {
+      res.status(400).json({ error: e?.message || String(e) });
+    }
+  });
+
+  // POST /api/browsers/:profileId/execute — generic Playwright page method dispatcher
+  appx.post("/api/browsers/:profileId/execute", async (req, res) => {
+    try {
+      const { profileId } = req.params;
+      const { method, args = [], chain = [] } = req.body || {};
+      if (!method) return res.status(400).json({ success: false, error: '"method" is required' });
+
+      const { runningProfiles } = require("../state/runtime");
+      const running = runningProfiles.get(profileId);
+      if (!running) return res.status(404).json({ success: false, error: 'Profile not running' });
+
+      // Get active page
+      let page;
+      if (running.engine === 'playwright' && running.context) {
+        const pages = running.context.pages();
+        page = pages[pages.length - 1] || pages[0];
+      } else if (running.cdpControl?.context) {
+        const pages = running.cdpControl.context.pages();
+        page = pages[pages.length - 1] || pages[0];
+      }
+      if (!page) return res.status(400).json({ success: false, error: 'No active page available' });
+
+      // Execute method on page
+      let target = page;
+      if (typeof target[method] !== 'function') {
+        // Try special sub-objects like keyboard, mouse, etc.
+        const subObjs = ['keyboard', 'mouse', 'touchscreen'];
+        let found = false;
+        for (const sub of subObjs) {
+          if (page[sub] && typeof page[sub][method] === 'function') {
+            target = page[sub];
+            found = true;
+            break;
+          }
+        }
+        if (!found) return res.status(400).json({ success: false, error: `Method "${method}" not found on page` });
+      }
+
+      let result = await target[method](...args);
+
+      // Execute chained methods
+      for (const step of chain) {
+        if (!step.method) continue;
+        if (typeof result[step.method] !== 'function') {
+          return res.status(400).json({ success: false, error: `Chain method "${step.method}" not found` });
+        }
+        result = await result[step.method](...(step.args || []));
+      }
+
+      // Serialize result (Buffer → base64, etc.)
+      let serialized = result;
+      if (Buffer.isBuffer(result)) serialized = result.toString('base64');
+      else if (typeof result === 'function') serialized = '[Function]';
+
+      res.json({ success: true, result: serialized });
+    } catch (e) {
+      res.status(400).json({ success: false, error: e?.message || String(e) });
+    }
   });
 
   // Running and WS
@@ -282,6 +379,323 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
         req.body || {},
       );
       res.status(result.success ? 200 : 500).json(result);
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // ── Tasks API ──
+  // GET /api/tasks/ — list tasks (optionally filtered by profileId)
+  appx.get("/api/tasks", async (req, res) => {
+    try {
+      const { getTaskLogs } = require("../storage/taskLogs");
+      let list = await getTaskLogs();
+      if (req.query.profileId) list = list.filter(t => t.profileId === req.query.profileId);
+      res.json({ success: true, tasks: list });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+  appx.get("/api/tasks/", async (req, res) => {
+    try {
+      const { getTaskLogs } = require("../storage/taskLogs");
+      let list = await getTaskLogs();
+      if (req.query.profileId) list = list.filter(t => t.profileId === req.query.profileId);
+      res.json({ success: true, tasks: list });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // POST /api/tasks/ — create a new task
+  appx.post("/api/tasks", async (req, res) => {
+    try {
+      const { addTaskLog } = require("../storage/taskLogs");
+      const body = req.body || {};
+      if (!body.profileId) return res.status(400).json({ success: false, error: '"profileId" is required' });
+      if (!body.name) return res.status(400).json({ success: false, error: '"name" is required' });
+      if (!body.scriptContent) return res.status(400).json({ success: false, error: '"scriptContent" is required' });
+
+      const entry = {
+        scriptId: body.scriptId || '',
+        scriptName: body.name,
+        profileId: body.profileId,
+        status: 'pending',
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+        logs: [],
+        _scriptType: body.scriptType || 'inline',
+        _scriptContent: body.scriptContent,
+      };
+      const r = await addTaskLog(entry);
+      res.status(r.success ? 200 : 400).json(r);
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+  appx.post("/api/tasks/", async (req, res) => {
+    try {
+      const { addTaskLog } = require("../storage/taskLogs");
+      const body = req.body || {};
+      if (!body.profileId) return res.status(400).json({ success: false, error: '"profileId" is required' });
+      if (!body.name) return res.status(400).json({ success: false, error: '"name" is required' });
+      if (!body.scriptContent) return res.status(400).json({ success: false, error: '"scriptContent" is required' });
+
+      const entry = {
+        scriptId: body.scriptId || '',
+        scriptName: body.name,
+        profileId: body.profileId,
+        status: 'pending',
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+        logs: [],
+        _scriptType: body.scriptType || 'inline',
+        _scriptContent: body.scriptContent,
+      };
+      const r = await addTaskLog(entry);
+      res.status(r.success ? 200 : 400).json(r);
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // POST /api/tasks/:id/run — enqueue a task for execution
+  appx.post("/api/tasks/:id/run", async (req, res) => {
+    try {
+      const { getTaskLogById, addTaskLog } = require("../storage/taskLogs");
+      const { executeScript } = require("../engine/scriptRuntime");
+      const found = await getTaskLogById(req.params.id);
+      if (!found.success) return res.status(404).json(found);
+      const task = found.taskLog;
+      if (!task._scriptContent) {
+        return res.status(400).json({ success: false, error: 'Task has no scriptContent to execute' });
+      }
+      // Run async (fire and forget — update status after)
+      executeScript(task.profileId, task._scriptContent, { timeoutMs: 120000 }).then(async (result) => {
+        await addTaskLog({
+          ...task,
+          id: undefined,
+          status: result.success ? 'completed' : 'error',
+          finishedAt: new Date().toISOString(),
+          error: result.error || null,
+          logs: result.logs || [],
+        });
+      }).catch(() => {});
+      res.json({ success: true, message: 'Task enqueued', taskId: req.params.id });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // POST /api/tasks/:id/cancel
+  appx.post("/api/tasks/:id/cancel", async (req, res) => {
+    try {
+      const { stopScript } = require("../engine/scriptRuntime");
+      const r = stopScript ? stopScript(req.params.id) : { success: true };
+      res.json({ success: true, message: 'Cancel requested', result: r });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // DELETE /api/tasks/:id
+  appx.delete("/api/tasks/:id", async (req, res) => {
+    try {
+      const { deleteTaskLog } = require("../storage/taskLogs");
+      const r = await deleteTaskLog(req.params.id);
+      res.status(r.success ? 200 : 404).json(r);
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // ── Proxies API ──
+  // GET /api/proxies/
+  appx.get("/api/proxies", async (_req, res) => {
+    try {
+      const { getProxiesInternal } = require("../storage/proxies");
+      const list = await getProxiesInternal();
+      res.json({ success: true, proxies: list });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+  appx.get("/api/proxies/", async (_req, res) => {
+    try {
+      const { getProxiesInternal } = require("../storage/proxies");
+      const list = await getProxiesInternal();
+      res.json({ success: true, proxies: list });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // GET /api/proxies/unassigned — proxies not assigned to any profile
+  appx.get("/api/proxies/unassigned", async (_req, res) => {
+    try {
+      const { getProxiesInternal } = require("../storage/proxies");
+      const { getProfilesInternal } = require("../storage/profiles");
+      const proxies = await getProxiesInternal();
+      const profiles = await getProfilesInternal();
+      // Collect all proxy IDs that are assigned to profiles
+      const assignedIds = new Set(
+        profiles.map(p => p.proxy?.id).filter(Boolean)
+      );
+      const unassigned = proxies.filter(px => !assignedIds.has(px.id));
+      res.json({ success: true, proxies: unassigned });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // POST /api/proxies/ — create a new proxy
+  appx.post("/api/proxies", async (req, res) => {
+    try {
+      const { createProxyInternal } = require("../storage/proxies");
+      const r = await createProxyInternal(req.body || {});
+      res.status(r.success ? 200 : 400).json(r);
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+  appx.post("/api/proxies/", async (req, res) => {
+    try {
+      const { createProxyInternal } = require("../storage/proxies");
+      const r = await createProxyInternal(req.body || {});
+      res.status(r.success ? 200 : 400).json(r);
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // PUT /api/proxies/:id
+  appx.put("/api/proxies/:id", async (req, res) => {
+    try {
+      const { updateProxyInternal } = require("../storage/proxies");
+      const r = await updateProxyInternal(req.params.id, req.body || {});
+      res.status(r.success ? 200 : (r.error === 'Proxy not found' ? 404 : 400)).json(r);
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // DELETE /api/proxies/:id
+  appx.delete("/api/proxies/:id", async (req, res) => {
+    try {
+      const { deleteProxyInternal } = require("../storage/proxies");
+      const r = await deleteProxyInternal(req.params.id);
+      res.status(r.success ? 200 : 404).json(r);
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // POST /api/proxies/:id/assign — assign proxy to a profile
+  appx.post("/api/proxies/:id/assign", async (req, res) => {
+    try {
+      const { getProxyByIdInternal } = require("../storage/proxies");
+      const { profileId } = req.body || {};
+      if (!profileId) return res.status(400).json({ success: false, error: '"profileId" is required' });
+
+      const proxyResult = await getProxyByIdInternal(req.params.id);
+      if (!proxyResult.success) return res.status(404).json(proxyResult);
+
+      const profiles = await handlers.getProfilesInternal();
+      const profile = profiles.find(p => p.id === profileId);
+      if (!profile) return res.status(404).json({ success: false, error: 'Profile not found' });
+
+      const updated = { ...profile, proxy: proxyResult.proxy };
+      const r = await handlers.saveProfileInternal(updated);
+      if (r.success) broadcastProfilesUpdated();
+      res.status(r.success ? 200 : 500).json({ success: r.success, message: 'Proxy assigned', proxy: proxyResult.proxy });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // POST /api/proxies/unassign — remove proxy from a profile
+  appx.post("/api/proxies/unassign", async (req, res) => {
+    try {
+      const { profileId } = req.body || {};
+      if (!profileId) return res.status(400).json({ success: false, error: '"profileId" is required' });
+
+      const profiles = await handlers.getProfilesInternal();
+      const profile = profiles.find(p => p.id === profileId);
+      if (!profile) return res.status(404).json({ success: false, error: 'Profile not found' });
+
+      const updated = { ...profile, proxy: null };
+      const r = await handlers.saveProfileInternal(updated);
+      if (r.success) broadcastProfilesUpdated();
+      res.status(r.success ? 200 : 500).json({ success: r.success, message: 'Proxy unassigned' });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // ── Fingerprints API ──
+  // POST /api/fingerprints/preview — generate fingerprint without saving
+  appx.post("/api/fingerprints/preview", async (req, res) => {
+    try {
+      const { generateFingerprint } = require("../engine/fingerprintGenerator");
+      const body = req.body || {};
+      // Map API os names (lowercase) to internal names (capitalized)
+      const osMap = { windows: 'Windows', macos: 'macOS', linux: 'Linux' };
+      const browserMap = { chrome: 'Chrome', firefox: 'Firefox', edge: 'Chrome' };
+      const opts = {};
+      if (body.os) opts.os = osMap[body.os] || body.os;
+      if (body.browser) opts.browser = browserMap[body.browser] || body.browser;
+      if (body.locale) opts.language = body.locale;
+      const result = generateFingerprint(opts);
+      res.json({ success: true, ...result });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // POST /api/fingerprints/:profileId/generate — generate and save for a profile
+  appx.post("/api/fingerprints/:profileId/generate", async (req, res) => {
+    try {
+      const { generateFingerprint } = require("../engine/fingerprintGenerator");
+      const { profileId } = req.params;
+      const body = req.body || {};
+      const osMap = { windows: 'Windows', macos: 'macOS', linux: 'Linux' };
+      const browserMap = { chrome: 'Chrome', firefox: 'Firefox', edge: 'Chrome' };
+      const opts = {};
+      if (body.os) opts.os = osMap[body.os] || body.os;
+      if (body.browser) opts.browser = browserMap[body.browser] || body.browser;
+      if (body.locale) opts.language = body.locale;
+
+      const fp = generateFingerprint(opts);
+      const profiles = await handlers.getProfilesInternal();
+      const profile = profiles.find(p => p.id === profileId);
+      if (!profile) return res.status(404).json({ success: false, error: 'Profile not found' });
+
+      const updated = {
+        ...profile,
+        fingerprint: { ...profile.fingerprint, ...fp.fingerprint },
+        settings: { ...profile.settings, ...fp.settings },
+      };
+      const r = await handlers.saveProfileInternal(updated);
+      if (r.success) broadcastProfilesUpdated();
+      res.status(r.success ? 200 : 500).json({ success: r.success, fingerprint: fp.fingerprint, settings: fp.settings });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  // PUT /api/fingerprints/:profileId — save manual fingerprint config
+  appx.put("/api/fingerprints/:profileId", async (req, res) => {
+    try {
+      const { profileId } = req.params;
+      const fingerprintConfig = req.body || {};
+      const profiles = await handlers.getProfilesInternal();
+      const profile = profiles.find(p => p.id === profileId);
+      if (!profile) return res.status(404).json({ success: false, error: 'Profile not found' });
+
+      const updated = { ...profile, fingerprint: { ...profile.fingerprint, ...fingerprintConfig } };
+      const r = await handlers.saveProfileInternal(updated);
+      if (r.success) broadcastProfilesUpdated();
+      res.status(r.success ? 200 : 500).json(r);
     } catch (e) {
       res.status(500).json({ success: false, error: e?.message || String(e) });
     }
@@ -539,6 +953,17 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
       res.status(404).json({ error: "openapi not found" });
     }
   });
+
+  // /docs/json — raw OpenAPI spec JSON (same as /openapi.json but at Fastify-compatible path)
+  appx.get("/docs/json", (_req, res) => {
+    try {
+      const raw = require("fs").readFileSync(openapiPath, "utf8");
+      res.type("application/json").send(raw);
+    } catch {
+      res.status(404).json({ error: "openapi spec not found" });
+    }
+  });
+
   if (swaggerUi) {
     try {
       const spec = require("fs").existsSync(openapiPath)
@@ -546,7 +971,8 @@ function buildExpressApp(rest, swaggerUi, openapiPath, handlers) {
         : { openapi: "3.0.0", info: { title: "HL-MCK API", version: "1.0.0" } };
       const swaggerOptions = {
         swaggerOptions: {
-          defaultModelsExpandDepth: -1
+          defaultModelsExpandDepth: -1,
+          url: '/docs/json',
         }
       };
       appx.use("/docs", swaggerUi.serve, swaggerUi.setup(spec, swaggerOptions));
