@@ -331,9 +331,9 @@ export default function ProfileList({
 
   const getOsInfo = (p) => {
     const os = p?.fingerprint?.os || 'Windows';
-    if (os === 'Windows') return { label: 'WIN32', icon: <WindowsIcon /> };
-    if (os === 'macOS') return { label: 'MACINTEL', icon: <AppleIcon /> };
-    return { label: 'LINUX', icon: null };
+    if (os === 'Windows') return { label: 'Win', icon: <WindowsIcon /> };
+    if (os === 'macOS') return { label: 'macOS', icon: <AppleIcon /> };
+    return { label: 'Linux', icon: null };
   };
 
   return (
@@ -406,7 +406,7 @@ export default function ProfileList({
       )}
 
       {/* Cards */}
-      <div className="pl-cards" style={{ overflowY: 'auto', flex: 1 }}>
+      <div className="pl-cards">
         {(!profiles || profiles.length === 0) ? (
           <div className="pl-empty-state">
             <div className="pl-empty-icon">
@@ -454,28 +454,63 @@ export default function ProfileList({
                   onChange={() => onToggleSelect(profile.id)}
                   onClick={(e) => e.stopPropagation()}
                 />
-                {/* Dot */}
+                {/* Status dot */}
                 <div className={`pl-dot ${isRunning || isStarting ? 'pl-dot-active' : ''} ${hasError ? 'pl-dot-error' : ''} ${isStarting ? 'pl-dot-starting' : ''}`} />
 
-                {/* Info: 3 rows */}
+                {/* "P" Avatar */}
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '8px', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: isCamoufox ? 'rgba(168,85,247,0.85)' : isFirefox ? 'rgba(234,88,12,0.85)' : 'rgba(37,99,235,0.85)',
+                  color: '#fff', fontWeight: 700, fontSize: '0.95rem', letterSpacing: '-0.5px',
+                  boxShadow: `0 2px 8px ${isCamoufox ? 'rgba(168,85,247,0.3)' : isFirefox ? 'rgba(234,88,12,0.3)' : 'rgba(37,99,235,0.3)'}`,
+                }}>
+                  P
+                </div>
+
+                {/* Info */}
                 <div className="pl-info">
-                  {/* Row 1: shortId + engine badge + name */}
+                  {/* Row 1: name + short ID (copy) + engine badge (CR/FF) */}
                   <div className="pl-name-row">
-                    <span className="pl-id">{shortId(profile.id)}</span>
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '5px',
-                      padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600,
-                      background: isCamoufox ? 'rgba(168,85,247,0.15)' : isFirefox ? 'rgba(234,88,12,0.15)' : 'rgba(16,185,129,0.15)',
-                      color: isCamoufox ? '#c084fc' : isFirefox ? '#fb923c' : '#34d399',
-                      border: `1px solid ${isCamoufox ? 'rgba(168,85,247,0.3)' : isFirefox ? 'rgba(234,88,12,0.3)' : 'rgba(16,185,129,0.3)'}`,
-                    }}>
-                      <span style={{
-                        width: '6px', height: '6px', borderRadius: '50%',
-                        background: isCamoufox ? '#c084fc' : isFirefox ? '#fb923c' : '#10b981',
-                      }} />
-                      {engineLabel}
-                    </span>
                     <span className="pl-name">{profile.name || 'Profile'}</span>
+
+                    {/* Short ID — click to copy */}
+                    <span
+                      title="Click to copy profile ID"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(profile.id || '').then(() => {
+                          const el = e.currentTarget;
+                          const prev = el.textContent;
+                          el.textContent = 'Copied!';
+                          setTimeout(() => { el.textContent = prev; }, 1200);
+                        }).catch(() => {});
+                      }}
+                      style={{
+                        fontSize: '0.7rem', color: 'var(--muted)', fontFamily: 'monospace',
+                        background: 'var(--glass)', border: '1px solid var(--border2)',
+                        borderRadius: '4px', padding: '1px 6px', cursor: 'pointer',
+                        userSelect: 'none', letterSpacing: '0.03em', flexShrink: 0,
+                        transition: 'color 0.15s, background 0.15s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.color = 'var(--fg)'; e.currentTarget.style.background = 'var(--card2)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.background = 'var(--glass)'; }}
+                    >
+                      {shortId(profile.id)}
+                    </span>
+
+                    {/* Engine badge: CR / FF */}
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center',
+                      padding: '1px 7px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700,
+                      background: isCamoufox ? 'rgba(168,85,247,0.15)' : isFirefox ? 'rgba(234,88,12,0.15)' : 'rgba(37,99,235,0.15)',
+                      color: isCamoufox ? '#c084fc' : isFirefox ? '#fb923c' : '#60a5fa',
+                      border: `1px solid ${isCamoufox ? 'rgba(168,85,247,0.35)' : isFirefox ? 'rgba(234,88,12,0.35)' : 'rgba(37,99,235,0.35)'}`,
+                      letterSpacing: '0.04em',
+                    }}>
+                      {isCamoufox ? 'CF' : isFirefox ? 'FF' : 'CR'}
+                    </span>
+
                     {isRunning && <span className="pl-status-label pl-status-running">Running</span>}
                     {isStarting && <span className="pl-status-label pl-status-starting">Starting...</span>}
                     {isStopping && <span className="pl-status-label pl-status-starting">Stopping...</span>}
@@ -509,7 +544,7 @@ export default function ProfileList({
                     </div>
                   )}
 
-                  {/* Row 3: Fingerprint section toggle badges */}
+                  {/* Row 3: Fingerprint section badges */}
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                     {BADGE_MAP.map(({ key, label, section, title }) => {
                       const isEnabled = !!profile?.settings?.[section]?.enabled;
@@ -543,11 +578,7 @@ export default function ProfileList({
                       {!!headlessPrefs[profile.id] && onViewLiveScreen && (
                         <button
                           className="pl-btn"
-                          style={{
-                            background: 'rgba(139, 92, 246, 0.2)',
-                            color: '#a78bfa',
-                            border: '1px solid rgba(139, 92, 246, 0.4)',
-                          }}
+                          style={{ background: 'rgba(139, 92, 246, 0.2)', color: '#a78bfa', border: '1px solid rgba(139, 92, 246, 0.4)' }}
                           onClick={() => onViewLiveScreen(profile)}
                           title="View live headless screen"
                         >
