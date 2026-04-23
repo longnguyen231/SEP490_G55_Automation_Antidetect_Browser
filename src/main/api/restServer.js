@@ -41,7 +41,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     if (!handlers.saveProfilesBulkInternal) return reply.code(501).send({ success: false, error: 'Not implemented' });
     const result = await handlers.saveProfilesBulkInternal(req.body || []);
     if (result.success) broadcastProfilesUpdated();
-    reply.code().send(result);
+    reply.send(result);
   });
   appx.delete("/api/profiles/bulk", async (req, reply) => {
     if (!handlers.deleteProfilesBulkInternal) return reply.code(501).send({ success: false, error: 'Not implemented' });
@@ -52,39 +52,180 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     }
     const result = await handlers.deleteProfilesBulkInternal(ids);
     if (result.success) broadcastProfilesUpdated();
-    reply.code().send(result);
+    reply.send(result);
   });
   appx.post("/api/profiles/bulk-clone", async (req, reply) => {
     if (!handlers.cloneProfilesBulkInternal) return reply.code(501).send({ success: false, error: 'Not implemented' });
     const { ids, overrides } = req.body || {};
     const result = await handlers.cloneProfilesBulkInternal(ids || [], overrides || {});
     if (result.success) broadcastProfilesUpdated();
-    reply.code().send(result);
+    reply.send(result);
   });
   appx.post("/api/profiles", async (req, reply) => {
-    const result = await handlers.saveProfileInternal(req.body || {});
-    if (result.success) broadcastProfilesUpdated();
-    reply.code().send(result);
+    try {
+      const body = req.body || {};
+      if (!body.name || !String(body.name).trim()) {
+        return reply.code(400).send({ success: false, error: '"name" is required' });
+      }
+      // Check license limit for new profile creation
+      const { readProfiles } = require('../storage/profiles');
+      const existing = readProfiles();
+      const { isLicenseOk } = (() => {
+        try {
+          const fs = require('fs');
+          const path = require('path');
+          const { app } = require('electron');
+          const licensePath = path.join(app.getPath('userData'), 'license.json');
+          if (fs.existsSync(licensePath)) {
+            const lic = JSON.parse(fs.readFileSync(licensePath, 'utf8'));
+            return { isLicenseOk: lic && lic.activated === true };
+          }
+        } catch {}
+        return { isLicenseOk: false };
+      })();
+      if (!isLicenseOk && existing.length >= 5) {
+        return reply.code(403).send({
+          success: false,
+          error: 'Free plan giới hạn tối đa 5 profiles. Vui lòng kích hoạt license để tạo thêm.'
+        });
+      }
+
+      // ── Map fingerprintOptions → generateFingerprint opts ──
+      const fpOpts = body.fingerprintOptions || {};
+      const osMap = { windows: 'Windows', macos: 'macOS', linux: 'Linux' };
+      const browserMap = { chrome: 'Chrome', firefox: 'Firefox', edge: 'Chrome' };
+
+      const genOpts = {};
+      if (fpOpts.os) genOpts.os = osMap[fpOpts.os] || fpOpts.os;
+      if (fpOpts.browser) genOpts.browser = browserMap[fpOpts.browser] || fpOpts.browser;
+
+      // Validate locale: must be a real BCP-47 tag (e.g. "en-US", "vi-VN")
+      // Reject placeholder values like "string", "locale", single words without hyphen, etc.
+      const BCP47_RE = /^[a-z]{2,3}-[A-Z]{2,4}(-[A-Za-z0-9]+)*$/;
+      if (fpOpts.locale && typeof fpOpts.locale === 'string' && BCP47_RE.test(fpOpts.locale)) {
+        genOpts.language = fpOpts.locale;
+      }
+      // If locale is invalid/placeholder → let generator pick a random realistic locale
+
+      // Generate base fingerprint
+      const { generateFingerprint } = require('../engine/fingerprintGenerator');
+      const generated = generateFingerprint(genOpts);
+      const fp = generated.fingerprint;
+      const genSettings = generated.settings;
+
+      // ── Enrich fingerprint to match ALL fields UI's generateConsistentFingerprint() produces ──
+      // The backend generator only produces basic fields. UI adds canvas/webgl/audio noise,
+      // fonts, colorDepth, pixelRatio, etc. Missing fields = browser leaks real values.
+      const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+      const randFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+      const enrichedFingerprint = {
+        ...fp,
+        canvasNoise: randInt(100000000, 2100000000),
+        canvasNoiseIntensity: randFrom([1, 2, 3, 4, 5]),
+        webglNoise: randInt(100000000, 2100000000),
+        maxTextureSize: randFrom([4096, 8192, 16384]),
+        webglExtensions: randFrom([
+          'EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float',
+          'ANGLE_instanced_arrays, OES_texture_float, WEBGL_depth_texture, OES_vertex_array_object',
+          'EXT_texture_filter_anisotropic, WEBGL_compressed_texture_s3tc, OES_element_index_uint',
+        ]),
+        audioNoise: randInt(100000000, 2100000000),
+        audioSampleRate: randFrom([44100, 48000, 96000]),
+        audioChannels: randFrom(['Mono', 'Stereo', 'Surround']),
+        colorDepth: randFrom([24, 32]),
+        pixelRatio: randFrom([1, 1, 1, 1.25, 1.5, 2]),
+        maxTouchPoints: 0,
+        connectionType: randFrom(['Ethernet', 'Wi-Fi']),
+        pdfViewer: 'Enabled',
+        batteryCharging: 'No',
+        batteryLevel: Number((Math.random() * 0.9 + 0.1).toFixed(2)),
+        batteryChargingTime: 0,
+        batteryDischargingTime: randInt(5000, 20000),
+        fonts: 'Cambria, Microsoft New Tai Lue, Constantia, Palatino Linotype, Corbel, Arial, Arial Black, Comic Sans MS, Courier New, Georgia, Impact, Lucida Console, Lucida Sans Unicode, Tahoma, Times New Roman, Trebuchet MS, Verdana, Consolas, Segoe UI, Calibri, Candara, Franklin Gothic Medium, Garamond',
+      };
+
+      // ── Map proxy from API format → settings.proxy ──
+      let proxySettings = { server: '', username: '', password: '' };
+      if (body.proxy && body.proxy.host && body.proxy.port &&
+          body.proxy.host !== 'string') {
+        const px = body.proxy;
+        const scheme = px.type || 'http';
+        proxySettings = {
+          server: `${scheme}://${px.host}:${px.port}`,
+          username: (px.username && px.username !== 'string') ? px.username : '',
+          password: (px.password && px.password !== 'string') ? px.password : '',
+        };
+      }
+
+      // ── Build profile payload that mirrors UI exactly ──
+      // IMPORTANT: Do NOT set applyOverrides here.
+      // normalizeProfileInput() will merge with DEFAULT_SETTINGS which has:
+      //   hardware/navigator/userAgent/webgl/language/timezone/viewport = true
+      //   antiDetection = false (controls network-level spoofing, NOT webdriver cleanup)
+      // The webdriver cleanup in fingerprintInit.js block-0 runs via applyAntiDetection
+      // which is driven by applyOverrides.antiDetection. Default_settings leaves it undefined
+      // so the engine treats it as enabled (undefined !== false === true).
+      const profilePayload = {
+        name: String(body.name).trim(),
+        fingerprint: enrichedFingerprint,
+        settings: {
+          ...genSettings,
+          headless: body.headless === true,
+          engine: 'playwright',
+          proxy: proxySettings,
+          webrtc: 'default',
+          geolocation: { enabled: false, latitude: 0, longitude: 0, accuracy: 50 },
+          mediaDevices: { audio: true, video: true, speakers: 2, microphones: 1, webcams: 0 },
+          network: { antiDetection: false },
+          // Section toggles: all OFF by default (same as UI new-profile state)
+          identity: { enabled: false },
+          display:  { enabled: false },
+          hardware: { enabled: false },
+          canvas:   { enabled: false },
+          audio:    { enabled: false },
+          media:    { enabled: false },
+          battery:  { enabled: false },
+          // injectFingerprint true = normalizeProfileInput uses DEFAULT_SETTINGS.applyOverrides
+          injectFingerprint: true,
+          cdpApplyInitScript: true,
+        },
+      };
+
+      const result = await handlers.saveProfileInternal(profilePayload);
+      if (result.success) broadcastProfilesUpdated();
+      reply.code(result.success ? 201 : 400).send(result);
+    } catch (e) {
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
+    }
   });
   appx.put("/api/profiles/:id", async (req, reply) => {
-    const list = await handlers.getProfilesInternal();
-    if (!list.find((p) => p.id === req.params.id)) {
-      return reply.code(404).send({ error: "Profile not found" });
+    try {
+      const list = await handlers.getProfilesInternal();
+      if (!list.find((p) => p.id === req.params.id)) {
+        return reply.code(404).send({ success: false, error: "Profile not found" });
+      }
+      const body = { ...(req.body || {}), id: req.params.id };
+      const result = await handlers.saveProfileInternal(body);
+      if (result.success) broadcastProfilesUpdated();
+      reply.code(result.success ? 200 : 400).send(result);
+    } catch (e) {
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
-    const body = { ...(req.body || {}), id: req.params.id };
-    const result = await handlers.saveProfileInternal(body);
-    if (result.success) broadcastProfilesUpdated();
-    reply.code().send(result);
   });
   appx.delete("/api/profiles/:id", async (req, reply) => {
-    const list = await handlers.getProfilesInternal();
-    if (!list.find((p) => p.id === req.params.id)) {
-      return reply.code(404).send({ error: "Profile not found" });
+    try {
+      const list = await handlers.getProfilesInternal();
+      if (!list.find((p) => p.id === req.params.id)) {
+        return reply.code(404).send({ success: false, error: "Profile not found" });
+      }
+      const id = req.params.id;
+      const result = await handlers.deleteProfileInternal(id);
+      if (result.success) broadcastProfilesUpdated();
+      reply.code(result.success ? 200 : 400).send(result);
+    } catch (e) {
+      reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
-    const id = req.params.id;
-    const result = await handlers.deleteProfileInternal(id);
-    if (result.success) broadcastProfilesUpdated();
-    reply.code().send(result);
   });
 
   // Launch/stop
@@ -93,11 +234,11 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       req.params.id,
       req.body || {},
     );
-    reply.code().send(result);
+    reply.send(result);
   });
   appx.post("/api/profiles/:id/stop", async (req, reply) => {
     const result = await handlers.stopProfileInternal(req.params.id);
-    reply.code().send(result);
+    reply.send(result);
   });
   // Run automation now
   appx.post("/api/profiles/:id/automation/run", async (req, reply) => {
@@ -120,7 +261,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const opts = {};
       if (body.headless !== undefined) opts.headless = !!body.headless;
       const result = await handlers.launchProfileInternal(profileId, opts);
-      reply.code().send(result);
+      reply.send(result);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -130,7 +271,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
   appx.post("/api/browsers/:profileId/close", async (req, reply) => {
     try {
       const result = await handlers.stopProfileInternal(req.params.profileId);
-      reply.code().send(result);
+      reply.send(result);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -268,7 +409,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const { performAction } = require("../engine/actions");
       const param = req.method === "GET" ? req.query : req.body;
       const result = await performAction(req.params.profileId, actionName, param || {});
-      reply.code().send(result);
+      reply.send(result);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -377,7 +518,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
         req.params.name,
         req.body || {},
       );
-      reply.code().send(result);
+      reply.send(result);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -418,7 +559,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
         _scriptContent: body.scriptContent,
       };
       const r = await addTaskLog(entry);
-      reply.code().send(r);
+      reply.code(201).send(r);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -469,7 +610,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const { deleteTaskLog } = require("../storage/taskLogs");
       const r = await deleteTaskLog(req.params.id);
-      reply.code().send(r);
+      reply.send(r);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -511,7 +652,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const { createProxyInternal } = require("../storage/proxies");
       const r = await createProxyInternal(req.body || {});
-      reply.code().send(r);
+      reply.code(r.success ? 201 : 400).send(r);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -534,7 +675,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const { deleteProxyInternal } = require("../storage/proxies");
       const r = await deleteProxyInternal(req.params.id);
-      reply.code().send(r);
+      reply.send(r);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -665,7 +806,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const { getScriptInternal } = require("../storage/scripts");
       const r = await getScriptInternal(req.params.id);
-      reply.code().send(r);
+      reply.code(r.success ? 200 : 404).send(r);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -674,7 +815,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const { saveScriptInternal } = require("../storage/scripts");
       const r = await saveScriptInternal(req.body || {});
-      reply.code().send(r);
+      reply.code(r.success ? 201 : 400).send(r);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -684,7 +825,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const { saveScriptInternal } = require("../storage/scripts");
       const payload = { ...(req.body || {}), id: req.params.id };
       const r = await saveScriptInternal(payload);
-      reply.code().send(r);
+      reply.send(r);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -693,7 +834,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const { deleteScriptInternal } = require("../storage/scripts");
       const r = await deleteScriptInternal(req.params.id);
-      reply.code().send(r);
+      reply.send(r);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -708,7 +849,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const r = await executeScript(req.params.id, g.script.code || "", {
         timeoutMs: Math.min(300000, Number(req.body?.timeoutMs || 120000)),
       });
-      reply.code().send(r);
+      reply.send(r);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
