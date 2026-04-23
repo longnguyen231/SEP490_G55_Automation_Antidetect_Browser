@@ -3,16 +3,14 @@
   "info": {
     "title": "HL-MCK Automation Antidetect Browser API",
     "version": "1.0.0",
-    "description": "[http://localhost:4000/docs/json](http://localhost:4000/docs/json)\n\nREST API for browser profile management and automation. Access Swagger UI at /docs."
+    "description": "REST API for browser profile management and automation. Access Swagger UI at /docs."
   },
   "components": {},
   "paths": {
     "/api/health": {
       "get": {
         "summary": "Server health check",
-        "tags": [
-          "health"
-        ],
+        "tags": ["health"],
         "responses": {
           "200": {
             "description": "OK"
@@ -23,9 +21,7 @@
     "/api/profiles/": {
       "get": {
         "summary": "List all profiles",
-        "tags": [
-          "profiles"
-        ],
+        "tags": ["profiles"],
         "responses": {
           "200": {
             "description": "Default Response"
@@ -34,9 +30,7 @@
       },
       "post": {
         "summary": "Create a new profile",
-        "tags": [
-          "profiles"
-        ],
+        "tags": ["profiles"],
         "requestBody": {
           "required": true,
           "content": {
@@ -57,9 +51,7 @@
     "/api/profiles/{id}": {
       "put": {
         "summary": "Update a profile",
-        "tags": [
-          "profiles"
-        ],
+        "tags": ["profiles"],
         "parameters": [
           {
             "name": "id",
@@ -88,9 +80,7 @@
       },
       "delete": {
         "summary": "Delete a profile",
-        "tags": [
-          "profiles"
-        ],
+        "tags": ["profiles"],
         "parameters": [
           {
             "name": "id",
@@ -111,9 +101,7 @@
     "/api/browsers/{profileId}/launch": {
       "post": {
         "summary": "Launch browser for a profile",
-        "tags": [
-          "browsers"
-        ],
+        "tags": ["browsers"],
         "parameters": [
           {
             "name": "profileId",
@@ -143,9 +131,7 @@
     "/api/browsers/{profileId}/close": {
       "post": {
         "summary": "Close browser for a profile",
-        "tags": [
-          "browsers"
-        ],
+        "tags": ["browsers"],
         "parameters": [
           {
             "name": "profileId",
@@ -166,9 +152,7 @@
     "/api/browsers/{profileId}/status": {
       "get": {
         "summary": "Check if browser is running for a profile",
-        "tags": [
-          "browsers"
-        ],
+        "tags": ["browsers"],
         "parameters": [
           {
             "name": "profileId",
@@ -189,9 +173,7 @@
     "/api/browsers/{profileId}/execute": {
       "post": {
         "summary": "Execute any Playwright Page method",
-        "tags": [
-          "browsers"
-        ],
+        "tags": ["browsers"],
         "parameters": [
           {
             "name": "profileId",
@@ -222,9 +204,7 @@
     "/api/tasks/": {
       "get": {
         "summary": "List tasks, optionally filtered by profileId",
-        "tags": [
-          "tasks"
-        ],
+        "tags": ["tasks"],
         "responses": {
           "200": {
             "description": "OK"
@@ -244,9 +224,7 @@
       },
       "post": {
         "summary": "Create a new automation task",
-        "tags": [
-          "tasks"
-        ],
+        "tags": ["tasks"],
         "responses": {
           "200": {
             "description": "OK"
@@ -270,10 +248,7 @@
                   },
                   "scriptType": {
                     "type": "string",
-                    "enum": [
-                      "file",
-                      "inline"
-                    ],
+                    "enum": ["file", "inline"],
                     "description": "file = path to script file, inline = script string"
                   },
                   "scriptContent": {
@@ -282,12 +257,7 @@
                     "description": "Script file path or inline script"
                   }
                 },
-                "required": [
-                  "profileId",
-                  "name",
-                  "scriptType",
-                  "scriptContent"
-                ]
+                "required": ["profileId", "name", "scriptType", "scriptContent"]
               }
             }
           }
@@ -297,9 +267,7 @@
     "/api/tasks/{id}/run": {
       "post": {
         "summary": "Enqueue a task for execution",
-        "tags": [
-          "tasks"
-        ],
+        "tags": ["tasks"],
         "parameters": [
           {
             "name": "id",
@@ -320,9 +288,7 @@
     "/api/tasks/{id}/cancel": {
       "post": {
         "summary": "Cancel a queued or running task",
-        "tags": [
-          "tasks"
-        ],
+        "tags": ["tasks"],
         "parameters": [
           {
             "name": "id",
@@ -343,9 +309,7 @@
     "/api/tasks/{id}": {
       "delete": {
         "summary": "Delete a task record",
-        "tags": [
-          "tasks"
-        ],
+        "tags": ["tasks"],
         "parameters": [
           {
             "name": "id",
@@ -366,9 +330,7 @@
     "/api/proxies/": {
       "get": {
         "summary": "List all proxies",
-        "tags": [
-          "proxies"
-        ],
+        "tags": ["proxies"],
         "responses": {
           "200": {
             "description": "OK"
@@ -377,9 +339,7 @@
       },
       "post": {
         "summary": "Create a new proxy",
-        "tags": [
-          "proxies"
-        ],
+        "tags": ["proxies"],
         "responses": {
           "200": {
             "description": "OK"
@@ -399,12 +359,7 @@
                   },
                   "type": {
                     "type": "string",
-                    "enum": [
-                      "http",
-                      "https",
-                      "socks4",
-                      "socks5"
-                    ]
+                    "enum": ["http", "https", "socks4", "socks5"]
                   },
                   "host": {
                     "type": "string",
@@ -422,11 +377,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "type",
-                  "host",
-                  "port"
-                ]
+                "required": ["type", "host", "port"]
               }
             }
           }
@@ -436,9 +387,7 @@
     "/api/proxies/unassigned": {
       "get": {
         "summary": "List proxies not assigned to any profile",
-        "tags": [
-          "proxies"
-        ],
+        "tags": ["proxies"],
         "responses": {
           "200": {
             "description": "OK"
@@ -449,9 +398,7 @@
     "/api/proxies/{id}": {
       "put": {
         "summary": "Update a proxy",
-        "tags": [
-          "proxies"
-        ],
+        "tags": ["proxies"],
         "parameters": [
           {
             "name": "id",
@@ -480,12 +427,7 @@
                   },
                   "type": {
                     "type": "string",
-                    "enum": [
-                      "http",
-                      "https",
-                      "socks4",
-                      "socks5"
-                    ]
+                    "enum": ["http", "https", "socks4", "socks5"]
                   },
                   "host": {
                     "type": "string",
@@ -512,9 +454,7 @@
       },
       "delete": {
         "summary": "Delete a proxy",
-        "tags": [
-          "proxies"
-        ],
+        "tags": ["proxies"],
         "parameters": [
           {
             "name": "id",
@@ -535,9 +475,7 @@
     "/api/proxies/{id}/assign": {
       "post": {
         "summary": "Assign a proxy to a profile",
-        "tags": [
-          "proxies"
-        ],
+        "tags": ["proxies"],
         "parameters": [
           {
             "name": "id",
@@ -564,9 +502,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "profileId"
-                ]
+                "required": ["profileId"]
               }
             }
           }
@@ -576,9 +512,7 @@
     "/api/proxies/unassign": {
       "post": {
         "summary": "Unassign proxy from a profile (returns proxy to pool)",
-        "tags": [
-          "proxies"
-        ],
+        "tags": ["proxies"],
         "responses": {
           "200": {
             "description": "OK"
@@ -595,9 +529,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "profileId"
-                ]
+                "required": ["profileId"]
               }
             }
           }
@@ -607,9 +539,7 @@
     "/api/scripts/": {
       "get": {
         "summary": "List all scripts",
-        "tags": [
-          "scripts"
-        ],
+        "tags": ["scripts"],
         "responses": {
           "200": {
             "description": "OK"
@@ -618,9 +548,7 @@
       },
       "post": {
         "summary": "Create a new script",
-        "tags": [
-          "scripts"
-        ],
+        "tags": ["scripts"],
         "responses": {
           "200": {
             "description": "OK"
@@ -666,10 +594,7 @@
                     "description": "Profile ID to use for cron-triggered runs"
                   }
                 },
-                "required": [
-                  "name",
-                  "content"
-                ]
+                "required": ["name", "content"]
               }
             }
           }
@@ -680,9 +605,7 @@
     "/api/scripts/{id}": {
       "put": {
         "summary": "Update a script",
-        "tags": [
-          "scripts"
-        ],
+        "tags": ["scripts"],
         "parameters": [
           {
             "name": "id",
@@ -739,9 +662,7 @@
       },
       "delete": {
         "summary": "Delete a script and cancel its cron job",
-        "tags": [
-          "scripts"
-        ],
+        "tags": ["scripts"],
         "parameters": [
           {
             "name": "id",
@@ -762,9 +683,7 @@
     "/api/fingerprints/preview": {
       "post": {
         "summary": "Generate a fingerprint preview (not saved)",
-        "tags": [
-          "fingerprints"
-        ],
+        "tags": ["fingerprints"],
         "responses": {
           "200": {
             "description": "OK"
@@ -779,26 +698,15 @@
                 "properties": {
                   "os": {
                     "type": "string",
-                    "enum": [
-                      "windows",
-                      "macos",
-                      "linux"
-                    ]
+                    "enum": ["windows", "macos", "linux"]
                   },
                   "browser": {
                     "type": "string",
-                    "enum": [
-                      "chrome",
-                      "firefox",
-                      "edge"
-                    ]
+                    "enum": ["chrome", "firefox", "edge"]
                   },
                   "device": {
                     "type": "string",
-                    "enum": [
-                      "desktop",
-                      "mobile"
-                    ]
+                    "enum": ["desktop", "mobile"]
                   },
                   "locale": {
                     "type": "string",
@@ -815,9 +723,7 @@
     "/api/fingerprints/{profileId}/generate": {
       "post": {
         "summary": "Generate and save a fingerprint for a profile",
-        "tags": [
-          "fingerprints"
-        ],
+        "tags": ["fingerprints"],
         "parameters": [
           {
             "name": "profileId",
@@ -842,26 +748,15 @@
                 "properties": {
                   "os": {
                     "type": "string",
-                    "enum": [
-                      "windows",
-                      "macos",
-                      "linux"
-                    ]
+                    "enum": ["windows", "macos", "linux"]
                   },
                   "browser": {
                     "type": "string",
-                    "enum": [
-                      "chrome",
-                      "firefox",
-                      "edge"
-                    ]
+                    "enum": ["chrome", "firefox", "edge"]
                   },
                   "device": {
                     "type": "string",
-                    "enum": [
-                      "desktop",
-                      "mobile"
-                    ]
+                    "enum": ["desktop", "mobile"]
                   },
                   "locale": {
                     "type": "string",
@@ -877,9 +772,7 @@
     "/api/fingerprints/{profileId}": {
       "put": {
         "summary": "Save a manually-edited fingerprint config for a profile",
-        "tags": [
-          "fingerprints"
-        ],
+        "tags": ["fingerprints"],
         "parameters": [
           {
             "name": "profileId",
@@ -912,9 +805,7 @@
     "/api/browsers/{profileId}/actions/navigate": {
       "post": {
         "summary": "Navigate to a URL",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -946,9 +837,7 @@
     "/api/browsers/{profileId}/actions/reload": {
       "post": {
         "summary": "Reload the current page",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -980,9 +869,7 @@
     "/api/browsers/{profileId}/actions/go-back": {
       "post": {
         "summary": "Navigate back",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1014,9 +901,7 @@
     "/api/browsers/{profileId}/actions/go-forward": {
       "post": {
         "summary": "Navigate forward",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1048,9 +933,7 @@
     "/api/browsers/{profileId}/actions/page-info": {
       "get": {
         "summary": "Get current URL and page title",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1071,9 +954,7 @@
     "/api/browsers/{profileId}/actions/content": {
       "get": {
         "summary": "Get full page HTML content",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1094,9 +975,7 @@
     "/api/browsers/{profileId}/actions/screenshot": {
       "post": {
         "summary": "Take a screenshot (returns base64 PNG)",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1128,9 +1007,7 @@
     "/api/browsers/{profileId}/actions/click": {
       "post": {
         "summary": "Click an element",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1158,9 +1035,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -1170,9 +1045,7 @@
     "/api/browsers/{profileId}/actions/double-click": {
       "post": {
         "summary": "Double-click an element",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1200,9 +1073,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -1212,9 +1083,7 @@
     "/api/browsers/{profileId}/actions/hover": {
       "post": {
         "summary": "Hover over an element",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1242,9 +1111,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -1254,9 +1121,7 @@
     "/api/browsers/{profileId}/actions/focus": {
       "post": {
         "summary": "Focus an element",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1284,9 +1149,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -1296,9 +1159,7 @@
     "/api/browsers/{profileId}/actions/fill": {
       "post": {
         "summary": "Clear and fill a form field",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1328,10 +1189,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "selector",
-                  "text"
-                ]
+                "required": ["selector", "text"]
               }
             }
           }
@@ -1341,9 +1199,7 @@
     "/api/browsers/{profileId}/actions/type": {
       "post": {
         "summary": "Type text into an element (char by char, human-like)",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1373,10 +1229,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "selector",
-                  "text"
-                ]
+                "required": ["selector", "text"]
               }
             }
           }
@@ -1386,9 +1239,7 @@
     "/api/browsers/{profileId}/actions/press-key": {
       "post": {
         "summary": "Press a keyboard key (e.g. Enter, Tab, Escape)",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1420,9 +1271,7 @@
     "/api/browsers/{profileId}/actions/select-option": {
       "post": {
         "summary": "Select an option in a <select> element",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1454,9 +1303,7 @@
     "/api/browsers/{profileId}/actions/check": {
       "post": {
         "summary": "Check or uncheck a checkbox",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1484,9 +1331,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -1496,9 +1341,7 @@
     "/api/browsers/{profileId}/actions/scroll": {
       "post": {
         "summary": "Scroll the page or scroll element into view",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1530,9 +1373,7 @@
     "/api/browsers/{profileId}/actions/tap": {
       "post": {
         "summary": "Tap an element (mobile touch simulation)",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1560,9 +1401,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -1572,9 +1411,7 @@
     "/api/browsers/{profileId}/actions/drag-and-drop": {
       "post": {
         "summary": "Drag from one element to another",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1606,9 +1443,7 @@
     "/api/browsers/{profileId}/actions/dispatch-event": {
       "post": {
         "summary": "Dispatch a DOM event on an element (e.g. 'click', 'input', 'change')",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1640,9 +1475,7 @@
     "/api/browsers/{profileId}/actions/set-viewport-size": {
       "post": {
         "summary": "Resize the browser viewport",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1674,9 +1507,7 @@
     "/api/browsers/{profileId}/actions/set-content": {
       "post": {
         "summary": "Set full page HTML content (replaces current page)",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1708,9 +1539,7 @@
     "/api/browsers/{profileId}/actions/wait-for-navigation": {
       "post": {
         "summary": "Wait for next page navigation to complete",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1742,9 +1571,7 @@
     "/api/browsers/{profileId}/actions/wait-for-selector": {
       "post": {
         "summary": "Wait until a selector appears in the DOM",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1772,9 +1599,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -1784,9 +1609,7 @@
     "/api/browsers/{profileId}/actions/wait-for-url": {
       "post": {
         "summary": "Wait until page URL matches a pattern (string or glob)",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1818,9 +1641,7 @@
     "/api/browsers/{profileId}/actions/get-text": {
       "post": {
         "summary": "Get innerText of an element",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1848,9 +1669,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -1860,9 +1679,7 @@
     "/api/browsers/{profileId}/actions/get-attribute": {
       "post": {
         "summary": "Get an attribute value from an element",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1890,9 +1707,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -1902,9 +1717,7 @@
     "/api/browsers/{profileId}/actions/get-value": {
       "post": {
         "summary": "Get value of an input/textarea/select element",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1932,9 +1745,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -1944,9 +1755,7 @@
     "/api/browsers/{profileId}/actions/get-inner-html": {
       "post": {
         "summary": "Get innerHTML of an element",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -1974,9 +1783,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -1986,9 +1793,7 @@
     "/api/browsers/{profileId}/actions/evaluate": {
       "post": {
         "summary": "Evaluate a JavaScript expression in the page context",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2020,9 +1825,7 @@
     "/api/browsers/{profileId}/actions/run-script": {
       "post": {
         "summary": "Run an inline automation script",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2054,9 +1857,7 @@
     "/api/browsers/{profileId}/actions/cookies": {
       "get": {
         "summary": "Get cookies for the browser context",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2075,9 +1876,7 @@
       },
       "post": {
         "summary": "Add cookies to the browser context",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2107,9 +1906,7 @@
       },
       "delete": {
         "summary": "Clear all cookies from the browser context",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2130,9 +1927,7 @@
     "/api/browsers/{profileId}/actions/is-visible": {
       "post": {
         "summary": "Check if an element is visible (no waiting)",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2160,9 +1955,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -2172,9 +1965,7 @@
     "/api/browsers/{profileId}/actions/is-hidden": {
       "post": {
         "summary": "Check if an element is hidden or not in DOM (no waiting)",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2202,9 +1993,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -2214,9 +2003,7 @@
     "/api/browsers/{profileId}/actions/is-checked": {
       "post": {
         "summary": "Check if a checkbox or radio button is checked",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2244,9 +2031,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -2256,9 +2041,7 @@
     "/api/browsers/{profileId}/actions/is-enabled": {
       "post": {
         "summary": "Check if an element is enabled (not disabled)",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2286,9 +2069,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -2298,9 +2079,7 @@
     "/api/browsers/{profileId}/actions/is-disabled": {
       "post": {
         "summary": "Check if an element is disabled",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2328,9 +2107,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -2340,9 +2117,7 @@
     "/api/browsers/{profileId}/actions/is-editable": {
       "post": {
         "summary": "Check if an element is editable (not readonly or disabled)",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2370,9 +2145,7 @@
                     "description": "CSS or XPath selector"
                   }
                 },
-                "required": [
-                  "selector"
-                ]
+                "required": ["selector"]
               }
             }
           }
@@ -2382,9 +2155,7 @@
     "/api/browsers/{profileId}/actions/text-content": {
       "post": {
         "summary": "Get textContent of an element (includes hidden text)",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2416,9 +2187,7 @@
     "/api/browsers/{profileId}/actions/wait-for-timeout": {
       "post": {
         "summary": "Pause for a fixed duration (ms)",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2450,9 +2219,7 @@
     "/api/browsers/{profileId}/actions/wait-for-load-state": {
       "post": {
         "summary": "Wait for page to reach a load state",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2484,9 +2251,7 @@
     "/api/browsers/{profileId}/actions/set-extra-http-headers": {
       "post": {
         "summary": "Set extra HTTP headers for all subsequent requests",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2518,9 +2283,7 @@
     "/api/browsers/{profileId}/actions/add-init-script": {
       "post": {
         "summary": "Inject a script to run before every page load",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2552,9 +2315,7 @@
     "/api/browsers/{profileId}/actions/keyboard/down": {
       "post": {
         "summary": "Hold a key down (for modifier combos)",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2586,9 +2347,7 @@
     "/api/browsers/{profileId}/actions/keyboard/up": {
       "post": {
         "summary": "Release a held key",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2620,9 +2379,7 @@
     "/api/browsers/{profileId}/actions/keyboard/type": {
       "post": {
         "summary": "Type text char-by-char (no element focus needed — use page.focus first)",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2652,10 +2409,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "selector",
-                  "text"
-                ]
+                "required": ["selector", "text"]
               }
             }
           }
@@ -2665,9 +2419,7 @@
     "/api/browsers/{profileId}/actions/keyboard/insert-text": {
       "post": {
         "summary": "Insert text instantly without simulating keystrokes",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2699,9 +2451,7 @@
     "/api/browsers/{profileId}/actions/mouse/click": {
       "post": {
         "summary": "Click at absolute page coordinates",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2731,10 +2481,7 @@
                     "type": "number"
                   }
                 },
-                "required": [
-                  "x",
-                  "y"
-                ]
+                "required": ["x", "y"]
               }
             }
           }
@@ -2744,9 +2491,7 @@
     "/api/browsers/{profileId}/actions/mouse/move": {
       "post": {
         "summary": "Move mouse to page coordinates",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2776,10 +2521,7 @@
                     "type": "number"
                   }
                 },
-                "required": [
-                  "x",
-                  "y"
-                ]
+                "required": ["x", "y"]
               }
             }
           }
@@ -2789,9 +2531,7 @@
     "/api/browsers/{profileId}/actions/mouse/dblclick": {
       "post": {
         "summary": "Double-click at absolute page coordinates",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2821,10 +2561,7 @@
                     "type": "number"
                   }
                 },
-                "required": [
-                  "x",
-                  "y"
-                ]
+                "required": ["x", "y"]
               }
             }
           }
@@ -2834,9 +2571,7 @@
     "/api/browsers/{profileId}/actions/mouse/down": {
       "post": {
         "summary": "Press and hold a mouse button",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2868,9 +2603,7 @@
     "/api/browsers/{profileId}/actions/mouse/up": {
       "post": {
         "summary": "Release a held mouse button",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2902,9 +2635,7 @@
     "/api/browsers/{profileId}/actions/mouse/wheel": {
       "post": {
         "summary": "Scroll by delta via mouse wheel",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2936,9 +2667,7 @@
     "/api/browsers/{profileId}/context/storage-state": {
       "get": {
         "summary": "Export context storage state (cookies + localStorage) for session reuse",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2959,9 +2688,7 @@
     "/api/browsers/{profileId}/context/new-page": {
       "post": {
         "summary": "Open a new page/tab in the browser context",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -2993,9 +2720,7 @@
     "/api/browsers/{profileId}/context/pages": {
       "get": {
         "summary": "List all open pages/tabs in the browser context",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -3016,9 +2741,7 @@
     "/api/browsers/{profileId}/context/extra-http-headers": {
       "post": {
         "summary": "Set extra HTTP headers for all pages in the context",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -3050,9 +2773,7 @@
     "/api/browsers/{profileId}/context/grant-permissions": {
       "post": {
         "summary": "Grant browser permissions (e.g. geolocation, camera, microphone)",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -3084,9 +2805,7 @@
     "/api/browsers/{profileId}/context/clear-permissions": {
       "post": {
         "summary": "Revoke all previously granted browser permissions",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
@@ -3118,9 +2837,7 @@
     "/api/browsers/{profileId}/context/geolocation": {
       "post": {
         "summary": "Override GPS geolocation for the browser context",
-        "tags": [
-          "browser-actions"
-        ],
+        "tags": ["browser-actions"],
         "parameters": [
           {
             "name": "profileId",
