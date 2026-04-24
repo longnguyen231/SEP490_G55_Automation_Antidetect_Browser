@@ -20,6 +20,15 @@ export default function ProxyManager() {
 
     useEffect(() => { loadProxies(); }, []);
 
+    // Auto-refresh when proxy data changes from external source (e.g. REST API)
+    useEffect(() => {
+        if (!window.electronAPI?.onProxiesUpdated) return;
+        const unsub = window.electronAPI.onProxiesUpdated(() => {
+            loadProxies();
+        });
+        return () => { if (typeof unsub === 'function') unsub(); };
+    }, []);
+
     const loadProxies = async () => {
         try {
             const list = await window.electronAPI.getProxies();

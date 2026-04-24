@@ -19,6 +19,17 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     } catch {}
   }
 
+  function broadcastProxiesUpdated() {
+    try {
+      const { BrowserWindow } = require("electron");
+      for (const w of BrowserWindow.getAllWindows()) {
+        try {
+          w.webContents.send("proxies-updated");
+        } catch {}
+      }
+    } catch {}
+  }
+
   // API key hook (optional) — docs are always public
   appx.addHook("preHandler", async (req, reply) => {
     const reqPath = req.url.split("?")[0];
@@ -793,6 +804,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const { createProxyInternal } = require("../storage/proxies");
       const r = await createProxyInternal(req.body || {});
+      if (r.success) broadcastProxiesUpdated();
       reply.code(r.success ? 201 : 400).send(r);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
@@ -805,6 +817,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const { updateProxyInternal } = require("../storage/proxies");
       const r = await updateProxyInternal(req.params.id, req.body || {});
+      if (r.success) broadcastProxiesUpdated();
       reply.code(r.success ? 200 : (r.error === 'Proxy not found' ? 404 : 400)).send(r);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
@@ -816,6 +829,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const { deleteProxyInternal } = require("../storage/proxies");
       const r = await deleteProxyInternal(req.params.id);
+      if (r.success) broadcastProxiesUpdated();
       reply.send(r);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });

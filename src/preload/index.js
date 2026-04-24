@@ -38,6 +38,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   removeAllProfilesUpdated: () => ipcRenderer.removeAllListeners('profiles-updated'),
 
+  onProxiesUpdated: (callback) => {
+    const listener = () => callback && callback();
+    ipcRenderer.on('proxies-updated', listener);
+    return () => ipcRenderer.removeListener('proxies-updated', listener);
+  },
+  removeAllProxiesUpdated: () => ipcRenderer.removeAllListeners('proxies-updated'),
+
   // Open external links in default browser (via main)
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
