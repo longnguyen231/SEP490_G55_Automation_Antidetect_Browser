@@ -1077,10 +1077,60 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const profile = profiles.find(p => p.id === profileId);
       if (!profile) return reply.code(404).send({ success: false, error: 'Profile not found' });
 
+      const seed = fp._meta?.seed || Math.floor(Math.random() * 2100000000);
+      let fonts = fp._meta?.fonts || profile.fingerprint?.fonts || 'Arial, Courier New';
+      if (Array.isArray(fonts)) {
+        fonts = fonts.join(', ');
+      }
+      const gpuV = fp.settings?.advanced?.webglVendor || profile.settings?.gpuVendor || 'Google Inc. (Intel)';
+      const gpuR = fp.settings?.advanced?.webglRenderer || profile.settings?.gpuRenderer || 'ANGLE (Intel, Intel(R) HD Graphics)';
+
+      // Bật tất cả các cờ enabled cho các section giống như khi bấm Generate trong UI
+      const toggles = {
+        identity: { enabled: true },
+        display: { enabled: true },
+        hardware: { enabled: true },
+        canvas: { enabled: true },
+        webgl: { enabled: true },
+        audio: { enabled: true },
+        media: { enabled: true },
+        network: { enabled: true },
+        battery: { enabled: true }
+      };
+
       const updated = {
         ...profile,
-        fingerprint: { ...profile.fingerprint, ...fp.fingerprint },
-        settings: { ...profile.settings, ...fp.settings },
+        fingerprint: { 
+          ...profile.fingerprint, 
+          ...fp.fingerprint,
+          device: fp.fingerprint?.device || profile.fingerprint?.device || 'Desktop',
+          fonts: fonts,
+          webglNoise: seed,
+          canvasNoise: seed,
+          audioNoise: seed,
+          maxTextureSize: profile.fingerprint?.maxTextureSize || 8192,
+          webglExtensions: profile.fingerprint?.webglExtensions || 'EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float',
+          canvasNoiseIntensity: profile.fingerprint?.canvasNoiseIntensity || 2,
+          audioSampleRate: profile.fingerprint?.audioSampleRate || 48000,
+          audioChannels: profile.fingerprint?.audioChannels || 'Stereo',
+          connectionType: profile.fingerprint?.connectionType || 'Wi-Fi',
+          pdfViewer: profile.fingerprint?.pdfViewer || 'Enabled',
+          batteryCharging: profile.fingerprint?.batteryCharging || 'No',
+          batteryLevel: profile.fingerprint?.batteryLevel || 0.99,
+          batteryChargingTime: profile.fingerprint?.batteryChargingTime || 0,
+          batteryDischargingTime: profile.fingerprint?.batteryDischargingTime || 15000,
+          colorDepth: fp.fingerprint?.colorDepth || profile.fingerprint?.colorDepth || 24,
+          pixelRatio: fp.fingerprint?.pixelRatio || fp.settings?.advanced?.devicePixelRatio || profile.fingerprint?.pixelRatio || 1
+        },
+        settings: { 
+          ...profile.settings, 
+          ...fp.settings,
+          ...toggles,
+          gpuVendor: gpuV,
+          gpuRenderer: gpuR,
+          mediaDevices: fp.settings?.mediaDevices || profile.settings?.mediaDevices || { speakers: 1, microphones: 0, webcams: 1 },
+          webrtc: fp.settings?.webrtc || profile.settings?.webrtc || 'Public + private'
+        },
       };
       const r = await handlers.saveProfileInternal(updated);
       if (r.success) broadcastProfilesUpdated();

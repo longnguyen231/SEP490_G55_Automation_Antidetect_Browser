@@ -110,5 +110,5 @@ function refreshAllScripts() {
 
 /** Số lượng active cron jobs hiện tại */
 function activeJobCount() { return scriptJobs.size; }
-
+  
 module.exports = { scheduleScript, cancelScript, refreshAllScripts, activeJobCount };
