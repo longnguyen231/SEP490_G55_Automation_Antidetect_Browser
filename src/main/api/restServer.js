@@ -8,6 +8,43 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
   const appx = Fastify({ logger: false, bodyLimit: 2097152, ignoreTrailingSlash: true });
   await appx.register(fastifyCors, { origin: rest.allowedOrigins || true });
 
+  // ── Fault-tolerant JSON body parser ──
+  // Swagger UI / curl sometimes sends bodies with literal newlines or invalid escape
+  // sequences inside string values (e.g. \' which is not valid JSON).
+  // This parser sanitizes those before JSON.parse so API calls don't fail with 400.
+  appx.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+    try {
+      done(null, JSON.parse(body));
+    } catch (_e) {
+      // Second attempt: scan char-by-char to escape control chars inside JSON strings
+      try {
+        let out = '';
+        let inStr = false;
+        let escaped = false;
+        const s = (body || '').charCodeAt(0) === 0xFEFF ? body.slice(1) : body;
+        for (let i = 0; i < s.length; i++) {
+          const ch = s[i];
+          if (escaped) { out += ch; escaped = false; continue; }
+          if (ch === '\\' && inStr) { escaped = true; out += ch; continue; }
+          if (ch === '"') { inStr = !inStr; out += ch; continue; }
+          if (inStr) {
+            if (ch === '\n') { out += '\\n'; continue; }
+            if (ch === '\r') { out += '\\r'; continue; }
+            if (ch === '\t') { out += '\\t'; continue; }
+            if (ch === '\b') { out += '\\b'; continue; }
+            if (ch === '\f') { out += '\\f'; continue; }
+          }
+          out += ch;
+        }
+        done(null, JSON.parse(out));
+      } catch (e2) {
+        const err = new Error('Body is not valid JSON');
+        err.statusCode = 400;
+        done(err, undefined);
+      }
+    }
+  });
+
   function broadcastProfilesUpdated() {
     try {
       const { BrowserWindow } = require("electron");
@@ -15,6 +52,15 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
         try {
           w.webContents.send("profiles-updated");
         } catch {}
+      }
+    } catch {}
+  }
+
+  function broadcastScriptsUpdated() {
+    try {
+      const { BrowserWindow } = require("electron");
+      for (const w of BrowserWindow.getAllWindows()) {
+        try { w.webContents.send("scripts-updated"); } catch {}
       }
     } catch {}
   }
@@ -969,26 +1015,86 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
   appx.post("/api/scripts", async (req, reply) => {
     try {
       const { saveScriptInternal } = require("../storage/scripts");
-      const r = await saveScriptInternal(req.body || {});
+      const body = req.body || {};
+      if (!body.name || !String(body.name).trim())
+        return reply.code(400).send({ success: false, error: '"name" is required' });
+      if (!body.content || !String(body.content).trim())
+        return reply.code(400).send({ success: false, error: '"content" is required' });
+      // Map API fields → internal schema
+      const payload = {
+        name: String(body.name).trim(),
+        description: body.description ? String(body.description) : '',
+        code: String(body.content),
+        browserMode: body.headless === true ? 'headless' : 'visible',
+        schedule: {
+          enabled: body.cronEnabled === true,
+          cron: body.cronSchedule ? String(body.cronSchedule) : '',
+          profileId: body.cronProfileId ? String(body.cronProfileId) : '',
+        },
+      };
+      const r = await saveScriptInternal(payload);
+      if (r.success) {
+        // Start cron job if schedule is enabled
+        try {
+          const { scheduleScript } = require("../engine/scriptScheduler");
+          scheduleScript(r.script);
+        } catch {}
+        broadcastScriptsUpdated();
+      }
       reply.code(r.success ? 201 : 400).send(r);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
+  // PUT /api/scripts/:id — Update a script (partial update, all fields optional except id)
   appx.put("/api/scripts/:id", async (req, reply) => {
     try {
-      const { saveScriptInternal } = require("../storage/scripts");
-      const payload = { ...(req.body || {}), id: req.params.id };
+      const { saveScriptInternal, getScriptInternal } = require("../storage/scripts");
+      const existing = await getScriptInternal(req.params.id);
+      if (!existing.success) return reply.code(404).send(existing);
+      const body = req.body || {};
+      // Merge only provided fields over existing script
+      const base = existing.script;
+      const payload = {
+        id: req.params.id,
+        name: body.name != null ? String(body.name).trim() : base.name,
+        description: body.description != null ? String(body.description) : base.description,
+        code: body.content != null ? String(body.content) : base.code,
+        browserMode: body.headless != null
+          ? (body.headless === true ? 'headless' : 'visible')
+          : base.browserMode,
+        schedule: {
+          enabled: body.cronEnabled != null ? body.cronEnabled === true : base.schedule?.enabled,
+          cron: body.cronSchedule != null ? String(body.cronSchedule) : base.schedule?.cron,
+          profileId: body.cronProfileId != null ? String(body.cronProfileId) : base.schedule?.profileId,
+        },
+      };
       const r = await saveScriptInternal(payload);
+      if (r.success) {
+        // Reload cron job (cancel old, start new if schedule enabled)
+        try {
+          const { scheduleScript } = require("../engine/scriptScheduler");
+          scheduleScript(r.script); // scheduleScript cancels old job automatically
+        } catch {}
+        broadcastScriptsUpdated();
+      }
       reply.send(r);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
+  // DELETE /api/scripts/:id — Delete a script and cancel its cron job
   appx.delete("/api/scripts/:id", async (req, reply) => {
     try {
       const { deleteScriptInternal } = require("../storage/scripts");
-      const r = await deleteScriptInternal(req.params.id);
+      const scriptId = req.params.id;
+      // Cancel cron job BEFORE deleting so scheduler doesn't fire after deletion
+      try {
+        const { cancelScript } = require("../engine/scriptScheduler");
+        cancelScript(scriptId);
+      } catch {}
+      const r = await deleteScriptInternal(scriptId);
+      if (r.success) broadcastScriptsUpdated();
       reply.send(r);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
