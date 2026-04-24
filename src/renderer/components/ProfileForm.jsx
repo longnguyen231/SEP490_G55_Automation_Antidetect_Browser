@@ -571,16 +571,26 @@ function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
       <h3 className="pf-section-title">Profile Settings</h3>
       <p className="pf-section-desc">Configure the profile name and fingerprint generation options.</p>
 
-      {/* Profile Name + Quantity */}
+      {/* Profile Name + Quantity/ID */}
       <div className="pf-row pf-row-narrow">
         <div className="pf-field">
           <label className="pf-label">Profile Name</label>
           <input type="text" className="pf-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="Profile name" />
         </div>
-        <div className="pf-field">
-          <label className="pf-label">Quantity</label>
-          <input type="number" className="pf-input" min={1} value={formData.settings.quantity || 1} onChange={e => setS('quantity', Number(e.target.value))} />
-        </div>
+        {isEdit ? (
+          <div className="pf-field" style={{ flex: '0 0 110px' }}>
+            <label className="pf-label" title="Click input to copy">Profile ID</label>
+            <input type="text" className="pf-input" value={profile.id} readOnly onClick={(e) => {
+              e.currentTarget.select();
+              navigator.clipboard.writeText(profile.id).catch(() => {});
+            }} style={{ cursor: 'copy', background: 'var(--glass)', color: 'var(--fg)', textAlign: 'center', fontWeight: '500' }} title="Click to copy full Profile ID" />
+          </div>
+        ) : (
+          <div className="pf-field" style={{ flex: '0 0 110px' }}>
+            <label className="pf-label">Quantity</label>
+            <input type="number" className="pf-input" min={1} value={formData.settings.quantity || 1} onChange={e => setS('quantity', Number(e.target.value))} />
+          </div>
+        )}
       </div>
 
       {/* Browser Engine */}

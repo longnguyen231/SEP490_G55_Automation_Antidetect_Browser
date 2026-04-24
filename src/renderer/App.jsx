@@ -343,18 +343,29 @@ function App() {
   const handleCopyWs = async (profileId) => { try { const res = await window.electronAPI.getProfileWs(profileId); const ws = res?.wsEndpoint; if (!ws) { alert('Profile is not running. Launch first.'); return; } await navigator.clipboard.writeText(ws); addToast('WS endpoint copied!', 'success', 2000); } catch (e) { alert('Failed to copy WS endpoint: ' + e.message); } };
 
   // Bulk operations
-  const handleCreateBulk = async (count, namePrefix) => {
+  const handleCreateBulk = async (count, namePrefix, engine = 'playwright') => {
     try {
       const batch = [];
       for (let i = 1; i <= count; i++) {
-        batch.push({ name: `${namePrefix} ${i}` });
+        const fpParams = engine === 'camoufox' || engine === 'playwright-firefox'
+          ? { browser: 'Firefox', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0' }
+          : undefined;
+        batch.push({
+          name: `${namePrefix} ${i}`,
+          settings: { engine },
+          ...(fpParams && { fingerprint: fpParams })
+        });
       }
       const res = await api.saveProfilesBulk(batch);
       if (res.success) {
-        addToast(`Created ${res.profiles?.length || count} profiles`, 'success', 2500);
+        if (res.errors && res.errors.length > 0) {
+          addToast(`Created ${res.profiles?.length ?? 0} profiles. ${res.errors.length} failed: ${res.errors[0].error}`, 'warning', 5000);
+        } else {
+          addToast(`Created ${res.profiles?.length ?? count} profiles`, 'success', 2500);
+        }
         await loadProfiles();
       } else {
-        addToast('Bulk create error: ' + (res.error || 'unknown'), 'error', 5000);
+        addToast(res.error || 'Bulk create error', 'error', 5000);
       }
     } catch (e) {
       addToast('Bulk create error: ' + e.message, 'error', 5000);
@@ -383,11 +394,15 @@ function App() {
     try {
       const res = await api.cloneProfilesBulk(ids, {});
       if (res.success) {
-        addToast(`Cloned ${res.profiles?.length || ids.length} profiles`, 'success', 2500);
+        if (res.errors && res.errors.length > 0) {
+          addToast(`Cloned ${res.profiles?.length ?? 0} profiles. ${res.errors.length} failed: ${res.errors[0].error}`, 'warning', 5000);
+        } else {
+          addToast(`Cloned ${res.profiles?.length ?? ids.length} profiles`, 'success', 2500);
+        }
         clearSelection();
         await loadProfiles();
       } else {
-        addToast('Bulk clone error: ' + (res.error || 'unknown'), 'error', 5000);
+        addToast(res.error || 'Bulk clone error', 'error', 5000);
       }
     } catch (e) {
       addToast('Bulk clone failed: ' + e.message, 'error', 5000);
