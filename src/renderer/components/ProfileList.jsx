@@ -325,6 +325,7 @@ export default function ProfileList({
   const [showBulkCreate, setShowBulkCreate] = useState(false);
   const [bulkCount, setBulkCount] = useState(5);
   const [bulkPrefix, setBulkPrefix] = useState('Profile');
+  const [bulkEngine, setBulkEngine] = useState('playwright');
   const [bulkCreating, setBulkCreating] = useState(false);
 
   const shortId = (id) => (id || '').substring(0, 6);
@@ -489,14 +490,19 @@ export default function ProfileList({
                       style={{
                         fontSize: '0.7rem', color: 'var(--muted)', fontFamily: 'monospace',
                         background: 'var(--glass)', border: '1px solid var(--border2)',
-                        borderRadius: '4px', padding: '1px 6px', cursor: 'pointer',
+                        borderRadius: '4px', padding: '2px 6px', cursor: 'pointer',
                         userSelect: 'none', letterSpacing: '0.03em', flexShrink: 0,
                         transition: 'color 0.15s, background 0.15s',
+                        display: 'flex', alignItems: 'center', gap: '4px'
                       }}
                       onMouseEnter={e => { e.currentTarget.style.color = 'var(--fg)'; e.currentTarget.style.background = 'var(--card2)'; }}
                       onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.background = 'var(--glass)'; }}
                     >
-                      {shortId(profile.id)}
+                      <span>{shortId(profile.id)}</span>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
                     </span>
 
                     {/* Engine badge: CR / FF */}
@@ -688,6 +694,14 @@ export default function ProfileList({
                 />
               </div>
               <div className="pl-modal-field">
+                <label>Browser Engine</label>
+                <select style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', background: 'var(--glass)', border: '1px solid var(--border)', color: 'var(--fg)', fontSize: '0.85rem' }} value={bulkEngine} onChange={e => setBulkEngine(e.target.value)}>
+                  <option value="playwright">Chromium (Playwright)</option>
+                  <option value="playwright-firefox">Firefox (Playwright)</option>
+                  <option value="camoufox">Camoufox (Anti-detect)</option>
+                </select>
+              </div>
+              <div className="pl-modal-field">
                 <label>Number of Profiles</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                   <input
@@ -720,10 +734,11 @@ export default function ProfileList({
                 onClick={async () => {
                   setBulkCreating(true);
                   try {
-                    await onCreateBulk(bulkCount, bulkPrefix.trim() || 'Profile');
+                    await onCreateBulk(bulkCount, bulkPrefix.trim() || 'Profile', bulkEngine);
                     setShowBulkCreate(false);
                     setBulkCount(5);
                     setBulkPrefix('Profile');
+                    setBulkEngine('playwright');
                   } catch { }
                   setBulkCreating(false);
                 }}

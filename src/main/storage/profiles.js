@@ -202,6 +202,15 @@ function makeUniqueName(desired, profiles, excludeId) {
   return base + ' (copy)';
 }
 
+function getCloneName(originalName, profiles, excludeId, prefix = '') {
+  let base = (originalName || '').trim();
+  while (/(?:\s*\(copy\)|\s*\(\d+\))+$/i.test(base)) {
+    base = base.replace(/(?:\s*\(copy\)|\s*\(\d+\))+$/i, '').trim();
+  }
+  const desired = prefix ? `${prefix} ${base}` : `${base} (copy)`;
+  return makeUniqueName(desired, profiles, excludeId);
+}
+
 function readProfiles() {
   try {
     const raw = fs.readFileSync(profilesFilePath(), 'utf8');
@@ -359,6 +368,10 @@ async function deleteProfileInternal(profileId) {
 async function cloneProfileInternal(sourceProfileId, overrides = {}) {
   try {
     const profiles = readProfiles();
+    const licensed = isLicenseActivated();
+    if (!licensed && profiles.length >= 5) {
+      return { success: false, error: 'Free plan is limited to a maximum of 5 profiles. Please activate a license.' };
+    }
     const src = profiles.find(p => p.id === sourceProfileId);
     if (!src) return { success: false, error: 'Source profile not found' };
     let newId = generateShortId();
@@ -367,7 +380,7 @@ async function cloneProfileInternal(sourceProfileId, overrides = {}) {
     const cloned = safeDeepClone(src);
     // Reset identifiers and timestamps
     cloned.id = newId;
-    cloned.name = overrides.name || `${src.name} (copy)`;
+    cloned.name = overrides.name || getCloneName(src.name, profiles, newId);
     const nowIso = new Date().toISOString();
     cloned.createdAt = nowIso;
     delete cloned.updatedAt;
@@ -430,7 +443,7 @@ async function saveProfilesBulkInternal(inputProfiles) {
       }
       const isUpdate = !!input.id && profiles.some(p => p.id === input.id);
       if (!isUpdate && !licensed && profiles.length >= 5) {
-        errors.push({ index: i, error: 'Free plan giới hạn tối đa 5 profiles. Vui lòng kích hoạt license.' });
+        errors.push({ index: i, error: 'Free plan is limited to a maximum of 5 profiles. Please activate a license.' });
         continue;
       }
       const validationErrors = validateProfileInputBasic(
@@ -464,6 +477,8 @@ async function saveProfilesBulkInternal(inputProfiles) {
       const ok = await writeProfiles(profiles);
       if (!ok) return { success: false, error: 'Failed to persist profiles file' };
       appendLog('system', `Bulk saved ${created.length} profile(s)`);
+    } else if (errors.length > 0) {
+      return { success: false, error: errors[0].error };
     }
 
     return { success: true, profiles: created, errors: errors.length ? errors : undefined };
@@ -536,11 +551,16 @@ async function cloneProfilesBulkInternal(sourceIds, overrides = {}) {
     }
 
     const profiles = readProfiles();
+    const licensed = isLicenseActivated();
     const nowIso = new Date().toISOString();
     const created = [];
     const errors = [];
 
     for (const srcId of sourceIds) {
+      if (!licensed && profiles.length >= 5) {
+        errors.push({ id: srcId, error: 'Free plan is limited to a maximum of 5 profiles. Please activate a license.' });
+        continue;
+      }
       const src = profiles.find(p => p.id === srcId);
       if (!src) {
         errors.push({ id: srcId, error: 'Source profile not found' });
@@ -551,7 +571,7 @@ async function cloneProfilesBulkInternal(sourceIds, overrides = {}) {
       while (existingIds.has(newId)) newId = generateShortId();
       const cloned = safeDeepClone(src);
       cloned.id = newId;
-      cloned.name = makeUniqueName(overrides.namePrefix ? `${overrides.namePrefix} ${src.name}` : `${src.name} (copy)`, profiles, newId);
+      cloned.name = getCloneName(src.name, profiles, newId, overrides.namePrefix);
       cloned.createdAt = nowIso;
       delete cloned.updatedAt;
       profiles.push(cloned);
@@ -568,6 +588,8 @@ async function cloneProfilesBulkInternal(sourceIds, overrides = {}) {
     if (created.length > 0) {
       await writeProfiles(profiles);
       appendLog('system', `Bulk cloned ${created.length} profile(s)`);
+    } else if (errors.length > 0) {
+      return { success: false, error: errors[0].error };
     }
 
     return { success: true, profiles: created, errors: errors.length ? errors : undefined };
