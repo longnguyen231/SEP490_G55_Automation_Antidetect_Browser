@@ -96,6 +96,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getTaskLog: (id) => ipcRenderer.invoke('task-logs-get', id),
   deleteTaskLog: (id) => ipcRenderer.invoke('task-logs-delete', id),
   clearTaskLogs: () => ipcRenderer.invoke('task-logs-clear'),
+  runTask: (taskId) => ipcRenderer.invoke('task-run', taskId),
 
   // Proxy management
   getProxies: () => ipcRenderer.invoke('proxy-get-all'),

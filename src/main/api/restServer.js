@@ -5,45 +5,81 @@ const { WebSocketServer } = require("ws");
 
 async function buildFastifyApp(rest, openapiPath, handlers) {
   const apiKey = rest.apiKey || process.env.REST_API_KEY;
-  const appx = Fastify({ logger: false, bodyLimit: 2097152, ignoreTrailingSlash: true });
+  const appx = Fastify({
+    logger: false,
+    bodyLimit: 2097152,
+    ignoreTrailingSlash: true,
+  });
   await appx.register(fastifyCors, { origin: rest.allowedOrigins || true });
 
   // ── Fault-tolerant JSON body parser ──
   // Swagger UI / curl sometimes sends bodies with literal newlines or invalid escape
   // sequences inside string values (e.g. \' which is not valid JSON).
   // This parser sanitizes those before JSON.parse so API calls don't fail with 400.
-  appx.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
-    try {
-      done(null, JSON.parse(body));
-    } catch (_e) {
-      // Second attempt: scan char-by-char to escape control chars inside JSON strings
+  appx.addContentTypeParser(
+    "application/json",
+    { parseAs: "string" },
+    (req, body, done) => {
       try {
-        let out = '';
-        let inStr = false;
-        let escaped = false;
-        const s = (body || '').charCodeAt(0) === 0xFEFF ? body.slice(1) : body;
-        for (let i = 0; i < s.length; i++) {
-          const ch = s[i];
-          if (escaped) { out += ch; escaped = false; continue; }
-          if (ch === '\\' && inStr) { escaped = true; out += ch; continue; }
-          if (ch === '"') { inStr = !inStr; out += ch; continue; }
-          if (inStr) {
-            if (ch === '\n') { out += '\\n'; continue; }
-            if (ch === '\r') { out += '\\r'; continue; }
-            if (ch === '\t') { out += '\\t'; continue; }
-            if (ch === '\b') { out += '\\b'; continue; }
-            if (ch === '\f') { out += '\\f'; continue; }
+        done(null, JSON.parse(body));
+      } catch (_e) {
+        // Second attempt: scan char-by-char to escape control chars inside JSON strings
+        try {
+          let out = "";
+          let inStr = false;
+          let escaped = false;
+          const s =
+            (body || "").charCodeAt(0) === 0xfeff ? body.slice(1) : body;
+          for (let i = 0; i < s.length; i++) {
+            const ch = s[i];
+            if (escaped) {
+              out += ch;
+              escaped = false;
+              continue;
+            }
+            if (ch === "\\" && inStr) {
+              escaped = true;
+              out += ch;
+              continue;
+            }
+            if (ch === '"') {
+              inStr = !inStr;
+              out += ch;
+              continue;
+            }
+            if (inStr) {
+              if (ch === "\n") {
+                out += "\\n";
+                continue;
+              }
+              if (ch === "\r") {
+                out += "\\r";
+                continue;
+              }
+              if (ch === "\t") {
+                out += "\\t";
+                continue;
+              }
+              if (ch === "\b") {
+                out += "\\b";
+                continue;
+              }
+              if (ch === "\f") {
+                out += "\\f";
+                continue;
+              }
+            }
+            out += ch;
           }
-          out += ch;
+          done(null, JSON.parse(out));
+        } catch (e2) {
+          const err = new Error("Body is not valid JSON");
+          err.statusCode = 400;
+          done(err, undefined);
         }
-        done(null, JSON.parse(out));
-      } catch (e2) {
-        const err = new Error('Body is not valid JSON');
-        err.statusCode = 400;
-        done(err, undefined);
       }
-    }
-  });
+    },
+  );
 
   function broadcastProfilesUpdated() {
     try {
@@ -60,7 +96,9 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const { BrowserWindow } = require("electron");
       for (const w of BrowserWindow.getAllWindows()) {
-        try { w.webContents.send("scripts-updated"); } catch {}
+        try {
+          w.webContents.send("scripts-updated");
+        } catch {}
       }
     } catch {}
   }
@@ -79,7 +117,10 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
   // API key hook (optional) — docs are always public
   appx.addHook("preHandler", async (req, reply) => {
     const reqPath = req.url.split("?")[0];
-    const isPublic = reqPath === "/openapi.json" || reqPath.startsWith("/docs") || reqPath === "/api/health";
+    const isPublic =
+      reqPath === "/openapi.json" ||
+      reqPath.startsWith("/docs") ||
+      reqPath === "/api/health";
     if (apiKey && !isPublic && req.headers["x-api-key"] !== apiKey) {
       return reply.code(401).send({ success: false, error: "Unauthorized" });
     }
@@ -95,26 +136,36 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
   });
   // Bulk operations (must be registered before /:id routes)
   appx.post("/api/profiles/bulk", async (req, reply) => {
-    if (!handlers.saveProfilesBulkInternal) return reply.code(501).send({ success: false, error: 'Not implemented' });
+    if (!handlers.saveProfilesBulkInternal)
+      return reply.code(501).send({ success: false, error: "Not implemented" });
     const result = await handlers.saveProfilesBulkInternal(req.body || []);
     if (result.success) broadcastProfilesUpdated();
     reply.send(result);
   });
   appx.delete("/api/profiles/bulk", async (req, reply) => {
-    if (!handlers.deleteProfilesBulkInternal) return reply.code(501).send({ success: false, error: 'Not implemented' });
+    if (!handlers.deleteProfilesBulkInternal)
+      return reply.code(501).send({ success: false, error: "Not implemented" });
     const ids = req.body?.ids || [];
     // Stop running profiles first
     if (handlers.stopProfileInternal) {
-      for (const id of ids) { try { await handlers.stopProfileInternal(id); } catch { } }
+      for (const id of ids) {
+        try {
+          await handlers.stopProfileInternal(id);
+        } catch {}
+      }
     }
     const result = await handlers.deleteProfilesBulkInternal(ids);
     if (result.success) broadcastProfilesUpdated();
     reply.send(result);
   });
   appx.post("/api/profiles/bulk-clone", async (req, reply) => {
-    if (!handlers.cloneProfilesBulkInternal) return reply.code(501).send({ success: false, error: 'Not implemented' });
+    if (!handlers.cloneProfilesBulkInternal)
+      return reply.code(501).send({ success: false, error: "Not implemented" });
     const { ids, overrides } = req.body || {};
-    const result = await handlers.cloneProfilesBulkInternal(ids || [], overrides || {});
+    const result = await handlers.cloneProfilesBulkInternal(
+      ids || [],
+      overrides || {},
+    );
     if (result.success) broadcastProfilesUpdated();
     reply.send(result);
   });
@@ -122,19 +173,24 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const body = req.body || {};
       if (!body.name || !String(body.name).trim()) {
-        return reply.code(400).send({ success: false, error: '"name" is required' });
+        return reply
+          .code(400)
+          .send({ success: false, error: '"name" is required' });
       }
       // Check license limit for new profile creation
-      const { readProfiles } = require('../storage/profiles');
+      const { readProfiles } = require("../storage/profiles");
       const existing = readProfiles();
       const { isLicenseOk } = (() => {
         try {
-          const fs = require('fs');
-          const path = require('path');
-          const { app } = require('electron');
-          const licensePath = path.join(app.getPath('userData'), 'license.json');
+          const fs = require("fs");
+          const path = require("path");
+          const { app } = require("electron");
+          const licensePath = path.join(
+            app.getPath("userData"),
+            "license.json",
+          );
           if (fs.existsSync(licensePath)) {
-            const lic = JSON.parse(fs.readFileSync(licensePath, 'utf8'));
+            const lic = JSON.parse(fs.readFileSync(licensePath, "utf8"));
             return { isLicenseOk: lic && lic.activated === true };
           }
         } catch {}
@@ -143,29 +199,39 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       if (!isLicenseOk && existing.length >= 5) {
         return reply.code(403).send({
           success: false,
-          error: 'Free plan giới hạn tối đa 5 profiles. Vui lòng kích hoạt license để tạo thêm.'
+          error:
+            "Free plan giới hạn tối đa 5 profiles. Vui lòng kích hoạt license để tạo thêm.",
         });
       }
 
       // ── Map fingerprintOptions → generateFingerprint opts ──
       const fpOpts = body.fingerprintOptions || {};
-      const osMap = { windows: 'Windows', macos: 'macOS', linux: 'Linux' };
-      const browserMap = { chrome: 'Chrome', firefox: 'Firefox', edge: 'Chrome' };
+      const osMap = { windows: "Windows", macos: "macOS", linux: "Linux" };
+      const browserMap = {
+        chrome: "Chrome",
+        firefox: "Firefox",
+        edge: "Chrome",
+      };
 
       const genOpts = {};
       if (fpOpts.os) genOpts.os = osMap[fpOpts.os] || fpOpts.os;
-      if (fpOpts.browser) genOpts.browser = browserMap[fpOpts.browser] || fpOpts.browser;
+      if (fpOpts.browser)
+        genOpts.browser = browserMap[fpOpts.browser] || fpOpts.browser;
 
       // Validate locale: must be a real BCP-47 tag (e.g. "en-US", "vi-VN")
       // Reject placeholder values like "string", "locale", single words without hyphen, etc.
       const BCP47_RE = /^[a-z]{2,3}-[A-Z]{2,4}(-[A-Za-z0-9]+)*$/;
-      if (fpOpts.locale && typeof fpOpts.locale === 'string' && BCP47_RE.test(fpOpts.locale)) {
+      if (
+        fpOpts.locale &&
+        typeof fpOpts.locale === "string" &&
+        BCP47_RE.test(fpOpts.locale)
+      ) {
         genOpts.language = fpOpts.locale;
       }
       // If locale is invalid/placeholder → let generator pick a random realistic locale
 
       // Generate base fingerprint
-      const { generateFingerprint } = require('../engine/fingerprintGenerator');
+      const { generateFingerprint } = require("../engine/fingerprintGenerator");
       const generated = generateFingerprint(genOpts);
       const fp = generated.fingerprint;
       const genSettings = generated.settings;
@@ -173,7 +239,8 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       // ── Enrich fingerprint to match ALL fields UI's generateConsistentFingerprint() produces ──
       // The backend generator only produces basic fields. UI adds canvas/webgl/audio noise,
       // fonts, colorDepth, pixelRatio, etc. Missing fields = browser leaks real values.
-      const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+      const randInt = (min, max) =>
+        Math.floor(Math.random() * (max - min + 1)) + min;
       const randFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
       const enrichedFingerprint = {
@@ -183,35 +250,40 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
         webglNoise: randInt(100000000, 2100000000),
         maxTextureSize: randFrom([4096, 8192, 16384]),
         webglExtensions: randFrom([
-          'EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float',
-          'ANGLE_instanced_arrays, OES_texture_float, WEBGL_depth_texture, OES_vertex_array_object',
-          'EXT_texture_filter_anisotropic, WEBGL_compressed_texture_s3tc, OES_element_index_uint',
+          "EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float",
+          "ANGLE_instanced_arrays, OES_texture_float, WEBGL_depth_texture, OES_vertex_array_object",
+          "EXT_texture_filter_anisotropic, WEBGL_compressed_texture_s3tc, OES_element_index_uint",
         ]),
         audioNoise: randInt(100000000, 2100000000),
         audioSampleRate: randFrom([44100, 48000, 96000]),
-        audioChannels: randFrom(['Mono', 'Stereo', 'Surround']),
+        audioChannels: randFrom(["Mono", "Stereo", "Surround"]),
         colorDepth: randFrom([24, 32]),
         pixelRatio: randFrom([1, 1, 1, 1.25, 1.5, 2]),
         maxTouchPoints: 0,
-        connectionType: randFrom(['Ethernet', 'Wi-Fi']),
-        pdfViewer: 'Enabled',
-        batteryCharging: 'No',
+        connectionType: randFrom(["Ethernet", "Wi-Fi"]),
+        pdfViewer: "Enabled",
+        batteryCharging: "No",
         batteryLevel: Number((Math.random() * 0.9 + 0.1).toFixed(2)),
         batteryChargingTime: 0,
         batteryDischargingTime: randInt(5000, 20000),
-        fonts: 'Cambria, Microsoft New Tai Lue, Constantia, Palatino Linotype, Corbel, Arial, Arial Black, Comic Sans MS, Courier New, Georgia, Impact, Lucida Console, Lucida Sans Unicode, Tahoma, Times New Roman, Trebuchet MS, Verdana, Consolas, Segoe UI, Calibri, Candara, Franklin Gothic Medium, Garamond',
+        fonts:
+          "Cambria, Microsoft New Tai Lue, Constantia, Palatino Linotype, Corbel, Arial, Arial Black, Comic Sans MS, Courier New, Georgia, Impact, Lucida Console, Lucida Sans Unicode, Tahoma, Times New Roman, Trebuchet MS, Verdana, Consolas, Segoe UI, Calibri, Candara, Franklin Gothic Medium, Garamond",
       };
 
       // ── Map proxy from API format → settings.proxy ──
-      let proxySettings = { server: '', username: '', password: '' };
-      if (body.proxy && body.proxy.host && body.proxy.port &&
-          body.proxy.host !== 'string') {
+      let proxySettings = { server: "", username: "", password: "" };
+      if (
+        body.proxy &&
+        body.proxy.host &&
+        body.proxy.port &&
+        body.proxy.host !== "string"
+      ) {
         const px = body.proxy;
-        const scheme = px.type || 'http';
+        const scheme = px.type || "http";
         proxySettings = {
           server: `${scheme}://${px.host}:${px.port}`,
-          username: (px.username && px.username !== 'string') ? px.username : '',
-          password: (px.password && px.password !== 'string') ? px.password : '',
+          username: px.username && px.username !== "string" ? px.username : "",
+          password: px.password && px.password !== "string" ? px.password : "",
         };
       }
 
@@ -229,20 +301,31 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
         settings: {
           ...genSettings,
           headless: body.headless === true,
-          engine: 'playwright',
+          engine: "playwright",
           proxy: proxySettings,
-          webrtc: 'default',
-          geolocation: { enabled: false, latitude: 0, longitude: 0, accuracy: 50 },
-          mediaDevices: { audio: true, video: true, speakers: 2, microphones: 1, webcams: 0 },
+          webrtc: "default",
+          geolocation: {
+            enabled: false,
+            latitude: 0,
+            longitude: 0,
+            accuracy: 50,
+          },
+          mediaDevices: {
+            audio: true,
+            video: true,
+            speakers: 2,
+            microphones: 1,
+            webcams: 0,
+          },
           network: { antiDetection: false },
           // Section toggles: all OFF by default (same as UI new-profile state)
           identity: { enabled: false },
-          display:  { enabled: false },
+          display: { enabled: false },
           hardware: { enabled: false },
-          canvas:   { enabled: false },
-          audio:    { enabled: false },
-          media:    { enabled: false },
-          battery:  { enabled: false },
+          canvas: { enabled: false },
+          audio: { enabled: false },
+          media: { enabled: false },
+          battery: { enabled: false },
           // injectFingerprint true = normalizeProfileInput uses DEFAULT_SETTINGS.applyOverrides
           injectFingerprint: true,
           cdpApplyInitScript: true,
@@ -262,7 +345,9 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const list = await handlers.getProfilesInternal();
       const existing = list.find((p) => p.id === profileId);
       if (!existing) {
-        return reply.code(404).send({ success: false, error: "Profile not found" });
+        return reply
+          .code(404)
+          .send({ success: false, error: "Profile not found" });
       }
 
       const body = req.body || {};
@@ -302,19 +387,21 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       // proxy — map from API format { type, host, port, username, password }
       if (body.proxy != null) {
         const px = body.proxy;
-        if (px.host && px.host !== 'string' && px.port) {
-          const scheme = px.type || 'http';
+        if (px.host && px.host !== "string" && px.port) {
+          const scheme = px.type || "http";
           settingsUpdate.proxy = {
             server: `${scheme}://${px.host}:${px.port}`,
-            username: (px.username && px.username !== 'string') ? px.username : '',
-            password: (px.password && px.password !== 'string') ? px.password : '',
+            username:
+              px.username && px.username !== "string" ? px.username : "",
+            password:
+              px.password && px.password !== "string" ? px.password : "",
           };
         } else if (px.server != null) {
           // Also accept raw server string format
           settingsUpdate.proxy = {
-            server: px.server || '',
-            username: px.username || '',
-            password: px.password || '',
+            server: px.server || "",
+            username: px.username || "",
+            password: px.password || "",
           };
         }
       }
@@ -325,7 +412,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       }
 
       // Pass through any raw settings fields the caller provides
-      if (body.settings && typeof body.settings === 'object') {
+      if (body.settings && typeof body.settings === "object") {
         Object.assign(settingsUpdate, body.settings);
       }
 
@@ -334,23 +421,34 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       }
 
       // fingerprintOptions — regenerate or merge fingerprint
-      if (body.fingerprintOptions && typeof body.fingerprintOptions === 'object') {
+      if (
+        body.fingerprintOptions &&
+        typeof body.fingerprintOptions === "object"
+      ) {
         const fpOpts = body.fingerprintOptions;
-        const osMap = { windows: 'Windows', macos: 'macOS', linux: 'Linux' };
-        const browserMap = { chrome: 'Chrome', firefox: 'Firefox', edge: 'Chrome' };
+        const osMap = { windows: "Windows", macos: "macOS", linux: "Linux" };
+        const browserMap = {
+          chrome: "Chrome",
+          firefox: "Firefox",
+          edge: "Chrome",
+        };
         const BCP47_RE = /^[a-z]{2,3}-[A-Z]{2,4}(-[A-Za-z0-9]+)*$/;
 
         const genOpts = {};
         if (fpOpts.os) genOpts.os = osMap[fpOpts.os] || fpOpts.os;
-        if (fpOpts.browser) genOpts.browser = browserMap[fpOpts.browser] || fpOpts.browser;
+        if (fpOpts.browser)
+          genOpts.browser = browserMap[fpOpts.browser] || fpOpts.browser;
         if (fpOpts.locale && BCP47_RE.test(fpOpts.locale)) {
           genOpts.language = fpOpts.locale;
         }
 
         // Regenerate fingerprint with new options, merging over existing
-        const { generateFingerprint } = require('../engine/fingerprintGenerator');
+        const {
+          generateFingerprint,
+        } = require("../engine/fingerprintGenerator");
         const generated = generateFingerprint(genOpts);
-        const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+        const randInt = (min, max) =>
+          Math.floor(Math.random() * (max - min + 1)) + min;
         const randFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
         updatePayload.fingerprint = {
@@ -361,13 +459,13 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
           webglNoise: randInt(100000000, 2100000000),
           maxTextureSize: randFrom([4096, 8192, 16384]),
           webglExtensions: randFrom([
-            'EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float',
-            'ANGLE_instanced_arrays, OES_texture_float, WEBGL_depth_texture, OES_vertex_array_object',
-            'EXT_texture_filter_anisotropic, WEBGL_compressed_texture_s3tc, OES_element_index_uint',
+            "EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float",
+            "ANGLE_instanced_arrays, OES_texture_float, WEBGL_depth_texture, OES_vertex_array_object",
+            "EXT_texture_filter_anisotropic, WEBGL_compressed_texture_s3tc, OES_element_index_uint",
           ]),
           audioNoise: randInt(100000000, 2100000000),
           audioSampleRate: randFrom([44100, 48000, 96000]),
-          audioChannels: randFrom(['Mono', 'Stereo', 'Surround']),
+          audioChannels: randFrom(["Mono", "Stereo", "Surround"]),
           colorDepth: randFrom([24, 32]),
           pixelRatio: randFrom([1, 1, 1, 1.25, 1.5, 2]),
         };
@@ -380,8 +478,11 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       }
 
       // Pass through raw fingerprint fields if caller provides them directly
-      if (body.fingerprint && typeof body.fingerprint === 'object') {
-        updatePayload.fingerprint = { ...(existing.fingerprint || {}), ...body.fingerprint };
+      if (body.fingerprint && typeof body.fingerprint === "object") {
+        updatePayload.fingerprint = {
+          ...(existing.fingerprint || {}),
+          ...body.fingerprint,
+        };
       }
 
       const result = await handlers.saveProfileInternal(updatePayload);
@@ -395,15 +496,19 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const list = await handlers.getProfilesInternal();
       if (!list.find((p) => p.id === req.params.id)) {
-        return reply.code(404).send({ success: false, error: "Profile not found" });
+        return reply
+          .code(404)
+          .send({ success: false, error: "Profile not found" });
       }
       const id = req.params.id;
-      
+
       // Stop the profile first if it's currently running
       if (handlers.stopProfileInternal) {
-        try { await handlers.stopProfileInternal(id); } catch (e) {}
+        try {
+          await handlers.stopProfileInternal(id);
+        } catch (e) {}
       }
-      
+
       const result = await handlers.deleteProfileInternal(id);
       if (result.success) broadcastProfilesUpdated();
       reply.code(result.success ? 200 : 400).send(result);
@@ -443,10 +548,12 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const { profileId } = req.params;
       const body = req.body || {};
       const opts = {};
-      
+
       if (body.headless !== undefined) {
         // Handle both boolean and string representations
-        opts.headless = body.headless === true || String(body.headless).toLowerCase() === 'true';
+        opts.headless =
+          body.headless === true ||
+          String(body.headless).toLowerCase() === "true";
       }
 
       const result = await handlers.launchProfileInternal(profileId, opts);
@@ -489,37 +596,52 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const { profileId } = req.params;
       const { method, args = [], chain = [] } = req.body || {};
-      if (!method) return reply.code(400).send({ success: false, error: '"method" is required' });
+      if (!method)
+        return reply
+          .code(400)
+          .send({ success: false, error: '"method" is required' });
 
       const { runningProfiles } = require("../state/runtime");
       const running = runningProfiles.get(profileId);
-      if (!running) return reply.code(404).send({ success: false, error: 'Profile not running' });
+      if (!running)
+        return reply
+          .code(404)
+          .send({ success: false, error: "Profile not running" });
 
       // Get active page
       let page;
-      if (running.engine === 'playwright' && running.context) {
+      if (running.engine === "playwright" && running.context) {
         const pages = running.context.pages();
         page = pages[pages.length - 1] || pages[0];
       } else if (running.cdpControl?.context) {
         const pages = running.cdpControl.context.pages();
         page = pages[pages.length - 1] || pages[0];
       }
-      if (!page) return reply.code(400).send({ success: false, error: 'No active page available' });
+      if (!page)
+        return reply
+          .code(400)
+          .send({ success: false, error: "No active page available" });
 
       // Execute method on page
       let target = page;
-      if (typeof target[method] !== 'function') {
+      if (typeof target[method] !== "function") {
         // Try special sub-objects like keyboard, mouse, etc.
-        const subObjs = ['keyboard', 'mouse', 'touchscreen'];
+        const subObjs = ["keyboard", "mouse", "touchscreen"];
         let found = false;
         for (const sub of subObjs) {
-          if (page[sub] && typeof page[sub][method] === 'function') {
+          if (page[sub] && typeof page[sub][method] === "function") {
             target = page[sub];
             found = true;
             break;
           }
         }
-        if (!found) return reply.code(400).send({ success: false, error: `Method "${method}" not found on page` });
+        if (!found)
+          return reply
+            .code(400)
+            .send({
+              success: false,
+              error: `Method "${method}" not found on page`,
+            });
       }
 
       let result = await target[method](...args);
@@ -527,16 +649,21 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       // Execute chained methods
       for (const step of chain) {
         if (!step.method) continue;
-        if (typeof result[step.method] !== 'function') {
-          return reply.code(400).send({ success: false, error: `Chain method "${step.method}" not found` });
+        if (typeof result[step.method] !== "function") {
+          return reply
+            .code(400)
+            .send({
+              success: false,
+              error: `Chain method "${step.method}" not found`,
+            });
         }
         result = await result[step.method](...(step.args || []));
       }
 
       // Serialize result (Buffer → base64, etc.)
       let serialized = result;
-      if (Buffer.isBuffer(result)) serialized = result.toString('base64');
-      else if (typeof result === 'function') serialized = '[Function]';
+      if (Buffer.isBuffer(result)) serialized = result.toString("base64");
+      else if (typeof result === "function") serialized = "[Function]";
 
       reply.send({ success: true, result: serialized });
     } catch (e) {
@@ -603,7 +730,11 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const { performAction } = require("../engine/actions");
       const param = req.method === "GET" ? req.query : req.body;
-      const result = await performAction(req.params.profileId, actionName, param || {});
+      const result = await performAction(
+        req.params.profileId,
+        actionName,
+        param || {},
+      );
       if (result && result.success === false) {
         return reply.code(400).send(result);
       }
@@ -617,87 +748,240 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
   appx.post("/api/browsers/:profileId/actions/navigate", mapAction("nav.goto"));
   appx.post("/api/browsers/:profileId/actions/reload", mapAction("nav.reload"));
   appx.post("/api/browsers/:profileId/actions/go-back", mapAction("nav.back"));
-  appx.post("/api/browsers/:profileId/actions/go-forward", mapAction("nav.forward"));
-  appx.get("/api/browsers/:profileId/actions/page-info", mapAction("page.info"));
-  appx.get("/api/browsers/:profileId/actions/content", mapAction("page.content"));
-  appx.post("/api/browsers/:profileId/actions/screenshot", mapAction("capture.screen"));
-  appx.post("/api/browsers/:profileId/actions/click", mapAction("click.element"));
-  appx.post("/api/browsers/:profileId/actions/double-click", mapAction("element.dblclick"));
+  appx.post(
+    "/api/browsers/:profileId/actions/go-forward",
+    mapAction("nav.forward"),
+  );
+  appx.get(
+    "/api/browsers/:profileId/actions/page-info",
+    mapAction("page.info"),
+  );
+  appx.get(
+    "/api/browsers/:profileId/actions/content",
+    mapAction("page.content"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/screenshot",
+    mapAction("capture.screen"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/click",
+    mapAction("click.element"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/double-click",
+    mapAction("element.dblclick"),
+  );
   appx.post("/api/browsers/:profileId/actions/hover", mapAction("hover"));
-  appx.post("/api/browsers/:profileId/actions/focus", mapAction("element.focus"));
+  appx.post(
+    "/api/browsers/:profileId/actions/focus",
+    mapAction("element.focus"),
+  );
   appx.post("/api/browsers/:profileId/actions/fill", mapAction("input.fill"));
   appx.post("/api/browsers/:profileId/actions/type", mapAction("input.type"));
-  appx.post("/api/browsers/:profileId/actions/press-key", mapAction("keyboard.send"));
-  appx.post("/api/browsers/:profileId/actions/select-option", mapAction("select.option"));
+  appx.post(
+    "/api/browsers/:profileId/actions/press-key",
+    mapAction("keyboard.send"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/select-option",
+    mapAction("select.option"),
+  );
 
   // Image 2: Element checks, scrolling and waiting
   appx.post("/api/browsers/:profileId/actions/check", mapAction("input.check"));
-  appx.post("/api/browsers/:profileId/actions/scroll", mapAction("scroll.elementToElement")); 
+  appx.post(
+    "/api/browsers/:profileId/actions/scroll",
+    mapAction("scroll.elementToElement"),
+  );
   appx.post("/api/browsers/:profileId/actions/tap", mapAction("click.tap"));
-  appx.post("/api/browsers/:profileId/actions/drag-and-drop", mapAction("dragAndDrop"));
-  appx.post("/api/browsers/:profileId/actions/dispatch-event", mapAction("element.dispatchEvent"));
-  appx.post("/api/browsers/:profileId/actions/set-viewport-size", mapAction("viewport.set"));
-  appx.post("/api/browsers/:profileId/actions/set-content", mapAction("page.setContent"));
-  appx.post("/api/browsers/:profileId/actions/wait-for-navigation", mapAction("wait.navigation"));
-  appx.post("/api/browsers/:profileId/actions/wait-for-selector", mapAction("wait")); 
-  appx.post("/api/browsers/:profileId/actions/wait-for-url", mapAction("wait-for-url"));
-  appx.post("/api/browsers/:profileId/actions/get-text", mapAction("element.text"));
-  appx.post("/api/browsers/:profileId/actions/get-attribute", mapAction("element.attr"));
-  appx.post("/api/browsers/:profileId/actions/get-value", mapAction("element.value"));
-  appx.post("/api/browsers/:profileId/actions/get-inner-html", mapAction("element.html"));
+  appx.post(
+    "/api/browsers/:profileId/actions/drag-and-drop",
+    mapAction("dragAndDrop"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/dispatch-event",
+    mapAction("element.dispatchEvent"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/set-viewport-size",
+    mapAction("viewport.set"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/set-content",
+    mapAction("page.setContent"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/wait-for-navigation",
+    mapAction("wait.navigation"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/wait-for-selector",
+    mapAction("wait"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/wait-for-url",
+    mapAction("wait-for-url"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/get-text",
+    mapAction("element.text"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/get-attribute",
+    mapAction("element.attr"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/get-value",
+    mapAction("element.value"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/get-inner-html",
+    mapAction("element.html"),
+  );
   appx.post("/api/browsers/:profileId/actions/evaluate", mapAction("js.eval"));
 
   // Image 3: Cookies, scripts and visibility checks
-  appx.post("/api/browsers/:profileId/actions/run-script", mapAction("script.runInline"));
-  appx.get("/api/browsers/:profileId/actions/cookies", mapAction("cookies.get"));
-  appx.post("/api/browsers/:profileId/actions/cookies", mapAction("cookies.set"));
-  appx.delete("/api/browsers/:profileId/actions/cookies", mapAction("cookies.clear"));
-  appx.post("/api/browsers/:profileId/actions/is-visible", mapAction("element.isVisible"));
-  appx.post("/api/browsers/:profileId/actions/is-hidden", mapAction("element.isHidden"));
-  appx.post("/api/browsers/:profileId/actions/is-checked", mapAction("element.isChecked"));
-  appx.post("/api/browsers/:profileId/actions/is-enabled", mapAction("element.isEnabled"));
-  appx.post("/api/browsers/:profileId/actions/is-disabled", mapAction("element.isDisabled"));
-  appx.post("/api/browsers/:profileId/actions/is-editable", mapAction("element.isEditable"));
-  appx.post("/api/browsers/:profileId/actions/text-content", mapAction("element.textContent"));
-  appx.post("/api/browsers/:profileId/actions/wait-for-timeout", mapAction("wait")); 
-  appx.post("/api/browsers/:profileId/actions/wait-for-load-state", mapAction("wait.loadState"));
-  appx.post("/api/browsers/:profileId/actions/set-extra-http-headers", mapAction("headers.setExtra"));
+  appx.post(
+    "/api/browsers/:profileId/actions/run-script",
+    mapAction("script.runInline"),
+  );
+  appx.get(
+    "/api/browsers/:profileId/actions/cookies",
+    mapAction("cookies.get"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/cookies",
+    mapAction("cookies.set"),
+  );
+  appx.delete(
+    "/api/browsers/:profileId/actions/cookies",
+    mapAction("cookies.clear"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/is-visible",
+    mapAction("element.isVisible"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/is-hidden",
+    mapAction("element.isHidden"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/is-checked",
+    mapAction("element.isChecked"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/is-enabled",
+    mapAction("element.isEnabled"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/is-disabled",
+    mapAction("element.isDisabled"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/is-editable",
+    mapAction("element.isEditable"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/text-content",
+    mapAction("element.textContent"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/wait-for-timeout",
+    mapAction("wait"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/wait-for-load-state",
+    mapAction("wait.loadState"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/set-extra-http-headers",
+    mapAction("headers.setExtra"),
+  );
 
   // Image 4: Keyboard & Mouse specifics
-  appx.post("/api/browsers/:profileId/actions/add-init-script", mapAction("page.addInitScript"));
-  appx.post("/api/browsers/:profileId/actions/keyboard/down", mapAction("keyboard.down"));
-  appx.post("/api/browsers/:profileId/actions/keyboard/up", mapAction("keyboard.up"));
-  appx.post("/api/browsers/:profileId/actions/keyboard/type", mapAction("keyboard.type"));
-  appx.post("/api/browsers/:profileId/actions/keyboard/insert-text", mapAction("keyboard.insertText"));
-  appx.post("/api/browsers/:profileId/actions/mouse/click", mapAction("click.at"));
-  appx.post("/api/browsers/:profileId/actions/mouse/move", mapAction("mouse.move"));
-  appx.post("/api/browsers/:profileId/actions/mouse/dblclick", mapAction("mouse.dblclick"));
-  appx.post("/api/browsers/:profileId/actions/mouse/down", mapAction("mouse.down"));
+  appx.post(
+    "/api/browsers/:profileId/actions/add-init-script",
+    mapAction("page.addInitScript"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/keyboard/down",
+    mapAction("keyboard.down"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/keyboard/up",
+    mapAction("keyboard.up"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/keyboard/type",
+    mapAction("keyboard.type"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/keyboard/insert-text",
+    mapAction("keyboard.insertText"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/mouse/click",
+    mapAction("click.at"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/mouse/move",
+    mapAction("mouse.move"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/mouse/dblclick",
+    mapAction("mouse.dblclick"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/actions/mouse/down",
+    mapAction("mouse.down"),
+  );
   appx.post("/api/browsers/:profileId/actions/mouse/up", mapAction("mouse.up"));
-  appx.post("/api/browsers/:profileId/actions/mouse/wheel", mapAction("mouse.wheel"));
+  appx.post(
+    "/api/browsers/:profileId/actions/mouse/wheel",
+    mapAction("mouse.wheel"),
+  );
 
   // Context endpoints
-  appx.get("/api/browsers/:profileId/context/storage-state", async (req, reply) => {
-    const r = await (handlers.getStorageStateInternal
-      ? handlers.getStorageStateInternal(req.params.profileId)
-      : { success: false, error: "Not implemented" });
-    reply.send(r);
-  });
+  appx.get(
+    "/api/browsers/:profileId/context/storage-state",
+    async (req, reply) => {
+      const r = await (handlers.getStorageStateInternal
+        ? handlers.getStorageStateInternal(req.params.profileId)
+        : { success: false, error: "Not implemented" });
+      reply.send(r);
+    },
+  );
   appx.post("/api/browsers/:profileId/context/new-page", mapAction("tab.new"));
   appx.get("/api/browsers/:profileId/context/pages", async (req, reply) => {
     const r = await handlers.listPagesInternal(req.params.profileId);
     reply.send(r);
   });
-  appx.post("/api/browsers/:profileId/context/extra-http-headers", mapAction("headers.setExtra"));
-  appx.post("/api/browsers/:profileId/context/grant-permissions", async (req, reply) => {
-    const r = await handlers.grantPermissionsInternal(req.params.profileId, req.body || {});
-    reply.send(r);
-  });
-  appx.post("/api/browsers/:profileId/context/clear-permissions", async (req, reply) => {
-    const r = await handlers.clearPermissionsInternal(req.params.profileId);
-    reply.send(r);
-  });
-  appx.post("/api/browsers/:profileId/context/geolocation", mapAction("geolocation.set"));
+  appx.post(
+    "/api/browsers/:profileId/context/extra-http-headers",
+    mapAction("headers.setExtra"),
+  );
+  appx.post(
+    "/api/browsers/:profileId/context/grant-permissions",
+    async (req, reply) => {
+      const r = await handlers.grantPermissionsInternal(
+        req.params.profileId,
+        req.body || {},
+      );
+      reply.send(r);
+    },
+  );
+  appx.post(
+    "/api/browsers/:profileId/context/clear-permissions",
+    async (req, reply) => {
+      const r = await handlers.clearPermissionsInternal(req.params.profileId);
+      reply.send(r);
+    },
+  );
+  appx.post(
+    "/api/browsers/:profileId/context/geolocation",
+    mapAction("geolocation.set"),
+  );
 
   // Generic action dispatcher and helpers
   appx.get("/api/actions", async (_req, reply) => {
@@ -728,65 +1012,99 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const { getTaskLogs } = require("../storage/taskLogs");
       let list = await getTaskLogs();
-      if (req.query.profileId) list = list.filter(t => t.profileId === req.query.profileId);
+      if (req.query.profileId)
+        list = list.filter((t) => t.profileId === req.query.profileId);
       reply.send({ success: true, tasks: list });
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
-
   // POST /api/tasks/ — create a new task
   appx.post("/api/tasks", async (req, reply) => {
     try {
       const { addTaskLog } = require("../storage/taskLogs");
+      const { readProfiles } = require("../storage/profiles");
       const body = req.body || {};
-      if (!body.profileId) return reply.code(400).send({ success: false, error: '"profileId" is required' });
-      if (!body.name) return reply.code(400).send({ success: false, error: '"name" is required' });
-      if (!body.scriptContent) return reply.code(400).send({ success: false, error: '"scriptContent" is required' });
+      if (!body.profileId)
+        return reply
+          .code(400)
+          .send({ success: false, error: '"profileId" is required' });
+      if (!body.name)
+        return reply
+          .code(400)
+          .send({ success: false, error: '"name" is required' });
+      if (!body.scriptContent)
+        return reply
+          .code(400)
+          .send({ success: false, error: '"scriptContent" is required' });
+
+      const profiles = readProfiles();
+      const profile = profiles.find((p) => p.id === body.profileId);
+      if (!profile)
+        return reply
+          .code(404)
+          .send({ success: false, error: `Profile "${body.profileId}" not found` });
 
       const entry = {
-        scriptId: body.scriptId || '',
-        scriptName: body.name,
         profileId: body.profileId,
-        status: 'pending',
-        startedAt: new Date().toISOString(),
-        finishedAt: null,
-        logs: [],
-        _scriptType: body.scriptType || 'inline',
-        _scriptContent: body.scriptContent,
+        name: body.name,
+        scriptType: body.scriptType || "inline",
+        scriptContent: body.scriptContent,
+        headless: body.headless !== undefined ? body.headless : true,
+        status: "queued",
+        output: null,
+        error: null,
+        startedAt: null,
+        completedAt: null,
       };
       const r = await addTaskLog(entry);
-      reply.code(201).send(r);
+      if (!r.success)
+        return reply.code(500).send(r);
+      reply.code(201).send(r.taskLog);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
-
-  // POST /api/tasks/:id/run — enqueue a task for execution
+  // POST /api/tasks/:id/run — run task, update existing record (not create new)
   appx.post("/api/tasks/:id/run", async (req, reply) => {
     try {
-      const { getTaskLogById, addTaskLog } = require("../storage/taskLogs");
+      const { getTaskLogById, updateTaskLog } = require("../storage/taskLogs");
       const { executeScript } = require("../engine/scriptRuntime");
       const found = await getTaskLogById(req.params.id);
       if (!found.success) return reply.code(404).send(found);
       const task = found.taskLog;
-      if (!task._scriptContent) {
-        return reply.code(400).send({ success: false, error: 'Task has no scriptContent to execute' });
+      const scriptContent = task.scriptContent || task._scriptContent;
+      if (!scriptContent) {
+        return reply.code(400).send({ success: false, error: "Task has no scriptContent to execute" });
       }
-      // Run async (fire and forget — update status after)
-      executeScript(task.profileId, task._scriptContent, { timeoutMs: 120000 }).then(async (result) => {
-        await addTaskLog({
-          ...task,
-          id: undefined,
-          status: result.success ? 'completed' : 'error',
-          finishedAt: new Date().toISOString(),
-          error: result.error || null,
-          logs: result.logs || [],
+      const taskId = req.params.id;
+      const startedAt = new Date().toISOString();
+      const prevLogs = task.logs || [];
+      const runSeparator = { time: startedAt, message: `── Run ${new Date(startedAt).toLocaleString()} ──` };
+      await updateTaskLog(taskId, { status: "running", startedAt, completedAt: null, error: null });
+
+      // Fire and forget — update task record when done
+      executeScript(task.profileId, scriptContent, { timeoutMs: 120000, headless: task.headless })
+        .then(async (result) => {
+          await updateTaskLog(taskId, {
+            status: result.success ? "completed" : "error",
+            completedAt: new Date().toISOString(),
+            error: result.error || null,
+            logs: [...prevLogs, runSeparator, ...(result.logs || [])],
+          });
+        })
+        .catch(async (e) => {
+          await updateTaskLog(taskId, {
+            status: "error",
+            completedAt: new Date().toISOString(),
+            error: e?.message || String(e),
+            logs: [...prevLogs, runSeparator],
+          });
         });
-      }).catch(() => {});
-      reply.send({ success: true, message: 'Task enqueued', taskId: req.params.id });
+
+      reply.send({ success: true, message: "Task started", taskId });
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -797,7 +1115,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const { stopScript } = require("../engine/scriptRuntime");
       const r = stopScript ? stopScript(req.params.id) : { success: true };
-      reply.send({ success: true, message: 'Cancel requested', result: r });
+      reply.send({ success: true, message: "Cancel requested", result: r });
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -826,7 +1144,6 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     }
   });
 
-
   // GET /api/proxies/unassigned — proxies not assigned to any profile
   appx.get("/api/proxies/unassigned", async (_req, reply) => {
     try {
@@ -836,9 +1153,9 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const profiles = await getProfilesInternal();
       // Collect all proxy IDs that are assigned to profiles
       const assignedIds = new Set(
-        profiles.map(p => p.proxy?.id).filter(Boolean)
+        profiles.map((p) => p.proxy?.id).filter(Boolean),
       );
-      const unassigned = proxies.filter(px => !assignedIds.has(px.id));
+      const unassigned = proxies.filter((px) => !assignedIds.has(px.id));
       reply.send({ success: true, proxies: unassigned });
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
@@ -857,14 +1174,15 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     }
   });
 
-
   // PUT /api/proxies/:id
   appx.put("/api/proxies/:id", async (req, reply) => {
     try {
       const { updateProxyInternal } = require("../storage/proxies");
       const r = await updateProxyInternal(req.params.id, req.body || {});
       if (r.success) broadcastProxiesUpdated();
-      reply.code(r.success ? 200 : (r.error === 'Proxy not found' ? 404 : 400)).send(r);
+      reply
+        .code(r.success ? 200 : r.error === "Proxy not found" ? 404 : 400)
+        .send(r);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -887,19 +1205,31 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const { getProxyByIdInternal } = require("../storage/proxies");
       const { profileId } = req.body || {};
-      if (!profileId) return reply.code(400).send({ success: false, error: '"profileId" is required' });
+      if (!profileId)
+        return reply
+          .code(400)
+          .send({ success: false, error: '"profileId" is required' });
 
       const proxyResult = await getProxyByIdInternal(req.params.id);
       if (!proxyResult.success) return reply.code(404).send(proxyResult);
 
       const profiles = await handlers.getProfilesInternal();
-      const profile = profiles.find(p => p.id === profileId);
-      if (!profile) return reply.code(404).send({ success: false, error: 'Profile not found' });
+      const profile = profiles.find((p) => p.id === profileId);
+      if (!profile)
+        return reply
+          .code(404)
+          .send({ success: false, error: "Profile not found" });
 
       const updated = { ...profile, proxy: proxyResult.proxy };
       const r = await handlers.saveProfileInternal(updated);
       if (r.success) broadcastProfilesUpdated();
-      reply.code().send({ success: r.success, message: 'Proxy assigned', proxy: proxyResult.proxy });
+      reply
+        .code()
+        .send({
+          success: r.success,
+          message: "Proxy assigned",
+          proxy: proxyResult.proxy,
+        });
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -909,23 +1239,29 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
   appx.post("/api/proxies/unassign", async (req, reply) => {
     try {
       const { profileId } = req.body || {};
-      if (!profileId) return reply.code(400).send({ success: false, error: '"profileId" is required' });
+      if (!profileId)
+        return reply
+          .code(400)
+          .send({ success: false, error: '"profileId" is required' });
 
       const profiles = await handlers.getProfilesInternal();
-      const profile = profiles.find(p => p.id === profileId);
-      if (!profile) return reply.code(404).send({ success: false, error: 'Profile not found' });
+      const profile = profiles.find((p) => p.id === profileId);
+      if (!profile)
+        return reply
+          .code(404)
+          .send({ success: false, error: "Profile not found" });
 
       const updated = { ...profile, proxy: null };
       const r = await handlers.saveProfileInternal(updated);
       if (r.success) broadcastProfilesUpdated();
-      reply.code().send({ success: r.success, message: 'Proxy unassigned' });
+      reply.code().send({ success: r.success, message: "Proxy unassigned" });
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
   // ── Fingerprints API ──
-  
+
   // Helper: flatten fingerprint response to match external API expectations
   function formatFingerprintResponse(fp) {
     const f = fp.fingerprint || {};
@@ -933,66 +1269,114 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     const adv = s.advanced || {};
     const meta = fp._meta || {};
 
-    let width = 1920, height = 1080;
+    let width = 1920,
+      height = 1080;
     if (f.screenResolution) {
-      const parts = f.screenResolution.split('x');
+      const parts = f.screenResolution.split("x");
       if (parts.length === 2) {
         width = parseInt(parts[0], 10) || 1920;
         height = parseInt(parts[1], 10) || 1080;
       }
     }
 
-    const langs = adv.languages ? adv.languages.split(',').map(l => l.trim()) : [f.language || 'en-US'];
+    const langs = adv.languages
+      ? adv.languages.split(",").map((l) => l.trim())
+      : [f.language || "en-US"];
 
     const webglExts = [
-      "EXT_frag_depth", "OES_element_index_uint", "KHR_parallel_shader_compile",
-      "ANGLE_instanced_arrays", "OES_vertex_array_object", "WEBGL_compressed_texture_s3tc",
-      "WEBGL_draw_buffers", "EXT_blend_minmax", "WEBGL_color_buffer_float",
-      "OES_texture_float_linear", "OES_texture_half_float_linear", "EXT_color_buffer_half_float",
-      "WEBGL_lose_context", "EXT_disjoint_timer_query", "WEBGL_compressed_texture_s3tc_srgb",
-      "EXT_sRGB", "OES_standard_derivatives", "OES_texture_float",
-      "EXT_texture_compression_bptc", "WEBGL_multi_draw", "EXT_shader_texture_lod",
-      "OES_fbo_render_mipmap", "EXT_texture_compression_rgtc"
+      "EXT_frag_depth",
+      "OES_element_index_uint",
+      "KHR_parallel_shader_compile",
+      "ANGLE_instanced_arrays",
+      "OES_vertex_array_object",
+      "WEBGL_compressed_texture_s3tc",
+      "WEBGL_draw_buffers",
+      "EXT_blend_minmax",
+      "WEBGL_color_buffer_float",
+      "OES_texture_float_linear",
+      "OES_texture_half_float_linear",
+      "EXT_color_buffer_half_float",
+      "WEBGL_lose_context",
+      "EXT_disjoint_timer_query",
+      "WEBGL_compressed_texture_s3tc_srgb",
+      "EXT_sRGB",
+      "OES_standard_derivatives",
+      "OES_texture_float",
+      "EXT_texture_compression_bptc",
+      "WEBGL_multi_draw",
+      "EXT_shader_texture_lod",
+      "OES_fbo_render_mipmap",
+      "EXT_texture_compression_rgtc",
     ];
     const webglParams = {
-      "MAX_TEXTURE_SIZE": 4096, "MAX_RENDERBUFFER_SIZE": 8192, "MAX_VIEWPORT_DIMS": 32768,
-      "MAX_VERTEX_ATTRIBS": 32, "MAX_VERTEX_UNIFORM_VECTORS": 256, "MAX_FRAGMENT_UNIFORM_VECTORS": 4096,
-      "MAX_VARYING_VECTORS": 30, "MAX_VERTEX_TEXTURE_IMAGE_UNITS": 32, "MAX_TEXTURE_IMAGE_UNITS": 16,
-      "MAX_COMBINED_TEXTURE_IMAGE_UNITS": 64, "ALIASED_LINE_WIDTH_RANGE_MAX": 10,
-      "ALIASED_POINT_SIZE_RANGE_MAX": 255, "MAX_CUBE_MAP_TEXTURE_SIZE": 8192
+      MAX_TEXTURE_SIZE: 4096,
+      MAX_RENDERBUFFER_SIZE: 8192,
+      MAX_VIEWPORT_DIMS: 32768,
+      MAX_VERTEX_ATTRIBS: 32,
+      MAX_VERTEX_UNIFORM_VECTORS: 256,
+      MAX_FRAGMENT_UNIFORM_VECTORS: 4096,
+      MAX_VARYING_VECTORS: 30,
+      MAX_VERTEX_TEXTURE_IMAGE_UNITS: 32,
+      MAX_TEXTURE_IMAGE_UNITS: 16,
+      MAX_COMBINED_TEXTURE_IMAGE_UNITS: 64,
+      ALIASED_LINE_WIDTH_RANGE_MAX: 10,
+      ALIASED_POINT_SIZE_RANGE_MAX: 255,
+      MAX_CUBE_MAP_TEXTURE_SIZE: 8192,
     };
 
-    const isFirefox = f.browser === 'Firefox';
-    const pluginCount = typeof adv.plugins === 'number' ? adv.plugins : 5;
-    const plugins = isFirefox ? [] : [
-      { name: "Microsoft Edge PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format" },
-      { name: "PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format" },
-      { name: "Chrome PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format" },
-      { name: "Chromium PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format" },
-      { name: "WebKit built-in PDF", filename: "internal-pdf-viewer", description: "Portable Document Format" }
-    ].slice(0, pluginCount);
+    const isFirefox = f.browser === "Firefox";
+    const pluginCount = typeof adv.plugins === "number" ? adv.plugins : 5;
+    const plugins = isFirefox
+      ? []
+      : [
+          {
+            name: "Microsoft Edge PDF Viewer",
+            filename: "internal-pdf-viewer",
+            description: "Portable Document Format",
+          },
+          {
+            name: "PDF Viewer",
+            filename: "internal-pdf-viewer",
+            description: "Portable Document Format",
+          },
+          {
+            name: "Chrome PDF Viewer",
+            filename: "internal-pdf-viewer",
+            description: "Portable Document Format",
+          },
+          {
+            name: "Chromium PDF Viewer",
+            filename: "internal-pdf-viewer",
+            description: "Portable Document Format",
+          },
+          {
+            name: "WebKit built-in PDF",
+            filename: "internal-pdf-viewer",
+            description: "Portable Document Format",
+          },
+        ].slice(0, pluginCount);
 
     const mainBrand = isFirefox ? "Firefox" : "Google Chrome";
     const bv = meta.browserVersion || (isFirefox ? "138.0.0.0" : "144.0.0.0");
-    const majorVersion = bv.split('.')[0];
+    const majorVersion = bv.split(".")[0];
 
     const userAgentData = {
       brands: [
         { brand: "Not(A:Brand", version: "8" },
         { brand: isFirefox ? "Firefox" : "Chromium", version: majorVersion },
-        { brand: mainBrand, version: majorVersion }
+        { brand: mainBrand, version: majorVersion },
       ],
       fullVersionList: [
         { brand: "Not(A:Brand", version: "8.0.0.0" },
         { brand: isFirefox ? "Firefox" : "Chromium", version: bv },
-        { brand: mainBrand, version: bv }
+        { brand: mainBrand, version: bv },
       ],
       platform: f.os || "Windows",
       platformVersion: "19.0.0",
       architecture: "x86",
       model: "",
       mobile: false,
-      bitness: "64"
+      bitness: "64",
     };
 
     return {
@@ -1005,7 +1389,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
         width,
         height,
         colorDepth: 24,
-        pixelRatio: adv.devicePixelRatio || 1
+        pixelRatio: adv.devicePixelRatio || 1,
       },
       hardwareConcurrency: s.cpuCores || 8,
       deviceMemory: s.memoryGB || 8,
@@ -1015,16 +1399,16 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       webgl: {
         extensions: webglExts,
         params: webglParams,
-        noiseSeed: meta.seed ? meta.seed + 1 : 1361946073
+        noiseSeed: meta.seed ? meta.seed + 1 : 1361946073,
       },
       canvas: {
         noiseSeed: meta.seed ? meta.seed + 2 : 1213244272,
-        noiseIntensity: 4
+        noiseIntensity: 4,
       },
       audio: {
         sampleRate: isFirefox ? 48000 : 44100,
         channelCount: 2,
-        noiseSeed: meta.seed ? meta.seed + 3 : 615301415
+        noiseSeed: meta.seed ? meta.seed + 3 : 615301415,
       },
       mediaDevices: { speakers: 1, microphones: 0, webcams: 2 },
       navigator: {
@@ -1032,12 +1416,17 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
         maxTouchPoints: adv.maxTouchPoints || 0,
         connectionType: "wifi",
         pdfViewerEnabled: plugins.length > 0,
-        cookieEnabled: true
+        cookieEnabled: true,
       },
-      battery: { charging: true, chargingTime: 0, dischargingTime: null, level: 0.99 },
+      battery: {
+        charging: true,
+        chargingTime: 0,
+        dischargingTime: null,
+        level: 0.99,
+      },
       plugins: plugins,
       webrtcPolicy: "default_public_interface_only",
-      userAgentData: userAgentData
+      userAgentData: userAgentData,
     };
   }
 
@@ -1046,8 +1435,12 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     try {
       const { generateFingerprint } = require("../engine/fingerprintGenerator");
       const body = req.body || {};
-      const osMap = { windows: 'Windows', macos: 'macOS', linux: 'Linux' };
-      const browserMap = { chrome: 'Chrome', firefox: 'Firefox', edge: 'Chrome' };
+      const osMap = { windows: "Windows", macos: "macOS", linux: "Linux" };
+      const browserMap = {
+        chrome: "Chrome",
+        firefox: "Firefox",
+        edge: "Chrome",
+      };
       const opts = {};
       if (body.os) opts.os = osMap[body.os] || body.os;
       if (body.browser) opts.browser = browserMap[body.browser] || body.browser;
@@ -1065,8 +1458,12 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const { generateFingerprint } = require("../engine/fingerprintGenerator");
       const { profileId } = req.params;
       const body = req.body || {};
-      const osMap = { windows: 'Windows', macos: 'macOS', linux: 'Linux' };
-      const browserMap = { chrome: 'Chrome', firefox: 'Firefox', edge: 'Chrome' };
+      const osMap = { windows: "Windows", macos: "macOS", linux: "Linux" };
+      const browserMap = {
+        chrome: "Chrome",
+        firefox: "Firefox",
+        edge: "Chrome",
+      };
       const opts = {};
       if (body.os) opts.os = osMap[body.os] || body.os;
       if (body.browser) opts.browser = browserMap[body.browser] || body.browser;
@@ -1074,16 +1471,26 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
 
       const fp = generateFingerprint(opts);
       const profiles = await handlers.getProfilesInternal();
-      const profile = profiles.find(p => p.id === profileId);
-      if (!profile) return reply.code(404).send({ success: false, error: 'Profile not found' });
+      const profile = profiles.find((p) => p.id === profileId);
+      if (!profile)
+        return reply
+          .code(404)
+          .send({ success: false, error: "Profile not found" });
 
       const seed = fp._meta?.seed || Math.floor(Math.random() * 2100000000);
-      let fonts = fp._meta?.fonts || profile.fingerprint?.fonts || 'Arial, Courier New';
+      let fonts =
+        fp._meta?.fonts || profile.fingerprint?.fonts || "Arial, Courier New";
       if (Array.isArray(fonts)) {
-        fonts = fonts.join(', ');
+        fonts = fonts.join(", ");
       }
-      const gpuV = fp.settings?.advanced?.webglVendor || profile.settings?.gpuVendor || 'Google Inc. (Intel)';
-      const gpuR = fp.settings?.advanced?.webglRenderer || profile.settings?.gpuRenderer || 'ANGLE (Intel, Intel(R) HD Graphics)';
+      const gpuV =
+        fp.settings?.advanced?.webglVendor ||
+        profile.settings?.gpuVendor ||
+        "Google Inc. (Intel)";
+      const gpuR =
+        fp.settings?.advanced?.webglRenderer ||
+        profile.settings?.gpuRenderer ||
+        "ANGLE (Intel, Intel(R) HD Graphics)";
 
       // Bật tất cả các cờ enabled cho các section giống như khi bấm Generate trong UI
       const toggles = {
@@ -1095,46 +1502,63 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
         audio: { enabled: true },
         media: { enabled: true },
         network: { enabled: true },
-        battery: { enabled: true }
+        battery: { enabled: true },
       };
 
       const updated = {
         ...profile,
-        fingerprint: { 
-          ...profile.fingerprint, 
+        fingerprint: {
+          ...profile.fingerprint,
           ...fp.fingerprint,
-          device: fp.fingerprint?.device || profile.fingerprint?.device || 'Desktop',
+          device:
+            fp.fingerprint?.device || profile.fingerprint?.device || "Desktop",
           fonts: fonts,
           webglNoise: seed,
           canvasNoise: seed,
           audioNoise: seed,
           maxTextureSize: profile.fingerprint?.maxTextureSize || 8192,
-          webglExtensions: profile.fingerprint?.webglExtensions || 'EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float',
+          webglExtensions:
+            profile.fingerprint?.webglExtensions ||
+            "EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float",
           canvasNoiseIntensity: profile.fingerprint?.canvasNoiseIntensity || 2,
           audioSampleRate: profile.fingerprint?.audioSampleRate || 48000,
-          audioChannels: profile.fingerprint?.audioChannels || 'Stereo',
-          connectionType: profile.fingerprint?.connectionType || 'Wi-Fi',
-          pdfViewer: profile.fingerprint?.pdfViewer || 'Enabled',
-          batteryCharging: profile.fingerprint?.batteryCharging || 'No',
+          audioChannels: profile.fingerprint?.audioChannels || "Stereo",
+          connectionType: profile.fingerprint?.connectionType || "Wi-Fi",
+          pdfViewer: profile.fingerprint?.pdfViewer || "Enabled",
+          batteryCharging: profile.fingerprint?.batteryCharging || "No",
           batteryLevel: profile.fingerprint?.batteryLevel || 0.99,
           batteryChargingTime: profile.fingerprint?.batteryChargingTime || 0,
-          batteryDischargingTime: profile.fingerprint?.batteryDischargingTime || 15000,
-          colorDepth: fp.fingerprint?.colorDepth || profile.fingerprint?.colorDepth || 24,
-          pixelRatio: fp.fingerprint?.pixelRatio || fp.settings?.advanced?.devicePixelRatio || profile.fingerprint?.pixelRatio || 1
+          batteryDischargingTime:
+            profile.fingerprint?.batteryDischargingTime || 15000,
+          colorDepth:
+            fp.fingerprint?.colorDepth || profile.fingerprint?.colorDepth || 24,
+          pixelRatio:
+            fp.fingerprint?.pixelRatio ||
+            fp.settings?.advanced?.devicePixelRatio ||
+            profile.fingerprint?.pixelRatio ||
+            1,
         },
-        settings: { 
-          ...profile.settings, 
+        settings: {
+          ...profile.settings,
           ...fp.settings,
           ...toggles,
           gpuVendor: gpuV,
           gpuRenderer: gpuR,
-          mediaDevices: fp.settings?.mediaDevices || profile.settings?.mediaDevices || { speakers: 1, microphones: 0, webcams: 1 },
-          webrtc: fp.settings?.webrtc || profile.settings?.webrtc || 'Public + private'
+          mediaDevices: fp.settings?.mediaDevices ||
+            profile.settings?.mediaDevices || {
+              speakers: 1,
+              microphones: 0,
+              webcams: 1,
+            },
+          webrtc:
+            fp.settings?.webrtc ||
+            profile.settings?.webrtc ||
+            "Public + private",
         },
       };
       const r = await handlers.saveProfileInternal(updated);
       if (r.success) broadcastProfilesUpdated();
-      
+
       reply.send(formatFingerprintResponse(fp));
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
@@ -1165,19 +1589,23 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const { saveScriptInternal } = require("../storage/scripts");
       const body = req.body || {};
       if (!body.name || !String(body.name).trim())
-        return reply.code(400).send({ success: false, error: '"name" is required' });
+        return reply
+          .code(400)
+          .send({ success: false, error: '"name" is required' });
       if (!body.content || !String(body.content).trim())
-        return reply.code(400).send({ success: false, error: '"content" is required' });
+        return reply
+          .code(400)
+          .send({ success: false, error: '"content" is required' });
       // Map API fields → internal schema
       const payload = {
         name: String(body.name).trim(),
-        description: body.description ? String(body.description) : '',
+        description: body.description ? String(body.description) : "",
         code: String(body.content),
-        browserMode: body.headless === true ? 'headless' : 'visible',
+        browserMode: body.headless === true ? "headless" : "visible",
         schedule: {
           enabled: body.cronEnabled === true,
-          cron: body.cronSchedule ? String(body.cronSchedule) : '',
-          profileId: body.cronProfileId ? String(body.cronProfileId) : '',
+          cron: body.cronSchedule ? String(body.cronSchedule) : "",
+          profileId: body.cronProfileId ? String(body.cronProfileId) : "",
         },
       };
       const r = await saveScriptInternal(payload);
@@ -1197,7 +1625,10 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
   // PUT /api/scripts/:id — Update a script (partial update, all fields optional except id)
   appx.put("/api/scripts/:id", async (req, reply) => {
     try {
-      const { saveScriptInternal, getScriptInternal } = require("../storage/scripts");
+      const {
+        saveScriptInternal,
+        getScriptInternal,
+      } = require("../storage/scripts");
       const existing = await getScriptInternal(req.params.id);
       if (!existing.success) return reply.code(404).send(existing);
       const body = req.body || {};
@@ -1206,15 +1637,30 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const payload = {
         id: req.params.id,
         name: body.name != null ? String(body.name).trim() : base.name,
-        description: body.description != null ? String(body.description) : base.description,
+        description:
+          body.description != null
+            ? String(body.description)
+            : base.description,
         code: body.content != null ? String(body.content) : base.code,
-        browserMode: body.headless != null
-          ? (body.headless === true ? 'headless' : 'visible')
-          : base.browserMode,
+        browserMode:
+          body.headless != null
+            ? body.headless === true
+              ? "headless"
+              : "visible"
+            : base.browserMode,
         schedule: {
-          enabled: body.cronEnabled != null ? body.cronEnabled === true : base.schedule?.enabled,
-          cron: body.cronSchedule != null ? String(body.cronSchedule) : base.schedule?.cron,
-          profileId: body.cronProfileId != null ? String(body.cronProfileId) : base.schedule?.profileId,
+          enabled:
+            body.cronEnabled != null
+              ? body.cronEnabled === true
+              : base.schedule?.enabled,
+          cron:
+            body.cronSchedule != null
+              ? String(body.cronSchedule)
+              : base.schedule?.cron,
+          profileId:
+            body.cronProfileId != null
+              ? String(body.cronProfileId)
+              : base.schedule?.profileId,
         },
       };
       const r = await saveScriptInternal(payload);
@@ -1299,7 +1745,11 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
         language: opts.language,
         timezone: opts.timezone,
       });
-      reply.send({ success: true, count: results.length, fingerprints: results });
+      reply.send({
+        success: true,
+        count: results.length,
+        fingerprints: results,
+      });
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -1317,13 +1767,11 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
           .status(404)
           .json({ success: false, error: "Profile not running" });
       if (running.engine !== "playwright" || !running.context) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error:
-              "Behavior simulation requires Playwright engine with active context",
-          });
+        return res.status(400).json({
+          success: false,
+          error:
+            "Behavior simulation requires Playwright engine with active context",
+        });
       }
       const pages = running.context.pages();
       const pageIndex = Number(req.body?.pageIndex || 0);
@@ -1360,22 +1808,18 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
           break;
         case "click":
           if (!opts.selector)
-            return res
-              .status(400)
-              .json({
-                success: false,
-                error: "selector is required for click action",
-              });
+            return res.status(400).json({
+              success: false,
+              error: "selector is required for click action",
+            });
           await behavior.humanClick(page, rng, opts.selector, opts);
           break;
         case "type":
           if (!opts.selector || !opts.text)
-            return res
-              .status(400)
-              .json({
-                success: false,
-                error: "selector and text are required for type action",
-              });
+            return res.status(400).json({
+              success: false,
+              error: "selector and text are required for type action",
+            });
           await behavior.humanType(page, rng, opts.selector, opts.text, opts);
           break;
         case "idle":
@@ -1433,7 +1877,9 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const { checkProxy } = require("../services/ProxyChecker");
       const cfg = req.body || {};
       if (!cfg.host || !cfg.port)
-        return reply.code(400).send({ success: false, error: "host and port are required" });
+        return reply
+          .code(400)
+          .send({ success: false, error: "host and port are required" });
       const result = await checkProxy(cfg);
       reply.send(result);
     } catch (e) {
@@ -1444,7 +1890,9 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
   // ── OpenAPI spec at /openapi.json ──
   appx.get("/openapi.json", async (_req, reply) => {
     try {
-      reply.type("application/json").send(require("fs").readFileSync(openapiPath, "utf8"));
+      reply
+        .type("application/json")
+        .send(require("fs").readFileSync(openapiPath, "utf8"));
     } catch {
       reply.code(404).send({ error: "openapi not found" });
     }
@@ -1523,7 +1971,9 @@ function createRestServer({ settingsProvider, broadcaster }) {
           return { ok: true };
         }
       } catch {}
-      try { await restFastifyInstance.close(); } catch {}
+      try {
+        await restFastifyInstance.close();
+      } catch {}
       restFastifyInstance = null;
       restHttpServer = null;
       restServerState.running = false;
@@ -1537,10 +1987,18 @@ function createRestServer({ settingsProvider, broadcaster }) {
       restServerState.running = true;
       restServerState.error = null;
       broadcast();
-      try { attachPreviewWebSocket(); } catch (e) {
-        appendLog("system", `Preview WebSocket attach failed: ${e?.message || e}`);
+      try {
+        attachPreviewWebSocket();
+      } catch (e) {
+        appendLog(
+          "system",
+          `Preview WebSocket attach failed: ${e?.message || e}`,
+        );
       }
-      appendLog("system", `REST API server started on ${host}:${port} — Fastify Swagger UI at /docs`);
+      appendLog(
+        "system",
+        `REST API server started on ${host}:${port} — Fastify Swagger UI at /docs`,
+      );
       return { ok: true };
     } catch (err) {
       restServerState.running = false;
@@ -1551,7 +2009,10 @@ function createRestServer({ settingsProvider, broadcaster }) {
       restFastifyInstance = null;
       restHttpServer = null;
       broadcast();
-      appendLog("system", `REST API server failed to start: ${restServerState.error}`);
+      appendLog(
+        "system",
+        `REST API server failed to start: ${restServerState.error}`,
+      );
       return { ok: false, error: restServerState.error };
     }
   }
@@ -1565,7 +2026,9 @@ function createRestServer({ settingsProvider, broadcaster }) {
     const inst = restFastifyInstance;
     restFastifyInstance = null;
     restHttpServer = null;
-    try { await inst.close(); } catch {}
+    try {
+      await inst.close();
+    } catch {}
     restServerState.running = false;
     broadcast();
     appendLog("system", "REST API server stopped");
@@ -1608,7 +2071,9 @@ function createRestServer({ settingsProvider, broadcaster }) {
     return { ...restServerState };
   }
 
-  function setBroadcaster(fn) { broadcaster = fn; }
+  function setBroadcaster(fn) {
+    broadcaster = fn;
+  }
 
   /**
    * Attach WebSocket server on /preview path for live screenshot streaming.
@@ -1618,54 +2083,61 @@ function createRestServer({ settingsProvider, broadcaster }) {
     if (!restHttpServer) return;
     // Clean up previous WSS if server was restarted
     if (wss) {
-      try { wss.close(); } catch {}
+      try {
+        wss.close();
+      } catch {}
       wss = null;
       wsClients.clear();
     }
     wss = new WebSocketServer({ noServer: true });
 
-    restHttpServer.on('upgrade', (request, socket, head) => {
-      const url = new URL(request.url || '', 'http://localhost');
-      if (url.pathname === '/preview') {
+    restHttpServer.on("upgrade", (request, socket, head) => {
+      const url = new URL(request.url || "", "http://localhost");
+      if (url.pathname === "/preview") {
         wss.handleUpgrade(request, socket, head, (ws) => {
-          wss.emit('connection', ws, request);
+          wss.emit("connection", ws, request);
         });
       } else {
         socket.destroy();
       }
     });
 
-    wss.on('connection', (ws, request) => {
+    wss.on("connection", (ws, request) => {
       // Client sends { action: 'subscribe', profileId } to start receiving frames
-      ws.on('message', (data) => {
+      ws.on("message", (data) => {
         try {
           const msg = JSON.parse(String(data));
-          if (msg.action === 'subscribe' && msg.profileId) {
+          if (msg.action === "subscribe" && msg.profileId) {
             wsClients.set(ws, msg.profileId);
-          } else if (msg.action === 'unsubscribe') {
+          } else if (msg.action === "unsubscribe") {
             wsClients.delete(ws);
           }
-        } catch { /* ignore non-JSON messages */ }
+        } catch {
+          /* ignore non-JSON messages */
+        }
       });
 
-      ws.on('close', () => {
+      ws.on("close", () => {
         wsClients.delete(ws);
       });
 
-      ws.on('error', () => {
+      ws.on("error", () => {
         wsClients.delete(ws);
       });
     });
 
     // Register broadcast function with ScreencastManager
     try {
-      const { setWsBroadcast } = require('../engine/screencast');
+      const { setWsBroadcast } = require("../engine/screencast");
       setWsBroadcast(broadcastPreviewFrame);
     } catch (e) {
-      appendLog('system', `ScreencastManager broadcast setup failed: ${e?.message || e}`);
+      appendLog(
+        "system",
+        `ScreencastManager broadcast setup failed: ${e?.message || e}`,
+      );
     }
 
-    appendLog('system', 'Preview WebSocket server attached on /preview');
+    appendLog("system", "Preview WebSocket server attached on /preview");
   }
 
   /**
@@ -1682,11 +2154,21 @@ function createRestServer({ settingsProvider, broadcaster }) {
       if (client.bufferedAmount > 131072) continue;
       try {
         client.send(message);
-      } catch { /* client may have disconnected */ }
+      } catch {
+        /* client may have disconnected */
+      }
     }
   }
 
-  return { start, stop, setEnabled, setPort, getState, startWithPassword, setBroadcaster };
+  return {
+    start,
+    stop,
+    setEnabled,
+    setPort,
+    getState,
+    startWithPassword,
+    setBroadcaster,
+  };
 }
 
 module.exports = { createRestServer };

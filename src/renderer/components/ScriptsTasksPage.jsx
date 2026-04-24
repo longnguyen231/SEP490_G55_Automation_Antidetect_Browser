@@ -376,14 +376,14 @@ function TaskLogsTab() {
               onClick={() => handleSelect(l)}
             >
               <div className="stp-log-item-top">
-                <span className="stp-log-item-name">{l.scriptName}</span>
+                <span className="stp-log-item-name">{l.name || l.scriptName}</span>
                 <span className={`stp-log-item-status ${l.status}`}>
                   {l.status === 'completed' ? '✅' : l.status === 'error' ? '❌' : '⏳'} {l.status === 'completed' ? t('stp.completed') : l.status === 'error' ? t('stp.error') : l.status}
                 </span>
               </div>
               <div className="stp-log-item-bottom">
                 <span>Profile: {l.profileId?.slice(0, 8)}</span>
-                <span>{new Date(l.finishedAt || l.startedAt).toLocaleTimeString()}</span>
+                <span>{new Date(l.completedAt || l.createdAt || l.finishedAt || l.startedAt).toLocaleTimeString()}</span>
               </div>
             </div>
           ))}
@@ -396,10 +396,11 @@ function TaskLogsTab() {
           <>
             <div className="stp-logs-output-header">
               <Terminal size={14} />
-              <strong>{selectedLog.scriptName}</strong>
+              <strong>{selectedLog.name || selectedLog.scriptName}</strong>
               <span className={`stp-log-item-status ${selectedLog.status}`}>{selectedLog.status === 'completed' ? t('stp.completed') : t('stp.error')}</span>
               <span className="stp-logs-output-time">
-                {new Date(selectedLog.startedAt).toLocaleString()} → {new Date(selectedLog.finishedAt).toLocaleString()}
+                {new Date(selectedLog.createdAt || selectedLog.startedAt).toLocaleString()}
+                {(selectedLog.completedAt || selectedLog.finishedAt) ? ` → ${new Date(selectedLog.completedAt || selectedLog.finishedAt).toLocaleString()}` : ''}
               </span>
             </div>
             {selectedLog.error && (

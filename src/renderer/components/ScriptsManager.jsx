@@ -298,13 +298,19 @@ function ScriptsTab({ profiles }) {
         setEditing(prev => ({ ...prev, code: (prev.code || '') + '\n' + snippet + '\n' }));
     };
 
-    const handleExportJson = () => {
-        if (!editing) return;
-        const blob = new Blob([JSON.stringify(editing, null, 2)], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `${editing.name || 'script'}.json`;
-        a.click();
+    const handleExportJson = async () => {
+        try {
+            const res = await window.electronAPI.listScripts();
+            const list = Array.isArray(res) ? res : (res?.scripts || []);
+            const exportData = list.map(({ id, name, description, code, cronSchedule, cronEnabled, cronProfileId }) =>
+                ({ id, name, description, code, cronSchedule, cronEnabled, cronProfileId })
+            );
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `scripts-export-${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+        } catch { alert('Export failed'); }
     };
 
     const handleImportJson = () => {
@@ -317,8 +323,16 @@ function ScriptsTab({ profiles }) {
             const text = await file.text();
             try {
                 const data = JSON.parse(text);
-                setEditing({ id: null, name: data.name || 'Imported', description: data.description || '', code: data.code || '' });
-                setSelectedId(null);
+                const list = Array.isArray(data) ? data : [data];
+                let imported = 0;
+                for (const s of list) {
+                    if (!s.name && !s.code) continue;
+                    await window.electronAPI.saveScript({ id: null, name: s.name || 'Imported', description: s.description || '', code: s.code || '' });
+                    imported++;
+                }
+                const updated = await window.electronAPI.listScripts();
+                setScripts(Array.isArray(updated) ? updated : (updated?.scripts || []));
+                alert(`Imported ${imported} script(s)`);
             } catch { alert('Invalid JSON file'); }
         };
         input.click();
@@ -451,7 +465,6 @@ function ScriptsTab({ profiles }) {
                                 <span className="text-[0.85rem] font-semibold" style={{ color: 'var(--fg)' }}>{editing.id ? 'Edit Script' : 'New Script'}</span>
                                 <div className="flex-1" />
                                 <button className="btn btn-secondary text-[0.7rem]" onClick={() => { setEditing(null); setSelectedId(null); }}>Cancel</button>
-                                <button className="btn btn-secondary text-[0.7rem] flex items-center gap-1" onClick={handleExportJson}><Download size={12} /> Export JSON</button>
                                 <button className="btn btn-success text-[0.7rem]" onClick={handleSave}>Save</button>
                             </div>
                             <div className="flex gap-3">
@@ -1227,7 +1240,26 @@ function TaskLogsTab({ profiles = [] }) {
     };
 
     const handleRunAgain = async () => {
-        if (!selected?.scriptId) return;
+        if (!selected) return;
+        // Task tạo từ API: có scriptContent nhưng không có scriptId → chạy trực tiếp
+        if (!selected.scriptId) {
+            try {
+                await window.electronAPI.runTask(selected.id);
+                // Reload danh sách và cập nhật task đang chọn
+                const updatedList = await window.electronAPI.getTaskLogs();
+                if (Array.isArray(updatedList)) {
+                    setTasks(updatedList);
+                    const updated = updatedList.find(t => t.id === selected.id);
+                    if (updated) {
+                        setSelected(updated);
+                        const detail = await window.electronAPI.getTaskLog(updated.id);
+                        setDetailLogs(detail?.success ? (detail.taskLog?.logs || []) : []);
+                    }
+                }
+            } catch {}
+            return;
+        }
+        // Task từ script library → mở modal
         try {
             const res = await window.electronAPI.getScript(selected.scriptId);
             if (res?.success && res.script) {
@@ -1262,7 +1294,7 @@ function TaskLogsTab({ profiles = [] }) {
                             style={{ borderColor: selected?.id === t.id ? 'var(--primary)' : 'transparent', background: selected?.id === t.id ? 'var(--glass-strong)' : 'transparent', borderBottom: '1px solid var(--border)' }}
                             onClick={() => handleSelect(t)}>
                             <div className="flex justify-between items-center">
-                                <span className="text-[0.72rem] font-medium truncate flex-1 mr-1" style={{ color: 'var(--fg)' }}>{t.scriptName || 'Script'}</span>
+                                <span className="text-[0.72rem] font-medium truncate flex-1 mr-1" style={{ color: 'var(--fg)' }}>{t.name || t.scriptName || 'Script'}</span>
                                 <div className="flex items-center gap-1 shrink-0">
                                     <span className={`text-[0.65rem] font-medium ${t.status === 'completed' ? 'text-emerald-500' : t.status === 'error' ? 'text-rose-500' : 'text-amber-400'}`}>
                                         {t.status === 'completed' ? '✅' : t.status === 'error' ? '❌' : '⏳'}
@@ -1270,14 +1302,14 @@ function TaskLogsTab({ profiles = [] }) {
                                     <button
                                         className="opacity-50 hover:opacity-100 p-0.5 rounded hover:bg-red-500/10 transition-all"
                                         style={{ color: 'var(--danger)' }}
-                                        onClick={(e) => handleDelete(e, t.id, t.scriptName)}
+                                        onClick={(e) => handleDelete(e, t.id, t.name || t.scriptName)}
                                         title="Delete this log"
                                     ><X size={11} /></button>
                                 </div>
                             </div>
                             <div className="flex justify-between text-[0.62rem] mt-0.5" style={{ color: 'var(--muted)' }}>
                                 <span>Profile: {(t.profileId || '').slice(0, 8)}</span>
-                                <span>{new Date(t.finishedAt || t.startedAt).toLocaleTimeString()}</span>
+                                <span>{new Date(t.completedAt || t.createdAt || t.finishedAt || t.startedAt).toLocaleTimeString()}</span>
                             </div>
                         </div>
                     ))}
@@ -1288,13 +1320,16 @@ function TaskLogsTab({ profiles = [] }) {
                 {selected ? (
                     <>
                         <div className="px-3 py-2 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)', background: 'var(--card2)' }}>
-                            <span className="text-[0.75rem] font-semibold" style={{ color: 'var(--fg)' }}>{selected.scriptName}</span>
+                            <span className="text-[0.75rem] font-semibold" style={{ color: 'var(--fg)' }}>{selected.name || selected.scriptName}</span>
                             <span className={`text-[0.65rem] ${selected.status === 'completed' ? 'text-emerald-500' : 'text-rose-500'}`}>{selected.status}</span>
-                            <span className="text-[0.65rem]" style={{ color: 'var(--muted)' }}>{new Date(selected.startedAt).toLocaleString()}</span>
+                            <span className="text-[0.65rem]" style={{ color: 'var(--muted)' }}>
+                              {new Date(selected.createdAt || selected.startedAt).toLocaleString()}
+                              {(selected.completedAt || selected.finishedAt) ? ` → ${new Date(selected.completedAt || selected.finishedAt).toLocaleString()}` : ''}
+                            </span>
                             <button className="ml-auto px-3 py-1 rounded-lg text-[0.72rem] font-semibold text-white flex items-center gap-1.5 hover:brightness-110 transition"
                                 style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
                                 onClick={handleRunAgain}>
-                                <Play size={12} /> Run Again
+                                <Play size={12} /> {selected.status === 'queued' ? 'Run' : 'Run Again'}
                             </button>
                         </div>
                         {selected.error && <div className="px-3 py-1.5 text-[0.72rem] text-rose-400" style={{ borderBottom: '1px solid var(--border)', background: 'rgba(220,38,38,0.05)' }}>Error: {selected.error}</div>}

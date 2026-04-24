@@ -27,7 +27,7 @@ const { loadSettings, saveSettings } = require('../storage/settings');
 const { listPresetsInternal, addPresetInternal, deletePresetInternal } = require('../storage/presets');
 const { performAction } = require('../engine/actions');
 const { listScriptsInternal, getScriptInternal, saveScriptInternal, deleteScriptInternal } = require('../storage/scripts');
-const { addTaskLog, getTaskLogs, getTaskLogById, deleteTaskLog, clearTaskLogs } = require('../storage/taskLogs');
+const { addTaskLog, updateTaskLog, getTaskLogs, getTaskLogById, deleteTaskLog, clearTaskLogs } = require('../storage/taskLogs');
 const { listModules, installModule, uninstallModule } = require('../storage/scriptModules');
 const { executeScript, stopScript, pauseScript, resumeScript, isScriptRunning } = require('../engine/scriptRuntime');
 const { getAuditLogContent } = require('../logging/auditLogger');
@@ -302,6 +302,64 @@ function registerIpcHandlers(extra = {}) {
     const r = await clearTaskLogs();
     if (r?.success) appendLog('system', 'All task logs cleared');
     return r;
+  });
+
+  // Chạy task được tạo từ API — cập nhật trực tiếp bản ghi hiện tại, không tạo mới
+  handle('task-run', async (_e, taskId) => {
+    const startedAt = new Date().toISOString();
+    try {
+      const found = await getTaskLogById(taskId);
+      if (!found.success) return { success: false, error: 'Task not found: ' + taskId };
+      const task = found.taskLog;
+      const code = task.scriptContent || task._scriptContent || '';
+      if (!code) return { success: false, error: 'Task has no scriptContent' };
+      const profileId = task.profileId;
+      const taskName = task.name || task.scriptName || taskId;
+
+      const restrictedDomainPattern = /\.gov|\.mil|\.edu|\b(bank|paypal|vnpay|momo|zalopay|shopeepay|viettelpay|agribank|vietcombank|techcombank|mbbank|sacombank|vpbank|bidv|crypto|binance|bitcoin|usdt)\b/i;
+      const ddosPattern = /while\s*\(\s*true\s*\)\s*\{[^{}]*(fetch|actions\.)/i;
+      if (restrictedDomainPattern.test(code) || ddosPattern.test(code)) {
+        const { appendAuditLog } = require('../logging/auditLogger');
+        appendAuditLog('VIOLATION_BLOCKED', `Task attempted to access restricted patterns`, profileId);
+        return { success: false, error: 'EthicalViolationError: Restricted domain access or sensitive patterns are strictly prohibited.' };
+      }
+
+      appendLog(profileId, `Task execute: "${taskName}"`);
+      const prevLogs = task.logs || [];
+      const runSeparator = { time: startedAt, message: `── Run ${new Date(startedAt).toLocaleString()} ──` };
+      await updateTaskLog(taskId, { status: 'running', startedAt, completedAt: null, error: null });
+
+      const { runningProfiles } = require('../state/runtime');
+      if (!runningProfiles.has(profileId)) {
+        const headless = task.headless !== undefined ? task.headless : false;
+        const { readProfiles } = require('../storage/profiles');
+        const profileForEngine = readProfiles().find(p => p.id === profileId);
+        const profileEngine = profileForEngine?.settings?.engine || 'playwright';
+        const launchResult = await launchProfileInternal(profileId, { headless, engine: profileEngine });
+        if (!launchResult.success) {
+          appendLog(profileId, `Task execute failed — could not launch profile: ${launchResult.error || 'unknown'}`);
+          await updateTaskLog(taskId, { status: 'error', completedAt: new Date().toISOString(), error: 'Failed to launch profile: ' + (launchResult.error || 'unknown'), logs: [...prevLogs, runSeparator] });
+          return { success: false, error: 'Failed to launch profile: ' + (launchResult.error || 'unknown') };
+        }
+        await new Promise(r => setTimeout(r, 1500));
+      }
+
+      const result = await executeScript(profileId, code, {});
+      const completedAt = new Date().toISOString();
+      const combinedLogs = [...prevLogs, runSeparator, ...(result.logs || [])];
+      if (result.success) {
+        appendLog(profileId, `Task finished OK: "${taskName}"`);
+        await updateTaskLog(taskId, { status: 'completed', startedAt, completedAt, logs: combinedLogs, error: null });
+      } else {
+        const isStopped = result.error && String(result.error).includes('stopped by user');
+        appendLog(profileId, isStopped ? 'Task stopped by user' : `Task error: ${result.error}`);
+        await updateTaskLog(taskId, { status: isStopped ? 'stopped' : 'error', startedAt, completedAt, logs: combinedLogs, error: result.error || null });
+      }
+      return result;
+    } catch (e) {
+      await updateTaskLog(taskId, { status: 'error', completedAt: new Date().toISOString(), error: e?.message || String(e) });
+      return { success: false, error: e?.message || String(e) };
+    }
   });
 
   // Hỗ trợ xuất Audit Log (Ethical Rule UC_11.03)
