@@ -386,8 +386,16 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const { profileId } = req.params;
       const body = req.body || {};
       const opts = {};
-      if (body.headless !== undefined) opts.headless = !!body.headless;
+      
+      if (body.headless !== undefined) {
+        // Handle both boolean and string representations
+        opts.headless = body.headless === true || String(body.headless).toLowerCase() === 'true';
+      }
+
       const result = await handlers.launchProfileInternal(profileId, opts);
+      if (result && result.success === false) {
+        return reply.code(400).send(result);
+      }
       reply.send(result);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
@@ -398,6 +406,9 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
   appx.post("/api/browsers/:profileId/close", async (req, reply) => {
     try {
       const result = await handlers.stopProfileInternal(req.params.profileId);
+      if (result && result.success === false) {
+        return reply.code(400).send(result);
+      }
       reply.send(result);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
@@ -410,7 +421,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const { profileId } = req.params;
       const { runningProfiles } = require("../state/runtime");
       const running = runningProfiles.get(profileId);
-      reply.send({ success: true, running: !!running, profileId });
+      reply.send({ running: !!running });
     } catch (e) {
       reply.code(400).send({ error: e?.message || String(e) });
     }
