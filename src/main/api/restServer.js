@@ -103,6 +103,17 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     } catch {}
   }
 
+  function broadcastTaskLogsUpdated() {
+    try {
+      const { BrowserWindow } = require("electron");
+      for (const w of BrowserWindow.getAllWindows()) {
+        try {
+          w.webContents.send("task-logs-updated");
+        } catch {}
+      }
+    } catch {}
+  }
+
   function broadcastProxiesUpdated() {
     try {
       const { BrowserWindow } = require("electron");
@@ -1061,29 +1072,33 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const r = await addTaskLog(entry);
       if (!r.success)
         return reply.code(500).send(r);
+      broadcastTaskLogsUpdated();
       reply.code(201).send(r.taskLog);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
-  // POST /api/tasks/:id/run — run task, update existing record (not create new)
+  // POST /api/tasks/:id/run — run or re-run a task, update existing record
   appx.post("/api/tasks/:id/run", async (req, reply) => {
     try {
       const { getTaskLogById, updateTaskLog } = require("../storage/taskLogs");
       const { executeScript } = require("../engine/scriptRuntime");
       const found = await getTaskLogById(req.params.id);
-      if (!found.success) return reply.code(404).send(found);
+      if (!found.success) return reply.code(404).send({ success: false, error: "Task not found" });
       const task = found.taskLog;
+      if (task.status === "running")
+        return reply.code(400).send({ success: false, error: "Task is already running" });
       const scriptContent = task.scriptContent || task._scriptContent;
-      if (!scriptContent) {
+      if (!scriptContent)
         return reply.code(400).send({ success: false, error: "Task has no scriptContent to execute" });
-      }
+
       const taskId = req.params.id;
       const startedAt = new Date().toISOString();
       const prevLogs = task.logs || [];
       const runSeparator = { time: startedAt, message: `── Run ${new Date(startedAt).toLocaleString()} ──` };
       await updateTaskLog(taskId, { status: "running", startedAt, completedAt: null, error: null });
+      broadcastTaskLogsUpdated();
 
       // Fire and forget — update task record when done
       executeScript(task.profileId, scriptContent, { timeoutMs: 120000, headless: task.headless })
@@ -1094,6 +1109,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
             error: result.error || null,
             logs: [...prevLogs, runSeparator, ...(result.logs || [])],
           });
+          broadcastTaskLogsUpdated();
         })
         .catch(async (e) => {
           await updateTaskLog(taskId, {
@@ -1102,6 +1118,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
             error: e?.message || String(e),
             logs: [...prevLogs, runSeparator],
           });
+          broadcastTaskLogsUpdated();
         });
 
       reply.send({ success: true, message: "Task started", taskId });
@@ -1110,23 +1127,37 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
     }
   });
 
-  // POST /api/tasks/:id/cancel
+  // POST /api/tasks/:id/cancel — stop if running, always return success
   appx.post("/api/tasks/:id/cancel", async (req, reply) => {
     try {
-      const { stopScript } = require("../engine/scriptRuntime");
-      const r = stopScript ? stopScript(req.params.id) : { success: true };
-      reply.send({ success: true, message: "Cancel requested", result: r });
+      const { getTaskLogById, updateTaskLog } = require("../storage/taskLogs");
+      const { stopScript, isScriptRunning } = require("../engine/scriptRuntime");
+      const found = await getTaskLogById(req.params.id);
+      if (!found.success) return reply.code(404).send({ success: false, error: "Task not found" });
+      const task = found.taskLog;
+      if (isScriptRunning(task.profileId)) {
+        stopScript(task.profileId);
+        await updateTaskLog(req.params.id, {
+          status: "stopped",
+          completedAt: new Date().toISOString(),
+          error: "Cancelled by user",
+        });
+        broadcastTaskLogsUpdated();
+      }
+      reply.send({ success: true });
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
   });
 
-  // DELETE /api/tasks/:id
+  // DELETE /api/tasks/:id — remove task record from log
   appx.delete("/api/tasks/:id", async (req, reply) => {
     try {
       const { deleteTaskLog } = require("../storage/taskLogs");
       const r = await deleteTaskLog(req.params.id);
-      reply.send(r);
+      if (!r.success) return reply.code(404).send(r);
+      broadcastTaskLogsUpdated();
+      reply.send({ success: true });
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }

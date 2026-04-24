@@ -1219,6 +1219,11 @@ function TaskLogsTab({ profiles = [] }) {
 
     useEffect(() => { loadTasks(); }, [loadTasks]);
 
+    useEffect(() => {
+        const unsub = window.electronAPI.onTaskLogsUpdated?.(loadTasks);
+        return () => { unsub?.(); window.electronAPI.removeAllTaskLogsUpdated?.(); };
+    }, [loadTasks]);
+
     const handleSelect = async (task) => {
         setSelected(task);
         try { const res = await window.electronAPI.getTaskLog(task.id); if (res?.success) setDetailLogs(res.taskLog?.logs || []); else setDetailLogs([]); } catch { setDetailLogs([]); }

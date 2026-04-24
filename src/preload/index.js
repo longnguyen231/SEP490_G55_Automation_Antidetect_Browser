@@ -52,6 +52,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   removeAllScriptsUpdated: () => ipcRenderer.removeAllListeners('scripts-updated'),
 
+  onTaskLogsUpdated: (callback) => {
+    const listener = () => callback && callback();
+    ipcRenderer.on('task-logs-updated', listener);
+    return () => ipcRenderer.removeListener('task-logs-updated', listener);
+  },
+  removeAllTaskLogsUpdated: () => ipcRenderer.removeAllListeners('task-logs-updated'),
+
   // Open external links in default browser (via main)
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
