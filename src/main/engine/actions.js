@@ -495,14 +495,16 @@ function getActionNames() { return Object.keys(ACTION_MAP); }
 // ============ Additional Actions Implementations ============
 
 // Navigation and page lifecycle
-async function navigateTo(profileId, { url, waitUntil = 'load', index = 0, newPage = false } = {}) {
+async function navigateTo(profileId, { url, waitUntil = 'load', timeout, index = 0, newPage = false } = {}) {
   if (!url) return err('url is required');
   const { success, error, page, context, cleanup } = await withPage(profileId, { index, createIfMissing: true });
   if (!success) return err(error);
   try {
     let target = page;
     if (newPage) target = await context.newPage();
-    await target.goto(url, { waitUntil });
+    const gotoOpts = { waitUntil };
+    if (typeof timeout === 'number') gotoOpts.timeout = timeout;
+    await target.goto(url, gotoOpts);
     appendLog(profileId, `Action: goto ${url}`);
     const title = await target.title().catch(() => '');
     const currentUrl = target.url();
@@ -511,17 +513,19 @@ async function navigateTo(profileId, { url, waitUntil = 'load', index = 0, newPa
   } catch (e) { await cleanup(); return err(e?.message || e); }
 }
 
-async function goBack(profileId, { waitUntil = 'load', index = 0 } = {}) { return await navHistory(profileId, 'back', { waitUntil, index }); }
-async function goForward(profileId, { waitUntil = 'load', index = 0 } = {}) { return await navHistory(profileId, 'forward', { waitUntil, index }); }
-async function reloadPage(profileId, { waitUntil = 'load', index = 0 } = {}) { return await navHistory(profileId, 'reload', { waitUntil, index }); }
+async function goBack(profileId, { waitUntil = 'load', timeout, index = 0 } = {}) { return await navHistory(profileId, 'back', { waitUntil, timeout, index }); }
+async function goForward(profileId, { waitUntil = 'load', timeout, index = 0 } = {}) { return await navHistory(profileId, 'forward', { waitUntil, timeout, index }); }
+async function reloadPage(profileId, { waitUntil = 'load', timeout, index = 0 } = {}) { return await navHistory(profileId, 'reload', { waitUntil, timeout, index }); }
 
-async function navHistory(profileId, kind, { waitUntil = 'load', index = 0 } = {}) {
+async function navHistory(profileId, kind, { waitUntil = 'load', timeout, index = 0 } = {}) {
   const { success, error, page, cleanup } = await withPage(profileId, { index });
   if (!success) return err(error);
   try {
-    if (kind === 'back') await page.goBack({ waitUntil });
-    else if (kind === 'forward') await page.goForward({ waitUntil });
-    else if (kind === 'reload') await page.reload({ waitUntil });
+    const opts = { waitUntil };
+    if (typeof timeout === 'number') opts.timeout = timeout;
+    if (kind === 'back') await page.goBack(opts);
+    else if (kind === 'forward') await page.goForward(opts);
+    else if (kind === 'reload') await page.reload(opts);
     const title = await page.title().catch(() => '');
     const currentUrl = page.url();
     appendLog(profileId, `Action: nav ${kind}`);

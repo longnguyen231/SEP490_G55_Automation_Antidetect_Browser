@@ -547,6 +547,9 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const { performAction } = require("../engine/actions");
       const param = req.method === "GET" ? req.query : req.body;
       const result = await performAction(req.params.profileId, actionName, param || {});
+      if (result && result.success === false) {
+        return reply.code(400).send(result);
+      }
       reply.send(result);
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
