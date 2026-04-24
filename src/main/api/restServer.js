@@ -925,12 +925,127 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
   });
 
   // ── Fingerprints API ──
+  
+  // Helper: flatten fingerprint response to match external API expectations
+  function formatFingerprintResponse(fp) {
+    const f = fp.fingerprint || {};
+    const s = fp.settings || {};
+    const adv = s.advanced || {};
+    const meta = fp._meta || {};
+
+    let width = 1920, height = 1080;
+    if (f.screenResolution) {
+      const parts = f.screenResolution.split('x');
+      if (parts.length === 2) {
+        width = parseInt(parts[0], 10) || 1920;
+        height = parseInt(parts[1], 10) || 1080;
+      }
+    }
+
+    const langs = adv.languages ? adv.languages.split(',').map(l => l.trim()) : [f.language || 'en-US'];
+
+    const webglExts = [
+      "EXT_frag_depth", "OES_element_index_uint", "KHR_parallel_shader_compile",
+      "ANGLE_instanced_arrays", "OES_vertex_array_object", "WEBGL_compressed_texture_s3tc",
+      "WEBGL_draw_buffers", "EXT_blend_minmax", "WEBGL_color_buffer_float",
+      "OES_texture_float_linear", "OES_texture_half_float_linear", "EXT_color_buffer_half_float",
+      "WEBGL_lose_context", "EXT_disjoint_timer_query", "WEBGL_compressed_texture_s3tc_srgb",
+      "EXT_sRGB", "OES_standard_derivatives", "OES_texture_float",
+      "EXT_texture_compression_bptc", "WEBGL_multi_draw", "EXT_shader_texture_lod",
+      "OES_fbo_render_mipmap", "EXT_texture_compression_rgtc"
+    ];
+    const webglParams = {
+      "MAX_TEXTURE_SIZE": 4096, "MAX_RENDERBUFFER_SIZE": 8192, "MAX_VIEWPORT_DIMS": 32768,
+      "MAX_VERTEX_ATTRIBS": 32, "MAX_VERTEX_UNIFORM_VECTORS": 256, "MAX_FRAGMENT_UNIFORM_VECTORS": 4096,
+      "MAX_VARYING_VECTORS": 30, "MAX_VERTEX_TEXTURE_IMAGE_UNITS": 32, "MAX_TEXTURE_IMAGE_UNITS": 16,
+      "MAX_COMBINED_TEXTURE_IMAGE_UNITS": 64, "ALIASED_LINE_WIDTH_RANGE_MAX": 10,
+      "ALIASED_POINT_SIZE_RANGE_MAX": 255, "MAX_CUBE_MAP_TEXTURE_SIZE": 8192
+    };
+
+    const isFirefox = f.browser === 'Firefox';
+    const pluginCount = typeof adv.plugins === 'number' ? adv.plugins : 5;
+    const plugins = isFirefox ? [] : [
+      { name: "Microsoft Edge PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format" },
+      { name: "PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format" },
+      { name: "Chrome PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format" },
+      { name: "Chromium PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format" },
+      { name: "WebKit built-in PDF", filename: "internal-pdf-viewer", description: "Portable Document Format" }
+    ].slice(0, pluginCount);
+
+    const mainBrand = isFirefox ? "Firefox" : "Google Chrome";
+    const bv = meta.browserVersion || (isFirefox ? "138.0.0.0" : "144.0.0.0");
+    const majorVersion = bv.split('.')[0];
+
+    const userAgentData = {
+      brands: [
+        { brand: "Not(A:Brand", version: "8" },
+        { brand: isFirefox ? "Firefox" : "Chromium", version: majorVersion },
+        { brand: mainBrand, version: majorVersion }
+      ],
+      fullVersionList: [
+        { brand: "Not(A:Brand", version: "8.0.0.0" },
+        { brand: isFirefox ? "Firefox" : "Chromium", version: bv },
+        { brand: mainBrand, version: bv }
+      ],
+      platform: f.os || "Windows",
+      platformVersion: "19.0.0",
+      architecture: "x86",
+      model: "",
+      mobile: false,
+      bitness: "64"
+    };
+
+    return {
+      userAgent: f.userAgent || "",
+      platform: adv.platform || "Win32",
+      languages: langs,
+      timezone: f.timezone || "UTC",
+      locale: f.language || "en-US",
+      screen: {
+        width,
+        height,
+        colorDepth: 24,
+        pixelRatio: adv.devicePixelRatio || 1
+      },
+      hardwareConcurrency: s.cpuCores || 8,
+      deviceMemory: s.memoryGB || 8,
+      vendor: adv.webglVendor || "Google Inc. (Intel)",
+      renderer: adv.webglRenderer || "ANGLE (Intel, Intel(R) HD Graphics)",
+      fonts: meta.fonts || [],
+      webgl: {
+        extensions: webglExts,
+        params: webglParams,
+        noiseSeed: meta.seed ? meta.seed + 1 : 1361946073
+      },
+      canvas: {
+        noiseSeed: meta.seed ? meta.seed + 2 : 1213244272,
+        noiseIntensity: 4
+      },
+      audio: {
+        sampleRate: isFirefox ? 48000 : 44100,
+        channelCount: 2,
+        noiseSeed: meta.seed ? meta.seed + 3 : 615301415
+      },
+      mediaDevices: { speakers: 1, microphones: 0, webcams: 2 },
+      navigator: {
+        doNotTrack: adv.dnt ? "1" : null,
+        maxTouchPoints: adv.maxTouchPoints || 0,
+        connectionType: "wifi",
+        pdfViewerEnabled: plugins.length > 0,
+        cookieEnabled: true
+      },
+      battery: { charging: true, chargingTime: 0, dischargingTime: null, level: 0.99 },
+      plugins: plugins,
+      webrtcPolicy: "default_public_interface_only",
+      userAgentData: userAgentData
+    };
+  }
+
   // POST /api/fingerprints/preview — generate fingerprint without saving
   appx.post("/api/fingerprints/preview", async (req, reply) => {
     try {
       const { generateFingerprint } = require("../engine/fingerprintGenerator");
       const body = req.body || {};
-      // Map API os names (lowercase) to internal names (capitalized)
       const osMap = { windows: 'Windows', macos: 'macOS', linux: 'Linux' };
       const browserMap = { chrome: 'Chrome', firefox: 'Firefox', edge: 'Chrome' };
       const opts = {};
@@ -938,7 +1053,7 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       if (body.browser) opts.browser = browserMap[body.browser] || body.browser;
       if (body.locale) opts.language = body.locale;
       const result = generateFingerprint(opts);
-      reply.send({ success: true, ...result });
+      reply.send(formatFingerprintResponse(result));
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -969,25 +1084,8 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       };
       const r = await handlers.saveProfileInternal(updated);
       if (r.success) broadcastProfilesUpdated();
-      reply.code().send({ success: r.success, fingerprint: fp.fingerprint, settings: fp.settings });
-    } catch (e) {
-      reply.code(500).send({ success: false, error: e?.message || String(e) });
-    }
-  });
-
-  // PUT /api/fingerprints/:profileId — save manual fingerprint config
-  appx.put("/api/fingerprints/:profileId", async (req, reply) => {
-    try {
-      const { profileId } = req.params;
-      const fingerprintConfig = req.body || {};
-      const profiles = await handlers.getProfilesInternal();
-      const profile = profiles.find(p => p.id === profileId);
-      if (!profile) return reply.code(404).send({ success: false, error: 'Profile not found' });
-
-      const updated = { ...profile, fingerprint: { ...profile.fingerprint, ...fingerprintConfig } };
-      const r = await handlers.saveProfileInternal(updated);
-      if (r.success) broadcastProfilesUpdated();
-      reply.code().send(r);
+      
+      reply.send(formatFingerprintResponse(fp));
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
