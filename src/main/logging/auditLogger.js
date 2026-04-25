@@ -38,11 +38,27 @@ function getAuditLogContent() {
   try {
     const path = auditLogPath();
     if (!fs.existsSync(path)) {
-      return '';
+      return { success: true, content: '' };
     }
-    return fs.readFileSync(path, 'utf8');
+    const content = fs.readFileSync(path, 'utf8');
+    const lines = content.split('\n').filter(l => l.trim());
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const match = line.match(/^(.*?) \[HASH:([a-f0-9]+)\]$/);
+      if (!match) {
+        return { success: false, error: `Checksum Verifier Error: Log format corrupted at line ${i + 1}` };
+      }
+      const rawLog = match[1];
+      const hash = match[2];
+      const expectedHash = generateLogSignature(rawLog);
+      if (hash !== expectedHash) {
+        return { success: false, error: `Checksum Verifier Error: Log corruption detected at line ${i + 1}. Expected ${expectedHash}, got ${hash}. Evidence tampering detected.` };
+      }
+    }
+    return { success: true, content };
   } catch (e) {
-    return `Error reading audit log: ${e.message}`;
+    return { success: false, error: `Error reading audit log: ${e.message}` };
   }
 }
 

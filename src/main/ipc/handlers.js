@@ -364,8 +364,13 @@ function registerIpcHandlers(extra = {}) {
 
   // Hỗ trợ xuất Audit Log (Ethical Rule UC_11.03)
   handle('system-export-audit', async () => {
-    appendLog('system', 'System Audit Log exported by user.');
-    return { success: true, content: getAuditLogContent() };
+    const result = getAuditLogContent();
+    if (result.success) {
+      appendLog('system', 'System Audit Log exported by user.');
+    } else {
+      appendLog('system', `System Audit Log export blocked: ${result.error}`);
+    }
+    return result;
   });
 
   // Quản lý thư viện bổ sung cho Kịch bản (NPM Packages / Script modules)

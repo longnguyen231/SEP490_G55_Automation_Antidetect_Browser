@@ -159,4 +159,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   startPreview: (profileId) => ipcRenderer.invoke('start-preview', profileId),
   stopPreview: (profileId) => ipcRenderer.invoke('stop-preview', profileId),
   getScreencastStatus: (profileId) => ipcRenderer.invoke('screencast-status', profileId),
+
+  // Audit Log (Ethical Compliance)
+  exportAuditLog: () => ipcRenderer.invoke('system-export-audit'),
 });

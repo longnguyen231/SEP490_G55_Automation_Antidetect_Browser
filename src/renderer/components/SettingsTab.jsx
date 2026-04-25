@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n/index';
 import BrowserRuntimes from './BrowserRuntimes';
 import { getCheckoutUrl } from '../config/app.config';
+import AuditLogViewer from './AuditLogViewer';
 
 export default function SettingsTab({
     apiStatus,
@@ -234,6 +235,15 @@ export default function SettingsTab({
                         <p className="text-[0.7rem] text-[var(--muted)] italic"><strong className="font-semibold not-italic">Note:</strong> Environment variables must be set before launching the application. Restart required after changes.</p>
                     </div>
                 </div>
+
+                {/* Audit Log */}
+                <div className="card relative p-4 mb-6 mt-4">
+                    <div className="absolute -top-3 left-4 bg-[var(--card)] px-2 text-[0.85rem] font-bold text-[var(--fg)]">Audit Log</div>
+                    <div className="pt-1">
+                        <AuditLogViewer />
+                    </div>
+                </div>
+
             </div>
         </div>
     );
