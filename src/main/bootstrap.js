@@ -6,7 +6,6 @@ const { loadSettings, saveSettings } = require('./storage/settings');
 const { registerIpcHandlers } = require('./ipc/handlers');
 const { createRestServer } = require('./api/restServer');
 const { runningProfiles } = require('./state/runtime');
-const { isWsAlive } = require('./engine/health');
 const { appendLog } = require('./logging/logger');
 const { startAutomationScheduler } = require('./engine/automation');
 const { setMainWindowRef } = require('./services/browserManagerService');
@@ -25,26 +24,12 @@ function startBackgroundHeartbeat(intervalMs = 30000) {
         const age = info.startedAt ? (Date.now() - info.startedAt) : Infinity;
         if (age < HEARTBEAT_GRACE_MS) continue;
 
-        // Playwright pipe mode has no WS endpoint — use context/browser state instead
-        if (info.engine === 'playwright') {
-          const dead = info.context?.isClosed?.() || info.browser?.isConnected?.() === false;
-          if (dead) {
-            try { info?.forwarder?.stop?.(); } catch {}
-            runningProfiles.delete(id);
-            appendLog(id, 'Heartbeat: Playwright browser disconnected, removing');
-            changed = true;
-          }
-          continue;
-        }
-
-        // CDP engine — check WS endpoint
-        const ws = info.wsEndpoint;
-        const alive = ws ? await isWsAlive(ws) : false;
-        if (!alive) {
-          try { info?.heartbeat && clearInterval(info.heartbeat); } catch {}
-          try { await info?.forwarder?.stop?.(); } catch {}
+        // Playwright pipe mode has no WS endpoint — use context/browser state
+        const dead = info.context?.isClosed?.() || info.browser?.isConnected?.() === false;
+        if (dead) {
+          try { info?.forwarder?.stop?.(); } catch {}
           runningProfiles.delete(id);
-          appendLog(id, 'Heartbeat: stale CDP profile removed');
+          appendLog(id, 'Heartbeat: Playwright browser disconnected, removing');
           changed = true;
         }
       } catch (e) {
@@ -85,7 +70,16 @@ app.whenReady().then(async () => {
   restServer.setBroadcaster?.(broadcaster);
 
   // 5. Start REST API server in background (don't block window)
-  restServer.start(handlers).catch(e => appendLog('system', `REST start error: ${e?.message || e}`));
+  restServer.start(handlers).then(r => {
+    if (r?.ok) {
+      console.log('[bootstrap] REST API server started OK');
+    } else {
+      console.error('[bootstrap] REST API server start returned:', r);
+    }
+  }).catch(e => {
+    console.error('[bootstrap] REST API server start error:', e);
+    appendLog('system', `REST start error: ${e?.message || e}`);
+  });
 
   // 6. Background tasks
   startBackgroundHeartbeat();

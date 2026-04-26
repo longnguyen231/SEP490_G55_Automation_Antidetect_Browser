@@ -58,7 +58,6 @@ const FALLBACK_SETTINGS = {
     geolocation: true,
     antiDetection: false,
   },
-  cdpApplyInitScript: true,
   advanced: {
     platform: 'Win32',
     dnt: false,
@@ -93,7 +92,6 @@ const DEFAULT_SETTINGS = {
     geolocation: true,
     antiDetection: false,
   },
-  cdpApplyInitScript: true,
 };
 
 // Automation defaults: simple, explicit opt-in
@@ -361,13 +359,6 @@ async function deleteProfileInternal(profileId) {
       const statePath = storageStatePath(profileId);
       if (fs.existsSync(statePath)) fs.unlinkSync(statePath);
     } catch (e) { appendLog(profileId, `Delete cleanup (storageState) failed: ${e.message}`); }
-    // Remove CDP user-data directory for this profile
-    try {
-      const cdpDir = path.join(getDataRoot(), 'cdp-user-data', String(profileId));
-      if (fs.existsSync(cdpDir)) {
-        fs.rmSync(cdpDir, { recursive: true, force: true });
-      }
-    } catch (e) { appendLog(profileId, `Delete cleanup (cdp-user-data) failed: ${e.message}`); }
     if (!ok) return { success: false, error: 'Failed to persist profiles file' };
     appendLog('system', `Deleted profile ${profileId}`);
     return { success: true };
@@ -532,10 +523,6 @@ async function deleteProfilesBulkInternal(ids) {
         try {
           const statePath = storageStatePath(id);
           if (fs.existsSync(statePath)) fs.unlinkSync(statePath);
-        } catch { }
-        try {
-          const cdpDir = path.join(getDataRoot(), 'cdp-user-data', String(id));
-          if (fs.existsSync(cdpDir)) fs.rmSync(cdpDir, { recursive: true, force: true });
         } catch { }
       }
 
