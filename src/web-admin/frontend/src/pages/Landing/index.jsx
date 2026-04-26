@@ -4,6 +4,7 @@ import { Avatar, Dropdown, ConfigProvider } from 'antd';
 import { ChevronDown, LogOut, LayoutDashboard } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
+import EulaModal, { hasAgreedToEula } from '../../components/EulaModal';
 
 // ─── Download info (fetched from public API, no auth needed) ─────────────
 function useDownloadInfo() {
@@ -355,6 +356,8 @@ const LandingPage = () => {
   const downloadInfo = useDownloadInfo();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [eulaOpen, setEulaOpen] = useState(false);
+  const [pendingDownload, setPendingDownload] = useState(null); // { url, label }
 
   const [heroRef, heroVisible] = useInView(0.05);
   const [statsRef, statsVisible] = useInView(0.1);
@@ -375,6 +378,27 @@ const LandingPage = () => {
   const handleLogout = () => {
     logout();
     toast.success('Logged out.');
+  };
+
+  const handleDownloadClick = (url, label) => {
+    if (hasAgreedToEula()) {
+      window.location.href = url;
+    } else {
+      setPendingDownload({ url, label });
+      setEulaOpen(true);
+    }
+  };
+
+  const handleEulaAgree = () => {
+    if (pendingDownload) {
+      window.location.href = pendingDownload.url;
+      setPendingDownload(null);
+    }
+  };
+
+  const handleEulaClose = () => {
+    setEulaOpen(false);
+    setPendingDownload(null);
   };
 
   return (
@@ -834,37 +858,37 @@ const LandingPage = () => {
               {/* Platform buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
                 {downloadInfo.available.includes('windows') && (
-                <a
-                  href="/api/download/windows"
+                <button
+                  onClick={() => handleDownloadClick('/api/download/windows', 'Windows Installer')}
                   className="flex items-center gap-3 px-6 py-3.5 rounded-xl bg-primary text-background-dark
                     font-bold text-sm hover:bg-primary/90 transition-all duration-200
                     shadow-xl shadow-primary/30 hover:shadow-primary/50 hover:-translate-y-0.5 w-full sm:w-auto justify-center"
                 >
                   <span className="material-symbols-outlined text-xl">desktop_windows</span>
                   Windows Installer (.exe)
-                </a>
+                </button>
                 )}
                 {downloadInfo.available.includes('portable') && (
-                <a
-                  href="/api/download/portable"
+                <button
+                  onClick={() => handleDownloadClick('/api/download/portable', 'Portable (.zip)')}
                   className="flex items-center gap-3 px-6 py-3.5 rounded-xl border border-slate-600
                     text-slate-300 font-semibold text-sm hover:border-primary/50 hover:text-primary
                     transition-all duration-200 w-full sm:w-auto justify-center"
                 >
                   <span className="material-symbols-outlined text-xl">folder_zip</span>
                   Portable (.zip)
-                </a>
+                </button>
                 )}
                 {downloadInfo.available.includes('linux') && (
-                <a
-                  href="/api/download/linux"
+                <button
+                  onClick={() => handleDownloadClick('/api/download/linux', 'Linux (.AppImage)')}
                   className="flex items-center gap-3 px-6 py-3.5 rounded-xl border border-slate-600
                     text-slate-300 font-semibold text-sm hover:border-primary/50 hover:text-primary
                     transition-all duration-200 w-full sm:w-auto justify-center"
                 >
                   <span className="material-symbols-outlined text-xl">terminal</span>
                   Linux (.AppImage)
-                </a>
+                </button>
                 )}
               </div>
 
@@ -923,6 +947,14 @@ const LandingPage = () => {
           </div>
         </div>
       </section>
+
+      {/* ── EULA Modal ─────────────────────────────────────────────────────── */}
+      <EulaModal
+        isOpen={eulaOpen}
+        onClose={handleEulaClose}
+        onAgree={handleEulaAgree}
+        downloadLabel={pendingDownload?.label}
+      />
 
       {/* ── Footer ─────────────────────────────────────────────────────────── */}
       <footer className="border-t border-slate-800/60 py-10 px-6">

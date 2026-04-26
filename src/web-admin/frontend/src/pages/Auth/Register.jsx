@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
+import EulaModal from '../../components/EulaModal';
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 const GoogleIcon = () => (
@@ -68,6 +69,7 @@ const RegisterPage = () => {
   // After successful email register → show verify banner
   const [showVerifyBanner, setShowVerifyBanner] = useState(false);
   const [registeredEmail, setRegisteredEmail]   = useState('');
+  const [eulaOpen, setEulaOpen] = useState(false);
 
   const strength  = getStrength(password);
   const pwMatch   = confirm.length === 0 || password === confirm;
@@ -323,7 +325,22 @@ const RegisterPage = () => {
                 {agree && <span className="material-symbols-outlined text-background-dark" style={{ fontSize: '11px', fontVariationSettings: "'FILL' 1" }}>check</span>}
               </div>
               <span className="text-xs text-slate-400 leading-relaxed">
-                Tôi đồng ý với <span className="text-primary">Điều khoản sử dụng</span> và <span className="text-primary">Chính sách bảo mật</span>
+                Tôi đồng ý với{' '}
+                <button
+                  type="button"
+                  onClick={() => setEulaOpen(true)}
+                  className="text-primary hover:underline focus:outline-none"
+                >
+                  Điều khoản sử dụng
+                </button>
+                {' '}và{' '}
+                <button
+                  type="button"
+                  onClick={() => setEulaOpen(true)}
+                  className="text-primary hover:underline focus:outline-none"
+                >
+                  Chính sách bảo mật
+                </button>
               </span>
             </label>
 
@@ -364,6 +381,12 @@ const RegisterPage = () => {
           </Link>
         </div>
       </div>
+
+      <EulaModal
+        isOpen={eulaOpen}
+        onClose={() => setEulaOpen(false)}
+        readOnly
+      />
     </div>
   );
 };
