@@ -389,6 +389,37 @@ async function runInlineScriptProxy(profileId, { code, timeoutMs = 60000 } = {})
   } catch(e) { return err(e?.message || e); }
 }
 
+async function pressKeyAction(profileId, { key, selector, timeout = 10000 } = {}) {
+  if (!key) return err('"key" is required');
+  const { success, error, page, cleanup } = await withPage(profileId, {});
+  if (!success) return err(error);
+  try {
+    if (selector) await page.focus(selector, { timeout });
+    await page.keyboard.press(key);
+    appendLog(profileId, `Action: pressKey ${key}${selector ? ' on ' + selector : ''}`);
+    await cleanup();
+    return ok();
+  } catch (e) { await cleanup(); return err(e?.message || e); }
+}
+
+async function scrollPageAction(profileId, { x = 0, y = 0, selector, timeout = 10000 } = {}) {
+  const { success, error, page, cleanup } = await withPage(profileId, {});
+  if (!success) return err(error);
+  try {
+    if (selector) {
+      const loc = page.locator(selector).first();
+      await loc.waitFor({ state: 'attached', timeout });
+      await loc.scrollIntoViewIfNeeded({ timeout });
+      appendLog(profileId, `Action: scroll ${selector} into view`);
+    } else {
+      await page.evaluate(({ dx, dy }) => window.scrollBy({ left: dx, top: dy, behavior: 'smooth' }), { dx: Number(x), dy: Number(y) });
+      appendLog(profileId, `Action: scrollPage by (${x}, ${y})`);
+    }
+    await cleanup();
+    return ok();
+  } catch (e) { await cleanup(); return err(e?.message || e); }
+}
+
 const ACTION_MAP = {
 
   'page.info': getPageInfoProxy,
@@ -411,6 +442,8 @@ const ACTION_MAP = {
   'keyboard.type': keyboardTypeProxy,
   'keyboard.insertText': keyboardInsertTextProxy,
   'script.runInline': runInlineScriptProxy,
+  'keyboard.pressKey': pressKeyAction,
+  'page.scroll': scrollPageAction,
 
   'mouse.move': mouseMove,
   'mouse.click': mouseClick,

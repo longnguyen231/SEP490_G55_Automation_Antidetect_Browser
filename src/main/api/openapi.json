@@ -412,6 +412,474 @@
         }
       }
     },
+    "/api/browsers/{profileId}/actions/page-info": {
+      "get": {
+        "summary": "Get current URL and page title",
+        "tags": [
+          "browser-actions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "profileId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/browsers/{profileId}/actions/screenshot": {
+      "post": {
+        "summary": "Take a screenshot (returns base64 PNG)",
+        "tags": [
+          "browser-actions"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fullPage": {
+                    "type": "boolean",
+                    "description": "Capture full scrollable page"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "profileId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/browsers/{profileId}/actions/click": {
+      "post": {
+        "summary": "Click an element",
+        "tags": [
+          "browser-actions"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "selector"
+                ],
+                "properties": {
+                  "selector": {
+                    "type": "string",
+                    "description": "CSS selector or XPath"
+                  },
+                  "button": {
+                    "type": "string",
+                    "enum": [
+                      "left",
+                      "right",
+                      "middle"
+                    ],
+                    "description": "Mouse button"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "profileId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/browsers/{profileId}/actions/double-click": {
+      "post": {
+        "summary": "Double-click an element",
+        "tags": [
+          "browser-actions"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "selector"
+                ],
+                "properties": {
+                  "selector": {
+                    "type": "string",
+                    "description": "CSS selector or XPath"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "profileId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/browsers/{profileId}/actions/hover": {
+      "post": {
+        "summary": "Hover over an element",
+        "tags": [
+          "browser-actions"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "selector"
+                ],
+                "properties": {
+                  "selector": {
+                    "type": "string",
+                    "description": "CSS selector or XPath"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "profileId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/browsers/{profileId}/actions/focus": {
+      "post": {
+        "summary": "Focus an element",
+        "tags": [
+          "browser-actions"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "selector"
+                ],
+                "properties": {
+                  "selector": {
+                    "type": "string",
+                    "description": "CSS selector or XPath"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "profileId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/browsers/{profileId}/actions/fill": {
+      "post": {
+        "summary": "Clear and fill a form field",
+        "tags": [
+          "browser-actions"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "selector",
+                  "value"
+                ],
+                "properties": {
+                  "selector": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "profileId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/browsers/{profileId}/actions/press-key": {
+      "post": {
+        "summary": "Press a keyboard key (e.g. Enter, Tab, Escape)",
+        "tags": [
+          "browser-actions"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "key"
+                ],
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "Key name e.g. \"Enter\", \"Tab\", \"ArrowDown\""
+                  },
+                  "selector": {
+                    "type": "string",
+                    "description": "Optional: focus element before pressing key"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "profileId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/browsers/{profileId}/actions/scroll": {
+      "post": {
+        "summary": "Scroll the page or scroll element into view",
+        "tags": [
+          "browser-actions"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "integer",
+                    "description": "Horizontal scroll delta (ignored if selector provided)"
+                  },
+                  "y": {
+                    "type": "integer",
+                    "description": "Vertical scroll delta (ignored if selector provided)"
+                  },
+                  "selector": {
+                    "type": "string",
+                    "description": "If set, scrolls this element into view"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "profileId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/browsers/{profileId}/actions/set-viewport-size": {
+      "post": {
+        "summary": "Resize the browser viewport",
+        "tags": [
+          "browser-actions"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "width",
+                  "height"
+                ],
+                "properties": {
+                  "width": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Viewport width in pixels"
+                  },
+                  "height": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Viewport height in pixels"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "profileId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/browsers/{profileId}/actions/get-text": {
+      "post": {
+        "summary": "Get innerText of an element",
+        "tags": [
+          "browser-actions"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "selector"
+                ],
+                "properties": {
+                  "selector": {
+                    "type": "string",
+                    "description": "CSS selector or XPath"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "profileId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/tasks/": {
       "get": {
         "summary": "List tasks, optionally filtered by profileId",
