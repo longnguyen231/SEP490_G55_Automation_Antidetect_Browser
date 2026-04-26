@@ -3,8 +3,6 @@ const { appendLog } = require('../logging/logger');
 const { storageStatePath, getDataRoot } = require('../storage/paths');
 const { loadSettings, resolveChromeExecutable, resolveVendorChromePath } = require('../storage/settings');
 const { runningProfiles, setProfileStatus, generateInstanceId, buildStatusMap } = require('../state/runtime');
-const { applyCdpOverrides } = require('../engine/cdpOverrides');
-const { findFreePort, fetchJsonVersion, killProcessTreeWin, userDataDirFor, launchChromeCdp } = require('../engine/cdp');
 const { readProfiles, writeProfiles, updateProfileSettings } = require('../storage/profiles');
 
 // Lock set to prevent concurrent launches of the same profile
@@ -51,7 +49,12 @@ function broadcastRunningMap() {
     [...runningProfiles.entries()].map(([id, info]) => [id, info.wsEndpoint || 'pipe'])
   );
   const statuses = buildStatusMap();
-  const payload = { map, statuses };
+  // Include headless flag so renderer can derive Live Screen button visibility
+  const headlessFlags = {};
+  for (const [id, info] of runningProfiles.entries()) {
+    headlessFlags[id] = !!(info.headless);
+  }
+  const payload = { map, statuses, headlessFlags };
   for (const w of BrowserWindow.getAllWindows()) {
     try { w.webContents.send('running-map-changed', payload); } catch { }
   }
@@ -93,146 +96,6 @@ async function launchProfileInternal(profileId, options = {}) {
         headless: !!headless,
       });
     } catch { }
-
-    if (engine === 'cdp') {
-      const chromePath = resolveChromeExecutable();
-      if (!chromePath) {
-        const msg = 'Chrome/Edge executable not found. Set CHROME_PATH or configure settings.json.';
-        appendLog(profileId, msg);
-        return { success: false, error: msg };
-      }
-      // Debug paths to help vendor portable troubleshooting
-      try {
-        const vendorRoot = require('path').join(__dirname, '../../vendor');
-        const exists = fs.existsSync(vendorRoot);
-        appendLog(profileId, `Vendor root: ${vendorRoot} (exists: ${exists})`);
-        appendLog(profileId, `resourcesPath: ${process.resourcesPath || ''}`);
-        appendLog(profileId, `Resolved Chrome path: ${chromePath}`);
-      } catch { }
-      const host = options.cdpHost || '127.0.0.1';
-      const port = options.cdpPort ? Number(options.cdpPort) : await findFreePort(9222, host);
-      const userDataDir = userDataDirFor(profileId);
-      const extraArgs = ['--lang=en-US'];
-      // Parity flags with Playwright
-      if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
-        extraArgs.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
-      }
-      const fp = profile.fingerprint || {};
-      if (settings.webgl === false || fp.webgl === false) { extraArgs.push('--disable-3d-apis'); }
-      if (headless) { extraArgs.push('--headless=new'); }
-      // Proxy handling: start local forwarder when auth is present or using SOCKS
-      let proxyForChrome = settings.proxy;
-      let forwarder = null;
-      try {
-        const serverStr = (settings.proxy && settings.proxy.server) ? String(settings.proxy.server) : '';
-        const hasAuth = !!(settings.proxy && (settings.proxy.username || settings.proxy.password));
-        const proxyType = (settings.proxy?.type || '').toLowerCase();
-        const isSocks = proxyType.startsWith('socks') || /^socks\d?:\/\//i.test(serverStr);
-        if (settings.proxy && (hasAuth || isSocks)) {
-          const { startProxyForwarder } = require('../engine/proxyForwarder');
-          forwarder = await startProxyForwarder(settings.proxy, { appendLog, profileId });
-          proxyForChrome = { server: forwarder.url };
-        }
-      } catch (e) {
-        appendLog(profileId, `Proxy forwarder failed, falling back to direct proxy: ${e?.message || e}`);
-      }
-
-  const { child, wsPromise } = await launchChromeCdp({ profileId, chromePath, host, port, userDataDir, startUrl, proxy: proxyForChrome, appendLog, extraArgs });
-      // Add periodic vendor path log for troubleshooting
-      try {
-        const vendorRoot = require('path').join(__dirname, '../../vendor');
-        appendLog(profileId, `CDP launch vendorRoot check: ${vendorRoot} exists=${fs.existsSync(vendorRoot)}`);
-        appendLog(profileId, `Using chromePath: ${chromePath}`);
-      } catch {}
-      const onChildExit = async (code, signal) => {
-        if (runningProfiles.has(profileId)) {
-          try { const info = runningProfiles.get(profileId); info?.heartbeat && clearInterval(info.heartbeat); } catch {}
-          try { const info = runningProfiles.get(profileId); await info?.forwarder?.stop?.(); } catch {}
-          runningProfiles.delete(profileId);
-          setProfileStatus(profileId, 'STOPPED');
-          appendLog(profileId, `Chrome exited (${code || ''} ${signal || ''}); clearing running state`);
-          broadcastRunningMap();
-        }
-      };
-      child.once('exit', onChildExit);
-      try { child.once('close', onChildExit); } catch { }
-      try { child.once('error', (e) => { appendLog(profileId, `Chrome process error: ${e?.message || e}`); onChildExit('ERR', 'error'); }); } catch { }
-      let wsEndpoint = null;
-      try {
-        const json = await fetchJsonVersion(host, port, 12000);
-        wsEndpoint = json.webSocketDebuggerUrl || null;
-      } catch (e) {
-        appendLog(profileId, `DevTools version fetch failed, trying stderr-parsed WS: ${e?.message || e}`);
-      }
-      if (!wsEndpoint) {
-        try {
-          wsEndpoint = await Promise.race([
-            wsPromise,
-            (async () => { await new Promise(r => setTimeout(r, 8000)); throw new Error('timeout waiting for DevTools WS on stderr'); })(),
-          ]);
-        } catch (e) {
-          await killProcessTreeWin(child.pid);
-          const msg = 'DevTools WS endpoint not found';
-          appendLog(profileId, `${msg}: ${e?.message || e}`);
-          return { success: false, error: msg };
-        }
-      }
-      if (!wsEndpoint) {
-        await killProcessTreeWin(child.pid);
-        const msg = 'DevTools WS endpoint not found';
-        appendLog(profileId, msg);
-        return { success: false, error: msg };
-      }
-      appendLog(profileId, `Chrome DevTools WS: ${wsEndpoint}`);
-      // Setup heartbeat to detect abrupt disconnects if events miss
-      let heartbeat = null;
-      try {
-        const { isWsAlive, pruneDeadCdp } = require('../engine/health');
-        heartbeat = setInterval(async () => {
-          try {
-            const ok = await isWsAlive(wsEndpoint);
-            if (!ok) {
-              clearInterval(heartbeat);
-              heartbeat = null;
-              if (runningProfiles.has(profileId)) {
-                try { await runningProfiles.get(profileId)?.forwarder?.stop?.(); } catch { }
-                runningProfiles.delete(profileId);
-                setProfileStatus(profileId, 'STOPPED');
-                appendLog(profileId, 'Heartbeat: CDP endpoint down; clearing running state');
-                broadcastRunningMap();
-              }
-            }
-            // Periodically prune other dead CDP sessions as well
-            else {
-              await pruneDeadCdp(runningProfiles, appendLog, broadcastRunningMap);
-              // Periodically save open tabs for session restore
-              try {
-                const info = runningProfiles.get(profileId);
-                if (info && info.cdpControl && info.cdpControl.context) {
-                  const pages = info.cdpControl.context.pages();
-                  if (pages && pages.length > 0) {
-                    const { saveSessionTabs } = require('../storage/sessionTabs');
-                    saveSessionTabs(profileId, pages.map(p => p.url()));
-                  }
-                }
-              } catch {}
-            }
-          } catch { }
-        }, 8000);
-      } catch { }
-  runningProfiles.set(profileId, { engine: 'cdp', childProc: child, wsEndpoint, host, port, forwarder, heartbeat, startedAt: Date.now() });
-      setProfileStatus(profileId, 'RUNNING', instanceId);
-      broadcastRunningMap();
-      // Load saved tabs
-      const { loadSessionTabs } = require('../storage/sessionTabs');
-      const savedTabs = loadSessionTabs(profileId);
-
-      // Always apply CDP overrides; InitScript can be toggled inside cdpOverrides based on settings.cdpApplyInitScript
-      try { await applyCdpOverrides(profileId, wsEndpoint, profile, settings, startUrl, { appendLog, runningProfiles, broadcastRunningMap, savedTabs }); } catch (e) { appendLog(profileId, `CDP overrides failed: ${e?.message || e}`); }
-      // Post-launch automation script (if configured)
-      try { await runAutomationPostLaunch(profile, { engine: 'cdp', wsEndpoint }); } catch (e) { appendLog(profileId, `Automation post-launch error (CDP): ${e?.message || e}`); }
-      return { success: true, wsEndpoint };
-    }
 
     // Playwright flow — rebrowser-playwright (pipe mode).
     // rebrowser-playwright patches CDP leak at network level (Runtime.enable, bindings).
@@ -602,9 +465,19 @@ async function launchProfileInternal(profileId, options = {}) {
     };
     try { for (const p of context.pages()) { p.on('close', onPageClose); } } catch { }
     context.on('page', (newPage) => { try { newPage.on('close', onPageClose); } catch { } });
-    runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder, startedAt: Date.now() });
+    runningProfiles.set(profileId, { engine: 'playwright', server, browser, context, wsEndpoint, forwarder, headless: !!headless, startedAt: Date.now() });
     setProfileStatus(profileId, 'RUNNING', instanceId);
     broadcastRunningMap();
+    // Auto-start screencast for headless Playwright profiles
+    if (headless) {
+      try {
+        const { startScreencast } = require('../engine/screencast');
+        startScreencast(profileId);
+        appendLog(profileId, '[lifecycle] Auto-started screencast for headless profile');
+      } catch (e) {
+        appendLog(profileId, `[lifecycle] Auto-start screencast failed: ${e?.message || e}`);
+      }
+    }
     // Post-launch automation script (if configured)
     try { await runAutomationPostLaunch(profile, { engine: 'playwright', wsEndpoint, context, browser }); } catch (e) { appendLog(profileId, `Automation post-launch error: ${e?.message || e}`); }
     return { success: true, wsEndpoint };
@@ -719,21 +592,11 @@ async function stopProfileInternal(profileId) {
     setProfileStatus(profileId, 'STOPPING');
     broadcastRunningMap();
 
-    if (running.engine === 'cdp') {
-      // CDP: kill child process
-      try { running.heartbeat && clearInterval(running.heartbeat); } catch { }
-      try { await running.forwarder?.stop?.(); } catch { }
-      try { await running.cdpControl?.browser?.close?.(); } catch { }
-      const { killProcessTreeWin } = require('../engine/cdp');
-      const pid = running.childProc?.pid;
-      if (pid) await killProcessTreeWin(pid);
-      else { try { running.childProc?.kill?.('SIGKILL'); } catch { } }
-      runningProfiles.delete(profileId);
-      setProfileStatus(profileId, 'STOPPED');
-      appendLog(profileId, 'Stopped CDP profile');
-      broadcastRunningMap();
-      return { success: true };
-    }
+    // Stop screencast loop before cleanup (prevents zombie loops)
+    try {
+      const { stopScreencast } = require('../engine/screencast');
+      stopScreencast(profileId);
+    } catch { }
 
     // Playwright: close context/browser/server
     const { server, context, browser } = running;
@@ -766,22 +629,12 @@ async function stopAllProfilesInternal() {
     try {
       const running = runningProfiles.get(id);
       if (!running) continue;
-      if (running.engine === 'cdp') {
-        try { running.heartbeat && clearInterval(running.heartbeat); } catch { }
-        try { await running.forwarder?.stop?.(); } catch { }
-        try { await running.cdpControl?.browser?.close?.(); } catch { }
-        const { killProcessTreeWin } = require('../engine/cdp');
-        const pid = running.childProc?.pid;
-        if (pid) await killProcessTreeWin(pid);
-        runningProfiles.delete(id); setProfileStatus(id, 'STOPPED'); appendLog(id, 'Stopped CDP by stop-all');
-      } else {
-        const { server, context, browser } = running;
-        try { const state = await context.storageState(); fs.writeFileSync(storageStatePath(id), JSON.stringify(state, null, 2)); appendLog(id, 'Saved storage state before stop-all'); } catch (e) { appendLog(id, `Failed save state on stop-all: ${e.message}`); }
-        try { await context.close(); } catch { }
-        try { await browser?.close?.(); } catch { }
-        try { await server?.close?.(); } catch { }
-        runningProfiles.delete(id); setProfileStatus(id, 'STOPPED'); appendLog(id, 'Stopped by stop-all');
-      }
+      const { server, context, browser } = running;
+      try { const state = await context.storageState(); fs.writeFileSync(storageStatePath(id), JSON.stringify(state, null, 2)); appendLog(id, 'Saved storage state before stop-all'); } catch (e) { appendLog(id, `Failed save state on stop-all: ${e.message}`); }
+      try { await context.close(); } catch { }
+      try { await browser?.close?.(); } catch { }
+      try { await server?.close?.(); } catch { }
+      runningProfiles.delete(id); setProfileStatus(id, 'STOPPED'); appendLog(id, 'Stopped by stop-all');
       stopped++;
     } catch (e) { appendLog(id, `Stop-all error: ${e.message}`); }
   }
@@ -914,17 +767,17 @@ async function setGeolocationInternal(profileId, { latitude, longitude, accuracy
 
 async function getProfileLogInternal(profileId) { try { const p = require('path').join(getDataRoot(), 'logs', `${profileId}.log`); if (!fs.existsSync(p)) return { success: true, log: '' }; return { success: true, log: fs.readFileSync(p, 'utf8') }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function getCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const cookies = await running.context.cookies(); return { success: true, cookies }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, cookies: state.cookies || [] }; } return { success: true, cookies: [] }; } catch (error) { return { success: false, error: error.message }; } }
+async function getCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.context) { const cookies = await running.context.cookies(); return { success: true, cookies }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, cookies: state.cookies || [] }; } return { success: true, cookies: [] }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function importCookiesInternal(profileId, cookies) { try { if (!Array.isArray(cookies)) throw new Error('Invalid cookies payload'); const validated = cookies.map(c => { if (!c.name || !c.value || !c.domain) throw new Error('Each cookie must have name, value, and domain'); return { name: String(c.name), value: String(c.value), domain: String(c.domain), path: String(c.path || '/'), expires: c.expires ? Number(c.expires) : -1, httpOnly: !!c.httpOnly, secure: !!c.secure, sameSite: ['Strict', 'Lax', 'None'].includes(c.sameSite) ? c.sameSite : 'Lax' }; }); if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies(validated); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true, count: validated.length }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; for (const nc of validated) { const idx = existing.findIndex(e => e.name === nc.name && e.domain === nc.domain && e.path === nc.path); if (idx >= 0) existing[idx] = nc; else existing.push(nc); } state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true, count: validated.length }; } catch (error) { return { success: false, error: error.message }; } }
+async function importCookiesInternal(profileId, cookies) { try { if (!Array.isArray(cookies)) throw new Error('Invalid cookies payload'); const validated = cookies.map(c => { if (!c.name || !c.value || !c.domain) throw new Error('Each cookie must have name, value, and domain'); return { name: String(c.name), value: String(c.value), domain: String(c.domain), path: String(c.path || '/'), expires: c.expires ? Number(c.expires) : -1, httpOnly: !!c.httpOnly, secure: !!c.secure, sameSite: ['Strict', 'Lax', 'None'].includes(c.sameSite) ? c.sameSite : 'Lax' }; }); if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.context) { await running.context.addCookies(validated); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true, count: validated.length }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; for (const nc of validated) { const idx = existing.findIndex(e => e.name === nc.name && e.domain === nc.domain && e.path === nc.path); if (idx >= 0) existing[idx] = nc; else existing.push(nc); } state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true, count: validated.length }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function deleteCookieInternal(profileId, { name, domain, path: cookiePath }) { try { if (!name || !domain) throw new Error('name and domain are required'); const targetPath = cookiePath || '/'; if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies([{ name, domain, path: targetPath, value: '', expires: 0 }]); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); if (!fs.existsSync(statePath)) return { success: true }; const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); state.cookies = (state.cookies || []).filter(c => !(c.name === name && c.domain === domain && (c.path || '/') === targetPath)); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
+async function deleteCookieInternal(profileId, { name, domain, path: cookiePath }) { try { if (!name || !domain) throw new Error('name and domain are required'); const targetPath = cookiePath || '/'; if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.context) { await running.context.addCookies([{ name, domain, path: targetPath, value: '', expires: 0 }]); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); if (!fs.existsSync(statePath)) return { success: true }; const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); state.cookies = (state.cookies || []).filter(c => !(c.name === name && c.domain === domain && (c.path || '/') === targetPath)); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function clearCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.clearCookies(); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); state.cookies = []; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); } return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
+async function clearCookiesInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.context) { await running.context.clearCookies(); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); state.cookies = []; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); } return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function editCookieInternal(profileId, cookie) { try { if (!cookie || !cookie.name || !cookie.domain) throw new Error('cookie with name and domain is required'); const validated = { name: String(cookie.name), value: String(cookie.value || ''), domain: String(cookie.domain), path: String(cookie.path || '/'), expires: cookie.expires ? Number(cookie.expires) : -1, httpOnly: !!cookie.httpOnly, secure: !!cookie.secure, sameSite: ['Strict', 'Lax', 'None'].includes(cookie.sameSite) ? cookie.sameSite : 'Lax' }; if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { await running.context.addCookies([validated]); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; const idx = existing.findIndex(e => e.name === validated.name && e.domain === validated.domain && (e.path || '/') === validated.path); if (idx >= 0) existing[idx] = validated; else existing.push(validated); state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
+async function editCookieInternal(profileId, cookie) { try { if (!cookie || !cookie.name || !cookie.domain) throw new Error('cookie with name and domain is required'); const validated = { name: String(cookie.name), value: String(cookie.value || ''), domain: String(cookie.domain), path: String(cookie.path || '/'), expires: cookie.expires ? Number(cookie.expires) : -1, httpOnly: !!cookie.httpOnly, secure: !!cookie.secure, sameSite: ['Strict', 'Lax', 'None'].includes(cookie.sameSite) ? cookie.sameSite : 'Lax' }; if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.context) { await running.context.addCookies([validated]); const statePath = storageStatePath(profileId); const state = await running.context.storageState(); fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } } const statePath = storageStatePath(profileId); let state = { cookies: [], origins: [] }; if (fs.existsSync(statePath)) { try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch { } } const existing = state.cookies || []; const idx = existing.findIndex(e => e.name === validated.name && e.domain === validated.domain && (e.path || '/') === validated.path); if (idx >= 0) existing[idx] = validated; else existing.push(validated); state.cookies = existing; fs.writeFileSync(statePath, JSON.stringify(state, null, 2)); return { success: true }; } catch (error) { return { success: false, error: error.message }; } }
 
-async function getStorageStateInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.engine === 'playwright' && running.context) { const state = await running.context.storageState(); return { success: true, state }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, state }; } return { success: true, state: { cookies: [], origins: [] } }; } catch (error) { return { success: false, error: error.message }; } }
+async function getStorageStateInternal(profileId) { try { if (runningProfiles.has(profileId)) { const running = runningProfiles.get(profileId); if (running.context) { const state = await running.context.storageState(); return { success: true, state }; } } const statePath = storageStatePath(profileId); if (fs.existsSync(statePath)) { const state = JSON.parse(fs.readFileSync(statePath, 'utf8')); return { success: true, state }; } return { success: true, state: { cookies: [], origins: [] } }; } catch (error) { return { success: false, error: error.message }; } }
 
 async function getProfileWsInternal(profileId) {
   try {
@@ -934,26 +787,14 @@ async function getProfileWsInternal(profileId) {
     const age = running.startedAt ? (Date.now() - running.startedAt) : Infinity;
     if (age < 20000) return { success: true, wsEndpoint: running.wsEndpoint || 'pipe', running: true };
 
-    if (running.engine === 'playwright') {
-      if (running.context?.isClosed?.() || running.browser?.isConnected?.() === false) {
-        runningProfiles.delete(profileId);
-        setProfileStatus(profileId, 'STOPPED');
-        appendLog(profileId, 'getProfileWs: Playwright browser disconnected');
-        broadcastRunningMap();
-        return { success: true, wsEndpoint: null, running: false };
-      }
-      return { success: true, wsEndpoint: running.wsEndpoint || 'pipe', running: true };
-    }
-
-    const alive = await require('../engine/health').isWsAlive(running.wsEndpoint);
-    if (!alive) {
+    if (running.context?.isClosed?.() || running.browser?.isConnected?.() === false) {
       runningProfiles.delete(profileId);
       setProfileStatus(profileId, 'STOPPED');
-      appendLog(profileId, 'getProfileWs: CDP heartbeat failed, removed');
+      appendLog(profileId, 'getProfileWs: Playwright browser disconnected');
       broadcastRunningMap();
       return { success: true, wsEndpoint: null, running: false };
     }
-    return { success: true, wsEndpoint: running.wsEndpoint, running: true };
+    return { success: true, wsEndpoint: running.wsEndpoint || 'pipe', running: true };
   } catch (error) { return { success: false, error: error.message }; }
 }
 
@@ -967,11 +808,7 @@ async function getRunningMapInternal() {
       if (age < GRACE_MS) { result[id] = info.wsEndpoint || 'pipe'; continue; }
 
       let alive = true;
-      if (info.engine === 'playwright') {
-        if (info.context?.isClosed?.() || info.browser?.isConnected?.() === false) alive = false;
-      } else {
-        if (!(await require('../engine/health').isWsAlive(info.wsEndpoint))) alive = false;
-      }
+      if (info.context?.isClosed?.() || info.browser?.isConnected?.() === false) alive = false;
       if (!alive) {
         runningProfiles.delete(id);
         setProfileStatus(id, 'STOPPED');
@@ -1005,16 +842,11 @@ async function runAutomationNowInternal(profileId) {
     }
     // Connect to current session and execute steps
     const running = runningProfiles.get(profileId);
-    const engine = running.engine;
     const wsEndpoint = running.wsEndpoint;
     const steps = Array.isArray(profile.automation.steps) ? profile.automation.steps : [];
     appendLog(profileId, `Automation: manual run (${steps.length} steps)`);
     if (!steps.length) return { success: true, steps: 0 };
-    const launchCtx = { engine, wsEndpoint };
-    if (engine === 'playwright') {
-      launchCtx.browser = running.browser;
-      launchCtx.context = running.context;
-    }
+    const launchCtx = { engine: 'playwright', wsEndpoint, browser: running.browser, context: running.context };
     await runAutomationPostLaunch(profile, launchCtx);
     return { success: true, steps: steps.length };
   } catch (e) { return { success: false, error: e?.message || String(e) }; }
