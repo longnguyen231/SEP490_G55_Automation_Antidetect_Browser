@@ -339,7 +339,6 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
           battery: { enabled: false },
           // injectFingerprint true = normalizeProfileInput uses DEFAULT_SETTINGS.applyOverrides
           injectFingerprint: true,
-          cdpApplyInitScript: true,
         },
       };
 
@@ -621,11 +620,8 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
 
       // Get active page
       let page;
-      if (running.engine === "playwright" && running.context) {
+      if (running.context) {
         const pages = running.context.pages();
-        page = pages[pages.length - 1] || pages[0];
-      } else if (running.cdpControl?.context) {
-        const pages = running.cdpControl.context.pages();
         page = pages[pages.length - 1] || pages[0];
       }
       if (!page)
@@ -1797,11 +1793,10 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
         return res
           .status(404)
           .json({ success: false, error: "Profile not running" });
-      if (running.engine !== "playwright" || !running.context) {
+      if (!running.context) {
         return res.status(400).json({
           success: false,
-          error:
-            "Behavior simulation requires Playwright engine with active context",
+          error: "Behavior simulation requires an active Playwright context",
         });
       }
       const pages = running.context.pages();
@@ -1883,11 +1878,8 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const { detectBlockedPage } = require("../engine/blockedPageDetector");
       let page;
 
-      if (running.engine === "playwright" && running.context) {
+      if (running.context) {
         const pages = running.context.pages();
-        page = pages[0];
-      } else if (running.engine === "cdp" && running.cdpControl?.context) {
-        const pages = running.cdpControl.context.pages();
         page = pages[0];
       }
 
@@ -2060,9 +2052,14 @@ function createRestServer({ settingsProvider, broadcaster }) {
     try {
       await inst.close();
     } catch {}
+    // Reset WS broadcast so screencast knows frames cannot be delivered
+    try {
+      const { setWsBroadcast } = require('../engine/screencast');
+      setWsBroadcast(null);
+    } catch {}
     restServerState.running = false;
     broadcast();
-    appendLog("system", "REST API server stopped");
+    appendLog('system', 'REST API server stopped');
     return true;
   }
 
@@ -2122,11 +2119,15 @@ function createRestServer({ settingsProvider, broadcaster }) {
     }
     wss = new WebSocketServer({ noServer: true });
 
-    restHttpServer.on("upgrade", (request, socket, head) => {
-      const url = new URL(request.url || "", "http://localhost");
-      if (url.pathname === "/preview") {
+    // Prevent stacked upgrade listeners on server restart
+    restHttpServer.removeAllListeners('upgrade');
+
+    restHttpServer.on('upgrade', (request, socket, head) => {
+      const url = new URL(request.url || '', 'http://localhost');
+      appendLog('system', `[ws-upgrade] url=${request.url} pathname=${url.pathname}`);
+      if (url.pathname === '/preview') {
         wss.handleUpgrade(request, socket, head, (ws) => {
-          wss.emit("connection", ws, request);
+          wss.emit('connection', ws, request);
         });
       } else {
         socket.destroy();
@@ -2143,8 +2144,8 @@ function createRestServer({ settingsProvider, broadcaster }) {
           } else if (msg.action === "unsubscribe") {
             wsClients.delete(ws);
           }
-        } catch {
-          /* ignore non-JSON messages */
+        } catch (e) {
+          appendLog('system', `[ws] message parse error: ${e?.message || e}`);
         }
       });
 
@@ -2182,11 +2183,13 @@ function createRestServer({ settingsProvider, broadcaster }) {
       if (subscribedId !== profileId) continue;
       if (client.readyState !== 1) continue; // WebSocket.OPEN = 1
       // Backpressure: skip frame if client is behind (> 128KB buffered)
-      if (client.bufferedAmount > 131072) continue;
+      // Use server-side _socket.writableLength instead of browser-only bufferedAmount
+      const buffered = client._socket?.writableLength ?? 0;
+      if (buffered > 131072) continue;
       try {
         client.send(message);
-      } catch {
-        /* client may have disconnected */
+      } catch (e) {
+        appendLog('system', `[ws] send error for profile ${profileId}: ${e?.message || e}`);
       }
     }
   }

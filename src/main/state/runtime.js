@@ -2,7 +2,8 @@
 
 const crypto = require('crypto');
 
-// { profileId -> { engine, wsEndpoint, childProc, server, browser, context, cdpControl? } }
+// { profileId -> { engine, wsEndpoint, server, browser, context, forwarder, headless, startedAt } }
+// engine is always 'playwright' (CDP engine has been removed)
 const runningProfiles = new Map();
 
 // { profileId -> { status, instanceId, startedAt } }

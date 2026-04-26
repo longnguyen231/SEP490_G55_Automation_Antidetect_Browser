@@ -1,16 +1,9 @@
 // Tập hợp các hàm Tương tác Trình duyệt cấp cao thông qua Playwright API, quản lý theo profileId.
-// 
-// QUAN TRỌNG: File này dùng để trừu tượng hóa và đồng bộ sự khác biệt giữa hai loại engine:
-// 1. Playwright Engine: Tương tác bản địa trực tiếp thông qua các đối tượng Browser và Context của Playwright.
-// 2. CDP Engine (Chrome Launcher): Kết nối với cổng debug gốc của Chrome thông qua
-//    `chromium.connectOverCDP()`, cho phép chúng ta tái sử dụng bộ API tiện lợi của Playwright 
-//    (như `page.click`) dù cho trình duyệt ban đầu hoàn toàn không được bật bằng Playwright.
 //
 // Mọi hàm hành động (action) ở đây đều nhận `profileId` cùng tham số (parameters).
 // Tất cả trả về cùng một format cấu trúc: { success: boolean, [dữ liệu phụ nếu có], error?: string }
 // và tự động ghi đè log tiến trình thực thi vào file log riêng của profile đó.
 
-const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const { runningProfiles } = require('../state/runtime');
@@ -27,41 +20,17 @@ function err(message, extra = {}) { return { success: false, error: String(messa
  * 
  * Luồng hoạt động:
  * - Kiểm tra map `runningProfiles` xem profile đã thực sự đang chạy (active) hay chưa.
- * - Nếu engine là 'playwright': Trả về trực tiếp biến `page` có sẵn trong bộ nhớ bộ đệm.
- * - Nếu engine là 'cdp': Thiết lập kết nối tạm WebSocket nóng tới kênh Chrome Debugger (`connectOverCDP`),
- *   tìm kiếm cái tab nào đang mở đầu tiên, và trả về đối tượng `page` của tab đó, kèm theo một hàm dọn dẹp `cleanup`
- *   để tự động đóng kết nối ảo WebSocket CDP lại sau khi hành động hoàn tất (để tránh rò rỉ mem).
+ * Trả về trực tiếp biến `page` có sẵn trong bộ nhớ bộ đệm của Playwright runtime.
  */
 async function withPage(profileId, { index = 0, createIfMissing = true } = {}) {
   const running = runningProfiles.get(profileId);
   if (!running) return err('Profile not running');
-  const engine = running.engine;
-  
-  // 1. Playwright Engine: Tái sử dụng lại bộ nhớ browser/context có sẵn do Electron giữ
-  if (engine === 'playwright') {
-    const browser = running.browser; const context = running.context;
-    if (!browser || !context || context.isClosed?.()) return err('Browser context not available');
-    let page = context.pages()[index] || context.pages()[0];
-    if (!page && createIfMissing) page = await context.newPage();
-    if (!page) return err('No page available');
-    return ok({ engine, browser, context, page, cleanup: async () => {} });
-  }
-  
-  // 2. CDP Engine: Kết nối rẽ nhánh thông qua playwright qua CDP để đồng bộ được giao diện Page API
-  try {
-    const ws = running.wsEndpoint;
-    const browser = await chromium.connectOverCDP(ws);
-    const context = browser.contexts?.()[0];
-    if (!context) { try { await browser.close(); } catch {} return err('No browser context found (CDP)'); }
-    let page = context.pages()[index] || context.pages()[0];
-    if (!page && createIfMissing) page = await context.newPage();
-    if (!page) { try { await browser.close(); } catch {} return err('No page available'); }
-    // Cực kỳ Quan trọng: Chống rò rỉ bộ nhớ (memory leak) bằng cách chủ động ngắt WebSocket tạm thời sau khi action làm xong việc
-    const cleanup = async () => { try { await browser.close(); } catch {} };
-    return ok({ engine: 'cdp', browser, context, page, cleanup });
-  } catch (e) {
-    return err(e?.message || e);
-  }
+  const browser = running.browser; const context = running.context;
+  if (!browser || !context || context.isClosed?.()) return err('Browser context not available');
+  let page = context.pages()[index] || context.pages()[0];
+  if (!page && createIfMissing) page = await context.newPage();
+  if (!page) return err('No page available');
+  return ok({ engine: 'playwright', browser, context, page, cleanup: async () => {} });
 }
 
 async function mouseMove(profileId, { x, y, steps = 1 } = {}) {
@@ -706,7 +675,7 @@ async function geolocationSet(profileId, { latitude, longitude, accuracy = 100 }
 
 async function viewportSet(profileId, { width, height, deviceScaleFactor } = {}) {
   if (!Number.isFinite(width) || !Number.isFinite(height)) return err('width and height are required numbers');
-  const { success, error, context, cleanup, engine } = await withPage(profileId, {});
+  const { success, error, context, cleanup } = await withPage(profileId, {});
   if (!success) return err(error);
   try {
     const w = Math.max(1, Math.floor(width));
@@ -715,9 +684,9 @@ async function viewportSet(profileId, { width, height, deviceScaleFactor } = {})
     for (const p of pages) { // eslint-disable-line no-restricted-syntax
       // eslint-disable-next-line no-await-in-loop
       await p.setViewportSize({ width: w, height: h });
-      if (Number.isFinite(deviceScaleFactor) && deviceScaleFactor > 0 && engine === 'cdp') {
+      if (Number.isFinite(deviceScaleFactor) && deviceScaleFactor > 0) {
         try {
-          // Apply CDP metrics override to reflect DPR
+          // DPR override via CDP — chromium-only; silently no-ops on firefox/camoufox
           // eslint-disable-next-line no-await-in-loop
           const session = await context.newCDPSession(p);
           // eslint-disable-next-line no-await-in-loop

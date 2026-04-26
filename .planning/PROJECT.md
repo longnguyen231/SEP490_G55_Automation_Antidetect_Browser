@@ -42,21 +42,33 @@ Users can launch headless browser profiles with unique fingerprints and **see wh
 - Bulk operations UI — optional, not critical for demo
 - Cloud deployment / remote access — desktop-only Electron app
 
-## Current Milestone: v1.0 Profile Management
+## Current Milestone: v1.0 Screenshot / Live Screen Stabilization
 
-**Goal:** Build a stable, demo-ready profile management system with reliable lifecycle sync, clean CRUD UX, and UI improvements for the FPT capstone panel.
+**Goal:** Fix the existing Live Screen (screenshot streaming) feature so headless browser profiles render reliably in the UI preview panel — currently the panel shows nothing.
+
+**Primary symptom to resolve:**
+- Live Screen panel is completely blank when a headless profile is launched (no frames rendered)
+
+**Likely root-cause areas:**
+- Screenshot loop in main process (`page.screenshot()` not firing, throwing, or silently caught)
+- WebSocket transport on Express port 4000 (handshake failure, frames not delivered, encoding mismatch)
+- Renderer `<img>` binding (Base64 decode error, src not updated, lifecycle race)
+- Profile lifecycle hook (loop not started after `RUNNING`, or stopped immediately)
+- Resource leaks / context disposal causing the page to be `null` when screenshot fires
 
 **Target features:**
-- Lifecycle state synchronization (backend as single source of truth, reliable UI updates)
-- CRUD UX cleanup (form defaults, validation, error handling, immediate state refresh)
-- Profile list UI improvements (search/filter/sort, status labels, empty states)
-- Live Screen integration (headless preview connected to profile lifecycle)
+- Reliable screenshot loop tied to profile lifecycle (start on `RUNNING`, stop on `STOPPED`/`ERROR`)
+- Stable WebSocket transport with reconnect + clean shutdown
+- Renderer preview panel that reliably displays incoming frames
+- Defensive error handling around `page.screenshot()` (page closed, navigation in progress, target lost)
+- Visible diagnostic logging for stream state (started, frame count, errors)
 
 **Priority order:**
-1. Lifecycle sync (CRITICAL)
-2. CRUD UX cleanup
-3. UI improvements
-4. Live Screen integration
+1. Diagnose root cause of blank panel (CRITICAL)
+2. Fix screenshot loop + lifecycle wiring
+3. Fix WebSocket transport + reconnect
+4. Fix renderer panel rendering
+5. Hardening (error handling, logs, leaks)
 
 ## Context
 
@@ -104,4 +116,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-15 after milestone v1.0 Profile Management started*
+*Last updated: 2026-04-25 — milestone v1.0 redirected to Screenshot / Live Screen Stabilization*

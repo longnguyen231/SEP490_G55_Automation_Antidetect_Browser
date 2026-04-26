@@ -83,49 +83,21 @@ async function getPageForProfile(profileId) {
   }
 
   // Toàn bộ các engine mang nhân Playwright (chromium, firefox, camoufox) lưu context trực tiếp trên bộ nhớ hệ thống
-  const isPlaywrightEngine = running.engine !== 'cdp' && running.context;
-  if (isPlaywrightEngine) {
-    const context = running.context;
-    if (!context) {
-      appendLog(profileId, 'Script: Playwright context not available');
-      return null;
-    }
-    if (context.isClosed?.()) {
-      appendLog(profileId, 'Script: Playwright context is closed');
-      return null;
-    }
-    let page = context.pages()[0];
-    if (!page) {
-      appendLog(profileId, 'Script: no open page found — creating new page');
-      page = await context.newPage();
-    }
-    return { page, context, browser: running.browser, cleanup: async () => {} };
-  }
-
-  // CDP: Kết nối với Chrome DevTools Protocol nhưng gọi qua Playwright để đồng nhất API Interface
-  if (!running.wsEndpoint) {
-    appendLog(profileId, 'Script: CDP wsEndpoint not available');
+  const context = running.context;
+  if (!context) {
+    appendLog(profileId, 'Script: Playwright context not available');
     return null;
   }
-  try {
-    const { chromium } = require('playwright');
-    const browser = await chromium.connectOverCDP(running.wsEndpoint);
-    const context = browser.contexts?.()[0];
-    if (!context) {
-      appendLog(profileId, 'Script: CDP connected but no browser context found');
-      try { await browser.close(); } catch {}
-      return null;
-    }
-    let page = context.pages()[0];
-    if (!page) {
-      appendLog(profileId, 'Script: no open page found (CDP) — creating new page');
-      page = await context.newPage();
-    }
-    return { page, context, browser, cleanup: async () => { try { await browser.close(); } catch {} } };
-  } catch (e) {
-    appendLog(profileId, `Script: CDP connect failed — ${e?.message || e}`);
+  if (context.isClosed?.()) {
+    appendLog(profileId, 'Script: Playwright context is closed');
     return null;
   }
+  let page = context.pages()[0];
+  if (!page) {
+    appendLog(profileId, 'Script: no open page found — creating new page');
+    page = await context.newPage();
+  }
+  return { page, context, browser: running.browser, cleanup: async () => {} };
 }
 
 async function executeScript(profileId, code, { timeoutMs = 120000 } = {}) {
