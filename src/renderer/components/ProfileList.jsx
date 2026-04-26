@@ -278,7 +278,7 @@ export default function ProfileList({
     if (engineFilter !== 'all') {
       list = list.filter(p => {
         const eng = (p.settings?.engine || 'playwright').toLowerCase();
-        if (engineFilter === 'chromium') return eng === 'playwright' || eng === 'cdp';
+        if (engineFilter === 'chromium') return eng === 'playwright';
         if (engineFilter === 'firefox') return eng === 'playwright-firefox' || eng === 'firefox';
         if (engineFilter === 'camoufox') return eng === 'camoufox';
         return true;

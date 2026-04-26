@@ -248,19 +248,16 @@ function App() {
       const p = profiles.find(x => x.id === profileId);
       const engine = p?.settings?.engine || 'playwright';
 
-      // Only check Playwright engines (cdp uses system Chrome, no install needed)
-      if (engine !== 'cdp') {
-        const isCamoufox = engine === 'camoufox';
-        const isFirefox = engine === 'playwright-firefox' || engine === 'firefox';
-        const requiredBrowser = isCamoufox ? 'camoufox' : isFirefox ? 'firefox' : 'chromium';
-        try {
-          const status = await window.electronAPI?.checkBrowserStatus?.(requiredBrowser);
-          if (status?.status !== 'installed') {
-            setEngineInstallState({ profileId, engine: requiredBrowser, headless });
-            return;
-          }
-        } catch { }
-      }
+      const isCamoufox = engine === 'camoufox';
+      const isFirefox = engine === 'playwright-firefox' || engine === 'firefox';
+      const requiredBrowser = isCamoufox ? 'camoufox' : isFirefox ? 'firefox' : 'chromium';
+      try {
+        const status = await window.electronAPI?.checkBrowserStatus?.(requiredBrowser);
+        if (status?.status !== 'installed') {
+          setEngineInstallState({ profileId, engine: requiredBrowser, headless });
+          return;
+        }
+      } catch { }
 
       await doLaunchProfile(profileId, { headless, engine });
     } catch (e) {
