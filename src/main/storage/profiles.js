@@ -140,7 +140,9 @@ function validateProfileInputBasic(p) {
     errors.push('Unsupported browser value');
   }
   const engine = p.settings?.engine;
-  if (engine && !['playwright','playwright-firefox','cdp','auto','camoufox'].includes(engine)) errors.push('settings.engine must be playwright, playwright-firefox, camoufox, cdp, or auto');
+  // 'cdp' is accepted here only so legacy profile data passing through validation does not error;
+  // normalizeProfileInput migrates it to 'playwright'.
+  if (engine && !['playwright','playwright-firefox','cdp','auto','camoufox'].includes(engine)) errors.push('settings.engine must be playwright, playwright-firefox, camoufox, or auto');
   const cpu = p.settings?.cpuCores; if (cpu != null && (!Number.isInteger(cpu) || cpu < 1 || cpu > 64)) errors.push('cpuCores must be 1-64');
   const mem = p.settings?.memoryGB; if (mem != null && (!Number.isInteger(mem) || mem < 1 || mem > 256)) errors.push('memoryGB must be 1-256');
   return errors;
@@ -165,13 +167,9 @@ function normalizeProfileInput(input = {}, existing = null) {
   const startUrl = normalizeStartUrl(input.startUrl || base.startUrl || 'https://www.google.com');
   const fingerprint = deepMerge(fallbackFp, deepMerge(base.fingerprint || {}, input.fingerprint || {}));
   const settings = deepMerge(fallbackSettings, deepMerge(base.settings || {}, input.settings || {}));
-  if (!settings.engine || settings.engine === 'auto') {
-    const { resolveChromeExecutable } = require('./settings');
-    if (resolveChromeExecutable && resolveChromeExecutable()) {
-      settings.engine = 'cdp';
-    } else {
-      settings.engine = 'playwright';
-    }
+  // CDP engine removed: migrate legacy 'cdp' / 'auto' / missing values to 'playwright'.
+  if (!settings.engine || settings.engine === 'auto' || settings.engine === 'cdp') {
+    settings.engine = 'playwright';
   }
   const automation = deepMerge(DEFAULT_AUTOMATION, deepMerge(base.automation || {}, input.automation || {}));
   const active = (input.active != null) ? !!input.active : (base.active != null ? !!base.active : true);
@@ -216,7 +214,20 @@ function readProfiles() {
     const raw = fs.readFileSync(profilesFilePath(), 'utf8');
     if (!raw.trim()) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    // CDP engine removed — migrate legacy 'cdp' / 'auto' to 'playwright' on load.
+    let migrated = 0;
+    for (const p of parsed) {
+      if (p && p.settings && (p.settings.engine === 'cdp' || p.settings.engine === 'auto')) {
+        p.settings.engine = 'playwright';
+        migrated++;
+      }
+    }
+    if (migrated > 0) {
+      appendLog('system', `Migrated ${migrated} profile(s) from legacy engine to 'playwright'`);
+      writeProfiles(parsed);
+    }
+    return parsed;
   } catch (e) {
     appendLog('system', `readProfiles fallback (corrupt?): ${e.message}`);
     return [];
