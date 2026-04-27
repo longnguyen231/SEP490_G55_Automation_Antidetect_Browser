@@ -14,7 +14,8 @@
     "dist": "npm run build && npm run upload:release",
     "upload:release": "node scripts/upload-release.js",
     "start": "electron .",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "electronmon": {
     "watch": [
@@ -104,6 +105,7 @@
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/asar": "^3.2.10",
     "@types/better-sqlite3": "^7.6.13",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.17.0",
     "@types/node-cron": "^3.0.11",
     "@types/react": "^18.3.0",
@@ -118,6 +120,7 @@
     "electron-vite": "^2.3.0",
     "electronmon": "^2.0.4",
     "javascript-obfuscator": "^5.3.0",
+    "jest": "^30.3.0",
     "png-to-ico": "^2.1.8",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.0",
