@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
+import { auth } from '../../services/firebase';
 import toast from 'react-hot-toast';
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -52,6 +53,14 @@ const LoginPage = () => {
   const [showPw, setShowPw]   = useState(false);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
+  const [maintenance, setMaintenance] = useState({ maintenanceMode: false, maintenanceBanner: '' });
+
+  useEffect(() => {
+    fetch('/api/status')
+      .then(r => r.json())
+      .then(d => setMaintenance(d))
+      .catch(() => {});
+  }, []);
 
   // Show success toast if redirected from email verification
   useEffect(() => {
@@ -82,6 +91,11 @@ const LoginPage = () => {
     setLoading(true);
     try {
       const user = await login({ email: email.trim(), password });
+      if (maintenance.maintenanceMode && user.role !== 'admin') {
+        await auth.signOut();
+        toast.error(maintenance.maintenanceBanner || 'System is currently under maintenance. Please try again later.');
+        return;
+      }
       toast.success(`Welcome back, ${user.name}!`);
       handleRedirect(user);
     } catch (err) {
@@ -96,6 +110,11 @@ const LoginPage = () => {
     setOauthLoading(true);
     try {
       const user = await loginWithGoogle();
+      if (maintenance.maintenanceMode && user.role !== 'admin') {
+        await auth.signOut();
+        toast.error(maintenance.maintenanceBanner || 'System is currently under maintenance. Please try again later.');
+        return;
+      }
       toast.success(`Signed in with Google: ${user.name}`);
       handleRedirect(user);
     } catch (err) {
@@ -119,6 +138,20 @@ const LoginPage = () => {
 
       <div className="relative w-full max-w-md">
         <div className="bg-slate-900/80 border border-slate-700/60 rounded-2xl p-8 shadow-2xl backdrop-blur-sm">
+
+          {/* Maintenance banner */}
+          {maintenance.maintenanceMode && (
+            <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 mb-6">
+              <span className="material-symbols-outlined text-amber-400 text-lg flex-shrink-0 mt-0.5">construction</span>
+              <div>
+                <p className="text-amber-400 text-sm font-semibold">System Under Maintenance</p>
+                <p className="text-amber-300/70 text-xs mt-0.5">
+                  {maintenance.maintenanceBanner || 'The system is temporarily unavailable. Please try again later.'}
+                </p>
+                <p className="text-amber-300/40 text-xs mt-1">Admin accounts can still sign in.</p>
+              </div>
+            </div>
+          )}
 
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">

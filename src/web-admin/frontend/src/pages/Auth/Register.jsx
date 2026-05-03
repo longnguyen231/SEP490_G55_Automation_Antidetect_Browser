@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
@@ -70,6 +70,14 @@ const RegisterPage = () => {
   const [showVerifyBanner, setShowVerifyBanner] = useState(false);
   const [registeredEmail, setRegisteredEmail]   = useState('');
   const [eulaOpen, setEulaOpen] = useState(false);
+  const [maintenance, setMaintenance] = useState({ maintenanceMode: false, maintenanceBanner: '' });
+
+  useEffect(() => {
+    fetch('/api/status')
+      .then(r => r.json())
+      .then(d => setMaintenance(d))
+      .catch(() => {});
+  }, []);
 
   const strength  = getStrength(password);
   const pwMatch   = confirm.length === 0 || password === confirm;
@@ -207,10 +215,23 @@ const RegisterPage = () => {
             <p className="text-sm text-slate-400 mt-1">Free · No credit card required</p>
           </div>
 
+          {/* Maintenance banner */}
+          {maintenance.maintenanceMode && (
+            <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 mb-5">
+              <span className="material-symbols-outlined text-amber-400 text-lg flex-shrink-0 mt-0.5">construction</span>
+              <div>
+                <p className="text-amber-400 text-sm font-semibold">Registration Unavailable</p>
+                <p className="text-amber-300/70 text-xs mt-0.5">
+                  {maintenance.maintenanceBanner || 'New registrations are temporarily disabled. Please try again later.'}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Google sign-up */}
           <button
             onClick={handleGoogleRegister}
-            disabled={isSubmitting}
+            disabled={isSubmitting || maintenance.maintenanceMode}
             className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl
               bg-white/5 border border-slate-700/60 text-slate-200 text-sm font-medium
               hover:bg-white/10 hover:border-slate-600 transition-all duration-200
@@ -345,7 +366,7 @@ const RegisterPage = () => {
             </label>
 
             <button
-              type="submit" disabled={isSubmitting || !pwMatch}
+              type="submit" disabled={isSubmitting || !pwMatch || maintenance.maintenanceMode}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl
                 bg-primary text-background-dark font-bold text-sm
                 hover:bg-primary/90 transition-all duration-200

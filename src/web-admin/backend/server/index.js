@@ -26,6 +26,7 @@ import {
   uploadMiddleware,
 } from '../api/admin/releases.js';
 import { getLatestRelease, downloadRelease } from '../api/releases.js';
+import statusHandler from '../api/status.js';
 
 const app = express();
 const PORT = 3001;
@@ -33,6 +34,7 @@ const PORT = 3001;
 app.use(express.json());
 
 // ── Public API routes ─────────────────────────────────────────────────────────
+app.get('/api/status', statusHandler);
 app.post('/api/create-payment', createPayment);
 app.get('/api/get-order', getOrder);
 app.post('/api/payos-webhook', payosWebhook);
