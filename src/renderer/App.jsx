@@ -44,6 +44,7 @@ function App() {
   const [appLogs, setAppLogs] = useState([]);
   // Live preview: profile being previewed (or null)
   const [previewProfile, setPreviewProfile] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // { profileId, profileName }
 
   // Subscribe to app-log events at app level so logs are captured regardless of active tab
   useEffect(() => {
@@ -234,7 +235,16 @@ function App() {
     setSelectedProfile({ name }); setFormInitialTab('general'); setShowForm(true);
   };
   const handleEditProfile = (profile, tab = 'general') => { setSelectedProfile(profile); setFormInitialTab(tab); setShowForm(true); };
-  const handleDeleteProfile = async (profileId) => { if (!window.confirm('Delete this profile?')) return; try { await api.deleteProfile(profileId); await loadProfiles(); } catch (e) { console.error('Delete error', e); } };
+  const handleDeleteProfile = (profileId) => {
+    const profile = (profiles || []).find(p => p.id === profileId);
+    setDeleteConfirm({ profileId, profileName: profile?.name || profileId });
+  };
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    const { profileId } = deleteConfirm;
+    setDeleteConfirm(null);
+    try { await api.deleteProfile(profileId); await loadProfiles(); } catch (e) { console.error('Delete error', e); }
+  };
 
   const handleLaunchProfile = async (profileId) => {
     // Block if already starting or running
@@ -641,6 +651,40 @@ function App() {
         />
       )}
       <Toasts toasts={toasts} onDismiss={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />
+
+      {/* Delete Profile Confirmation Modal */}
+      {deleteConfirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }}
+          onClick={() => setDeleteConfirm(null)}>
+          <div style={{ background: '#fff', borderRadius: '12px', padding: '28px 28px 24px', width: '420px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '20px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <div>
+                <div style={{ fontSize: '16px', fontWeight: '700', color: '#111827', marginBottom: '4px' }}>Delete Profile</div>
+                <div style={{ fontSize: '14px', color: '#6b7280', lineHeight: 1.5 }}>
+                  <span style={{ fontWeight: '600', color: '#374151' }}>{deleteConfirm.profileName}</span> and all its data will be permanently removed.
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button onClick={() => setDeleteConfirm(null)}
+                style={{ padding: '8px 20px', borderRadius: '8px', border: '1px solid #d1d5db', background: '#fff', color: '#374151', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={confirmDelete}
+                style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#ef4444', color: '#fff', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* API Password Modal */}
       {showApiPwdModal && (

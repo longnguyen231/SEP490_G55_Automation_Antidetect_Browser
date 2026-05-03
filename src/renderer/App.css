@@ -98,9 +98,9 @@
 }
 
 .sidebar-nav-item.active {
-  background: #2563eb;
-  color: #fff;
-  border-color: #2563eb;
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
   font-weight: 600;
 }
 
