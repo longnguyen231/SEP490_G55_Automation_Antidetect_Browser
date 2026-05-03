@@ -101,7 +101,7 @@ const defaultSettings = {
   description: '',
 };
 
-const generateConsistentFingerprint = () => {
+const generateConsistentFingerprint = (deviceHint) => {
   const LOCALES = [
     { code: 'en-US', timezone: 'America/New_York', languages: 'en-US,en;q=0.9' },
     { code: 'vi-VN', timezone: 'Asia/Ho_Chi_Minh', languages: 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7' },
@@ -115,22 +115,29 @@ const generateConsistentFingerprint = () => {
   ];
   const BROWSERS = ['145.0.0.0', '144.0.0.0', '143.0.0.0', '142.0.0.0', '141.0.0.0', '140.0.0.0', '131.0.6778.205'];
   const OS_LIST = ['Windows', 'macOS', 'Linux'];
-  const SCREENS = [
-    { res: '1024x768',  w: 1024, h: 768,  ratios: [1] },
+  const DESKTOP_SCREENS = [
     { res: '1280x720',  w: 1280, h: 720,  ratios: [1] },
-    { res: '1280x800',  w: 1280, h: 800,  ratios: [1] },
-    { res: '1280x1024', w: 1280, h: 1024, ratios: [1] },
     { res: '1366x768',  w: 1366, h: 768,  ratios: [1] },
     { res: '1440x900',  w: 1440, h: 900,  ratios: [1] },
     { res: '1536x864',  w: 1536, h: 864,  ratios: [1, 1.25] },
-    { res: '1600x900',  w: 1600, h: 900,  ratios: [1] },
-    { res: '1680x1050', w: 1680, h: 1050, ratios: [1] },
     { res: '1920x1080', w: 1920, h: 1080, ratios: [1, 1.25, 1.5] },
     { res: '1920x1200', w: 1920, h: 1200, ratios: [1, 1.25] },
-    { res: '2560x1440', w: 2560, h: 1440, ratios: [1, 1.25, 1.5, 2] },
+    { res: '2560x1440', w: 2560, h: 1440, ratios: [1, 1.25, 1.5] },
     { res: '2560x1600', w: 2560, h: 1600, ratios: [1.5, 2] },
     { res: '3440x1440', w: 3440, h: 1440, ratios: [1, 1.25] },
     { res: '3840x2160', w: 3840, h: 2160, ratios: [1.5, 2] },
+  ];
+  const MOBILE_SCREENS = [
+    { res: '360x780',  w: 360, h: 780,  ratios: [3] },     // Samsung S22/S23
+    { res: '360x800',  w: 360, h: 800,  ratios: [3] },     // Samsung S21
+    { res: '375x667',  w: 375, h: 667,  ratios: [2] },     // iPhone SE
+    { res: '390x844',  w: 390, h: 844,  ratios: [3] },     // iPhone 12/13/14
+    { res: '393x851',  w: 393, h: 851,  ratios: [2.75] },  // Pixel 6
+    { res: '412x915',  w: 412, h: 915,  ratios: [2.625] }, // Pixel 7
+    { res: '430x932',  w: 430, h: 932,  ratios: [3] },     // iPhone 14 Pro Max
+    { res: '768x1024', w: 768, h: 1024, ratios: [2] },     // iPad
+    { res: '834x1194', w: 834, h: 1194, ratios: [2] },     // iPad Pro 11"
+    { res: '1024x1366',w: 1024,h: 1366, ratios: [2] },     // iPad Pro 12.9"
   ];
   const GPUS = [
     { v: 'Google Inc. (Intel)', r: 'ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0)' },
@@ -149,8 +156,8 @@ const generateConsistentFingerprint = () => {
   const bv = randomFrom(BROWSERS);
   const os = randomFrom(OS_LIST);
   const browserType = randomFrom(['Chrome', 'Firefox', 'Edge']);
-  const deviceType = randomFrom(['Desktop', 'Mobile']);
-  const screen = randomFrom(SCREENS);
+  const deviceType = deviceHint || randomFrom(['Desktop', 'Mobile']);
+  const screen = randomFrom(deviceType === 'Mobile' ? MOBILE_SCREENS : DESKTOP_SCREENS);
   const pixelRatio = randomFrom(screen.ratios);
   const gpu = randomFrom(GPUS);
   const cpuCores = randomFrom([2, 4, 6, 8, 12, 16, 24, 32]);
@@ -209,9 +216,14 @@ const generateConsistentFingerprint = () => {
 };
 
 const SCREEN_PRESETS = [
-  '1024x768', '1280x720', '1280x800', '1280x1024', '1366x768', '1440x900',
-  '1536x864', '1600x900', '1680x1050', '1920x1080', '1920x1200',
-  '2560x1440', '2560x1600', '3440x1440', '3840x2160',
+  // ── Desktop ──
+  '1280x720', '1366x768', '1440x900', '1536x864',
+  '1920x1080', '1920x1200', '2560x1440', '2560x1600',
+  '3440x1440', '3840x2160',
+  // ── Mobile (portrait) ──
+  '360x780', '360x800', '375x667', '390x844',
+  '393x851', '412x915', '430x932',
+  '768x1024', '834x1194', '1024x1366',
 ];
 const CPU_OPTIONS = [2, 4, 6, 8, 12, 16, 24, 32];
 const RAM_OPTIONS = [2, 4, 8, 12, 16, 24, 32, 64];
@@ -412,7 +424,8 @@ function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
   const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
   const generateForActiveTab = () => {
-    const full = generateConsistentFingerprint();
+    const currentDevice = formData.fingerprint?.device;
+    const full = generateConsistentFingerprint(currentDevice);
 
     switch (activeTab) {
       case 'general': {
