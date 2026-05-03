@@ -553,7 +553,7 @@ function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
     }
     if (!finalSettings.engine) finalSettings.engine = 'playwright';
 
-    // Ghi trạng thái toggle của từng section vào settings để badge ở ProfileList sáng đúng
+    // Write toggle state of each section to settings so badges in ProfileList light up correctly
     ['identity', 'display', 'hardware', 'canvas', 'webgl', 'audio', 'media', 'network', 'battery'].forEach(section => {
       finalSettings[section] = {
         ...(finalSettings[section] || {}),

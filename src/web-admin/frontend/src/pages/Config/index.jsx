@@ -52,7 +52,7 @@ export default function Config() {
       });
       setConfig(updated);
       setForm(updated);
-      toast.success('Đã lưu cấu hình');
+      toast.success('Configuration saved');
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -60,11 +60,11 @@ export default function Config() {
     }
   };
 
-  if (loading) return <div className="text-slate-400 text-sm py-8 text-center">Đang tải...</div>;
+  if (loading) return <div className="text-slate-400 text-sm py-8 text-center">Loading...</div>;
 
   return (
     <>
-      <PageHeader title="Cấu hình hệ thống" description="Download links, maintenance mode, giá" />
+      <PageHeader title="System Configuration" description="Download links, maintenance mode, pricing" />
 
       <form onSubmit={handleSave} className="max-w-2xl space-y-6">
 
@@ -77,7 +77,7 @@ export default function Config() {
             </span>
           </div>
           <p className="text-xs text-slate-400">
-            Để trống để dùng mặc định (GitHub Releases). Điền URL trực tiếp nếu host file ở chỗ khác.
+            Leave blank to use defaults (GitHub Releases). Enter a direct URL to host files elsewhere.
           </p>
 
           <div className="grid gap-3">
@@ -120,11 +120,11 @@ export default function Config() {
         {/* Pro price */}
         <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-4">
           <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-            Giá Pro License
-            <span className="text-xs text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full font-normal">Thanh toán tạm tắt</span>
+            Pro License Price
+            <span className="text-xs text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full font-normal">Payment temporarily disabled</span>
           </h3>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Giá (VND)</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Price (VND)</label>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -150,17 +150,17 @@ export default function Config() {
               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.maintenanceMode ? 'translate-x-6' : 'translate-x-1'}`} />
             </div>
             <span className="text-sm text-slate-600 dark:text-slate-300">
-              {form.maintenanceMode ? <span className="text-rose-400 font-semibold">Đang bảo trì</span> : 'Off'}
+              {form.maintenanceMode ? <span className="text-rose-400 font-semibold">Under Maintenance</span> : 'Off'}
             </span>
           </label>
           {form.maintenanceMode && (
             <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Banner thông báo</label>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Notice Banner</label>
               <input
                 type="text"
                 value={form.maintenanceBanner || ''}
                 onChange={e => setForm(f => ({ ...f, maintenanceBanner: e.target.value }))}
-                placeholder="Hệ thống đang bảo trì, vui lòng quay lại sau..."
+                placeholder="System under maintenance, please check back later..."
                 maxLength={200}
                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:border-primary"
               />
@@ -174,9 +174,9 @@ export default function Config() {
             PayOS Webhook URL
             <span className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full font-normal">Disabled</span>
           </h3>
-          <p className="text-xs text-slate-400">Cấu hình trong file <code className="text-primary">.env</code> → <code>PAYOS_WEBHOOK_URL</code></p>
+          <p className="text-xs text-slate-400">Configure in <code className="text-primary">.env</code> → <code>PAYOS_WEBHOOK_URL</code></p>
           <code className="block text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-500 break-all">
-            {config?.payosWebhookUrl || '(chưa cấu hình)'}
+            {config?.payosWebhookUrl || '(not configured)'}
           </code>
         </div>
 
@@ -185,7 +185,7 @@ export default function Config() {
           disabled={saving}
           className="bg-primary hover:brightness-110 text-white font-semibold px-6 py-2.5 rounded-lg transition-all disabled:opacity-50 text-sm"
         >
-          {saving ? 'Đang lưu...' : 'Lưu cấu hình'}
+          {saving ? 'Saving...' : 'Save Configuration'}
         </button>
       </form>
     </>

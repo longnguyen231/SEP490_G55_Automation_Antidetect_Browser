@@ -2,15 +2,15 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 
 const NAV_ITEMS = [
-  { to: '/dashboard', end: true, icon: 'bar_chart', label: 'Tổng quan' },
-  // { to: '/dashboard/orders', icon: 'receipt_long', label: 'Đơn hàng' }, // v1.1.0
+  { to: '/dashboard', end: true, icon: 'bar_chart', label: 'Overview' },
+  // { to: '/dashboard/orders', icon: 'receipt_long', label: 'Orders' }, // v1.1.0
   { to: '/dashboard/licenses', icon: 'key', label: 'Licenses' },
-  { to: '/dashboard/users', icon: 'group', label: 'Người dùng' },
+  { to: '/dashboard/users', icon: 'group', label: 'Users' },
   { to: '/dashboard/releases', icon: 'cloud_upload', label: 'Builds' },
 ];
 
 const NAV_BOTTOM = [
-  { to: '/dashboard/config', icon: 'settings', label: 'Cấu hình' },
+  { to: '/dashboard/config', icon: 'settings', label: 'Config' },
 ];
 
 const linkClass = (isActive) =>
@@ -55,7 +55,7 @@ const Sidebar = () => (
     {/* Footer info */}
     <div className="p-4 m-4 rounded-xl border border-primary/10 bg-primary/5">
       <p className="text-[10px] uppercase font-bold text-primary/60 mb-1">Admin</p>
-      <p className="text-xs text-slate-400">Quản lý license & doanh thu</p>
+      <p className="text-xs text-slate-400">Manage licenses & revenue</p>
     </div>
   </aside>
 );

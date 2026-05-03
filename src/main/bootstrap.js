@@ -85,6 +85,10 @@ app.whenReady().then(async () => {
   startBackgroundHeartbeat();
   try { startAutomationScheduler(); } catch (e) { appendLog('system', `Automation scheduler failed to start: ${e?.message || e}`); }
 
+  // Sync license revocation/expiry with web server (non-blocking, graceful if offline)
+  const { syncLicenseStatus } = require('./services/machineId');
+  syncLicenseStatus().catch(() => {});
+
   // 7. Signal renderer that backend is fully ready
   mainWindow.webContents.on('did-finish-load', () => {
     try { mainWindow.webContents.send('backend-ready', true); } catch {}

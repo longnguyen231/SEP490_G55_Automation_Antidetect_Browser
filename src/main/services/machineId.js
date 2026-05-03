@@ -1,11 +1,14 @@
 const os = require('os');
 const crypto = require('crypto');
 
+// Web backend URL for license status sync (overridable at build time)
+const LICENSE_SERVER_URL = process.env.LICENSE_SERVER_URL || 'http://localhost:3001';
+
 function getMachineCode() {
   try {
     const networkInterfaces = os.networkInterfaces();
     let mac = '';
-    
+
     // Attempt to find a stable MAC address
     const interfaces = Object.keys(networkInterfaces).sort();
     for (const iface of interfaces) {
@@ -17,7 +20,7 @@ function getMachineCode() {
             break;
         }
     }
-    
+
     if (!mac) {
         for (const iface of interfaces) {
            const info = networkInterfaces[iface]?.[0];
@@ -56,14 +59,47 @@ function deriveLicenseKey(machineCode) {
   return `HL-${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}`;
 }
 
-function validateLicenseKey(inputKey) {
+// ─── Server sync ──────────────────────────────────────────────────────────────
+// Fetch license metadata from web server. Returns null when offline.
+async function fetchLicenseMeta(machineCode) {
+  try {
+    const res = await fetch(`${LICENSE_SERVER_URL}/api/verify-machine`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ machineCode }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null; // offline — graceful fallback
+  }
+}
+
+async function validateLicenseKey(inputKey) {
   try {
     const machineCode = getMachineCode();
     const expected = deriveLicenseKey(machineCode);
     const isValid = inputKey.trim().toUpperCase() === expected;
-    
-    // Save license status to file
+
     if (isValid) {
+      // Check server: reject if revoked; re-bind if machine was deactivated
+      const meta = await fetchLicenseMeta(machineCode);
+      if (meta && meta.status === 'revoked') {
+        return { valid: false };
+      }
+      if (!meta || meta.status === 'not_found') {
+        // Machine was deactivated — re-register on server (best-effort)
+        try {
+          await fetch(`${LICENSE_SERVER_URL}/api/reactivate-machine`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ licenseKey: inputKey.trim().toUpperCase(), machineCode }),
+            signal: AbortSignal.timeout(5000),
+          });
+        } catch { /* offline — ok */ }
+      }
+
       try {
         const fs = require('fs');
         const path = require('path');
@@ -72,31 +108,39 @@ function validateLicenseKey(inputKey) {
         fs.writeFileSync(licensePath, JSON.stringify({
           activated: true,
           key: inputKey.trim().toUpperCase(),
-          activatedAt: new Date().toISOString()
+          activatedAt: new Date().toISOString(),
+          // Store trial expiry if server provided it (null for paid licenses)
+          expiresAt: meta?.expiresAt || null,
         }), 'utf8');
       } catch (saveError) {
         console.error('Failed to save license file:', saveError);
       }
     }
-    
-    return {
-      valid: isValid,
-      expected, // expose so admin can generate keys
-    };
+
+    return { valid: isValid };
   } catch {
     return { valid: false };
   }
 }
 
-module.exports = { getMachineCode, deriveLicenseKey, validateLicenseKey };
-
-function deactivateLicense() {
+async function deactivateLicense() {
   try {
     const fs = require('fs');
     const path = require('path');
     const { app } = require('electron');
     const licensePath = path.join(app.getPath('userData'), 'license.json');
     if (fs.existsSync(licensePath)) {
+      // Notify server to clear machine binding (best-effort, ignore if offline)
+      try {
+        await fetch(`${LICENSE_SERVER_URL}/api/deactivate-machine`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ machineCode: getMachineCode() }),
+          signal: AbortSignal.timeout(5000),
+        });
+      } catch {
+        // offline — local file is still removed; admin will see it deactivated on next sync
+      }
       fs.unlinkSync(licensePath);
     }
     return { success: true };
@@ -106,4 +150,37 @@ function deactivateLicense() {
   }
 }
 
-module.exports = { getMachineCode, deriveLicenseKey, validateLicenseKey, deactivateLicense };
+// Called on app startup — syncs revocation status and refreshes trial expiry.
+// Non-blocking: if offline, existing license.json is kept as-is.
+async function syncLicenseStatus() {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const { app } = require('electron');
+    const licensePath = path.join(app.getPath('userData'), 'license.json');
+    if (!fs.existsSync(licensePath)) return;
+
+    const machineCode = getMachineCode();
+    const meta = await fetchLicenseMeta(machineCode);
+    if (!meta) return; // offline — keep existing state
+
+    if (meta.status === 'revoked') {
+      fs.unlinkSync(licensePath);
+      console.log('[license] License revoked by admin — cleared local license.json');
+      return;
+    }
+
+    // Refresh trial expiry date in case admin extended it
+    if (meta.expiresAt) {
+      const licenseData = JSON.parse(fs.readFileSync(licensePath, 'utf8'));
+      fs.writeFileSync(licensePath, JSON.stringify({
+        ...licenseData,
+        expiresAt: meta.expiresAt,
+      }), 'utf8');
+    }
+  } catch (err) {
+    console.error('[license] syncLicenseStatus error:', err.message);
+  }
+}
+
+module.exports = { getMachineCode, deriveLicenseKey, validateLicenseKey, deactivateLicense, syncLicenseStatus };

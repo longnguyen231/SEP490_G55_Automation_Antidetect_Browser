@@ -35,7 +35,7 @@ export default function Orders() {
     setActing(code);
     try {
       await markPaid(code);
-      toast.success(`Đơn ${code} đã được đánh dấu Paid`);
+      toast.success(`Order ${code} marked as Paid`);
       load();
     } catch (err) {
       toast.error(err.message);
@@ -52,13 +52,13 @@ export default function Orders() {
 
   return (
     <>
-      <PageHeader title="Đơn hàng" description="Tất cả giao dịch PayOS" />
+      <PageHeader title="Orders" description="All PayOS transactions" />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6">
         <input
           type="text"
-          placeholder="Tìm email hoặc mã đơn..."
+          placeholder="Search email or order code..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:border-primary w-64"
@@ -69,23 +69,23 @@ export default function Orders() {
             onClick={() => setFilter(s)}
             className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${filter === s ? 'bg-primary text-white border-primary' : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-primary hover:text-primary'}`}
           >
-            {s === 'all' ? 'Tất cả' : s.charAt(0).toUpperCase() + s.slice(1)}
+            {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
           </button>
         ))}
-        <span className="ml-auto text-xs text-slate-400 self-center">{visible.length} đơn</span>
+        <span className="ml-auto text-xs text-slate-400 self-center">{visible.length} order(s)</span>
       </div>
 
       {/* Table */}
       <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
         {loading ? (
-          <div className="py-12 text-center text-slate-400 text-sm">Đang tải...</div>
+          <div className="py-12 text-center text-slate-400 text-sm">Loading...</div>
         ) : visible.length === 0 ? (
-          <div className="py-12 text-center text-slate-400 text-sm">Không có đơn hàng nào.</div>
+          <div className="py-12 text-center text-slate-400 text-sm">No orders found.</div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
               <tr>
-                {['Mã đơn', 'Email', 'Gói', 'Số tiền', 'Trạng thái', 'Ngày tạo', 'Hành động'].map(h => (
+                {['Order ID', 'Email', 'Tier', 'Amount', 'Status', 'Created At', 'Actions'].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -102,7 +102,7 @@ export default function Orders() {
                       {o.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-xs text-slate-400">{o.createdAt ? new Date(o.createdAt).toLocaleDateString('vi-VN') : '—'}</td>
+                  <td className="px-4 py-3 text-xs text-slate-400">{o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-US') : '—'}</td>
                   <td className="px-4 py-3">
                     {o.status === 'pending' && (
                       <button

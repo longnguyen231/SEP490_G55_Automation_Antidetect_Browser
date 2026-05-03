@@ -3,18 +3,18 @@ import { Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
 
-// ─── Firebase error → Vietnamese ─────────────────────────────────────────────
+// ─── Firebase error messages ─────────────────────────────────────────────────
 function parseFirebaseError(err) {
   const code = err?.code || '';
   const map = {
-    'auth/user-not-found':         'Email không tồn tại trong hệ thống.',
-    'auth/invalid-email':          'Địa chỉ email không hợp lệ.',
-    'auth/too-many-requests':      'Quá nhiều yêu cầu. Vui lòng thử lại sau.',
-    'auth/network-request-failed': 'Lỗi kết nối mạng. Kiểm tra internet và thử lại.',
+    'auth/user-not-found':         'Email not found in the system.',
+    'auth/invalid-email':          'Invalid email address.',
+    'auth/too-many-requests':      'Too many requests. Please try again later.',
+    'auth/network-request-failed': 'Network error. Check your connection and try again.',
     'auth/configuration-not-found':
-      'Firebase chưa được cấu hình. Vui lòng điền firebaseConfig trong src/config/firebase.config.js',
+      'Firebase is not configured. Please fill in firebaseConfig in src/config/firebase.config.js',
   };
-  return map[code] || err?.message || 'Đã có lỗi xảy ra. Thử lại sau.';
+  return map[code] || err?.message || 'An error occurred. Please try again.';
 }
 
 // ─── Envelope illustration ────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ const ForgotPasswordPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email.trim()) {
-      toast.error('Vui lòng nhập địa chỉ email.');
+      toast.error('Please enter your email address.');
       return;
     }
 
@@ -62,7 +62,7 @@ const ForgotPasswordPage = () => {
     try {
       await sendPasswordReset(email.trim());
       setSent(true);
-      toast.success('Email đặt lại mật khẩu đã được gửi!');
+      toast.success('Password reset email sent!');
     } catch (err) {
       toast.error(parseFirebaseError(err));
     } finally {
@@ -75,7 +75,7 @@ const ForgotPasswordPage = () => {
     setLoading(true);
     try {
       await sendPasswordReset(email.trim());
-      toast.success('Email đã được gửi lại!');
+      toast.success('Email resent!');
     } catch (err) {
       toast.error(parseFirebaseError(err));
     } finally {
@@ -106,21 +106,21 @@ const ForgotPasswordPage = () => {
               </div>
             </div>
 
-            <h2 className="text-xl font-semibold text-white mb-2">Kiểm tra hộp thư đến</h2>
+            <h2 className="text-xl font-semibold text-white mb-2">Check your inbox</h2>
             <p className="text-sm text-slate-400 mb-1">
-              Chúng tôi đã gửi liên kết đặt lại mật khẩu đến
+              We sent a password reset link to
             </p>
             <p className="text-sm font-medium text-primary mb-6 break-all">{email}</p>
 
             <div className="rounded-xl border border-slate-700/40 p-4 text-left mb-6"
                  style={{ background: 'rgba(0,188,212,0.04)' }}>
-              <p className="text-xs text-slate-400 font-medium mb-2 uppercase tracking-wide">Hướng dẫn:</p>
+              <p className="text-xs text-slate-400 font-medium mb-2 uppercase tracking-wide">Instructions:</p>
               <ol className="space-y-1.5">
                 {[
-                  'Mở email từ HL-MCK Browser.',
-                  'Nhấp "Đặt lại mật khẩu" trong email.',
-                  'Tạo mật khẩu mới và lưu lại.',
-                  'Đăng nhập bằng mật khẩu mới.',
+                  'Open the email from HL-MCK Browser.',
+                  'Click "Reset password" in the email.',
+                  'Create a new password and save it.',
+                  'Sign in with your new password.',
                 ].map((step, i) => (
                   <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
                     <span className="flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold text-primary"
@@ -134,7 +134,7 @@ const ForgotPasswordPage = () => {
             </div>
 
             <p className="text-xs text-slate-500 mb-4">
-              Không thấy email? Kiểm tra thư mục <span className="text-slate-400">Spam/Junk</span>, hoặc
+              Can't find the email? Check your <span className="text-slate-400">Spam/Junk</span> folder, or
             </p>
 
             <button
@@ -145,13 +145,13 @@ const ForgotPasswordPage = () => {
               onMouseEnter={e => { if (!loading) e.currentTarget.style.background = 'rgba(0,188,212,0.12)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,188,212,0.06)'; }}
             >
-              {loading ? 'Đang gửi...' : 'Gửi lại email'}
+              {loading ? 'Sending...' : 'Resend email'}
             </button>
 
             <Link to="/login"
               className="flex items-center justify-center gap-2 text-sm text-slate-400 hover:text-white transition-colors">
               <ArrowLeftIcon />
-              Quay lại đăng nhập
+              Back to sign in
             </Link>
           </div>
         </div>
@@ -195,14 +195,14 @@ const ForgotPasswordPage = () => {
               <LockIcon />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-white leading-tight">Quên mật khẩu?</h1>
-              <p className="text-xs text-slate-400">Không lo — ta sẽ gửi hướng dẫn đặt lại ngay.</p>
+              <h1 className="text-lg font-semibold text-white leading-tight">Forgot password?</h1>
+              <p className="text-xs text-slate-400">No worries — we'll send you reset instructions right away.</p>
             </div>
           </div>
 
           <p className="text-sm text-slate-400 mt-4 mb-6">
-            Nhập địa chỉ email bạn dùng để đăng ký.
-            Chúng tôi sẽ gửi liên kết đặt lại mật khẩu vào hộp thư.
+            Enter the email address you used to register.
+            We'll send a password reset link to your inbox.
           </p>
 
           {/* Form */}
@@ -210,7 +210,7 @@ const ForgotPasswordPage = () => {
             {/* Email */}
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Địa chỉ email
+                Email address
               </label>
               <input
                 type="email"
@@ -244,10 +244,10 @@ const ForgotPasswordPage = () => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                   </svg>
-                  Đang gửi email...
+                  Sending email...
                 </span>
               ) : (
-                'Gửi liên kết đặt lại mật khẩu'
+                'Send password reset link'
               )}
             </button>
           </form>
@@ -257,15 +257,15 @@ const ForgotPasswordPage = () => {
             <Link to="/login"
               className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors">
               <ArrowLeftIcon />
-              Quay lại đăng nhập
+              Back to sign in
             </Link>
           </div>
         </div>
 
         <p className="text-center text-xs text-slate-600 mt-6">
-          Chưa có tài khoản?{' '}
+          Don't have an account?{' '}
           <Link to="/register" className="text-primary hover:text-primary/80 font-medium transition-colors">
-            Đăng ký miễn phí
+            Register for free
           </Link>
         </p>
       </div>

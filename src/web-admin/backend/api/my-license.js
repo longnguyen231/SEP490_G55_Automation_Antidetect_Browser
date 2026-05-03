@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { findActiveOrderByEmail, updateOrder } from './lib/storage.js';
+import { verifyFirebaseToken } from './lib/firebaseAdmin.js';
 
 const LICENSE_SECRET = 'HL-MCK-SEP490-G55-2024';
 
@@ -29,9 +30,18 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { email, machineCode } = req.body || {};
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authorization token required.' });
+  }
+  const tokenEmail = await verifyFirebaseToken(authHeader.slice(7));
+  if (!tokenEmail) {
+    return res.status(401).json({ error: 'Invalid or expired token.' });
+  }
 
-  if (!email) return res.status(400).json({ error: 'Email is required.' });
+  const { machineCode } = req.body || {};
+  const email = tokenEmail;
+
   if (!machineCode || !MACHINE_CODE_RE.test(machineCode.trim())) {
     return res.status(400).json({
       error: 'Invalid machine code. Copy it from the app: Settings → License tab.',

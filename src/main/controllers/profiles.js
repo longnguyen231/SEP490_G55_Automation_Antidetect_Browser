@@ -89,6 +89,12 @@ async function launchProfileInternal(profileId, options = {}) {
   if (launchingProfiles.has(profileId)) {
     return { success: false, error: 'Profile is already starting up' };
   }
+  // Bước 1b.5: Kiểm tra giới hạn số lượng browser đồng thời (maxConcurrentBrowsers từ Settings)
+  const { maxConcurrentBrowsers } = loadSettings();
+  const maxAllowed = Math.max(1, parseInt(maxConcurrentBrowsers, 10) || 5);
+  if (runningProfiles.size + launchingProfiles.size >= maxAllowed) {
+    return { success: false, error: `Đã đạt giới hạn ${maxAllowed} browser đồng thời. Dừng profile khác trước khi mở thêm.` };
+  }
   // Bước 1c: Đặt lock và cập nhật trạng thái sang STARTING, broadcast ngay về UI
   launchingProfiles.add(profileId);
   const instanceId = generateInstanceId();
@@ -420,6 +426,7 @@ async function launchProfileInternal(profileId, options = {}) {
     const rawSavedTabs = loadSessionTabs(profileId);
     // Only restore valid http/https URLs — filter out about:blank, en-us, and other garbage
     const savedTabs = (rawSavedTabs || []).filter(u => typeof u === 'string' && /^https?:\/\//i.test(u));
+    appendLog(profileId, `Session tabs: found ${savedTabs.length} saved tab(s)${savedTabs.length > 0 ? ': ' + savedTabs.join(', ') : ''}`);
     let page;
     if (savedTabs && savedTabs.length > 0) {
       appendLog(profileId, `Restoring ${savedTabs.length} saved tabs...`);
@@ -464,6 +471,16 @@ async function launchProfileInternal(profileId, options = {}) {
       appendLog(profileId, `Opened page: ${startUrl}`);
     }
 
+    // Track last-known URL per page so we can save session tabs when user closes browser window
+    const pageUrls = new Map();
+    const trackPageUrls = (p) => {
+      try {
+        const update = () => { try { const u = p.url(); if (u && u !== 'about:blank' && !/^chrome(-error)?:\/\//.test(u)) pageUrls.set(p, u); } catch {} };
+        update();
+        p.on('framenavigated', f => { if (f === p.mainFrame()) update(); });
+      } catch {}
+    };
+
     const saveState = async () => {
       try {
         const state = await context.storageState();
@@ -476,7 +493,8 @@ async function launchProfileInternal(profileId, options = {}) {
       }
       try {
         const pages = context.pages();
-        if (pages && pages.length > 0) saveSessionTabs(profileId, pages.map(p => p.url()));
+        const urlsToSave = pages.length > 0 ? pages.map(p => p.url()) : [...pageUrls.values()].filter(u => u);
+        if (urlsToSave.length > 0) saveSessionTabs(profileId, urlsToSave);
       } catch { }
     };
     // Cleanup helper
@@ -500,13 +518,17 @@ async function launchProfileInternal(profileId, options = {}) {
       try {
         const pages = context.pages();
         if (!pages || pages.length === 0) {
+          const trackedUrls = [...pageUrls.values()].filter(u => /^https?:\/\//i.test(u));
+          if (trackedUrls.length > 0) {
+            try { saveSessionTabs(profileId, trackedUrls); appendLog(profileId, `Saved ${trackedUrls.length} session tab(s) on browser close`); } catch {}
+          }
           appendLog(profileId, 'All browser pages closed by user');
           cleanupPlaywright('All pages closed — browser stopped');
         }
       } catch { cleanupPlaywright('Page close check failed — browser stopped'); }
     };
-    try { for (const p of context.pages()) { p.on('close', onPageClose); } } catch { }
-    context.on('page', (newPage) => { try { newPage.on('close', onPageClose); } catch { } });
+    try { for (const p of context.pages()) { trackPageUrls(p); p.on('close', onPageClose); } } catch { }
+    context.on('page', (newPage) => { try { trackPageUrls(newPage); newPage.on('close', onPageClose); } catch { } });
     // Bước 8: Lưu thông tin phiên đang chạy vào runningProfiles Map —
     // Map này là nguồn dữ liệu thực đơn nhất (single source of truth) cho mọi handler
     // cần truy cập browser/context của một profile đang hoạt động.
@@ -666,6 +688,15 @@ async function stopProfileInternal(profileId) {
       fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
       appendLog(profileId, 'Saved storage state before stop');
     } catch (e) { appendLog(profileId, `Failed saving state on stop: ${e.message}`); }
+    // Lưu session tabs TRƯỚC khi đóng context — sau khi context.close() thì pages() = []
+    try {
+      const { saveSessionTabs } = require('../storage/sessionTabs');
+      const pages = context.pages();
+      if (pages && pages.length > 0) {
+        saveSessionTabs(profileId, pages.map(p => p.url()));
+        appendLog(profileId, `Saved ${pages.length} session tab(s) before stop`);
+      }
+    } catch (e) { appendLog(profileId, `Failed saving session tabs on stop: ${e.message}`); }
     // Bước 5: Đóng context → browser → server theo thứ tự từ trong ra ngoài
     try { await context.close(); } catch { }
     try { await browser?.close?.(); } catch { }
@@ -694,6 +725,7 @@ async function stopAllProfilesInternal() {
       if (!running) continue;
       const { server, context, browser } = running;
       try { const state = await context.storageState(); fs.writeFileSync(storageStatePath(id), JSON.stringify(state, null, 2)); appendLog(id, 'Saved storage state before stop-all'); } catch (e) { appendLog(id, `Failed save state on stop-all: ${e.message}`); }
+      try { const { saveSessionTabs } = require('../storage/sessionTabs'); const pages = context.pages(); if (pages && pages.length > 0) { saveSessionTabs(id, pages.map(p => p.url())); appendLog(id, `Saved ${pages.length} session tab(s) before stop-all`); } } catch (e) { appendLog(id, `Failed saving session tabs on stop-all: ${e.message}`); }
       try { await context.close(); } catch { }
       try { await browser?.close?.(); } catch { }
       try { await server?.close?.(); } catch { }

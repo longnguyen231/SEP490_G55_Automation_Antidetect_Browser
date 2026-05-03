@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
@@ -31,26 +31,26 @@ function getStrength(pw) {
   if (/[^A-Za-z0-9]/.test(pw)) score++;
   return [
     { level: 0, label: '', color: '' },
-    { level: 1, label: 'Yếu', color: 'bg-rose-500' },
-    { level: 2, label: 'Trung bình', color: 'bg-amber-400' },
-    { level: 3, label: 'Tốt', color: 'bg-emerald-400' },
-    { level: 4, label: 'Mạnh', color: 'bg-primary' },
+    { level: 1, label: 'Weak', color: 'bg-rose-500' },
+    { level: 2, label: 'Fair', color: 'bg-amber-400' },
+    { level: 3, label: 'Good', color: 'bg-emerald-400' },
+    { level: 4, label: 'Strong', color: 'bg-primary' },
   ][score] ?? { level: 0, label: '', color: '' };
 }
 
 function parseFirebaseError(err) {
   const code = err?.code || '';
   const map = {
-    'auth/email-already-in-use':   'Email này đã được đăng ký.',
-    'auth/invalid-email':          'Email không hợp lệ.',
-    'auth/weak-password':          'Mật khẩu quá yếu (tối thiểu 6 ký tự).',
-    'auth/popup-closed-by-user':   'Đã đóng cửa sổ đăng nhập.',
-    'auth/popup-blocked':          'Trình duyệt đã chặn popup. Vui lòng cho phép popup.',
-    'auth/network-request-failed': 'Lỗi kết nối mạng.',
+    'auth/email-already-in-use':   'This email is already registered.',
+    'auth/invalid-email':          'Invalid email address.',
+    'auth/weak-password':          'Password is too weak (minimum 6 characters).',
+    'auth/popup-closed-by-user':   'Sign-in window was closed.',
+    'auth/popup-blocked':          'Browser blocked the popup. Please allow popups.',
+    'auth/network-request-failed': 'Network error.',
     'auth/configuration-not-found':
-      'Firebase chưa được cấu hình. Điền firebaseConfig trong src/config/firebase.config.js',
+      'Firebase is not configured. Fill in firebaseConfig in src/config/firebase.config.js',
   };
-  return map[code] || err?.message || 'Đã có lỗi xảy ra.';
+  return map[code] || err?.message || 'An error occurred.';
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -70,6 +70,14 @@ const RegisterPage = () => {
   const [showVerifyBanner, setShowVerifyBanner] = useState(false);
   const [registeredEmail, setRegisteredEmail]   = useState('');
   const [eulaOpen, setEulaOpen] = useState(false);
+  const [maintenance, setMaintenance] = useState({ maintenanceMode: false, maintenanceBanner: '' });
+
+  useEffect(() => {
+    fetch('/api/status')
+      .then(r => r.json())
+      .then(d => setMaintenance(d))
+      .catch(() => {});
+  }, []);
 
   const strength  = getStrength(password);
   const pwMatch   = confirm.length === 0 || password === confirm;
@@ -78,15 +86,15 @@ const RegisterPage = () => {
   // ── Email register ──────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!agree)              { toast.error('Vui lòng đồng ý với điều khoản sử dụng.'); return; }
-    if (password !== confirm){ toast.error('Mật khẩu xác nhận không khớp.'); return; }
-    if (password.length < 6) { toast.error('Mật khẩu tối thiểu 6 ký tự.'); return; }
+    if (!agree)              { toast.error('Please agree to the terms of service.'); return; }
+    if (password !== confirm){ toast.error('Passwords do not match.'); return; }
+    if (password.length < 6) { toast.error('Password must be at least 6 characters.'); return; }
     setLoading(true);
     try {
       await authRegister({ name: name.trim(), email: email.trim(), password });
       setRegisteredEmail(email.trim());
       setShowVerifyBanner(true);
-      toast.success('Tài khoản đã được tạo! Kiểm tra email để xác minh.', { duration: 5000 });
+      toast.success('Account created! Check your email to verify.', { duration: 5000 });
     } catch (err) {
       toast.error(parseFirebaseError(err));
     } finally {
@@ -99,7 +107,7 @@ const RegisterPage = () => {
     setOauthLoading(true);
     try {
       const user = await loginWithGoogle();
-      toast.success(`Đăng ký thành công bằng Google: ${user.name}`);
+      toast.success(`Registered with Google: ${user.name}`);
       navigate('/', { replace: true });
     } catch (err) {
       if (err?.code !== 'auth/popup-closed-by-user') {
@@ -125,18 +133,18 @@ const RegisterPage = () => {
               <span className="material-symbols-outlined text-primary text-5xl">mark_email_unread</span>
             </div>
 
-            <h2 className="text-2xl font-extrabold text-white mb-2">Xác minh email của bạn</h2>
+            <h2 className="text-2xl font-extrabold text-white mb-2">Verify your email</h2>
             <p className="text-slate-400 text-sm mb-1">
-              Chúng tôi đã gửi email xác minh đến:
+              We sent a verification email to:
             </p>
             <p className="text-primary font-semibold text-sm mb-6 break-all">{registeredEmail}</p>
 
             <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 text-left mb-6 space-y-2">
               {[
-                'Mở hộp thư của bạn',
-                'Tìm email từ Firebase / HL-MCK',
-                'Nhấn vào link "Verify email"',
-                'Quay lại và đăng nhập',
+                'Open your inbox',
+                'Find the email from Firebase / HL-MCK',
+                'Click the "Verify email" link',
+                'Come back and sign in',
               ].map((step, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -153,16 +161,16 @@ const RegisterPage = () => {
                   try {
                     const { resendVerificationEmail } = await import('../../services/firebase');
                     await resendVerificationEmail();
-                    toast.success('Đã gửi lại email xác minh!');
+                    toast.success('Verification email resent!');
                   } catch {
-                    toast.error('Không thể gửi lại. Thử đăng nhập trước.');
+                    toast.error('Could not resend. Try signing in first.');
                   }
                 }}
                 className="w-full py-2.5 rounded-xl border border-slate-700/60 text-slate-300 text-sm font-medium
                   hover:border-primary/50 hover:text-primary transition-all duration-200"
               >
                 <span className="material-symbols-outlined text-base align-middle mr-1.5">refresh</span>
-                Gửi lại email
+                Resend email
               </button>
 
               <Link
@@ -172,12 +180,12 @@ const RegisterPage = () => {
                   hover:bg-primary/90 transition-colors"
               >
                 <span className="material-symbols-outlined text-lg">login</span>
-                Đến trang đăng nhập
+                Go to sign in
               </Link>
             </div>
 
             <p className="text-xs text-slate-600 mt-5">
-              Không nhận được email? Kiểm tra thư mục Spam.
+              Didn't receive the email? Check your Spam folder.
             </p>
           </div>
         </div>
@@ -203,14 +211,27 @@ const RegisterPage = () => {
               </div>
               <span className="text-2xl font-extrabold tracking-tight text-white">HL-MCK</span>
             </div>
-            <h1 className="text-xl font-bold text-white">Tạo tài khoản</h1>
-            <p className="text-sm text-slate-400 mt-1">Miễn phí · Không cần thẻ tín dụng</p>
+            <h1 className="text-xl font-bold text-white">Create account</h1>
+            <p className="text-sm text-slate-400 mt-1">Free · No credit card required</p>
           </div>
+
+          {/* Maintenance banner */}
+          {maintenance.maintenanceMode && (
+            <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 mb-5">
+              <span className="material-symbols-outlined text-amber-400 text-lg flex-shrink-0 mt-0.5">construction</span>
+              <div>
+                <p className="text-amber-400 text-sm font-semibold">Registration Unavailable</p>
+                <p className="text-amber-300/70 text-xs mt-0.5">
+                  {maintenance.maintenanceBanner || 'New registrations are temporarily disabled. Please try again later.'}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Google sign-up */}
           <button
             onClick={handleGoogleRegister}
-            disabled={isSubmitting}
+            disabled={isSubmitting || maintenance.maintenanceMode}
             className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl
               bg-white/5 border border-slate-700/60 text-slate-200 text-sm font-medium
               hover:bg-white/10 hover:border-slate-600 transition-all duration-200
@@ -219,7 +240,7 @@ const RegisterPage = () => {
             {oauthLoading ? (
               <span className="w-5 h-5 border-2 border-primary/40 border-t-primary rounded-full animate-spin" />
             ) : <GoogleIcon />}
-            Đăng ký bằng Google
+            Sign up with Google
           </button>
 
           <OrDivider />
@@ -228,13 +249,13 @@ const RegisterPage = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Name */}
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-widest">Họ và tên</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-widest">Full Name</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-500 text-lg pointer-events-none">person</span>
                 <input
                   type="text" required autoComplete="name"
                   value={name} onChange={(e) => setName(e.target.value)}
-                  placeholder="Tên của bạn"
+                  placeholder="Your name"
                   disabled={isSubmitting}
                   className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl pl-10 pr-4 py-2.5
                     text-sm text-slate-200 placeholder-slate-600
@@ -264,13 +285,13 @@ const RegisterPage = () => {
 
             {/* Password */}
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-widest">Mật khẩu</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-widest">Password</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-500 text-lg pointer-events-none">lock</span>
                 <input
                   type={showPw ? 'text' : 'password'} required autoComplete="new-password"
                   value={password} onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Tối thiểu 6 ký tự"
+                  placeholder="Minimum 6 characters"
                   disabled={isSubmitting}
                   className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl pl-10 pr-11 py-2.5
                     text-sm text-slate-200 placeholder-slate-600
@@ -298,13 +319,13 @@ const RegisterPage = () => {
 
             {/* Confirm */}
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-widest">Xác nhận mật khẩu</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-widest">Confirm Password</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-500 text-lg pointer-events-none">lock_reset</span>
                 <input
                   type={showPw ? 'text' : 'password'} required autoComplete="new-password"
                   value={confirm} onChange={(e) => setConfirm(e.target.value)}
-                  placeholder="Nhập lại mật khẩu"
+                  placeholder="Re-enter password"
                   disabled={isSubmitting}
                   className={`w-full bg-slate-800/60 border rounded-xl pl-10 pr-4 py-2.5
                     text-sm text-slate-200 placeholder-slate-600
@@ -313,7 +334,7 @@ const RegisterPage = () => {
                 />
               </div>
               {!pwMatch && confirm.length > 0 && (
-                <p className="text-xs text-rose-400 mt-1">Mật khẩu không khớp</p>
+                <p className="text-xs text-rose-400 mt-1">Passwords do not match</p>
               )}
             </div>
 
@@ -325,27 +346,27 @@ const RegisterPage = () => {
                 {agree && <span className="material-symbols-outlined text-background-dark" style={{ fontSize: '11px', fontVariationSettings: "'FILL' 1" }}>check</span>}
               </div>
               <span className="text-xs text-slate-400 leading-relaxed">
-                Tôi đồng ý với{' '}
+                I agree to the{' '}
                 <button
                   type="button"
                   onClick={() => setEulaOpen(true)}
                   className="text-primary hover:underline focus:outline-none"
                 >
-                  Điều khoản sử dụng
+                  Terms of Service
                 </button>
-                {' '}và{' '}
+                {' '}and{' '}
                 <button
                   type="button"
                   onClick={() => setEulaOpen(true)}
                   className="text-primary hover:underline focus:outline-none"
                 >
-                  Chính sách bảo mật
+                  Privacy Policy
                 </button>
               </span>
             </label>
 
             <button
-              type="submit" disabled={isSubmitting || !pwMatch}
+              type="submit" disabled={isSubmitting || !pwMatch || maintenance.maintenanceMode}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl
                 bg-primary text-background-dark font-bold text-sm
                 hover:bg-primary/90 transition-all duration-200
@@ -355,21 +376,21 @@ const RegisterPage = () => {
               {loading ? (
                 <>
                   <span className="w-4 h-4 border-2 border-background-dark/40 border-t-background-dark rounded-full animate-spin" />
-                  Đang tạo tài khoản…
+                  Creating account…
                 </>
               ) : (
                 <>
                   <span className="material-symbols-outlined text-lg">person_add</span>
-                  Tạo tài khoản
+                  Create account
                 </>
               )}
             </button>
           </form>
 
           <p className="text-center text-sm text-slate-500 mt-6">
-            Đã có tài khoản?{' '}
+            Already have an account?{' '}
             <Link to="/login" className="text-primary font-semibold hover:text-primary/80 transition-colors">
-              Đăng nhập
+              Sign in
             </Link>
           </p>
         </div>
@@ -377,7 +398,7 @@ const RegisterPage = () => {
         <div className="text-center mt-5">
           <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-primary transition-colors">
             <span className="material-symbols-outlined text-base">arrow_back</span>
-            Về trang chủ
+            Back to home
           </Link>
         </div>
       </div>

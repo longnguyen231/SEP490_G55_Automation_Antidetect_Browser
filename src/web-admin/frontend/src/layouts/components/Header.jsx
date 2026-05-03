@@ -125,10 +125,10 @@ const Header = () => {
         <button
           onClick={() => navigate('/')}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/10 transition-all text-xs font-semibold"
-          title="Về trang chủ"
+          title="Back to home"
         >
           <Home size={15} />
-          Trang chủ
+          Home
         </button>
 
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
@@ -136,7 +136,7 @@ const Header = () => {
           <span className="text-xs font-bold uppercase tracking-wider text-primary leading-none">System Online</span>
         </div>
 
-        <button className="text-slate-500 hover:text-primary transition-colors flex items-center justify-center mt-1" onClick={toggleNoti} aria-label="Thông báo">
+        <button className="text-slate-500 hover:text-primary transition-colors flex items-center justify-center mt-1" onClick={toggleNoti} aria-label="Notifications">
           <Badge count={unreadCount} size="small" style={{ backgroundColor: '#f43f5e' }} offset={[-2, 2]}>
             <Bell size={22} className={`transition-colors ${notiOpen ? 'text-primary' : 'text-slate-500 hover:text-primary'}`} />
           </Badge>
@@ -150,9 +150,9 @@ const Header = () => {
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/50">
-              <span className="text-sm font-bold text-slate-200">Thông báo</span>
+              <span className="text-sm font-bold text-slate-200">Notifications</span>
               {unreadCount > 0 && (
-                <span className="text-xs text-primary font-semibold">{unreadCount} mới</span>
+                <span className="text-xs text-primary font-semibold">{unreadCount} new</span>
               )}
             </div>
 
@@ -161,7 +161,7 @@ const Header = () => {
               {notifications.length === 0 ? (
                 <div className="py-10 text-center text-slate-500 text-sm">
                   <Bell size={28} className="mx-auto mb-2 opacity-30" />
-                  Chưa có thông báo nào
+                  No notifications yet
                 </div>
               ) : (
                 notifications.map((n) => (
@@ -175,7 +175,7 @@ const Header = () => {
                       <p className="text-[10px] text-slate-600 mt-1">{n.meta}</p>
                     </div>
                     <span className="text-[10px] text-slate-600 flex-shrink-0 mt-0.5">
-                      {new Date(n.time).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                      {new Date(n.time).toLocaleDateString('en-US', { day: '2-digit', month: '2-digit' })}
                     </span>
                   </div>
                 ))
@@ -185,7 +185,7 @@ const Header = () => {
             {/* Footer */}
             {notifications.length > 0 && (
               <div className="px-4 py-2.5 border-t border-slate-700/50 text-center">
-                <span className="text-xs text-slate-500">{notifications.length} sự kiện gần nhất</span>
+                <span className="text-xs text-slate-500">{notifications.length} recent events</span>
               </div>
             )}
           </div>
@@ -199,7 +199,7 @@ const Header = () => {
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-200 truncate max-w-[120px]">
                     {user?.name || 'Admin'}
                   </p>
-                  {/* PRO badge hoặc Provider sub-label */}
+                  {/* PRO badge or Provider sub-label */}
                   {isPro ? (
                     <span className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold uppercase tracking-widest leading-none">
                       ⚡ PRO

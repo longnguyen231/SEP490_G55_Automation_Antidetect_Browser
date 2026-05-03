@@ -184,6 +184,60 @@ export async function findActiveOrderByEmail(email) {
 }
 
 /**
+ * Find an active order by its licenseKey field.
+ * Returns { orderCode, order } or null.
+ */
+export async function findOrderByLicenseKey(licenseKey) {
+  if (!licenseKey) return null;
+  const normalised = licenseKey.trim().toUpperCase();
+  const db = await getDb();
+
+  if (db) {
+    for (const status of ['paid', 'trial']) {
+      const snap = await db.collection('orders')
+        .where('licenseKey', '==', normalised)
+        .where('status', '==', status)
+        .limit(1)
+        .get();
+      if (!snap.empty) return { orderCode: snap.docs[0].id, order: snap.docs[0].data() };
+    }
+    return null;
+  }
+
+  const all = loadFile();
+  for (const [orderCode, order] of Object.entries(all)) {
+    const active = order.status === 'paid' || order.status === 'trial';
+    if (active && order.licenseKey === normalised) return { orderCode, order };
+  }
+  return null;
+}
+
+/**
+ * Find the order whose activatedMachine matches the given machine code.
+ * Returns { orderCode, order } or null.
+ */
+export async function findOrderByMachine(machineCode) {
+  if (!machineCode) return null;
+  const normalised = machineCode.trim().toUpperCase();
+  const db = await getDb();
+
+  if (db) {
+    const snap = await db.collection('orders')
+      .where('activatedMachine', '==', normalised)
+      .limit(1)
+      .get();
+    if (!snap.empty) return { orderCode: snap.docs[0].id, order: snap.docs[0].data() };
+    return null;
+  }
+
+  const all = loadFile();
+  for (const [orderCode, order] of Object.entries(all)) {
+    if (order.activatedMachine === normalised) return { orderCode, order };
+  }
+  return null;
+}
+
+/**
  * Returns all orders as a flat array, each item augmented with _orderCode.
  */
 export async function getAllOrders() {

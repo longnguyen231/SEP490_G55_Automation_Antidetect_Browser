@@ -14,36 +14,36 @@ export function markEulaAgreed() {
 // ─── EULA content sections ────────────────────────────────────────────────────
 const SECTIONS = [
   {
-    title: '1. Phạm vi sử dụng',
-    body: `Phần mềm HL-MCK Antidetect Browser ("Phần mềm") được cấp phép sử dụng cho cá nhân hoặc tổ chức ("Người dùng") theo các điều khoản trong thỏa thuận này. Người dùng được phép cài đặt và sử dụng Phần mềm trên thiết bị đã đăng ký license. Mọi hình thức sao chép, phân phối lại hoặc bán lại Phần mềm mà không có sự cho phép bằng văn bản của nhóm phát triển đều bị nghiêm cấm.`,
+    title: '1. Scope of Use',
+    body: `The HL-MCK Antidetect Browser software ("Software") is licensed for use by individuals or organizations ("User") under the terms of this agreement. The User may install and use the Software on the device registered with a license. Any form of copying, redistribution, or resale of the Software without written permission from the development team is strictly prohibited.`,
   },
   {
-    title: '2. Mục đích sử dụng hợp pháp',
-    body: `Phần mềm này được thiết kế cho các mục đích kiểm thử bảo mật hợp pháp, quản lý tài khoản đa nền tảng, nghiên cứu và phát triển. Người dùng cam kết không sử dụng Phần mềm để:\n• Gian lận, lừa đảo hoặc thực hiện hành vi vi phạm pháp luật\n• Vượt qua các biện pháp bảo mật của hệ thống mà không được phép\n• Thu thập dữ liệu cá nhân trái phép\n• Tấn công hoặc làm gián đoạn dịch vụ của bên thứ ba\n• Vi phạm điều khoản dịch vụ của các nền tảng trực tuyến`,
+    title: '2. Lawful Purpose',
+    body: `This Software is designed for lawful security testing, multi-platform account management, research and development. The User agrees not to use the Software to:\n• Commit fraud, deception, or any illegal activity\n• Bypass security measures of any system without authorization\n• Collect personal data without consent\n• Attack or disrupt third-party services\n• Violate the terms of service of online platforms`,
   },
   {
-    title: '3. Chính sách đạo đức (Ethics Policy)',
-    body: `Người dùng đồng ý tuân thủ các nguyên tắc đạo đức khi sử dụng công nghệ antidetect:\n• Chỉ sử dụng trên các tài khoản thuộc sở hữu hợp pháp của mình\n• Không sử dụng để tạo hoặc vận hành các mạng lưới tài khoản giả mạo (bot farms)\n• Không sử dụng vào mục đích spam, phishing hoặc phát tán mã độc\n• Tôn trọng quyền riêng tư và dữ liệu của người khác\n• Báo cáo các lỗ hổng bảo mật phát hiện được cho nhóm phát triển thay vì khai thác`,
+    title: '3. Ethics Policy',
+    body: `The User agrees to follow ethical principles when using antidetect technology:\n• Only use it on accounts lawfully owned by yourself\n• Do not use it to create or operate networks of fake accounts (bot farms)\n• Do not use it for spam, phishing, or distributing malware\n• Respect the privacy and data of others\n• Report any discovered security vulnerabilities to the development team instead of exploiting them`,
   },
   {
-    title: '4. Quyền sở hữu trí tuệ',
-    body: `Toàn bộ mã nguồn, giao diện, tài liệu và các thành phần của Phần mềm là tài sản trí tuệ của nhóm phát triển SEP490 Group 55. Người dùng không có quyền dịch ngược (reverse engineer), decompile, hay tạo ra các sản phẩm phái sinh từ Phần mềm mà không có sự cho phép bằng văn bản.`,
+    title: '4. Intellectual Property',
+    body: `All source code, interfaces, documentation, and components of the Software are the intellectual property of the SEP490 Group 55 development team. The User has no right to reverse engineer, decompile, or create derivative works from the Software without written permission.`,
   },
   {
-    title: '5. Dữ liệu và quyền riêng tư',
-    body: `Phần mềm lưu trữ dữ liệu profile, cookie và cấu hình cục bộ trên máy tính của Người dùng. Nhóm phát triển không thu thập hay truyền dữ liệu cá nhân của Người dùng lên máy chủ ngoại trừ các thông tin kỹ thuật cần thiết cho việc xác thực license (Machine Code). Người dùng hoàn toàn chịu trách nhiệm bảo mật dữ liệu lưu trữ cục bộ trên thiết bị của mình.`,
+    title: '5. Data & Privacy',
+    body: `The Software stores profile data, cookies, and configuration locally on the User's computer. The development team does not collect or transmit any personal data to external servers, except for technical information required for license verification (Machine Code). The User is solely responsible for securing locally stored data on their device.`,
   },
   {
-    title: '6. Giới hạn trách nhiệm',
-    body: `Phần mềm được cung cấp "nguyên trạng" (as-is). Nhóm phát triển không chịu trách nhiệm về bất kỳ thiệt hại trực tiếp, gián tiếp, ngẫu nhiên hoặc hậu quả nào phát sinh từ việc sử dụng hoặc không thể sử dụng Phần mềm, bao gồm nhưng không giới hạn ở việc mất dữ liệu, gián đoạn kinh doanh, hoặc thiệt hại do vi phạm điều khoản sử dụng của bên thứ ba.`,
+    title: '6. Limitation of Liability',
+    body: `The Software is provided "as-is." The development team is not responsible for any direct, indirect, incidental, or consequential damages arising from the use or inability to use the Software, including but not limited to data loss, business interruption, or damages caused by violation of third-party terms of service.`,
   },
   {
-    title: '7. Chấm dứt thỏa thuận',
-    body: `Thỏa thuận này có hiệu lực từ thời điểm Người dùng tải xuống hoặc cài đặt Phần mềm. Nhóm phát triển có quyền chấm dứt thỏa thuận và thu hồi license nếu phát hiện Người dùng vi phạm bất kỳ điều khoản nào trong thỏa thuận này mà không cần thông báo trước.`,
+    title: '7. Termination',
+    body: `This agreement takes effect from the moment the User downloads or installs the Software. The development team reserves the right to terminate this agreement and revoke the license if the User is found to be in violation of any terms, without prior notice.`,
   },
   {
-    title: '8. Thay đổi điều khoản',
-    body: `Nhóm phát triển có quyền cập nhật thỏa thuận này theo thời gian. Phiên bản mới nhất luôn được công bố tại trang web chính thức. Việc tiếp tục sử dụng Phần mềm sau khi thay đổi được công bố đồng nghĩa với việc Người dùng chấp nhận các điều khoản mới.`,
+    title: '8. Changes to Terms',
+    body: `The development team may update this agreement over time. The latest version is always published on the official website. Continued use of the Software after changes are published constitutes acceptance of the new terms.`,
   },
 ];
 
@@ -52,26 +52,25 @@ const SECTIONS = [
  * Props:
  *   isOpen: boolean
  *   onClose: () => void
- *   onAgree?: () => void   — nếu có → hiện nút "Đồng ý & Tải xuống"
- *   downloadLabel?: string — nhãn nút, vd "Windows Installer"
- *   readOnly?: boolean     — chỉ đọc, không có nút agree (mặc định false)
+ *   onAgree?: () => void   — if provided → shows "Agree & Download" button
+ *   downloadLabel?: string — button label, e.g. "Windows Installer"
+ *   readOnly?: boolean     — read-only, no agree button (default false)
  */
 export default function EulaModal({ isOpen, onClose, onAgree, downloadLabel, readOnly = false }) {
   const bodyRef = useRef(null);
   const [scrolled, setScrolled] = useState(false);
   const [checked, setChecked] = useState(false);
 
-  // Reset khi mở lại
+  // Reset on open
   useEffect(() => {
     if (isOpen) {
       setScrolled(false);
       setChecked(false);
-      // Scroll body về đầu
       if (bodyRef.current) bodyRef.current.scrollTop = 0;
     }
   }, [isOpen]);
 
-  // Theo dõi scroll để unlock nút agree
+  // Track scroll to unlock agree button
   const handleScroll = () => {
     if (!bodyRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = bodyRef.current;
@@ -85,12 +84,12 @@ export default function EulaModal({ isOpen, onClose, onAgree, downloadLabel, rea
     onClose();
   };
 
-  // Đóng khi click backdrop
+  // Close on backdrop click
   const handleBackdrop = (e) => {
     if (e.target === e.currentTarget) onClose();
   };
 
-  // Đóng khi Escape
+  // Close on Escape
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
@@ -118,7 +117,7 @@ export default function EulaModal({ isOpen, onClose, onAgree, downloadLabel, rea
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-bold text-white leading-tight">
-              Điều khoản sử dụng (EULA)
+              End User License Agreement (EULA)
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">HL-MCK Antidetect Browser · {EULA_VERSION}</p>
           </div>
@@ -134,7 +133,7 @@ export default function EulaModal({ isOpen, onClose, onAgree, downloadLabel, rea
         {!scrolled && !readOnly && (
           <div className="flex items-center gap-2 px-6 py-2 bg-amber-500/8 border-b border-amber-500/15 shrink-0">
             <span className="material-symbols-outlined text-amber-400 text-sm">info</span>
-            <p className="text-xs text-amber-400">Vui lòng đọc đến cuối để kích hoạt nút đồng ý</p>
+            <p className="text-xs text-amber-400">Please read to the end to enable the agree button</p>
           </div>
         )}
 
@@ -146,8 +145,8 @@ export default function EulaModal({ isOpen, onClose, onAgree, downloadLabel, rea
           style={{ overscrollBehavior: 'contain' }}
         >
           <p className="text-slate-400 text-xs border-l-2 border-primary/40 pl-3">
-            Bằng cách tải xuống và cài đặt Phần mềm, bạn xác nhận đã đọc, hiểu và đồng ý với toàn bộ các điều khoản dưới đây.
-            Nếu không đồng ý, vui lòng không tải xuống hoặc sử dụng Phần mềm.
+            By downloading and installing the Software, you confirm that you have read, understood, and agreed to all the terms below.
+            If you do not agree, please do not download or use the Software.
           </p>
 
           {SECTIONS.map((s) => (
@@ -158,7 +157,7 @@ export default function EulaModal({ isOpen, onClose, onAgree, downloadLabel, rea
           ))}
 
           <p className="text-slate-600 text-xs pt-2 border-t border-slate-800">
-            © 2026 SEP490 Group 55 · HL-MCK Antidetect Browser · Mọi quyền được bảo lưu.
+            © 2026 SEP490 Group 55 · HL-MCK Antidetect Browser · All rights reserved.
           </p>
         </div>
 
@@ -177,7 +176,7 @@ export default function EulaModal({ isOpen, onClose, onAgree, downloadLabel, rea
                 )}
               </div>
               <span className="text-xs text-slate-400 leading-relaxed">
-                Tôi đã đọc và đồng ý với toàn bộ Điều khoản sử dụng và Chính sách đạo đức của HL-MCK Antidetect Browser
+                I have read and agree to all Terms of Service and the Ethics Policy of HL-MCK Antidetect Browser
               </span>
             </label>
 
@@ -187,7 +186,7 @@ export default function EulaModal({ isOpen, onClose, onAgree, downloadLabel, rea
                 onClick={onClose}
                 className="flex-1 py-2.5 rounded-xl border border-slate-700/60 text-slate-400 text-sm font-medium hover:border-slate-600 hover:text-slate-300 transition-colors"
               >
-                Hủy
+                Cancel
               </button>
               <button
                 onClick={handleAgree}
@@ -197,7 +196,7 @@ export default function EulaModal({ isOpen, onClose, onAgree, downloadLabel, rea
                   disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
               >
                 <span className="material-symbols-outlined text-base">download</span>
-                Đồng ý &amp; Tải {downloadLabel || 'xuống'}
+                Agree &amp; Download {downloadLabel || ''}
               </button>
             </div>
           </div>
@@ -210,7 +209,7 @@ export default function EulaModal({ isOpen, onClose, onAgree, downloadLabel, rea
               onClick={onClose}
               className="w-full py-2.5 rounded-xl border border-slate-700/60 text-slate-400 text-sm font-medium hover:border-primary/50 hover:text-primary transition-colors"
             >
-              Đóng
+              Close
             </button>
           </div>
         )}

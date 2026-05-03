@@ -16,37 +16,37 @@ export default function Dashboard() {
   useEffect(() => {
     getStats()
       .then(setStats)
-      .catch(err => toast.error('Không tải được thống kê: ' + err.message))
+      .catch(err => toast.error('Failed to load stats: ' + err.message))
       .finally(() => setLoading(false));
   }, []);
 
   return (
     <>
-      <PageHeader title="Tổng quan" description="Thống kê người dùng & license" />
+      <PageHeader title="Overview" description="User & license statistics" />
 
       {loading ? (
-        <div className="text-slate-400 text-sm py-8 text-center">Đang tải...</div>
+        <div className="text-slate-400 text-sm py-8 text-center">Loading...</div>
       ) : stats ? (
         <>
           {/* Row 1 — User & license stats */}
           <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
             <StatCard
-              title="Trial đang hoạt động"
+              title="Active Trials"
               value={stats.trialOrders ?? 0}
-              change="License miễn phí"
+              change="Free license"
               icon="rocket_launch"
               iconClass="text-cyan-400"
             />
             <StatCard
-              title="Đã kích hoạt"
+              title="Activated"
               value={stats.activatedLicenses ?? 0}
               icon="key"
               iconClass="text-amber-400"
             />
             <StatCard
-              title="Tổng downloads"
+              title="Total Downloads"
               value={stats.totalDownloads ?? 0}
-              change="Tất cả nền tảng"
+              change="All platforms"
               icon="download"
               iconClass="text-primary"
             />
@@ -62,14 +62,14 @@ export default function Dashboard() {
           {/* Row 2 — Revenue (kept for future use, shown dimmed when disabled) */}
           <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <StatCard
-              title="Tổng doanh thu"
+              title="Total Revenue"
               value={formatVnd(stats.totalRevenue)}
               icon="payments"
               iconClass="text-slate-400"
               dimmed
             />
             <StatCard
-              title="Đơn chờ"
+              title="Pending Orders"
               value={stats.pendingOrders ?? 0}
               icon="pending"
               iconClass="text-rose-400"
@@ -90,7 +90,7 @@ export default function Dashboard() {
 
           {/* Activity chart */}
           <section className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl p-6">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-5">Hoạt động 7 ngày qua</h3>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-5">Activity — Last 7 Days</h3>
             <div className="flex items-end gap-3 h-28">
               {stats.last7Days.map((day, i) => {
                 const maxCount = Math.max(...stats.last7Days.map(d => d.count), 1);
@@ -105,7 +105,7 @@ export default function Dashboard() {
               })}
             </div>
             <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 flex flex-wrap gap-4 text-sm text-slate-500">
-              <span>Tổng: <strong className="text-slate-700 dark:text-slate-200">{stats.totalOrders}</strong></span>
+              <span>Total: <strong className="text-slate-700 dark:text-slate-200">{stats.totalOrders}</strong></span>
               <span>Trial: <strong className="text-cyan-400">{stats.trialOrders ?? 0}</strong></span>
               <span>Paid: <strong className="text-emerald-500">{stats.paidOrders}</strong></span>
               <span>Downloads: <strong className="text-primary">{stats.totalDownloads ?? 0}</strong></span>
@@ -113,7 +113,7 @@ export default function Dashboard() {
           </section>
         </>
       ) : (
-        <div className="text-slate-400 text-sm py-8 text-center">Không có dữ liệu.</div>
+        <div className="text-slate-400 text-sm py-8 text-center">No data available.</div>
       )}
     </>
   );

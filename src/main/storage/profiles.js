@@ -430,7 +430,12 @@ function isLicenseActivated() {
     const licensePath = path.join(app.getPath('userData'), 'license.json');
     if (!fs.existsSync(licensePath)) return false;
     const licenseData = JSON.parse(fs.readFileSync(licensePath, 'utf8'));
-    return licenseData && licenseData.activated === true;
+    if (!licenseData?.activated || !licenseData?.key) return false;
+    // Trial expiry check (paid licenses have expiresAt = null)
+    if (licenseData.expiresAt && new Date(licenseData.expiresAt) < new Date()) return false;
+    const { deriveLicenseKey, getMachineCode } = require('../services/machineId');
+    const expected = deriveLicenseKey(getMachineCode());
+    return licenseData.key === expected;
   } catch {
     return false;
   }

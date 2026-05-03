@@ -4,6 +4,14 @@
   height: 100vh;
   display: flex;
   overflow: hidden;
+  min-width: 0;
+}
+
+/* Main content area */
+.app > :not(.app-sidebar) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* ===== Sidebar ===== */

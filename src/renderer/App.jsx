@@ -45,6 +45,7 @@ function App() {
   // Live preview: profile being previewed (or null)
   const [previewProfile, setPreviewProfile] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { profileId, profileName }
+  const [deleteBulkConfirm, setDeleteBulkConfirm] = useState(null); // { ids, runningCount }
 
   // Subscribe to app-log events at app level so logs are captured regardless of active tab
   useEffect(() => {
@@ -401,8 +402,12 @@ function App() {
   const handleDeleteBulk = async (ids) => {
     if (!ids?.length) return;
     const runningIds = ids.filter(id => !!runningWs[id]);
-    const runningMsg = runningIds.length ? `\nNote: ${runningIds.length} running profile(s) will be stopped first.` : '';
-    if (!window.confirm(`Delete ${ids.length} selected profile(s)? This cannot be undone.${runningMsg}`)) return;
+    setDeleteBulkConfirm({ ids, runningCount: runningIds.length });
+  };
+  const confirmDeleteBulk = async () => {
+    if (!deleteBulkConfirm) return;
+    const { ids } = deleteBulkConfirm;
+    setDeleteBulkConfirm(null);
     try {
       const res = await api.deleteProfilesBulk(ids);
       if (res.success) {
@@ -501,7 +506,29 @@ function App() {
   const clearSelection = () => setSelectedIds({});
   const selectAll = () => setSelectedIds(Object.fromEntries(profiles.map(p => [p.id, true])));
   const getSelectedList = () => Object.keys(selectedIds).filter(id => selectedIds[id]);
-  const handleStartSelected = async () => { const ids = getSelectedList(); await Promise.all(ids.map(id => handleLaunchProfile(id))); await refreshRunningStatus(); };
+  const handleStartSelected = async () => {
+    const ids = getSelectedList();
+    if (!ids.length) return;
+    // Filter out already-running/starting profiles
+    const toStart = ids.filter(id => {
+      const st = profileStatuses[id]?.status;
+      return st !== 'RUNNING' && st !== 'STARTING' && st !== 'STOPPING';
+    });
+    if (!toStart.length) return;
+    // Load max concurrent limit
+    let maxConcurrent = 5;
+    try {
+      const res = await window.electronAPI.loadSettings?.();
+      if (res?.settings?.maxConcurrentBrowsers) maxConcurrent = Number(res.settings.maxConcurrentBrowsers);
+    } catch {}
+    const currentlyRunning = Object.values(profileStatuses).filter(s => s?.status === 'RUNNING' || s?.status === 'STARTING').length;
+    const slotsAvailable = Math.max(0, maxConcurrent - currentlyRunning);
+    const toLaunch = toStart.slice(0, slotsAvailable);
+    const skipped = toStart.length - toLaunch.length;
+    if (toLaunch.length > 0) await Promise.all(toLaunch.map(id => handleLaunchProfile(id)));
+    if (skipped > 0) addToast(`${skipped} profile(s) skipped — max ${maxConcurrent} concurrent browsers reached.`, 'warning', 5000);
+    await refreshRunningStatus();
+  };
   const handleStopSelected = async () => { const ids = getSelectedList(); await Promise.all(ids.map(id => window.electronAPI.stopProfile(id))); await refreshRunningStatus(); };
   const handleDeleteSelected = async () => { const ids = getSelectedList(); if (!ids.length) return; await handleDeleteBulk(ids); };
   const handleCloneSelected = async () => { const ids = getSelectedList(); if (!ids.length) return; await handleCloneBulk(ids); };
@@ -691,6 +718,45 @@ function App() {
                 Cancel
               </button>
               <button onClick={confirmDelete}
+                style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#ef4444', color: '#fff', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {deleteBulkConfirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }}
+          onClick={() => setDeleteBulkConfirm(null)}>
+          <div style={{ background: '#fff', borderRadius: '12px', padding: '28px 28px 24px', width: '420px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '20px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <div>
+                <div style={{ fontSize: '16px', fontWeight: '700', color: '#111827', marginBottom: '4px' }}>Delete {deleteBulkConfirm.ids.length} Profiles</div>
+                <div style={{ fontSize: '14px', color: '#6b7280', lineHeight: 1.5 }}>
+                  <span style={{ fontWeight: '600', color: '#374151' }}>{deleteBulkConfirm.ids.length} selected profiles</span> and all their data will be permanently removed.
+                  {deleteBulkConfirm.runningCount > 0 && (
+                    <div style={{ marginTop: '6px', color: '#f59e0b', fontSize: '13px' }}>
+                      ⚠ {deleteBulkConfirm.runningCount} running profile(s) will be stopped first.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button onClick={() => setDeleteBulkConfirm(null)}
+                style={{ padding: '8px 20px', borderRadius: '8px', border: '1px solid #d1d5db', background: '#fff', color: '#374151', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={confirmDeleteBulk}
                 style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#ef4444', color: '#fff', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
                 Delete
               </button>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
+import { auth } from '../../services/firebase';
 import toast from 'react-hot-toast';
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -21,24 +22,24 @@ const OrDivider = () => (
   </div>
 );
 
-// ─── Firebase error messages → human-readable Vietnamese ──────────────────────
+// ─── Firebase error messages ─────────────────────────────────────────────────
 function parseFirebaseError(err) {
   const code = err?.code || '';
   const map = {
-    'auth/user-not-found':        'Email không tồn tại trong hệ thống.',
-    'auth/wrong-password':        'Mật khẩu không đúng.',
-    'auth/invalid-email':         'Email không hợp lệ.',
-    'auth/invalid-credential':    'Email hoặc mật khẩu không đúng.',
-    'auth/too-many-requests':     'Quá nhiều lần thử. Vui lòng thử lại sau.',
-    'auth/popup-closed-by-user':  'Đã đóng cửa sổ đăng nhập.',
-    'auth/popup-blocked':         'Trình duyệt đã chặn popup. Vui lòng cho phép popup và thử lại.',
+    'auth/user-not-found':        'Email not found in the system.',
+    'auth/wrong-password':        'Incorrect password.',
+    'auth/invalid-email':         'Invalid email address.',
+    'auth/invalid-credential':    'Incorrect email or password.',
+    'auth/too-many-requests':     'Too many attempts. Please try again later.',
+    'auth/popup-closed-by-user':  'Sign-in window was closed.',
+    'auth/popup-blocked':         'Browser blocked the popup. Please allow popups and try again.',
     'auth/account-exists-with-different-credential':
-      'Email này đã được đăng ký bằng phương thức khác.',
-    'auth/network-request-failed': 'Lỗi kết nối mạng. Kiểm tra internet và thử lại.',
+      'This email is already registered with a different method.',
+    'auth/network-request-failed': 'Network error. Check your connection and try again.',
     'auth/configuration-not-found':
-      'Firebase chưa được cấu hình. Vui lòng điền firebaseConfig trong src/config/firebase.config.js',
+      'Firebase is not configured. Please fill in firebaseConfig in src/config/firebase.config.js',
   };
-  return map[code] || err?.message || 'Đã có lỗi xảy ra. Thử lại sau.';
+  return map[code] || err?.message || 'An error occurred. Please try again.';
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -52,12 +53,20 @@ const LoginPage = () => {
   const [showPw, setShowPw]   = useState(false);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
+  const [maintenance, setMaintenance] = useState({ maintenanceMode: false, maintenanceBanner: '' });
+
+  useEffect(() => {
+    fetch('/api/status')
+      .then(r => r.json())
+      .then(d => setMaintenance(d))
+      .catch(() => {});
+  }, []);
 
   // Show success toast if redirected from email verification
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('verified') === '1') {
-      toast.success('Email đã được xác minh! Đăng nhập để tiếp tục.');
+      toast.success('Email verified! Sign in to continue.');
     }
   }, [location.search]);
 
@@ -82,7 +91,12 @@ const LoginPage = () => {
     setLoading(true);
     try {
       const user = await login({ email: email.trim(), password });
-      toast.success(`Chào mừng trở lại, ${user.name}!`);
+      if (maintenance.maintenanceMode && user.role !== 'admin') {
+        await auth.signOut();
+        toast.error(maintenance.maintenanceBanner || 'System is currently under maintenance. Please try again later.');
+        return;
+      }
+      toast.success(`Welcome back, ${user.name}!`);
       handleRedirect(user);
     } catch (err) {
       toast.error(parseFirebaseError(err));
@@ -96,7 +110,12 @@ const LoginPage = () => {
     setOauthLoading(true);
     try {
       const user = await loginWithGoogle();
-      toast.success(`Đã đăng nhập bằng Google: ${user.name}`);
+      if (maintenance.maintenanceMode && user.role !== 'admin') {
+        await auth.signOut();
+        toast.error(maintenance.maintenanceBanner || 'System is currently under maintenance. Please try again later.');
+        return;
+      }
+      toast.success(`Signed in with Google: ${user.name}`);
       handleRedirect(user);
     } catch (err) {
       if (err?.code !== 'auth/popup-closed-by-user') {
@@ -120,6 +139,20 @@ const LoginPage = () => {
       <div className="relative w-full max-w-md">
         <div className="bg-slate-900/80 border border-slate-700/60 rounded-2xl p-8 shadow-2xl backdrop-blur-sm">
 
+          {/* Maintenance banner */}
+          {maintenance.maintenanceMode && (
+            <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 mb-6">
+              <span className="material-symbols-outlined text-amber-400 text-lg flex-shrink-0 mt-0.5">construction</span>
+              <div>
+                <p className="text-amber-400 text-sm font-semibold">System Under Maintenance</p>
+                <p className="text-amber-300/70 text-xs mt-0.5">
+                  {maintenance.maintenanceBanner || 'The system is temporarily unavailable. Please try again later.'}
+                </p>
+                <p className="text-amber-300/40 text-xs mt-1">Admin accounts can still sign in.</p>
+              </div>
+            </div>
+          )}
+
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
             <div className="flex items-center gap-2.5 mb-4">
@@ -128,8 +161,8 @@ const LoginPage = () => {
               </div>
               <span className="text-2xl font-extrabold tracking-tight text-white">HL-MCK</span>
             </div>
-            <h1 className="text-xl font-bold text-white">Chào mừng trở lại</h1>
-            <p className="text-sm text-slate-400 mt-1">Đăng nhập vào tài khoản của bạn</p>
+            <h1 className="text-xl font-bold text-white">Welcome back</h1>
+            <p className="text-sm text-slate-400 mt-1">Sign in to your account</p>
           </div>
 
           {/* OAuth buttons */}
@@ -145,7 +178,7 @@ const LoginPage = () => {
               {oauthLoading ? (
                 <span className="w-5 h-5 border-2 border-primary/40 border-t-primary rounded-full animate-spin" />
               ) : <GoogleIcon />}
-              Đăng nhập bằng Google
+              Sign in with Google
             </button>
           </div>
 
@@ -174,9 +207,9 @@ const LoginPage = () => {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest">Mật khẩu</label>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest">Password</label>
                 <Link to="/forgot-password" className="text-xs text-primary hover:text-primary/80 transition-colors">
-                  Quên mật khẩu?
+                  Forgot password?
                 </Link>
               </div>
               <div className="relative">
@@ -209,21 +242,21 @@ const LoginPage = () => {
               {loading ? (
                 <>
                   <span className="w-4 h-4 border-2 border-background-dark/40 border-t-background-dark rounded-full animate-spin" />
-                  Đang đăng nhập…
+                  Signing in…
                 </>
               ) : (
                 <>
                   <span className="material-symbols-outlined text-lg">login</span>
-                  Đăng Nhập
+                  Sign In
                 </>
               )}
             </button>
           </form>
 
           <p className="text-center text-sm text-slate-500 mt-6">
-            Chưa có tài khoản?{' '}
+            Don't have an account?{' '}
             <Link to="/register" className="text-primary font-semibold hover:text-primary/80 transition-colors">
-              Đăng ký ngay
+              Register now
             </Link>
           </p>
         </div>
@@ -231,7 +264,7 @@ const LoginPage = () => {
         <div className="text-center mt-5">
           <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-primary transition-colors">
             <span className="material-symbols-outlined text-base">arrow_back</span>
-            Về trang chủ
+            Back to home
           </Link>
         </div>
       </div>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/authStore';
+import { auth } from '../../services/firebase';
 
 // ─── License key form (shared by trial + paid) ────────────────────────────────
 function LicenseKeyForm({ user, statusLabel, statusColor, expiresAt }) {
@@ -19,10 +20,14 @@ function LicenseKeyForm({ user, statusLabel, statusColor, expiresAt }) {
 
     setActivating(true);
     try {
+      const token = await auth.currentUser?.getIdToken();
       const res = await fetch('/api/my-license', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user?.email, machineCode: trimmed }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ machineCode: trimmed }),
       });
       const data = await res.json();
 

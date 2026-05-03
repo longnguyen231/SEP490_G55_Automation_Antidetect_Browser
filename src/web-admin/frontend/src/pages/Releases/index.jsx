@@ -61,7 +61,7 @@ export default function Releases() {
 
   const handleUpload = async (e) => {
     e.preventDefault();
-    if (!file) return toast.error('Chọn file .exe trước');
+    if (!file) return toast.error('Please select a file first');
     setUploading(true);
     setProgress(0);
     try {
@@ -70,7 +70,7 @@ export default function Releases() {
         notes: notes.trim(),
         onProgress: (r) => setProgress(r),
       });
-      toast.success('Đã upload bản cài đặt');
+      toast.success('Build uploaded successfully');
       setFile(null);
       setNotes('');
       setProgress(0);
@@ -83,10 +83,10 @@ export default function Releases() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Xóa bản build này?')) return;
+    if (!confirm('Delete this build?')) return;
     try {
       await deleteRelease(id);
-      toast.success('Đã xóa');
+      toast.success('Deleted');
       await refresh();
     } catch (err) {
       toast.error(err.message);
@@ -95,15 +95,15 @@ export default function Releases() {
 
   return (
     <>
-      <PageHeader title="Builds & Releases" description="Upload và quản lý file cài đặt cho người dùng tải về" />
+      <PageHeader title="Builds & Releases" description="Upload and manage installer files for users to download" />
 
       {/* Upload form */}
       <form onSubmit={handleUpload} className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-4 max-w-3xl">
-        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">Upload bản build mới</h3>
+        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">Upload new build</h3>
 
         <div className="grid gap-3 md:grid-cols-2">
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">File cài đặt</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Installer file</label>
             <input
               type="file"
               accept=".exe,.zip,.dmg,.AppImage,.deb,.rpm,.msi"
@@ -130,7 +130,7 @@ export default function Releases() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Ghi chú (tùy chọn)</label>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Notes (optional)</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -147,7 +147,7 @@ export default function Releases() {
             <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded overflow-hidden">
               <div className="h-full bg-primary transition-all" style={{ width: `${Math.round(progress * 100)}%` }} />
             </div>
-            <p className="text-xs text-slate-400">Đang upload... {Math.round(progress * 100)}%</p>
+            <p className="text-xs text-slate-400">Uploading... {Math.round(progress * 100)}%</p>
           </div>
         )}
 
@@ -156,21 +156,21 @@ export default function Releases() {
           disabled={uploading || !file}
           className="bg-primary hover:brightness-110 text-white font-semibold px-6 py-2.5 rounded-lg transition-all disabled:opacity-50 text-sm"
         >
-          {uploading ? 'Đang upload...' : 'Upload'}
+          {uploading ? 'Uploading...' : 'Upload'}
         </button>
       </form>
 
       {/* List */}
       <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden max-w-5xl">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">Bản build đã upload</h3>
+          <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">Uploaded builds</h3>
           <span className="text-xs text-slate-400">{releases.length} file</span>
         </div>
 
         {loading ? (
-          <p className="text-slate-400 text-sm py-8 text-center">Đang tải...</p>
+          <p className="text-slate-400 text-sm py-8 text-center">Loading...</p>
         ) : releases.length === 0 ? (
-          <p className="text-slate-400 text-sm py-8 text-center">Chưa có bản build nào. Upload file đầu tiên ở trên.</p>
+          <p className="text-slate-400 text-sm py-8 text-center">No builds yet. Upload the first file above.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -202,14 +202,14 @@ export default function Releases() {
                         className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline mr-3"
                       >
                         <span className="material-symbols-outlined text-sm">download</span>
-                        Tải về
+                        Download
                       </a>
                       <button
                         onClick={() => handleDelete(r.id)}
                         className="inline-flex items-center gap-1 text-xs font-semibold text-rose-500 hover:underline"
                       >
                         <span className="material-symbols-outlined text-sm">delete</span>
-                        Xóa
+                        Delete
                       </button>
                     </td>
                   </tr>

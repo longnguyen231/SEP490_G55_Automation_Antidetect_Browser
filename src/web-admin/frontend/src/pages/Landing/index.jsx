@@ -298,13 +298,13 @@ function PricingCard({ tier, index, isAuthenticated, isPro, isTrial, navigate, s
 
       {/* CTA button */}
       {isPro && tier.highlight ? (
-        // Đã có license (trial hoặc paid) — hiện badge đã kích hoạt
+        // Already has license (trial or paid) — show activated badge
         <div className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-bold text-sm bg-emerald-500/15 border border-emerald-500/40 text-emerald-400">
           <span className="material-symbols-outlined text-base">verified</span>
           {isTrial ? 'Trial Active' : 'Your Current Plan'}
         </div>
       ) : isPro && !tier.highlight ? (
-        // Đã có license — ẩn nút free
+        // Already has license — hide free button
         <div className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm text-slate-600 border border-slate-700/40">
           Downgrade not available
         </div>
@@ -674,79 +674,6 @@ const LandingPage = () => {
           </div>
         </div>
 
-        {/* Dashboard preview image / mockup */}
-        <div
-          className={`relative max-w-5xl mx-auto mt-20
-            transition-all duration-1000 ease-out delay-300
-            ${heroVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}
-        >
-          <div className="relative rounded-2xl border border-slate-700/60 bg-slate-900/80 overflow-hidden shadow-2xl shadow-black/60">
-            {/* Fake browser chrome */}
-            <div className="flex items-center gap-2 px-4 py-3 bg-slate-800/80 border-b border-slate-700/60">
-              <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-rose-500/80" />
-                <div className="w-3 h-3 rounded-full bg-amber-400/80" />
-                <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
-              </div>
-              <div className="flex-1 mx-4 bg-slate-700/50 rounded-full h-5 flex items-center px-3">
-                <span className="text-xs text-slate-500 truncate">https://app.hl-mck.local/dashboard</span>
-              </div>
-            </div>
-
-            {/* Mock dashboard screenshot */}
-            <div className="p-4 sm:p-6 bg-background-dark min-h-[280px] sm:min-h-[340px]">
-              {/* Stat cards row */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-                {[
-                  { t: 'Total Profiles', v: '128', icon: 'browser_updated', c: 'text-primary' },
-                  { t: 'Running', v: '12', icon: 'play_circle', c: 'text-emerald-400' },
-                  { t: 'Proxies Active', v: '54', icon: 'hub', c: 'text-amber-400' },
-                  { t: 'Expiring Soon', v: '3', icon: 'timer', c: 'text-rose-400' },
-                ].map(({ t, v, icon, c }) => (
-                  <div key={t} className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-0.5">{t}</p>
-                      <p className="text-xl font-bold text-white">{v}</p>
-                    </div>
-                    <span className={`material-symbols-outlined text-2xl ${c}`}>{icon}</span>
-                  </div>
-                ))}
-              </div>
-              {/* Mock table rows */}
-              <div className="space-y-2">
-                {['Profile #1', 'Profile #2', 'Profile #3'].map((name, i) => (
-                  <div key={name} className="flex items-center justify-between px-4 py-2.5 bg-slate-800/40 border border-slate-700/30 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-primary text-base">person</span>
-                      </div>
-                      <span className="text-sm text-slate-300 font-medium">{name}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${
-                        i === 0 ? 'bg-emerald-500/15 text-emerald-400' :
-                        i === 1 ? 'bg-primary/15 text-primary' :
-                        'bg-slate-600/40 text-slate-400'
-                      }`}>
-                        {i === 0 ? 'Running' : i === 1 ? 'Ready' : 'Idle'}
-                      </span>
-                      <div className="hidden sm:flex gap-1">
-                        <div className="w-6 h-6 rounded bg-slate-700/50 flex items-center justify-center">
-                          <span className="material-symbols-outlined text-slate-400 text-sm">launch</span>
-                        </div>
-                        <div className="w-6 h-6 rounded bg-slate-700/50 flex items-center justify-center">
-                          <span className="material-symbols-outlined text-slate-400 text-sm">more_vert</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          {/* Glow under preview */}
-          <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 w-3/4 h-20 bg-primary/8 blur-2xl rounded-full pointer-events-none" />
-        </div>
       </section>
 
       {/* ── Stats ──────────────────────────────────────────────────────────── */}
@@ -912,7 +839,7 @@ const LandingPage = () => {
           {/* Secondary links */}
           <div className="mt-6 flex flex-wrap items-center justify-center gap-6 text-sm text-slate-500">
             <a
-              href="https://github.com/OngBanTat/ObtAutomationAntidetectBrowser"
+              href="https://github.com/longnguyen231/SEP490_G55_Automation_Antidetect_Browser"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 hover:text-primary transition-colors"
@@ -971,7 +898,7 @@ const LandingPage = () => {
           </p>
           <div className="flex items-center gap-5 text-xs text-slate-500">
             <a
-              href="https://github.com/OngBanTat/ObtAutomationAntidetectBrowser"
+              href="https://github.com/longnguyen231/SEP490_G55_Automation_Antidetect_Browser"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-primary transition-colors"

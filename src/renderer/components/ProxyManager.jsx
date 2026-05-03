@@ -203,19 +203,19 @@ export default function ProxyManager() {
     return (
         <div className="w-full h-full flex flex-col p-4" style={{ background: 'var(--bg)' }}>
             {/* ── Header ── */}
-            <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-3">
+            <div className="flex justify-between items-center mb-4 gap-2 flex-wrap">
+                <div className="flex items-center gap-3 shrink-0">
                     <Shield size={22} style={{ color: 'var(--primary)' }} />
                     <h1 className="text-[1.15rem] font-bold" style={{ color: 'var(--fg)' }}>Proxy Pool</h1>
                 </div>
-                <div className="flex items-center gap-2">
-                    <button className="btn btn-secondary text-[0.72rem] flex items-center gap-1" onClick={() => setShowImport(true)}>
+                <div className="flex items-center gap-2 shrink-0">
+                    <button className="btn btn-secondary text-[0.72rem] flex items-center gap-1 whitespace-nowrap" onClick={() => setShowImport(true)}>
                         <Upload size={13} /> Import
                     </button>
-                    <button className="btn btn-secondary text-[0.72rem] flex items-center gap-1" onClick={handleExport} disabled={proxies.length === 0}>
+                    <button className="btn btn-secondary text-[0.72rem] flex items-center gap-1 whitespace-nowrap" onClick={handleExport} disabled={proxies.length === 0}>
                         <Download size={13} /> Export
                     </button>
-                    <button className="btn btn-success text-[0.72rem] flex items-center gap-1" onClick={() => { setEditingProxy(null); setShowForm(true); }}>
+                    <button className="btn btn-success text-[0.72rem] flex items-center gap-1 whitespace-nowrap" onClick={() => { setEditingProxy(null); setShowForm(true); }}>
                         <Plus size={14} /> Add Proxy
                     </button>
                 </div>

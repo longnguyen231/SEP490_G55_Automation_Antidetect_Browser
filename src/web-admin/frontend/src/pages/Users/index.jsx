@@ -58,7 +58,7 @@ export default function Users() {
     }
 
     load()
-      .catch(err => toast.error('Không thể tải danh sách user: ' + err.message))
+      .catch(err => toast.error('Failed to load users: ' + err.message))
       .finally(() => setLoading(false));
   }, []);
 
@@ -77,12 +77,12 @@ export default function Users() {
 
   return (
     <>
-      <PageHeader title="Người dùng" description="Danh sách tài khoản" />
+      <PageHeader title="Users" description="Account list" />
 
       {!loading && users.length > 0 && (
         <div className="flex flex-wrap gap-4 mb-6">
           {[
-            { label: 'Tổng users', value: users.length, color: 'text-slate-700 dark:text-slate-200' },
+            { label: 'Total users', value: users.length, color: 'text-slate-700 dark:text-slate-200' },
             { label: '🛡 Admin',    value: adminCount,   color: 'text-violet-400' },
             { label: '🚀 Trial',   value: trialCount,   color: 'text-cyan-400' },
             { label: '⚡ Paid',    value: paidCount,    color: 'text-amber-400' },
@@ -98,7 +98,7 @@ export default function Users() {
       <div className="flex flex-wrap gap-3 mb-6">
         <input
           type="text"
-          placeholder="Tìm email hoặc tên..."
+          placeholder="Search email or name..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:border-primary w-64"
@@ -114,14 +114,14 @@ export default function Users() {
 
       <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
         {loading ? (
-          <div className="py-12 text-center text-slate-400 text-sm">Đang tải...</div>
+          <div className="py-12 text-center text-slate-400 text-sm">Loading...</div>
         ) : visible.length === 0 ? (
-          <div className="py-12 text-center text-slate-400 text-sm">Không có user nào.</div>
+          <div className="py-12 text-center text-slate-400 text-sm">No users found.</div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
               <tr>
-                {['Email', 'Tên', 'Role', 'License', 'Provider', 'Đăng ký', 'Last login'].map(h => (
+                {['Email', 'Name', 'Role', 'License', 'Provider', 'Registered', 'Last login'].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -132,7 +132,7 @@ export default function Users() {
                   <td className="px-4 py-3 text-slate-700 dark:text-slate-200">
                     <span>{u.email || '—'}</span>
                     {!u.emailVerified && u.email && (
-                      <span className="ml-1.5 text-xs text-amber-400" title="Chưa xác minh email">⚠</span>
+                      <span className="ml-1.5 text-xs text-amber-400" title="Email not verified">⚠</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-slate-500">{u.displayName || <span className="italic text-slate-300">—</span>}</td>
@@ -156,10 +156,10 @@ export default function Users() {
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-400">{u.provider}</td>
                   <td className="px-4 py-3 text-xs text-slate-400">
-                    {u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : '—'}
+                    {u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-US') : '—'}
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-400">
-                    {u.lastSignIn ? new Date(u.lastSignIn).toLocaleDateString('vi-VN') : '—'}
+                    {u.lastSignIn ? new Date(u.lastSignIn).toLocaleDateString('en-US') : '—'}
                   </td>
                 </tr>
               ))}

@@ -81,7 +81,7 @@ export default function CheckoutSuccessPage() {
         setLicenseKey(data.licenseKey);
         setViewState('activated');
         toast.success('License activated!');
-        // Cập nhật trạng thái Pro trong auth store
+        // Update Pro status in auth store
         if (typeof checkProStatus === 'function') checkProStatus(user?.email);
       } else {
         setActivateError(data.error || 'Activation failed. Please try again.');
