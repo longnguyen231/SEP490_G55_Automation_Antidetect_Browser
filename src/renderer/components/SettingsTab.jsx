@@ -22,12 +22,31 @@ export default function SettingsTab({
     const [licenseLoading, setLicenseLoading] = useState(false);
     const [autoStartApi, setAutoStartApi] = useState(false);
     const [maxBrowsers, setMaxBrowsers] = useState(5);
+    const [saveFeedback, setSaveFeedback] = useState(null); // 'ok' | 'err' | null
 
     useEffect(() => {
         window.electronAPI.getMachineCode()
             .then(code => setMachineCode(code || 'UNKNOWN'))
             .catch(console.error);
+        // Load saved maxConcurrentBrowsers
+        window.electronAPI.loadSettings?.()
+            .then(res => {
+                const val = res?.settings?.maxConcurrentBrowsers;
+                if (val != null) setMaxBrowsers(Number(val));
+            })
+            .catch(() => {});
     }, []);
+
+    const handleSaveSettings = async () => {
+        try {
+            await window.electronAPI.saveSettings({ maxConcurrentBrowsers: Math.max(1, parseInt(maxBrowsers, 10) || 5) });
+            setSaveFeedback('ok');
+        } catch {
+            setSaveFeedback('err');
+        } finally {
+            setTimeout(() => setSaveFeedback(null), 2000);
+        }
+    };
 
     const handleActivateLicense = async () => {
         const key = licenseKey.trim();
@@ -213,7 +232,9 @@ export default function SettingsTab({
                         className="w-[80px] text-[0.75rem] py-1 mb-2"
                     />
                     <p className="text-[0.7rem] text-[var(--muted)] mb-4">Limits simultaneous browser instances. Higher = more RAM usage.</p>
-                    <button className="btn btn-success px-4 py-1.5 text-[0.75rem]">Save Settings</button>
+                    <button className="btn btn-success px-4 py-1.5 text-[0.75rem]" onClick={handleSaveSettings}>
+                        {saveFeedback === 'ok' ? '✓ Saved' : saveFeedback === 'err' ? '✗ Failed' : 'Save Settings'}
+                    </button>
                 </div>
 
                 {/* Environment Variables */}
