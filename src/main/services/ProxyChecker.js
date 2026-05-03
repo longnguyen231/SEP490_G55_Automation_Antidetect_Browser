@@ -10,14 +10,19 @@
 const http = require('http');
 const https = require('https');
 const { URL } = require('url');
+const { HttpProxyAgent } = require('http-proxy-agent');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const { SocksProxyAgent } = require('socks-proxy-agent');
 
-const TIMEOUT_MS = 8000;
+const TIMEOUT_MS = 10000;
 
-// IP detection endpoints (free, no key needed)
+// IP detection endpoints (free, no key needed). Mix of HTTP + HTTPS so a proxy
+// that blocks one scheme still has a fallback on the other.
 const IP_APIS = [
   { url: 'http://ip-api.com/json/?fields=query,country,countryCode,city,timezone,status', parse: parseIpApi },
   { url: 'https://ipinfo.io/json', parse: parseIpInfo },
   { url: 'https://ipwhois.app/json/', parse: parseIpWhois },
+  { url: 'http://api.ipify.org/?format=json', parse: parseIpify },
 ];
 
 function parseIpApi(body) {
@@ -37,6 +42,12 @@ function parseIpWhois(body) {
   return { ip: d.ip, country: d.country, countryCode: d.country_code, city: d.city, timezone: d.timezone };
 }
 
+function parseIpify(body) {
+  const d = JSON.parse(body);
+  if (!d.ip) return null;
+  return { ip: d.ip, country: '', countryCode: '', city: '', timezone: '' };
+}
+
 /**
  * Build a proxy URL string from config.
  */
@@ -51,59 +62,49 @@ function buildProxyUrl(cfg) {
 }
 
 /**
- * Perform HTTP GET through an HTTP/HTTPS proxy.
+ * Build the right proxy agent for a given (proxy, target) pair.
+ * Agents handle CONNECT tunneling automatically for HTTPS targets.
  */
-function httpGetViaProxy(targetUrl, proxyHost, proxyPort, proxyAuth, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const target = new URL(targetUrl);
-    const opts = {
-      hostname: proxyHost,
-      port: proxyPort,
-      path: targetUrl,
-      method: 'GET',
-      headers: {
-        'Host': target.host,
-        'User-Agent': 'ProxyChecker/1.0',
-      },
-      timeout: timeoutMs,
-    };
-    if (proxyAuth) {
-      opts.headers['Proxy-Authorization'] = 'Basic ' + Buffer.from(proxyAuth).toString('base64');
-    }
-
-    const req = http.request(opts, (res) => {
-      let data = '';
-      res.on('data', chunk => { data += chunk; });
-      res.on('end', () => resolve({ statusCode: res.statusCode, body: data }));
-    });
-    req.on('timeout', () => { req.destroy(); reject(new Error('Proxy connection timed out')); });
-    req.on('error', reject);
-    req.end();
-  });
+function buildAgent(cfg, isHttpsTarget) {
+  const proxyUrl = buildProxyUrl(cfg);
+  if (!proxyUrl) return null;
+  const type = (cfg.type || 'http').toLowerCase();
+  if (type.startsWith('socks')) return new SocksProxyAgent(proxyUrl);
+  return isHttpsTarget ? new HttpsProxyAgent(proxyUrl) : new HttpProxyAgent(proxyUrl);
 }
 
 /**
- * Perform HTTP GET through a SOCKS proxy using proxy-chain as a local forwarder.
+ * Perform a GET request through the proxy. Works for both HTTP and HTTPS
+ * targets — HTTPS goes through CONNECT tunneling via the agent.
  */
-async function httpGetViaSocks(targetUrl, cfg, timeoutMs) {
-  const ProxyChain = require('proxy-chain');
-  const proxyUrl = buildProxyUrl(cfg);
+function httpGetViaProxy(targetUrl, cfg, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(targetUrl);
+    const isHttps = target.protocol === 'https:';
+    const agent = buildAgent(cfg, isHttps);
+    if (!agent) return reject(new Error('Invalid proxy configuration'));
 
-  // Start local forwarder to handle SOCKS
-  const server = new ProxyChain.Server({
-    verbose: false,
-    prepareRequestFunction: () => ({ upstreamProxyUrl: proxyUrl }),
+    const lib = isHttps ? https : http;
+    const opts = {
+      method: 'GET',
+      agent,
+      timeout: timeoutMs,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 ProxyChecker/1.0',
+        'Accept': 'application/json,text/plain,*/*',
+      },
+    };
+
+    const req = lib.request(targetUrl, opts, (res) => {
+      let data = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => resolve({ statusCode: res.statusCode, body: data }));
+    });
+    req.on('timeout', () => { req.destroy(new Error('Proxy connection timed out')); });
+    req.on('error', reject);
+    req.end();
   });
-  await server.listen(0, '127.0.0.1');
-  const address = server.server.address();
-  const localPort = address.port;
-
-  try {
-    const result = await httpGetViaProxy(targetUrl, '127.0.0.1', localPort, null, timeoutMs);
-    return result;
-  } finally {
-    try { await server.close(true); } catch { }
-  }
 }
 
 /**
@@ -117,35 +118,36 @@ async function checkProxy(cfg) {
     return { success: false, alive: false, error: 'Host and port are required' };
   }
 
-  const type = (cfg.type || 'http').toLowerCase();
-  const isSocks = type.startsWith('socks');
-  const proxyAuth = (cfg.username && cfg.password) ? `${cfg.username}:${cfg.password}` : null;
-
-  // Try all IP APIs in parallel — use the first successful result
   const start = Date.now();
+  const errors = [];
   const tryApi = async (api) => {
     let result;
-    if (isSocks) {
-      result = await httpGetViaSocks(api.url, cfg, TIMEOUT_MS);
-    } else {
-      result = await httpGetViaProxy(api.url, cfg.host, Number(cfg.port), proxyAuth, TIMEOUT_MS);
+    try {
+      result = await httpGetViaProxy(api.url, cfg, TIMEOUT_MS);
+    } catch (e) {
+      errors.push(`${api.url}: ${e.code || e.message}`);
+      throw e;
     }
     const latency = Date.now() - start;
     if (result.statusCode >= 200 && result.statusCode < 400) {
-      const geo = api.parse(result.body);
+      let geo = null;
+      try { geo = api.parse(result.body); } catch { /* malformed body */ }
       if (geo) return { success: true, alive: true, latency, ...geo };
+      // 2xx but unparseable — proxy is alive, just couldn't read geo
+      return { success: true, alive: true, latency, warning: `Could not parse response from ${api.url}` };
     }
-    return { success: true, alive: true, latency, warning: `API returned status ${result.statusCode}` };
+    errors.push(`${api.url}: HTTP ${result.statusCode}`);
+    throw new Error(`HTTP ${result.statusCode}`);
   };
 
-  // Race all APIs — first to resolve wins, errors are ignored
+  // Race all APIs — first success wins; if all fail, surface the joined errors
   const winner = await Promise.any(IP_APIS.map(api => tryApi(api))).catch(() => null);
   if (winner) return winner;
 
   return {
     success: true, alive: false,
     ip: null, country: null, countryCode: null, city: null, timezone: null, latency: null,
-    error: 'Connection failed or timed out',
+    error: errors.length ? errors.join(' | ') : 'Connection failed or timed out',
   };
 }
 
