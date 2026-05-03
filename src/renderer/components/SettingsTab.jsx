@@ -262,28 +262,6 @@ export default function SettingsTab({
                     </button>
                 </div>
 
-                {/* Environment Variables */}
-                <div className="card relative p-4 mb-6 mt-8">
-                    <div className="absolute -top-3 left-4 bg-[var(--card)] px-2 text-[0.85rem] font-bold text-[var(--fg)]">Environment Variables</div>
-                    <div className="mb-4 pt-1">
-                        <span className="text-[0.75rem] font-bold text-emerald-500 block mb-1">LOG_LEVEL</span>
-                        <p className="text-[0.7rem] text-[var(--muted)] ml-4">Logging level: trace, debug, info, warn, error, fatal</p>
-                        <p className="text-[0.7rem] text-[var(--muted)] ml-4">Default: info</p>
-                    </div>
-                    <div className="mb-4">
-                        <span className="text-[0.75rem] font-bold text-emerald-500 block mb-1">MAX_CONCURRENT_BROWSERS</span>
-                        <p className="text-[0.7rem] text-[var(--muted)] ml-4">Maximum number of browser instances running simultaneously</p>
-                        <p className="text-[0.7rem] text-[var(--muted)] ml-4">Default: 5 (overrides UI setting above)</p>
-                    </div>
-                    <div className="mb-4">
-                        <span className="text-[0.75rem] font-bold text-emerald-500 block mb-1">MASTER_ENCRYPTION_KEY</span>
-                        <p className="text-[0.7rem] text-[var(--muted)] ml-4">32-byte base64-encoded key for encrypting proxy credentials in database</p>
-                        <p className="text-[0.7rem] text-amber-500 ml-4 mt-0.5 flex items-center gap-1"><svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 3.8l7.5 13.2H4.5L12 5.8zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/></svg>Required for production use. Dev mode uses insecure default key.</p>
-                    </div>
-                    <div className="mt-4 border-t border-[var(--border)] pt-2">
-                        <p className="text-[0.7rem] text-[var(--muted)] italic"><strong className="font-semibold not-italic">Note:</strong> Environment variables must be set before launching the application. Restart required after changes.</p>
-                    </div>
-                </div>
 
                 {/* Audit Log */}
                 <div className="card relative p-4 mb-6 mt-4">
