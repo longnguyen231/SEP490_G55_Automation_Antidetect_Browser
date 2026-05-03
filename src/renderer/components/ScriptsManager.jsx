@@ -78,6 +78,46 @@ const API_REF = [
 
 const totalMethods = API_REF.reduce((s, c) => s + c.methods.length, 0);
 
+const CRON_PRESETS = [
+  { label: 'Every 30s', cron: '*/30 * * * * *' },
+  { label: 'Every 1m',  cron: '* * * * *' },
+  { label: 'Every 5m',  cron: '*/5 * * * *' },
+  { label: 'Every 15m', cron: '*/15 * * * *' },
+  { label: 'Every 30m', cron: '*/30 * * * *' },
+  { label: 'Hourly',    cron: '0 * * * *' },
+  { label: 'Daily 9am', cron: '0 9 * * *' },
+  { label: 'Midnight',  cron: '0 0 * * *' },
+  { label: 'Mon 9am',   cron: '0 9 * * 1' },
+];
+
+const MINUTE_OPTIONS = ['* (every)', '*/5', '*/10', '*/15', '*/30', '0', '15', '30', '45'];
+const HOUR_OPTIONS = ['* (every)', '0', '1', '2', '3', '6', '8', '9', '12', '15', '18', '21'];
+const DAY_OPTIONS = ['* (every)', '1', '5', '10', '15', '20', '25'];
+const MONTH_OPTIONS = ['* (every)', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+const WEEKDAY_OPTIONS = ['* (every)', '0', '1', '2', '3', '4', '5', '6'];
+
+function describeCron(expr) {
+  if (!expr) return '';
+  const parts = expr.trim().split(' ');
+  if (parts.length === 6) {
+    const [sec] = parts;
+    if (sec.startsWith('*/')) return `Every ${sec.slice(2)} seconds`;
+    return expr;
+  }
+  if (parts.length !== 5) return expr;
+  const [min, hr, day, mon, wd] = parts;
+  if (min === '*' && hr === '*' && day === '*' && mon === '*' && wd === '*') return 'Every minute';
+  if (min.startsWith('*/')) return `Every ${min.slice(2)} minutes`;
+  if (min === '0' && hr === '*') return 'Every hour';
+  if (min === '0' && hr === '0' && day === '*' && mon === '*' && wd === '*') return 'Every day at midnight';
+  if (min === '0' && hr !== '*' && day === '*' && mon === '*' && wd === '*') return `Every day at ${hr}:00`;
+  if (min === '0' && hr !== '*' && wd !== '*') {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return `${days[Number(wd)] || 'Day ' + wd} at ${hr}:00`;
+  }
+  return expr;
+}
+
 const DEFAULT_CODE = `// Available globals: page, cdp, profileId, log()
 // Type 'page.' or 'cdp.' to see autocomplete
 
@@ -125,6 +165,16 @@ function ScriptsTab({ profiles }) {
     // Bulk run modal
     const [bulkRunScript, setBulkRunScript] = useState(null);
 
+    // Schedule state
+    const [scheduleEnabled, setScheduleEnabled] = useState(false);
+    const [scheduleProfileId, setScheduleProfileId] = useState('');
+    const [cronExpr, setCronExpr] = useState('*/5 * * * *');
+    const [cronMinute, setCronMinute] = useState('*/5');
+    const [cronHour, setCronHour] = useState('* (every)');
+    const [cronDay, setCronDay] = useState('* (every)');
+    const [cronMonth, setCronMonth] = useState('* (every)');
+    const [cronWeekday, setCronWeekday] = useState('* (every)');
+
     // Browser mode
     const [browserMode, setBrowserMode] = useState('visible');
     // Center panel tab: 'settings' | 'apiref'
@@ -139,10 +189,30 @@ function ScriptsTab({ profiles }) {
 
     useEffect(() => { load(); }, [load]);
 
+    // Sync cron fields → expression
+    useEffect(() => {
+        const clean = v => v.replace(' (every)', '');
+        const expr = `${clean(cronMinute)} ${clean(cronHour)} ${clean(cronDay)} ${clean(cronMonth)} ${clean(cronWeekday)}`;
+        setCronExpr(expr);
+    }, [cronMinute, cronHour, cronDay, cronMonth, cronWeekday]);
+
+    const applyCronPreset = (cronStr) => {
+        setCronExpr(cronStr);
+        const parts = cronStr.trim().split(' ');
+        if (parts.length !== 5) return; // 6-field (seconds) — skip dropdown sync
+        const [m, h, d, mo, w] = parts;
+        setCronMinute(m === '*' ? '* (every)' : m);
+        setCronHour(h === '*' ? '* (every)' : h);
+        setCronDay(d === '*' ? '* (every)' : d);
+        setCronMonth(mo === '*' ? '* (every)' : mo);
+        setCronWeekday(w === '*' ? '* (every)' : w);
+    };
+
     const handleNew = () => {
         setEditing({ id: null, name: '', description: '', code: DEFAULT_CODE });
         setSelectedId(null);
         setRunResult(null);
+        setScheduleEnabled(false);
         setBrowserMode('visible');
         setSettingsTab('settings');
     };
@@ -151,6 +221,9 @@ function ScriptsTab({ profiles }) {
         setEditing({ ...s });
         setSelectedId(s.id);
         setRunResult(null);
+        setScheduleEnabled(!!s.schedule?.enabled);
+        if (s.schedule?.cron) applyCronPreset(s.schedule.cron);
+        if (s.schedule?.profileId) setScheduleProfileId(s.schedule.profileId);
         setBrowserMode(s.browserMode || 'visible');
         setSettingsTab('settings');
     };
@@ -163,6 +236,7 @@ function ScriptsTab({ profiles }) {
                 name: editing.name,
                 description: editing.description,
                 code: editing.code,
+                schedule: scheduleEnabled ? { enabled: true, cron: cronExpr, profileId: scheduleProfileId } : { enabled: false },
                 browserMode,
             });
             if (!res?.success) { alert(res?.error || 'Save failed'); return; }
@@ -438,6 +512,61 @@ function ScriptsTab({ profiles }) {
                                             value={editing.description} onChange={e => setEditing(p => ({ ...p, description: e.target.value }))} placeholder="What does this script do?" />
                                     </div>
                                 </div>
+                                {/* Auto-run Schedule */}
+                                <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-[0.78rem] font-semibold" style={{ color: 'var(--fg)' }}>Auto-run schedule</span>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" checked={scheduleEnabled} onChange={e => setScheduleEnabled(e.target.checked)} className="sr-only peer" />
+                                            <div className="w-9 h-5 rounded-full peer-checked:bg-blue-500 transition" style={{ background: scheduleEnabled ? 'var(--primary)' : 'var(--border2)' }}>
+                                                <div className={`w-4 h-4 rounded-full bg-white shadow transform transition-transform mt-0.5 ${scheduleEnabled ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                                            </div>
+                                        </label>
+                                    </div>
+                                    {scheduleEnabled && (
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-2">
+                                                <label className="text-[0.7rem] font-medium" style={{ color: 'var(--muted)' }}>Profile:</label>
+                                                <select className="flex-1 rounded px-2 py-1 text-[0.72rem]" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
+                                                    value={scheduleProfileId} onChange={e => setScheduleProfileId(e.target.value)}>
+                                                    <option value="">Select profile</option>
+                                                    {profiles.map(p => <option key={p.id} value={p.id}>{p.name || p.id}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {CRON_PRESETS.map(p => (
+                                                    <button key={p.cron}
+                                                        className={`px-2 py-0.5 rounded text-[0.68rem] font-medium transition ${cronExpr === p.cron ? 'text-white' : ''}`}
+                                                        style={{ background: cronExpr === p.cron ? 'var(--primary)' : 'var(--glass)', border: '1px solid var(--border2)', color: cronExpr === p.cron ? '#fff' : 'var(--fg)' }}
+                                                        onClick={() => applyCronPreset(p.cron)}>{p.label}</button>
+                                                ))}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                {[
+                                                    { label: 'Minute', value: cronMinute, set: setCronMinute, options: MINUTE_OPTIONS },
+                                                    { label: 'Hour', value: cronHour, set: setCronHour, options: HOUR_OPTIONS },
+                                                    { label: 'Day', value: cronDay, set: setCronDay, options: DAY_OPTIONS },
+                                                    { label: 'Month', value: cronMonth, set: setCronMonth, options: MONTH_OPTIONS },
+                                                    { label: 'Weekday', value: cronWeekday, set: setCronWeekday, options: WEEKDAY_OPTIONS },
+                                                ].map(f => (
+                                                    <div key={f.label} className="flex-1">
+                                                        <label className="text-[0.62rem] font-medium block mb-0.5" style={{ color: 'var(--muted)' }}>{f.label}</label>
+                                                        <select className="w-full rounded px-1 py-1 text-[0.7rem]" style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
+                                                            value={f.value} onChange={e => f.set(e.target.value)}>
+                                                            {f.options.map(o => <option key={o} value={o}>{o}</option>)}
+                                                        </select>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <input className="rounded px-2 py-1 text-[0.72rem] font-mono w-[140px]"
+                                                    style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
+                                                    value={cronExpr} onChange={e => setCronExpr(e.target.value)} />
+                                                <span className="text-[0.7rem]" style={{ color: 'var(--muted)' }}>{describeCron(cronExpr)}</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                                 {/* Browser Mode */}
                                 <div className="px-3 py-2 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
                                     <div>
@@ -510,7 +639,7 @@ function ScriptsTab({ profiles }) {
                             </div>
                         </div>
                         <p className="text-[0.75rem] mb-4" style={{ color: 'var(--muted)' }}>
-                            This action cannot be undone. The script will be permanently deleted.
+                            This action cannot be undone. The script and its schedule will be permanently deleted.
                         </p>
                         <div className="flex gap-2 justify-end">
                             <button className="btn btn-secondary text-[0.75rem] px-4" onClick={() => setDeleteConfirmId(null)}>Cancel</button>

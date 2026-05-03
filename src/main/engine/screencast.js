@@ -16,9 +16,6 @@ const { appendLog } = require('../logging/logger');
 // Active screenshot loops: profileId → { active: boolean, stop: () => void }
 const screencastLoops = new Map();
 
-// Per-profile frame counters for periodic logging
-const _frameCounters = new Map();
-
 // Reference to the WebSocket broadcast function (set by restServer after init)
 let _wsBroadcast = null;
 
@@ -41,7 +38,6 @@ function startScreencast(profileId, intervalMs = 400) {
   }
 
   const running = runningProfiles.get(profileId);
-  appendLog(profileId, `[screencast] startScreencast called: engine=${running?.engine || 'N/A'} ctx=${!!running?.context} wsBroadcast=${!!_wsBroadcast}`);
   if (!running || !running.context) {
     appendLog(profileId, '[screencast] Cannot start: no running context');
     return;
@@ -54,7 +50,6 @@ function startScreencast(profileId, intervalMs = 400) {
   };
 
   screencastLoops.set(profileId, handle);
-  _frameCounters.set(profileId, 0);
   appendLog(profileId, `[screencast] Started (interval=${intervalMs}ms, JPEG q60)`);
 
   // Recursive loop — guarantees no overlap
@@ -66,9 +61,8 @@ function startScreencast(profileId, intervalMs = 400) {
         const ctx = runningProfiles.get(profileId)?.context;
         if (!ctx) { handle.active = false; break; }
 
-        const allPages = ctx.pages().filter(p => !p.isClosed());
-        // Prefer a page with a real URL over about:blank
-        const page = allPages.find(p => p.url() !== 'about:blank' && p.url() !== '') || allPages[0] || null;
+        const pages = ctx.pages();
+        const page = pages && pages.length > 0 ? pages[0] : null;
         if (!page || page.isClosed()) {
           // No page available yet or page closed — wait and retry
           if (handle.active) await new Promise(r => setTimeout(r, intervalMs));
@@ -78,19 +72,11 @@ function startScreencast(profileId, intervalMs = 400) {
         const buf = await page.screenshot({
           type: 'jpeg',
           quality: 60,
-          timeout: 5000,
+          timeout: 2000,
         });
 
         if (handle.active && buf) {
           broadcastFrame(profileId, buf);
-          // Periodic frame counter log
-          const cnt = (_frameCounters.get(profileId) || 0) + 1;
-          _frameCounters.set(profileId, cnt);
-          if (cnt === 1) {
-            appendLog(profileId, `[screencast] First frame captured (page: ${page.url().substring(0, 80)})`);
-          } else if (cnt % 50 === 0) {
-            appendLog(profileId, `[screencast] ${cnt} frames captured`);
-          }
         }
       } catch (e) {
         const msg = e?.message || String(e);
@@ -119,7 +105,6 @@ function startScreencast(profileId, intervalMs = 400) {
 
     // Loop exited — cleanup
     screencastLoops.delete(profileId);
-    _frameCounters.delete(profileId);
     appendLog(profileId, '[screencast] Stopped');
   })();
 }
@@ -152,24 +137,16 @@ function isScreencasting(profileId) {
   return !!(handle && handle.active);
 }
 
-let _wsBroadcastWarnedNull = false;
-
+/**
+ * Broadcast a JPEG frame to all WebSocket clients subscribed to this profile.
+ */
 function broadcastFrame(profileId, jpegBuffer) {
-  if (!_wsBroadcast) {
-    if (!_wsBroadcastWarnedNull) {
-      appendLog(profileId, '[screencast] broadcastFrame: _wsBroadcast not registered — frames will be dropped until WS server starts');
-      _wsBroadcastWarnedNull = true;
-    }
-    return;
-  }
-  _wsBroadcastWarnedNull = false; // reset once broadcast is available
+  if (!_wsBroadcast) return;
   try {
     // Convert to base64 for JSON transport
     const base64 = jpegBuffer.toString('base64');
     _wsBroadcast(profileId, base64);
-  } catch (e) {
-    appendLog(profileId, `[screencast] broadcastFrame error: ${e?.message || e}`);
-  }
+  } catch { }
 }
 
 module.exports = {
