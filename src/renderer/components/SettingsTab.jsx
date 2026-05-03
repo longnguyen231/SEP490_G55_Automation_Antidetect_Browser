@@ -80,8 +80,8 @@ export default function SettingsTab({
     };
 
     return (
-        <div className="w-full h-full flex flex-col p-4 overflow-y-auto">
-            <div className="max-w-[700px]">
+        <div className="w-full h-full flex flex-col p-4 overflow-y-auto overflow-x-hidden">
+            <div className="w-full max-w-[700px] min-w-0">
                 <h1 className="text-2xl font-bold text-[var(--fg)] mb-6 tracking-tight">{t('settings.title') || 'Settings'}</h1>
 
                 {/* Appearance */}
@@ -211,7 +211,7 @@ export default function SettingsTab({
                             </div>
                         )}
 
-                        <div className="flex items-center gap-3 mb-4">
+                        <div className="flex flex-wrap items-center gap-3 mb-4">
                             <span className="text-[0.85rem] text-[var(--muted)]">Port</span>
                             <input
                                 type="number"

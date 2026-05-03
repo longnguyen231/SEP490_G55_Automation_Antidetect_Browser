@@ -41,8 +41,8 @@ export default function AppLogsTab({ logs = [], onClear }) {
             
             <div className="flex-1 rounded-xl flex flex-col overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
                 {/* Header Toolbar */}
-                <div className="flex justify-between items-center px-3 py-2" style={{ background: 'var(--card2)', borderBottom: '1px solid var(--border)' }}>
-                    <div className="flex items-center gap-4">
+                <div className="flex flex-wrap justify-between items-center gap-2 px-3 py-2" style={{ background: 'var(--card2)', borderBottom: '1px solid var(--border)' }}>
+                    <div className="flex items-center gap-3 flex-wrap">
                         <div className="relative">
                             <select 
                                 value={levelFilter}
