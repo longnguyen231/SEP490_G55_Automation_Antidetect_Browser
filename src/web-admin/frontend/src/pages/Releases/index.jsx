@@ -196,14 +196,25 @@ export default function Releases() {
                     <td className="px-6 py-3 font-mono text-xs text-slate-600 dark:text-slate-300 break-all max-w-md">{r.fileName}</td>
                     <td className="px-6 py-3 text-right text-slate-500">{formatBytes(r.size)}</td>
                     <td className="px-6 py-3 text-slate-500 whitespace-nowrap">{formatDate(r.createdAt)}</td>
-                    <td className="px-6 py-3 text-right whitespace-nowrap">
+                    <td className="px-6 py-3 text-right whitespace-nowrap space-x-3">
                       <a
                         href={r.downloadUrl}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline mr-3"
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
                       >
                         <span className="material-symbols-outlined text-sm">download</span>
                         Download
                       </a>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(r.downloadUrl);
+                          toast.success('Download link copied!');
+                        }}
+                        title="Copy download link — paste into Config → Download Links"
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:underline"
+                      >
+                        <span className="material-symbols-outlined text-sm">content_copy</span>
+                        Copy link
+                      </button>
                       <button
                         onClick={() => handleDelete(r.id)}
                         className="inline-flex items-center gap-1 text-xs font-semibold text-rose-500 hover:underline"
