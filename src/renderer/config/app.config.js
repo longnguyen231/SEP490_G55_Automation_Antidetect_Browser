@@ -8,7 +8,7 @@
 // URL of the web admin frontend
 // Development: http://localhost:5174
 // Production:  https://your-production-domain.com
-export const WEB_ADMIN_URL = 'http://localhost:5174';
+export const WEB_ADMIN_URL = 'https://hlmck.vercel.app';
 
 /**
  * Returns the URL for the "Get My License Key" page on the web admin.
