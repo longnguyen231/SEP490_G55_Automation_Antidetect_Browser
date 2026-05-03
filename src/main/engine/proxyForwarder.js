@@ -87,28 +87,34 @@ async function startSocksForwarder(proxy, { appendLog, profileId } = {}) {
   if (proxy.username) socksOptions.proxy.userId = proxy.username;
   if (proxy.password) socksOptions.proxy.password = proxy.password;
 
-  // Create a local HTTP proxy server
+  // Create a local HTTP proxy server.
+  // For non-CONNECT (plain HTTP) we hijack the underlying client socket and pipe raw
+  // bytes between it and the SOCKS tunnel. Routing through `res` (http.ServerResponse)
+  // would prepend Node's own status line/headers and corrupt the upstream response.
   const localServer = http.createServer((req, res) => {
-    // Regular HTTP requests (non-CONNECT)
     const targetUrl = new URL(req.url);
     const destHost = targetUrl.hostname;
     const destPort = parseInt(targetUrl.port, 10) || 80;
+    const clientSocket = req.socket;
 
     SocksClient.createConnection({
       ...socksOptions,
       destination: { host: destHost, port: destPort },
     }).then(({ socket: socksSocket }) => {
-      // Forward the original HTTP request through the SOCKS tunnel
-      const proxyReq = `${req.method} ${targetUrl.pathname}${targetUrl.search || ''} HTTP/${req.httpVersion}\r\n`;
+      // Reconstruct request in origin form (path, not absolute URL) for the upstream server
+      const requestLine = `${req.method} ${targetUrl.pathname}${targetUrl.search || ''} HTTP/${req.httpVersion}\r\n`;
       const headers = Object.entries(req.headers)
         .filter(([k]) => k.toLowerCase() !== 'proxy-connection')
         .map(([k, v]) => `${k}: ${v}`)
         .join('\r\n');
-      socksSocket.write(proxyReq + headers + '\r\n\r\n');
+      socksSocket.write(requestLine + headers + '\r\n\r\n');
+      // Body (if any) — stream remaining bytes from req into the tunnel
       req.pipe(socksSocket);
-      socksSocket.pipe(res);
-      socksSocket.on('error', () => { try { res.destroy(); } catch {} });
-      res.on('error', () => { try { socksSocket.destroy(); } catch {} });
+      // Raw response bytes back to the original client socket
+      socksSocket.pipe(clientSocket);
+      socksSocket.on('error', () => { try { clientSocket.destroy(); } catch {} });
+      clientSocket.on('error', () => { try { socksSocket.destroy(); } catch {} });
+      socksSocket.on('end', () => { try { clientSocket.end(); } catch {} });
     }).catch(() => {
       try { res.writeHead(502); res.end('SOCKS connection failed'); } catch {}
     });

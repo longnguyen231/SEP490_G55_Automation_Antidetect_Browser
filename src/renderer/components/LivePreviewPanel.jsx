@@ -13,45 +13,50 @@ import './LivePreviewPanel.css';
 export default function LivePreviewPanel({ profile, apiPort = 4000, onClose }) {
   const imgRef = useRef(null);
   const wsRef = useRef(null);
-  const [connState, setConnState] = useState('CONNECTING'); // CONNECTING | LIVE | STOPPED | ERROR
+  const [connState, setConnState] = useState('CONNECTING'); // CONNECTING | LIVE | RECONNECTING | STOPPED | ERROR
   const [frameCount, setFrameCount] = useState(0);
   const [lastFrameTime, setLastFrameTime] = useState(null);
+  const [hasFirstFrame, setHasFirstFrame] = useState(false);
   const frameCountRef = useRef(0);
 
   const profileId = profile?.id;
   const profileName = profile?.name || 'Profile';
 
-  // Ensure screencast is running for this profile
-  useEffect(() => {
-    if (!profileId) return;
-    window.electronAPI?.startPreview?.(profileId).catch(() => {});
-  }, [profileId]);
-
   // WebSocket connection lifecycle
+  // NOTE: startPreview IPC is called inside ws.onopen to eliminate the race condition
+  // where the renderer calls startPreview before the WS handshake completes.
   useEffect(() => {
     if (!profileId) return;
 
     setConnState('CONNECTING');
     frameCountRef.current = 0;
     setFrameCount(0);
+    setHasFirstFrame(false);
 
     const wsUrl = `ws://127.0.0.1:${apiPort}/preview`;
     let ws;
     let reconnectTimer;
     let closed = false;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT = 15;
 
     function connect() {
       if (closed) return;
       try {
         ws = new WebSocket(wsUrl);
-      } catch {
+      } catch (e) {
+        console.warn('[LivePreview] WS constructor error:', e);
         setConnState('ERROR');
         return;
       }
 
       ws.onopen = () => {
+        console.log('[LivePreview] WS connected, subscribing to', profileId);
+        reconnectAttempts = 0;
         // Subscribe to this profile's stream
         ws.send(JSON.stringify({ action: 'subscribe', profileId }));
+        // Start screencast AFTER WS is open — eliminates IPC-vs-WS race
+        window.electronAPI?.startPreview?.(profileId).catch(() => {});
         setConnState('LIVE');
       };
 
@@ -64,24 +69,30 @@ export default function LivePreviewPanel({ profile, apiPort = 4000, onClose }) {
             setFrameCount(frameCountRef.current);
             setLastFrameTime(Date.now());
           }
-        } catch { /* ignore parse errors */ }
-      };
-
-      ws.onclose = () => {
-        if (!closed) {
-          setConnState('STOPPED');
-          // Try to reconnect after 2 seconds
-          reconnectTimer = setTimeout(() => {
-            if (!closed) {
-              setConnState('CONNECTING');
-              connect();
-            }
-          }, 2000);
+        } catch (e) {
+          console.warn('[LivePreview] WS message parse error:', e);
         }
       };
 
-      ws.onerror = () => {
-        setConnState('ERROR');
+      ws.onclose = () => {
+        if (closed) return;
+        reconnectAttempts++;
+        if (reconnectAttempts >= MAX_RECONNECT) {
+          console.warn(`[LivePreview] Max reconnect attempts (${MAX_RECONNECT}) reached`);
+          setConnState('ERROR');
+          return;
+        }
+        setConnState(hasFirstFrame ? 'RECONNECTING' : 'CONNECTING');
+        // Reconnect after 2 seconds
+        reconnectTimer = setTimeout(() => {
+          if (!closed) connect();
+        }, 2000);
+      };
+
+      ws.onerror = (e) => {
+        // Do NOT set ERROR here — let onclose handle reconnection.
+        // onerror always fires before onclose on connection failure.
+        console.warn('[LivePreview] WS error (will retry via onclose):', e);
       };
 
       wsRef.current = ws;
@@ -118,6 +129,8 @@ export default function LivePreviewPanel({ profile, apiPort = 4000, onClose }) {
     switch (connState) {
       case 'CONNECTING':
         return <span className="lp-badge-connecting">⟳ Connecting</span>;
+      case 'RECONNECTING':
+        return <span className="lp-badge-connecting">⟳ Reconnecting</span>;
       case 'LIVE':
         return (
           <span className="lp-badge-live">
@@ -155,14 +168,14 @@ export default function LivePreviewPanel({ profile, apiPort = 4000, onClose }) {
 
         {/* Viewport */}
         <div className="lp-viewport">
-          {connState === 'CONNECTING' && frameCount === 0 && (
+          {connState === 'CONNECTING' && !hasFirstFrame && (
             <div className="lp-empty-state">
               <div className="lp-spinner" />
               <div className="lp-empty-text">Connecting to headless browser...</div>
             </div>
           )}
 
-          {connState === 'ERROR' && frameCount === 0 && (
+          {connState === 'ERROR' && !hasFirstFrame && (
             <div className="lp-empty-state">
               <div className="lp-empty-icon">⚠</div>
               <div className="lp-empty-text">
@@ -172,7 +185,7 @@ export default function LivePreviewPanel({ profile, apiPort = 4000, onClose }) {
             </div>
           )}
 
-          {connState === 'STOPPED' && frameCount === 0 && (
+          {connState === 'STOPPED' && !hasFirstFrame && (
             <div className="lp-empty-state">
               <div className="lp-empty-icon">📺</div>
               <div className="lp-empty-text">
@@ -185,8 +198,9 @@ export default function LivePreviewPanel({ profile, apiPort = 4000, onClose }) {
           <img
             ref={imgRef}
             alt="Live headless browser preview"
+            onLoad={() => setHasFirstFrame(true)}
             style={{
-              display: frameCount > 0 ? 'block' : 'none',
+              display: hasFirstFrame ? 'block' : 'none',
             }}
           />
         </div>

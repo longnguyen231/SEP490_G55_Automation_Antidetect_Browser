@@ -1,4 +1,4 @@
-const { checkProxy } = require('./src/main/engine/proxyChecker');
+const { checkProxy } = require('./src/main/services/ProxyChecker');
 
 async function run() {
     console.log("Testing with a dummy HTTP proxy...");

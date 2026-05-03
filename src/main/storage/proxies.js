@@ -159,11 +159,15 @@ async function updateProxyInternal(id, data) {
         if (data.username != null) merged.username = String(data.username).trim();
         if (data.password != null) merged.password = String(data.password).trim();
         if (data.country != null) merged.country = String(data.country).trim();
+        if (data.countryCode != null) merged.countryCode = String(data.countryCode).trim();
+        if (data.city != null) merged.city = String(data.city).trim();
+        if (data.ip != null) merged.ip = String(data.ip).trim();
         if (data.note != null) merged.note = String(data.note).trim();
         if (data.rotateUrl != null) merged.rotateUrl = String(data.rotateUrl).trim();
         // Allow checker module to update status/latency
         if (data.status != null) merged.status = data.status;
         if (data.lastChecked != null) merged.lastChecked = data.lastChecked;
+        if (data.lastRotated != null) merged.lastRotated = data.lastRotated;
         if (data.latency != null) merged.latency = data.latency;
 
         merged.updatedAt = new Date().toISOString();
