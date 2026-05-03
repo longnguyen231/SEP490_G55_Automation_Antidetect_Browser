@@ -106,7 +106,7 @@ export default function Config() {
                   {label}
                 </label>
                 <input
-                  type="url"
+                  type="text"
                   value={downloadUrls[key] || ''}
                   onChange={e => setDownloadUrls(u => ({ ...u, [key]: e.target.value }))}
                   placeholder={DEFAULT_DOWNLOAD_URLS[key]}
