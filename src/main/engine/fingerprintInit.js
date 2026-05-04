@@ -480,30 +480,53 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   // ═══════════════════════════════════════════════════════════════════════
   // 5. WEBGL vendor & renderer spoofing
   // ═══════════════════════════════════════════════════════════════════════
-  if (applyWebgl && (adv.webglVendor || adv.webglRenderer)) {
+  const webglMaxTexture = Number(fp.maxTextureSize) || 0;
+  const webglExtensions = (typeof fp.webglExtensions === 'string' && fp.webglExtensions.trim())
+    ? fp.webglExtensions.split(',').map(e => e.trim()).filter(Boolean)
+    : null;
+  if (applyWebgl && (adv.webglVendor || adv.webglRenderer || webglMaxTexture || webglExtensions)) {
     try {
-      await context.addInitScript(({ vendor, renderer }) => {
+      await context.addInitScript(({ vendor, renderer, maxTextureSize, extensions }) => {
         try {
           const patch = (proto) => {
-            if (!proto || !proto.getParameter) return;
-            const origGetParam = proto.getParameter;
-
-            Object.defineProperty(proto, 'getParameter', {
-              value: function (param) {
-                if (param === 0x9245 && vendor) return vendor;   // UNMASKED_VENDOR_WEBGL
-                if (param === 0x9246 && renderer) return renderer; // UNMASKED_RENDERER_WEBGL
-                if (param === 0x1F01 && renderer) return renderer; // RENDERER
-                if (param === 0x1F00 && vendor) return vendor;     // VENDOR
-                return origGetParam.apply(this, arguments);
-              },
-              configurable: true,
-            });
+            if (!proto) return;
+            if (proto.getParameter) {
+              const origGetParam = proto.getParameter;
+              Object.defineProperty(proto, 'getParameter', {
+                value: function (param) {
+                  if (param === 0x9245 && vendor) return vendor;      // UNMASKED_VENDOR_WEBGL
+                  if (param === 0x9246 && renderer) return renderer;  // UNMASKED_RENDERER_WEBGL
+                  if (param === 0x1F01 && renderer) return renderer;  // RENDERER
+                  if (param === 0x1F00 && vendor) return vendor;      // VENDOR
+                  if (param === 0x0D33 && maxTextureSize) return maxTextureSize; // MAX_TEXTURE_SIZE
+                  return origGetParam.apply(this, arguments);
+                },
+                configurable: true,
+              });
+            }
+            if (extensions && proto.getSupportedExtensions) {
+              const origGetExts = proto.getSupportedExtensions;
+              Object.defineProperty(proto, 'getSupportedExtensions', {
+                value: function () { return extensions.slice(); },
+                configurable: true,
+              });
+            }
+            if (extensions && proto.getExtension) {
+              const origGetExt = proto.getExtension;
+              Object.defineProperty(proto, 'getExtension', {
+                value: function (name) {
+                  if (!extensions.includes(name)) return null;
+                  return origGetExt.apply(this, arguments);
+                },
+                configurable: true,
+              });
+            }
           };
 
           if (window.WebGLRenderingContext) patch(WebGLRenderingContext.prototype);
           if (window.WebGL2RenderingContext) patch(WebGL2RenderingContext.prototype);
         } catch {}
-      }, { vendor: adv.webglVendor, renderer: adv.webglRenderer });
+      }, { vendor: adv.webglVendor, renderer: adv.webglRenderer, maxTextureSize: webglMaxTexture || null, extensions: webglExtensions });
     } catch {}
   }
 
