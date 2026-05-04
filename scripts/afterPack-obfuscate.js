@@ -19,10 +19,17 @@ const fs = require('fs');
 const path = require('path');
 
 const EXCLUDE_DIRS = ['node_modules', 'vendor'];
+// These files contain functions passed to context.addInitScript() which are serialized via
+// fn.toString() and injected into the browser. Obfuscating them with stringArray encoding
+// breaks them because the decoder function (_0x1234) is defined at module scope but the
+// browser only receives the inner function body — causing ReferenceError on first page load.
+const EXCLUDE_FILES = ['fingerprintInit.js', 'behaviorSimulator.js', 'actions.js'];
 
 function shouldProcess(filePath) {
   if (!filePath.endsWith('.js')) return false;
-  return !EXCLUDE_DIRS.some(ex => filePath.includes(path.sep + ex + path.sep));
+  if (EXCLUDE_DIRS.some(ex => filePath.includes(path.sep + ex + path.sep))) return false;
+  if (EXCLUDE_FILES.some(name => filePath.endsWith(path.sep + name))) return false;
+  return true;
 }
 
 function walk(dir) {
