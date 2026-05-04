@@ -928,7 +928,34 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // 12. SPEECH SYNTHESIS — gated by identity (navigator overrides)
+  // 12. MEDIA DEVICES — spoof enumerateDevices() count
+  // ═══════════════════════════════════════════════════════════════════════
+  if (applyMedia) {
+    const numSpeakers    = Math.max(0, Math.round(Number(settings?.mediaDevices?.speakers)    || 1));
+    const numMicrophones = Math.max(0, Math.round(Number(settings?.mediaDevices?.microphones) || 0));
+    const numWebcams     = Math.max(0, Math.round(Number(settings?.mediaDevices?.webcams)     || 0));
+    try {
+      await context.addInitScript(({ speakers, microphones, webcams }) => {
+        try {
+          if (!navigator.mediaDevices) return;
+          const fakeDevices = [];
+          for (let i = 0; i < speakers; i++)
+            fakeDevices.push({ kind: 'audiooutput', deviceId: 'speaker_' + i, groupId: 'g_sp_' + i, label: '' });
+          for (let i = 0; i < microphones; i++)
+            fakeDevices.push({ kind: 'audioinput', deviceId: 'mic_' + i, groupId: 'g_mic_' + i, label: '' });
+          for (let i = 0; i < webcams; i++)
+            fakeDevices.push({ kind: 'videoinput', deviceId: 'cam_' + i, groupId: 'g_cam_' + i, label: '' });
+          Object.defineProperty(navigator.mediaDevices, 'enumerateDevices', {
+            value: function () { return Promise.resolve(fakeDevices); },
+            configurable: true, writable: true,
+          });
+        } catch {}
+      }, { speakers: numSpeakers, microphones: numMicrophones, webcams: numWebcams });
+    } catch {}
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 13. SPEECH SYNTHESIS — gated by identity (navigator overrides)
   // ═══════════════════════════════════════════════════════════════════════
   if (applyNavigator) {
     try {
