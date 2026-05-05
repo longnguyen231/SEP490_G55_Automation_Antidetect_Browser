@@ -114,10 +114,17 @@ async function launchProfileInternal(profileId, options = {}) {
     if (startUrl === 'https://www.google.com' || startUrl === 'https://www.google.com/') {
       startUrl = 'https://www.google.com/?hl=en';
     }
+    // Xác định engine sẽ dùng: ưu tiên tham số truyền vào (options.engine),
+    // nếu không có thì lấy từ cài đặt profile, mặc định là 'playwright' (Chromium).
     const engine = (options && options.engine) ? String(options.engine).toLowerCase() : (settings.engine || 'playwright');
+    // headless: chế độ ẩn cửa sổ trình duyệt (true = không hiện UI, chỉ chạy ngầm).
+    // Ưu tiên: tham số truyền vào → cài đặt profile → mặc định false (hiện cửa sổ).
     const requestedHeadless = (options && typeof options.headless === 'boolean') ? options.headless : undefined;
     const headless = (requestedHeadless !== undefined) ? requestedHeadless : !!settings.headless;
 
+    // Lưu lại engine và headless vào storage để lần sau mở lại profile sẽ nhớ cấu hình.
+    // Dùng updateProfileSettings thay vì ghi toàn bộ mảng profiles — tránh race condition
+    // khi nhiều profile cùng khởi động song song và ghi đè dữ liệu của nhau.
     // Persist engine/headless — use atomic single-profile update to avoid
     // race conditions when multiple profiles are launched concurrently.
     try {
@@ -131,12 +138,25 @@ async function launchProfileInternal(profileId, options = {}) {
     // rebrowser-playwright patches CDP leak at network level (Runtime.enable, bindings).
     // Combined with safeMode ON (no JS Object.defineProperty overrides), this bypasses
     // Cloudflare enterprise WAF.
+    //
+    // Giải thích pipe mode: Chromium được điều khiển qua stdin/stdout (pipe) thay vì mở
+    // WebSocket ra ngoài (wsEndpoint). Điều này ẩn cổng kết nối, tránh website phát hiện
+    // debugger đang kết nối thông qua quét cổng mạng.
+    //
+    // rebrowser-playwright là bản fork của Playwright đã vá lỗi để loại bỏ các tín hiệu
+    // CDP (Chrome DevTools Protocol) mà website có thể dùng để phát hiện automation.
     const engineMode = settings.engine || 'playwright';
+    // Camoufox: trình duyệt Firefox đặc biệt, được tối ưu hóa chống phát hiện fingerprint.
     const isCamoufox = engineMode === 'camoufox';
+    // isFirefox: gom tất cả các engine dựa trên Firefox (playwright-firefox, firefox, camoufox).
     const isFirefox = engineMode === 'playwright-firefox' || engineMode === 'firefox' || isCamoufox;
+    // Phải dùng 'playwright' (rebrowser-playwright đã patch), KHÔNG dùng 'playwright-core' (bản gốc chưa patch).
     const { chromium, firefox } = require('playwright'); // rebrowser-playwright — must NOT use playwright-core (standard, unpatched)
+    // Chọn engine phù hợp: Firefox cho Firefox/Camoufox, Chromium cho còn lại.
     const pwEngine = isFirefox ? firefox : chromium;
 
+    // fp (fingerprint): đối tượng chứa toàn bộ thông số giả mạo của profile —
+    // bao gồm userAgent, ngôn ngữ, timezone, độ phân giải màn hình, WebGL, Canvas, v.v.
     const fp = profile.fingerprint || {};
     // Bước 3: Chuẩn bị danh sách Chrome launch args — tắt các tín hiệu tự động hóa (anti-detect flags)
     // Firefox không cần args này vì sử dụng about:config prefs riêng
@@ -174,22 +194,31 @@ async function launchProfileInternal(profileId, options = {}) {
       // ── Prevent session restore (stops multiple windows from crashed/killed sessions) ──
       '--no-restore-session-state',
     ];
+    // Thiết lập kích thước cửa sổ trình duyệt (chỉ cho Chromium, không áp dụng Firefox).
+    // Nếu cả hai chiều đều = 0 thì mở toàn màn hình (--start-maximized).
     // Window size (Chromium flags only)
     if (!isFirefox && settings.windowWidth > 0 && settings.windowHeight > 0) {
       args.push(`--window-size=${settings.windowWidth},${settings.windowHeight}`);
     } else if (!isFirefox && settings.windowWidth === 0 && settings.windowHeight === 0) {
       args.push('--start-maximized');
     }
+    // Giới hạn WebRTC để tránh rò rỉ địa chỉ IP thật khi dùng proxy.
+    // 'proxy_only' / 'disable_udp': buộc Chrome chỉ dùng IP của proxy, không dùng IP máy thật.
     if (settings.webrtc === 'proxy_only' || settings.webrtc === 'disable_udp') {
       if (!isFirefox) args.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', '--enforce-webrtc-ip-permission-check');
     }
+    // Tắt WebGL nếu người dùng chọn không dùng — tránh website đọc thông tin GPU thật.
     if (settings.webgl === false || fp.webgl === false) { if (!isFirefox) args.push('--disable-3d-apis'); }
+    // Danh sách quyền (permissions) sẽ được cấp cho browser context sau khi tạo.
+    // Playwright cần cấp quyền rõ ràng mới cho phép trình duyệt truy cập micro/camera/vị trí.
     const permissions = [];
     // Firefox only supports 'geolocation' and 'notifications' — skip microphone/camera for Firefox
     if (!isFirefox) {
       if (settings.mediaDevices?.audio) permissions.push('microphone');
       if (settings.mediaDevices?.video) permissions.push('camera');
     }
+    // Chỉ cấp quyền geolocation khi người dùng bật override VÀ tọa độ hợp lệ.
+    // Tránh cấp quyền thừa (có thể gây lỗi hoặc popup xác nhận không mong muốn).
     // Grant geolocation permission only when we intend to override and have valid coords
     try {
       const apply = (settings && settings.applyOverrides) || {};
@@ -272,6 +301,11 @@ async function launchProfileInternal(profileId, options = {}) {
       ? getChromeVersion(executablePath).catch(() => null)
       : Promise.resolve(null);
 
+    // Tổng hợp toàn bộ tùy chọn khởi động cho Chromium.
+    // ignoreDefaultArgs: Playwright mặc định thêm '--enable-automation' — cần loại bỏ vì đây
+    // là tín hiệu rõ ràng nhất để website nhận ra trình duyệt đang bị điều khiển tự động.
+    // executablePath: đường dẫn tới Chrome binary (vendor/system); nếu không có thì Playwright
+    // dùng Chromium tích hợp sẵn (bundled) — icon sẽ hiện màu xanh Chromium thay vì Chrome.
     const chromiumLaunchOpts = {
       headless,
       args,
@@ -281,26 +315,31 @@ async function launchProfileInternal(profileId, options = {}) {
       ...(executablePath ? { executablePath } : {}),
     };
 
+    // Firefox about:config prefs — tương đương Chrome flags nhưng theo định dạng riêng của Firefox.
+    // Các giá trị này ghi đè about:config ngay khi trình duyệt khởi động.
     // Firefox about:config prefs to disable automation signals
     const firefoxUserPrefs = isFirefox ? {
-      'dom.webdriver.enabled': false,
-      'useAutomationExtension': false,
+      'dom.webdriver.enabled': false,         // Ẩn cờ WebDriver — website dùng cờ này để nhận ra Selenium/Playwright
+      'useAutomationExtension': false,        // Tắt extension tự động hóa mặc định của Firefox
       // NOTE: do NOT set marionette.enabled=false — Playwright needs Marionette to control Firefox
-      'toolkit.telemetry.enabled': false,
+      // KHÔNG tắt marionette vì đây là giao thức Playwright dùng để điều khiển Firefox
+      'toolkit.telemetry.enabled': false,     // Tắt telemetry (gửi thông tin sử dụng về Mozilla)
       'toolkit.telemetry.unified': false,
       'datareporting.policy.dataSubmissionEnabled': false,
       'datareporting.healthreport.uploadEnabled': false,
       'browser.newtabpage.activity-stream.telemetry': false,
       'browser.ping-centre.telemetry': false,
-      'browser.send_pings': false,
-      'media.peerconnection.ice.no_host': false,
-      'privacy.resistFingerprinting': false,   // leave off — causes inconsistent FP values
+      'browser.send_pings': false,            // Tắt ping tracking khi click link
+      'media.peerconnection.ice.no_host': false, // Cho phép ICE host candidates (cần cho WebRTC đúng cách)
+      'privacy.resistFingerprinting': false,  // leave off — causes inconsistent FP values
+      // Tắt resistFingerprinting: tính năng này của Firefox tự sửa nhiều giá trị FP,
+      // gây mâu thuẫn với FP chúng ta muốn inject vào — tắt để kiểm soát hoàn toàn.
       'privacy.trackingprotection.enabled': false,
-      'geo.enabled': false,
-      'browser.safebrowsing.enabled': false,
+      'geo.enabled': false,                   // Tắt geolocation thật của Firefox; ta sẽ inject giả qua CDP
+      'browser.safebrowsing.enabled': false,  // Tắt safe browsing — tránh request đến Google gây delay
       'browser.safebrowsing.malware.enabled': false,
-      'network.cookie.cookieBehavior': 0,
-      'browser.aboutConfig.showWarning': false,
+      'network.cookie.cookieBehavior': 0,     // Cho phép tất cả cookie (không chặn third-party)
+      'browser.aboutConfig.showWarning': false, // Tắt cảnh báo khi mở about:config
       'general.warnOnAboutConfig': false,
     } : undefined;
 
@@ -339,7 +378,12 @@ async function launchProfileInternal(profileId, options = {}) {
       } else { try { await forwarder?.stop?.(); } catch { } throw e; }
     }
     // Log actual binary version for verification — should show Chrome/1xx not HeadlessChrome
+    // Nếu log hiện "HeadlessChrome" thay vì "Chrome" nghĩa là Chrome binary không được tìm thấy,
+    // Playwright đang dùng Chromium bundled — website có thể phát hiện đây là headless browser.
     try { appendLog(profileId, `[binary] version=${browser.version()}`); } catch { }
+    // wsEndpoint: địa chỉ WebSocket để kết nối đến Firefox server (vd: ws://127.0.0.1:PORT/...).
+    // Chromium dùng pipe mode nên wsEndpoint = null — không có WebSocket bên ngoài.
+    // Giá trị 'pipe' trong runningProfiles Map báo hiệu cho renderer biết đây là pipe mode.
     const wsEndpoint = isFirefox ? server.wsEndpoint() : null; // pipe mode for chromium
     appendLog(profileId, `Launched Playwright ${isFirefox ? 'Firefox server: ' + wsEndpoint : 'browser (pipe mode, no external WS)'}`);
 
@@ -353,19 +397,38 @@ async function launchProfileInternal(profileId, options = {}) {
     // Disabled by default so fingerprint injection works normally.
     // Enable via settings.safeMode=true only when targeting Cloudflare Enterprise.
     // Firefox: always false (CF blocks Firefox by TLS regardless; need full injection).
+    //
+    // Giải thích safeMode: Cloudflare Enterprise có thể phát hiện các override CDP (như đặt
+    // UA giả, timezone giả qua DevTools Protocol). safeMode=true bỏ qua các override đó,
+    // chỉ giữ lại những thứ Cloudflare không kiểm tra — giúp vượt WAF enterprise.
+    // Tuy nhiên đây là sự đánh đổi: FP sẽ ít "giả" hơn, phù hợp cho Cloudflare nhưng
+    // không đủ để qua các hệ thống FP detection khác như Pixelscan, CreepJS.
     const safeMode = isFirefox ? false : (settings?.safeMode === true);
+    // apply: object kiểm soát từng loại override có bật không (vd: apply.userAgent=false thì không giả UA).
     const apply = (settings && settings.applyOverrides) || {};
     // Identity section toggle controls UA, language, timezone at context (CDP) level
+    // identitySectionEnabled: toggle tổng của nhóm "Identity" trong UI —
+    // tắt toàn bộ nhóm này sẽ tắt luôn UA, ngôn ngữ, timezone.
     const identitySectionEnabled = settings?.identity?.enabled !== false;
+    // Các cờ applyXxx: kết hợp safeMode + toggle nhóm + toggle riêng từng mục.
+    // Chỉ khi tất cả điều kiện đều true thì override tương ứng mới được áp dụng.
     const applyUA = !safeMode && apply.userAgent !== false && identitySectionEnabled;
     const applyLang = !safeMode && apply.language !== false && identitySectionEnabled;
     const applyTz = !safeMode && apply.timezone !== false && identitySectionEnabled;
     const applyViewport = apply.viewport !== false; // viewport is safe even in safeMode
     const applyGeo = !safeMode && apply.geolocation !== false;
+    // contextOptions: tập hợp tất cả tùy chọn sẽ truyền vào browser.newContext() —
+    // đây là nơi Playwright áp dụng giả mạo ở cấp độ browser context (UA, locale, timezone,
+    // viewport, proxy, geolocation, storageState, extraHTTPHeaders).
     const contextOptions = { proxy, extraHTTPHeaders: {} };
 
     // Force UA to match the actual binary version — prevents binary/UA mismatch detection.
     // If detectedChromeVersion is available, rebuild the UA with the real version number.
+    //
+    // Giải thích: website có thể dùng JavaScript (navigator.userAgent) và HTTP header (User-Agent)
+    // để đọc phiên bản Chrome. Nếu UA giả trong profile ghi "Chrome/120" nhưng binary thật là
+    // Chrome/136, hai giá trị sẽ mâu thuẫn — website phát hiện bất thường này.
+    // Đoạn code này tự động cập nhật phần số phiên bản trong UA giả để khớp với binary thật.
     if (!isFirefox && detectedChromeVersion && fp.userAgent) {
       const fixedUA = fp.userAgent.replace(/Chrome\/[\d.]+/, `Chrome/${detectedChromeVersion}`);
       if (fixedUA !== fp.userAgent) {
@@ -374,19 +437,29 @@ async function launchProfileInternal(profileId, options = {}) {
       }
     }
 
+    // Thiết lập ngôn ngữ giả (locale) cho context và HTTP header Accept-Language.
+    // Cả hai phải khớp nhau — nếu locale='vi-VN' nhưng header vẫn là 'en-US' thì website
+    // sẽ phát hiện mâu thuẫn qua Intl.DateTimeFormat().resolvedOptions().locale vs navigator.language.
     if (applyLang) {
       const spoofLang = fp.language || settings.language || 'en-US';
       contextOptions.locale = spoofLang;
-      const langBase = spoofLang.split('-')[0];
+      const langBase = spoofLang.split('-')[0]; // lấy phần gốc ngôn ngữ, vd: 'vi' từ 'vi-VN'
       if (spoofLang.toLowerCase().startsWith('en')) {
+        // Tiếng Anh: chỉ gửi một q-factor (không cần fallback sang ngôn ngữ khác)
         contextOptions.extraHTTPHeaders['Accept-Language'] = `${spoofLang},en;q=0.9`;
       } else {
+        // Ngôn ngữ khác: thêm fallback theo thứ tự ưu tiên giảm dần
         contextOptions.extraHTTPHeaders['Accept-Language'] = `${spoofLang},${langBase};q=0.9,en;q=0.8`;
       }
     }
+    // Thiết lập múi giờ giả — JavaScript Date và Intl API sẽ dùng timezone này.
     if (applyTz) contextOptions.timezoneId = fp.timezone || settings.timezone || 'UTC';
+    // Thiết lập User-Agent giả — cả HTTP header lẫn navigator.userAgent sẽ trả về giá trị này.
     if (applyUA && fp.userAgent) contextOptions.userAgent = fp.userAgent;
     // Apply viewport and device scale like CDP DeviceMetricsOverride
+    // Thiết lập độ phân giải màn hình giả (viewport) và tỷ lệ pixel (devicePixelRatio).
+    // screenResolution dạng "1920x1080" sẽ được parse thành width=1920, height=1080.
+    // devicePixelRatio: Retina display = 2, màn hình thường = 1 — website dùng để đoán loại thiết bị.
     try {
       if (applyViewport) {
         const m = (fp.screenResolution || '').match(/^(\d+)x(\d+)$/);
@@ -395,6 +468,8 @@ async function launchProfileInternal(profileId, options = {}) {
         if (dpr > 0) contextOptions.deviceScaleFactor = dpr;
       }
     } catch { }
+    // Thiết lập vị trí địa lý giả — Playwright inject vào browser context.
+    // accuracy (độ chính xác tính bằng mét): thấp = GPS tốt, cao = định vị kém chính xác.
     if (applyGeo && settings.geolocation && settings.geolocation.latitude != null && settings.geolocation.longitude != null) {
       contextOptions.geolocation = {
         latitude: Number(settings.geolocation.latitude),
@@ -402,9 +477,17 @@ async function launchProfileInternal(profileId, options = {}) {
         accuracy: Number(settings.geolocation.accuracy || 50),
       };
     }
+    // storageState: đường dẫn tới file JSON chứa cookie, localStorage, sessionStorage của profile.
+    // Playwright tự động nạp state này vào context để tiếp tục phiên đăng nhập từ lần trước —
+    // người dùng không cần đăng nhập lại mỗi lần mở profile.
     const statePath = storageStatePath(profileId);
     if (fs.existsSync(statePath)) { try { contextOptions.storageState = statePath; } catch { } }
+    // Tạo browser context mới với toàn bộ tùy chọn đã chuẩn bị.
+    // Đây là bước quan trọng nhất: từ đây trở đi mọi tab/page trong context này sẽ
+    // dùng UA giả, timezone giả, locale giả, cookie đã lưu, v.v.
     const context = await browser.newContext(contextOptions);
+    // Cấp quyền cho context (micro/camera/geolocation) — nếu không cấp, trình duyệt
+    // sẽ hỏi người dùng popup, hoặc tự từ chối nếu ở headless mode.
     if (permissions.length) { await context.grantPermissions(permissions); }
     // Bước 7: Inject fingerprint qua applyFingerprintInitScripts —
     // Tiêm các init script vào mọi trang mới để giả mạo (spoof) các thuộc tính trình duyệt:
@@ -422,19 +505,28 @@ async function launchProfileInternal(profileId, options = {}) {
       await injectMouseTracker(context);
     } catch { }
 
+    // Bước 7b: Khôi phục các tab đã lưu từ phiên trước (session restore).
+    // Khi người dùng đóng profile, hệ thống lưu lại danh sách URL các tab đang mở.
+    // Lần sau mở profile, các tab này sẽ được mở lại tự động — giống behavior của Chrome bình thường.
     const { loadSessionTabs, saveSessionTabs } = require('../storage/sessionTabs');
     const rawSavedTabs = loadSessionTabs(profileId);
+    // Lọc chỉ giữ URL http/https hợp lệ — loại bỏ 'about:blank', chrome://, và rác khác
+    // để tránh lỗi khi cố navigate đến các URL không phải trang web thực.
     // Only restore valid http/https URLs — filter out about:blank, en-us, and other garbage
     const savedTabs = (rawSavedTabs || []).filter(u => typeof u === 'string' && /^https?:\/\//i.test(u));
     appendLog(profileId, `Session tabs: found ${savedTabs.length} saved tab(s)${savedTabs.length > 0 ? ': ' + savedTabs.join(', ') : ''}`);
     let page;
     if (savedTabs && savedTabs.length > 0) {
+      // Có tab đã lưu: mở lại từng tab. Tab đầu tiên dùng tab mặc định của context,
+      // các tab tiếp theo tạo mới. goto() không await để các tab load song song.
       appendLog(profileId, `Restoring ${savedTabs.length} saved tabs...`);
       let first = true;
       for (const url of savedTabs) {
         try {
+          // Tab đầu tiên: tái dùng tab mặc định Playwright tạo sẵn (tránh mở thêm tab trắng thừa)
           const p = first ? ((context.pages() || [])[0] || await context.newPage()) : await context.newPage();
           first = false;
+          // Không await — để các tab load song song thay vì tuần tự (nhanh hơn)
           p.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(err => {
             appendLog(profileId, `Failed to load restored tab ${url}: ${err?.message || err}`);
           });
@@ -443,7 +535,9 @@ async function launchProfileInternal(profileId, options = {}) {
         }
       }
     } else {
+      // Không có tab đã lưu: mở trang khởi động (startUrl) được cấu hình trong profile.
       // Reuse the default tab that Playwright opens (avoids double-tab on Firefox)
+      // Tái dùng tab mặc định thay vì tạo mới — tránh Firefox mở 2 tab trắng trùng lặp.
       const existingPages = context.pages();
       if (existingPages && existingPages.length > 0) {
         page = existingPages[0];
@@ -451,20 +545,26 @@ async function launchProfileInternal(profileId, options = {}) {
         page = await context.newPage();
       }
       try {
+        // navigateWithRetry: điều hướng có retry tự động — nếu trang bị chặn hoặc timeout,
+        // tự thử lại tối đa maxRetries lần trước khi báo lỗi.
+        // installBlockDetector: theo dõi nếu trang bị chặn (Cloudflare, 403...) và ghi log.
         const { navigateWithRetry, installBlockDetector } = require('../engine/blockedPageDetector');
         const navResult = await navigateWithRetry(page, startUrl, profileId, {
           maxRetries: 2, retryDelayMs: 5000, waitUntil: 'domcontentloaded', timeout: 30000,
         });
         if (navResult.blocked) {
+          // Cảnh báo bị chặn nhưng không đóng browser — người dùng vẫn có thể thao tác thủ công
           appendLog(profileId, `Warning: page may be blocked (${navResult.pattern}). Browser is open for manual interaction.`);
         }
         installBlockDetector(page, profileId);
       } catch (navErr) {
+        // Navigation thất bại lần 1: đợi 2 giây rồi thử lại lần 2 (đơn giản, không retry logic)
         appendLog(profileId, `First navigation attempt failed: ${navErr?.message || navErr}. Retrying...`);
         try {
           await new Promise(r => setTimeout(r, 2000));
           await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
         } catch (retryErr) {
+          // Thất bại cả hai lần: browser vẫn mở để người dùng tự điều hướng thủ công
           appendLog(profileId, `Second navigation attempt failed: ${retryErr?.message || retryErr}. Browser is open but page not loaded.`);
         }
       }
@@ -472,52 +572,74 @@ async function launchProfileInternal(profileId, options = {}) {
     }
 
     // Track last-known URL per page so we can save session tabs when user closes browser window
+    // pageUrls: Map<Page, string> — lưu URL cuối cùng của từng tab.
+    // Cần thiết vì khi tất cả tab đóng, context.pages() sẽ trả về mảng rỗng —
+    // không còn cách nào lấy URL nữa. Map này giữ lại URL trước khi tab bị đóng.
     const pageUrls = new Map();
     const trackPageUrls = (p) => {
       try {
+        // Cập nhật URL mỗi khi frame chính điều hướng (bỏ qua iframe con và about:blank)
         const update = () => { try { const u = p.url(); if (u && u !== 'about:blank' && !/^chrome(-error)?:\/\//.test(u)) pageUrls.set(p, u); } catch {} };
-        update();
+        update(); // lấy URL hiện tại ngay lập tức (tab vừa được tạo/restore)
         p.on('framenavigated', f => { if (f === p.mainFrame()) update(); });
       } catch {}
     };
 
+    // saveState: lưu toàn bộ trạng thái phiên làm việc của profile trước khi đóng.
+    // Gồm 2 phần:
+    //   1) storageState (cookie, localStorage, sessionStorage) → file JSON trên disk
+    //   2) Danh sách URL các tab đang mở → sessionTabs storage
+    // Được gọi tự động khi browser đóng (qua cleanupPlaywright bên dưới).
     const saveState = async () => {
       try {
+        // context.storageState() trả về object chứa cookies và origins (localStorage).
+        // Ghi ra file để lần sau mở profile sẽ nạp lại (contextOptions.storageState).
         const state = await context.storageState();
         fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
         appendLog(profileId, `Saved storage state (${(state.cookies || []).length} cookies)`);
       } catch (e) {
         const msg = e?.message || String(e);
+        // Nếu context đã đóng trước khi save xong thì bỏ qua — không phải lỗi nghiêm trọng
         if (/has been closed/i.test(msg)) appendLog(profileId, 'Storage save skipped: context closed');
         else appendLog(profileId, `Error saving storage state: ${msg}`);
       }
       try {
+        // Lưu danh sách URL tab: ưu tiên lấy từ context.pages() (tab còn sống),
+        // nếu đã đóng hết thì lấy từ pageUrls Map (URL cuối cùng được track).
         const pages = context.pages();
         const urlsToSave = pages.length > 0 ? pages.map(p => p.url()) : [...pageUrls.values()].filter(u => u);
         if (urlsToSave.length > 0) saveSessionTabs(profileId, urlsToSave);
       } catch { }
     };
+    // cleanupPlaywright: dọn dẹp toàn bộ tài nguyên khi profile dừng chạy (bất kể lý do).
+    // playwrightCleaned flag đảm bảo cleanup chỉ chạy đúng 1 lần, dù nhiều sự kiện
+    // (context close + browser disconnect + page close) có thể kích hoạt cùng lúc.
     // Cleanup helper
     let playwrightCleaned = false;
     const cleanupPlaywright = async (reason) => {
-      if (playwrightCleaned) return;
+      if (playwrightCleaned) return; // bảo vệ: không chạy cleanup lần 2
       playwrightCleaned = true;
-      await saveState();
-      try { await forwarder?.stop?.(); } catch { }
-      runningProfiles.delete(profileId);
+      await saveState(); // lưu session trước khi đóng
+      try { await forwarder?.stop?.(); } catch { } // dừng proxy forwarder nếu có
+      runningProfiles.delete(profileId); // xóa khỏi Map profiles đang chạy
       setProfileStatus(profileId, 'STOPPED');
       appendLog(profileId, reason);
-      try { await context.close(); } catch { }
-      try { await browser?.close?.(); } catch { }
-      broadcastRunningMap();
+      try { await context.close(); } catch { } // đóng browser context (tắt tất cả tab)
+      try { await browser?.close?.(); } catch { } // đóng browser process
+      broadcastRunningMap(); // thông báo UI cập nhật trạng thái profile thành STOPPED
     };
+    // Lắng nghe sự kiện đóng từ phía Playwright — context.close() hoặc browser crash/disconnect
     context.on('close', () => cleanupPlaywright('Context closed'));
     try { browser.on?.('disconnected', () => cleanupPlaywright('Browser disconnected')); } catch { }
     // Detect when user closes all browser tabs via "X" button
+    // Phát hiện khi người dùng đóng tất cả tab bằng nút "X" trên cửa sổ trình duyệt.
+    // Playwright không có sự kiện "window closed" trực tiếp — phải kiểm tra sau mỗi
+    // tab đóng: nếu không còn tab nào (pages.length === 0) thì coi như browser đã đóng.
     const onPageClose = () => {
       try {
         const pages = context.pages();
         if (!pages || pages.length === 0) {
+          // Tất cả tab đã đóng: lưu URL từ pageUrls Map trước khi cleanup
           const trackedUrls = [...pageUrls.values()].filter(u => /^https?:\/\//i.test(u));
           if (trackedUrls.length > 0) {
             try { saveSessionTabs(profileId, trackedUrls); appendLog(profileId, `Saved ${trackedUrls.length} session tab(s) on browser close`); } catch {}
@@ -527,7 +649,9 @@ async function launchProfileInternal(profileId, options = {}) {
         }
       } catch { cleanupPlaywright('Page close check failed — browser stopped'); }
     };
+    // Gắn tracker và listener vào các tab hiện có và tất cả tab mới được tạo sau này
     try { for (const p of context.pages()) { trackPageUrls(p); p.on('close', onPageClose); } } catch { }
+    // context.on('page'): kích hoạt khi người dùng mở tab mới (Ctrl+T hoặc popup)
     context.on('page', (newPage) => { try { trackPageUrls(newPage); newPage.on('close', onPageClose); } catch { } });
     // Bước 8: Lưu thông tin phiên đang chạy vào runningProfiles Map —
     // Map này là nguồn dữ liệu thực đơn nhất (single source of truth) cho mọi handler
@@ -537,6 +661,8 @@ async function launchProfileInternal(profileId, options = {}) {
     setProfileStatus(profileId, 'RUNNING', instanceId);
     broadcastRunningMap();
     // Auto-start screencast for headless Playwright profiles
+    // Khi chạy headless (không có cửa sổ UI), người dùng cần "Live Screen" để xem trình duyệt.
+    // Screencast stream frame từ Playwright CDP về UI Electron qua IPC để hiển thị.
     if (headless) {
       try {
         const { startScreencast } = require('../engine/screencast');
@@ -546,15 +672,24 @@ async function launchProfileInternal(profileId, options = {}) {
         appendLog(profileId, `[lifecycle] Auto-start screencast failed: ${e?.message || e}`);
       }
     }
+    // Chạy automation script được cấu hình sẵn trong profile (nếu có).
+    // Ví dụ: sau khi mở browser, tự động navigate đến URL nào đó, điền form, chờ N giây...
     // Post-launch automation script (if configured)
     try { await runAutomationPostLaunch(profile, { engine: 'playwright', wsEndpoint, context, browser }); } catch (e) { appendLog(profileId, `Automation post-launch error: ${e?.message || e}`); }
+    // Trả về kết quả thành công kèm wsEndpoint.
+    // wsEndpoint = null (pipe mode, Chromium) hoặc URL WebSocket (Firefox server).
+    // Caller (IPC handler) dùng wsEndpoint để cho phép kết nối automation từ bên ngoài.
     return { success: true, wsEndpoint };
   } catch (error) {
+    // Nếu có lỗi bất kỳ trong quá trình khởi động: cập nhật trạng thái ERROR và báo UI
     setProfileStatus(profileId, 'ERROR', instanceId);
     broadcastRunningMap();
     appendLog(profileId, `Launch error: ${error.message}`);
     return { success: false, error: error.message };
   } finally {
+    // finally luôn chạy dù thành công hay thất bại — giải phóng lock launchingProfiles.
+    // Nếu không xóa lock ở đây, profile sẽ bị kẹt ở trạng thái "đang khởi động"
+    // và mọi yêu cầu mở tiếp theo đều bị từ chối với lỗi "Profile is already starting up".
     launchingProfiles.delete(profileId);
   }
 }
