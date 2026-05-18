@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, X } from 'lucide-react';
 import './ProfileList.css';
+import FingerprintInspector from './FingerprintInspector';
 
 function ProxyPickerPopup({ profile, isRunning = false, onClose, onSaved }) {
   const [proxies, setProxies] = useState([]);
@@ -321,6 +322,9 @@ export default function ProfileList({
   // Proxy picker popup
   const [proxyPickerProfile, setProxyPickerProfile] = useState(null);
 
+  // Fingerprint Inspector modal
+  const [inspectingProfile, setInspectingProfile] = useState(null);
+
   // Bulk create modal
   const [showBulkCreate, setShowBulkCreate] = useState(false);
   const [bulkCount, setBulkCount] = useState(5);
@@ -589,6 +593,16 @@ export default function ProfileList({
                           👁 View
                         </button>
                       )}
+                      {/* Inspect Fingerprint button — chỉ hiện khi profile đang chạy */}
+                      <button
+                        id={`btn-inspect-fp-${profile.id}`}
+                        className="pl-btn"
+                        title="Inspect live browser fingerprint"
+                        style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.35)', padding: '3px 7px', fontSize: '0.68rem' }}
+                        onClick={() => setInspectingProfile(profile)}
+                      >
+                        🔍 Inspect
+                      </button>
                     </>
                   ) : (
                     <>
@@ -777,6 +791,16 @@ export default function ProfileList({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Fingerprint Inspector Modal — mở khi nhấn nút 🔍 Inspect trên profile đang chạy */}
+      {inspectingProfile && (
+        <FingerprintInspector
+          profileId={inspectingProfile.id}
+          profileName={inspectingProfile.name}
+          configuredFp={inspectingProfile.fingerprint || {}}
+          onClose={() => setInspectingProfile(null)}
+        />
       )}
     </div>
   );

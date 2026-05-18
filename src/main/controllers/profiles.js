@@ -1087,6 +1087,196 @@ function getStatusMapInternal() {
   return { success: true, statuses: buildStatusMap() };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// inspectFingerprintInternal(profileId)
+//
+// Đọc các thông số fingerprint THỰC TẾ từ browser đang chạy bằng page.evaluate().
+// Dùng để verify rằng fingerprintInit.js đã inject thành công.
+//
+// Trả về object gồm các nhóm:
+//   identity   — userAgent, platform, language, vendor, hardwareConcurrency, deviceMemory
+//   screen     — width, height, colorDepth, pixelRatio
+//   canvas     — hash của canvas (để phát hiện thay đổi giữa các lần đọc)
+//   webgl      — renderer, vendor (từ WebGLRenderingContext)
+//   audio      — sampleRate, maxChannelCount
+//   battery    — charging, level (nếu API available)
+//   network    — effectiveType, downlink (nếu API available)
+//   timezone   — timezone từ Intl.DateTimeFormat
+//   webrtc     — publicIP từ ICE candidate (nếu detect được)
+// ═══════════════════════════════════════════════════════════════════════════════
+async function inspectFingerprintInternal(profileId) {
+  try {
+    if (!runningProfiles.has(profileId)) {
+      return { success: false, error: 'Profile is not running. Please launch it first.' };
+    }
+    const running = runningProfiles.get(profileId);
+    const context = running?.context;
+    if (!context) return { success: false, error: 'Browser context not available.' };
+
+    // Lấy page đang active (ưu tiên page đầu tiên còn sống)
+    const pages = context.pages ? context.pages() : [];
+    let page = pages.find(p => !p.isClosed()) || null;
+
+    // Nếu không có page nào, tạo tạm một page để đọc fingerprint
+    let tempPage = false;
+    if (!page) {
+      try {
+        page = await context.newPage();
+        await page.goto('about:blank', { waitUntil: 'commit' });
+        tempPage = true;
+      } catch (e) {
+        return { success: false, error: 'Cannot create page to inspect: ' + (e?.message || e) };
+      }
+    }
+
+    // Chạy tất cả trong 1 lần page.evaluate() để tối ưu round-trip
+    const data = await page.evaluate(async () => {
+      const safe = (fn) => { try { return fn(); } catch { return null; } };
+      const safeAsync = async (fn) => { try { return await fn(); } catch { return null; } };
+
+      // ── Identity ───────────────────────────────────────────────────────────
+      const identity = {
+        userAgent:           safe(() => navigator.userAgent),
+        appVersion:          safe(() => navigator.appVersion),
+        platform:            safe(() => navigator.platform),
+        language:            safe(() => navigator.language),
+        languages:           safe(() => [...(navigator.languages || [])]),
+        vendor:              safe(() => navigator.vendor),
+        hardwareConcurrency: safe(() => navigator.hardwareConcurrency),
+        deviceMemory:        safe(() => navigator.deviceMemory),
+        cookieEnabled:       safe(() => navigator.cookieEnabled),
+        doNotTrack:          safe(() => navigator.doNotTrack),
+        webdriver:           safe(() => navigator.webdriver),
+        plugins:             safe(() => Array.from(navigator.plugins || []).map(p => p.name)),
+      };
+
+      // ── Screen ─────────────────────────────────────────────────────────────
+      const screen_fp = {
+        width:            safe(() => window.screen.width),
+        height:           safe(() => window.screen.height),
+        availWidth:       safe(() => window.screen.availWidth),
+        availHeight:      safe(() => window.screen.availHeight),
+        colorDepth:       safe(() => window.screen.colorDepth),
+        pixelDepth:       safe(() => window.screen.pixelDepth),
+        devicePixelRatio: safe(() => window.devicePixelRatio),
+        innerWidth:       safe(() => window.innerWidth),
+        innerHeight:      safe(() => window.innerHeight),
+      };
+
+      // ── Canvas fingerprint hash ─────────────────────────────────────────────
+      let canvasHash = null;
+      safe(() => {
+        const c = document.createElement('canvas');
+        c.width = 200; c.height = 50;
+        const ctx = c.getContext('2d');
+        ctx.textBaseline = 'top';
+        ctx.font = '14px Arial';
+        ctx.fillStyle = '#f60';
+        ctx.fillRect(0, 0, 200, 50);
+        ctx.fillStyle = '#069';
+        ctx.fillText('Cwm fjordbank glyphs vext quiz 😀', 2, 15);
+        ctx.fillStyle = 'rgba(102,204,0,0.7)';
+        ctx.fillText('Cwm fjordbank glyphs vext quiz 😀', 4, 17);
+        const data = c.toDataURL();
+        // Simple hash: sum of char codes
+        let hash = 0;
+        for (let i = 0; i < data.length; i++) hash = ((hash << 5) - hash) + data.charCodeAt(i);
+        canvasHash = (hash >>> 0).toString(16);
+      });
+
+      // ── WebGL ──────────────────────────────────────────────────────────────
+      let webgl = { renderer: null, vendor: null, version: null, shadingVersion: null, extensions: [] };
+      safe(() => {
+        const c = document.createElement('canvas');
+        const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+        if (!gl) return;
+        const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+        webgl.renderer        = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+        webgl.vendor          = dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR);
+        webgl.version         = gl.getParameter(gl.VERSION);
+        webgl.shadingVersion  = gl.getParameter(gl.SHADING_LANGUAGE_VERSION);
+        webgl.extensions      = (gl.getSupportedExtensions() || []).slice(0, 10); // first 10 only
+      });
+
+      // ── Audio ──────────────────────────────────────────────────────────────
+      let audio = { sampleRate: null, maxChannelCount: null, state: null };
+      safe(() => {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        const ctx = new AC();
+        audio.sampleRate     = ctx.sampleRate;
+        audio.maxChannelCount = ctx.destination.maxChannelCount;
+        audio.state          = ctx.state;
+        ctx.close();
+      });
+
+      // ── Battery ─────────────────────────────────────────────────────────────
+      let battery = null;
+      battery = await safeAsync(async () => {
+        if (!navigator.getBattery) return null;
+        const b = await navigator.getBattery();
+        return { charging: b.charging, level: b.level, chargingTime: b.chargingTime, dischargingTime: b.dischargingTime };
+      });
+
+      // ── Network ─────────────────────────────────────────────────────────────
+      const network = safe(() => {
+        const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        if (!c) return null;
+        return { effectiveType: c.effectiveType, downlink: c.downlink, rtt: c.rtt, saveData: c.saveData };
+      });
+
+      // ── Timezone ────────────────────────────────────────────────────────────
+      const timezone = safe(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+      const locale   = safe(() => Intl.DateTimeFormat().resolvedOptions().locale);
+
+      // ── Fonts (limited sample) ──────────────────────────────────────────────
+      // Probe một số font phổ biến
+      const fontProbe = safe(() => {
+        const baseFonts = ['monospace', 'sans-serif', 'serif'];
+        const testFonts = ['Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana', 'Comic Sans MS', 'Impact', 'Trebuchet MS', 'Tahoma'];
+        const span = document.createElement('span');
+        span.style.cssText = 'position:absolute;left:-9999px;fontSize:72px;';
+        span.textContent = 'mmmmmmmmmmlli';
+        document.body.appendChild(span);
+        const baseWidths = {};
+        for (const base of baseFonts) {
+          span.style.fontFamily = base;
+          baseWidths[base] = span.offsetWidth;
+        }
+        const detected = [];
+        for (const font of testFonts) {
+          for (const base of baseFonts) {
+            span.style.fontFamily = `'${font}',${base}`;
+            if (span.offsetWidth !== baseWidths[base]) { detected.push(font); break; }
+          }
+        }
+        document.body.removeChild(span);
+        return detected;
+      });
+
+      return {
+        identity,
+        screen: screen_fp,
+        canvas: { hash: canvasHash },
+        webgl,
+        audio,
+        battery,
+        network,
+        timezone,
+        locale,
+        fonts: fontProbe,
+        capturedAt: new Date().toISOString(),
+      };
+    });
+
+    if (tempPage) { try { await page.close(); } catch {} }
+
+    return { success: true, fingerprint: data, profileId };
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) };
+  }
+}
+
 module.exports = {
   launchProfileInternal,
   stopProfileInternal,
@@ -1120,4 +1310,5 @@ module.exports = {
   getRunningMapInternal,
   getStatusMapInternal,
   getLocalesTimezonesInternal,
+  inspectFingerprintInternal,
 };

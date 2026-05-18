@@ -248,6 +248,12 @@ function registerIpcHandlers(extra = {}) {
     return r;
   });
 
+  // [Inspect Fingerprint] Đọc fingerprint thực tế từ browser đang chạy
+  handle('profile-inspect-fingerprint', async (_e, profileId) => {
+    const { inspectFingerprintInternal } = require('../controllers/profiles');
+    return await inspectFingerprintInternal(profileId);
+  });
+
   // [Bug #5 fix] Validate cron expression trên main process dùng node-cron.validate()
   // Được gọi từ UI trước khi save — đảm bảo expression hợp lệ trước khi ghi xuống file
   handle('validate-cron', (_e, expr) => {

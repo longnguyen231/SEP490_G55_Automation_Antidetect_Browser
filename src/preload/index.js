@@ -104,6 +104,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   validateCron: (expr) => ipcRenderer.invoke('validate-cron', expr),
   // Bug #6 fix: manually trigger a scheduled script immediately ("Test Run Now")
   scriptRunNow: (scriptId) => ipcRenderer.invoke('script-run-now', scriptId),
+  // Inspect Fingerprint: read live fingerprint values from a running browser profile
+  inspectFingerprint: (profileId) => ipcRenderer.invoke('profile-inspect-fingerprint', profileId),
   getTaskLogs: () => ipcRenderer.invoke('task-logs-list'),
   getTaskLog: (id) => ipcRenderer.invoke('task-logs-get', id),
   deleteTaskLog: (id) => ipcRenderer.invoke('task-logs-delete', id),
