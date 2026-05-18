@@ -116,6 +116,25 @@ function scheduleScript(script) {
             const { launchProfileInternal } = require('../controllers/profiles');
             const { readProfiles }          = require('../storage/profiles');
             const profileForEngine = readProfiles().find(p => p.id === profileId);
+
+            // ── Bug #4 fix: profile đã bị xóa → auto-disable schedule ─────────
+            // Nếu profile không tồn tại trong danh sách, cron job này sẽ fail mãi mãi.
+            // Giải pháp: tắt schedule.enabled trong scripts.json và hủy job.
+            if (!profileForEngine) {
+              appendLog('system', `scriptScheduler: [BUG#4] Profile "${profileId}" not found — auto-disabling schedule for script "${fresh.name}". Please reassign the schedule to an existing profile.`);
+              try {
+                const { saveScriptInternal } = require('../storage/scripts');
+                await saveScriptInternal({
+                  ...fresh,
+                  schedule: { ...fresh.schedule, enabled: false },
+                });
+              } catch (saveErr) {
+                appendLog('system', `scriptScheduler: failed to auto-disable schedule: ${saveErr?.message || saveErr}`);
+              }
+              cancelScript(fresh.id);
+              return;
+            }
+
             const profileEngine    = profileForEngine?.settings?.engine || 'playwright';
             const headless         = fresh.browserMode === 'headless';
             const launchResult     = await launchProfileInternal(profileId, { headless, engine: profileEngine });

@@ -132,6 +132,8 @@ function ScriptsTab({ profiles }) {
     const [cronEnabled, setCronEnabled] = useState(false);
     const [cronSchedule, setCronSchedule] = useState('');       // cron expression: "0 9 * * 1-5"
     const [cronProfileId, setCronProfileId] = useState('');     // profile được chỉ định chạy script tự động
+    const [cronError, setCronError] = useState('');             // Bug #5: lỗi validate cron expression
+    const [runNowLoading, setRunNowLoading] = useState(false);  // Bug #6: trạng thái nút Test Run Now
     // Center panel tab: 'settings' | 'apiref'
     const [settingsTab, setSettingsTab] = useState('settings');
 
@@ -153,7 +155,37 @@ function ScriptsTab({ profiles }) {
         setCronEnabled(false);
         setCronSchedule('');
         setCronProfileId('');
+        setCronError('');        // reset lỗi validate khi tạo script mới
         setSettingsTab('settings');
+    };
+
+    // Bug #5 fix: reset cronError mỗi khi expression thay đổi
+    const handleCronScheduleChange = (val) => {
+        setCronSchedule(val);
+        setCronError('');
+    };
+
+    // Bug #6: mô tả ngắn gọn cron expression bằng tiếng Việt (không cần thư viện ngoài)
+    const describeCron = (expr) => {
+        if (!expr || !expr.trim()) return '';
+        const knownMap = {
+            '* * * * *':     'Mỗi phút',
+            '*/5 * * * *':   'Mỗi 5 phút',
+            '*/10 * * * *':  'Mỗi 10 phút',
+            '*/15 * * * *':  'Mỗi 15 phút',
+            '*/30 * * * *':  'Mỗi 30 phút',
+            '0 * * * *':     'Mỗi giờ (vào phút 0)',
+            '0 9 * * *':     'Mỗi ngày lúc 9:00 sáng',
+            '0 0 * * *':     'Mỗi ngày lúc nửa đêm',
+            '0 9 * * 1-5':   'Thứ 2–Thứ 6 lúc 9:00 sáng',
+            '0 0 * * 0':     'Mỗi Chủ nhật lúc nửa đêm',
+            '0 0 1 * *':     'Ngày 1 hàng tháng lúc nửa đêm',
+        };
+        if (knownMap[expr.trim()]) return knownMap[expr.trim()];
+        // Mô tả cơ bản từ 5 field
+        const parts = expr.trim().split(/\s+/);
+        if (parts.length === 5) return `Lịch: phút=${parts[0]} giờ=${parts[1]} ngày=${parts[2]} tháng=${parts[3]} thứ=${parts[4]}`;
+        return expr.trim();
     };
 
     const handleSelect = (s) => {
@@ -165,6 +197,7 @@ function ScriptsTab({ profiles }) {
         setCronEnabled(!!s.schedule?.enabled);
         setCronSchedule(s.schedule?.cron || '');
         setCronProfileId(s.schedule?.profileId || '');
+        setCronError('');        // reset lỗi validate khi chọn script khác
         setSettingsTab('settings');
     };
 
@@ -176,6 +209,13 @@ function ScriptsTab({ profiles }) {
                 alert('Vui lòng nhập cron expression (ví dụ: "0 9 * * 1-5") khi bật Auto-schedule.');
                 return;
             }
+            // Bug #5 fix: validate cron expression qua main process (node-cron.validate)
+            const validation = await window.electronAPI.validateCron(cronSchedule);
+            if (!validation?.valid) {
+                setCronError(`Cron expression không hợp lệ: "${cronSchedule.trim()}" — Hãy dùng định dạng 5 field, ví dụ: "0 9 * * 1-5"`);
+                return;
+            }
+            setCronError('');
             if (!cronProfileId) {
                 alert('Vui lòng chọn profile để chạy script tự động.');
                 return;
@@ -524,10 +564,11 @@ function ScriptsTab({ profiles }) {
                                                     Cron expression
                                                 </label>
                                                 <input type="text"
+                                                    id="cron-expression-input"
                                                     className="w-full rounded px-2 py-1.5 text-[0.75rem] font-mono"
-                                                    style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
+                                                    style={{ background: 'var(--glass-input)', border: `1px solid ${cronError ? '#ef4444' : 'var(--border2)'}`, color: 'var(--fg)' }}
                                                     value={cronSchedule}
-                                                    onChange={e => setCronSchedule(e.target.value)}
+                                                    onChange={e => handleCronScheduleChange(e.target.value)}
                                                     placeholder="e.g. 0 9 * * 1-5" />
                                                 <p className="text-[0.62rem] mt-1" style={{ color: 'var(--muted)' }}>
                                                     Định dạng: <code>phút giờ ngày tháng thứ</code>
@@ -556,7 +597,7 @@ function ScriptsTab({ profiles }) {
                                                                 color: cronSchedule === p.expr ? '#fff' : 'var(--fg)',
                                                                 border: '1px solid var(--border2)',
                                                             }}
-                                                            onClick={() => setCronSchedule(p.expr)}>
+                                                            onClick={() => handleCronScheduleChange(p.expr)}>
                                                             {p.label}
                                                         </button>
                                                     ))}
@@ -584,11 +625,60 @@ function ScriptsTab({ profiles }) {
                                                 )}
                                             </div>
 
-                                            {/* Hiển thị trạng thái */}
-                                            {cronSchedule && cronProfileId && (
+                                            {/* Bug #5: hiển thị lỗi cron expression */}
+                                            {cronError && (
                                                 <div className="rounded px-2 py-1.5 text-[0.66rem]"
-                                                    style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: 'var(--fg)' }}>
-                                                    Script sẽ tự chạy theo lịch <code className="font-mono">{cronSchedule}</code>
+                                                    style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.35)', color: '#ef4444' }}>
+                                                    ⚠️ {cronError}
+                                                </div>
+                                            )}
+
+                                            {/* Bug #6: mô tả lịch + nút Test Run Now */}
+                                            {cronSchedule && cronProfileId && !cronError && (
+                                                <div className="rounded px-2 py-2 text-[0.66rem]"
+                                                    style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)', color: 'var(--fg)' }}>
+                                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                        <div>
+                                                            <span style={{ color: 'rgba(34,197,94,0.9)', fontWeight: 600 }}>📅 Lịch: </span>
+                                                            {describeCron(cronSchedule)}
+                                                            <span className="font-mono ml-1" style={{ color: 'var(--muted)' }}>({cronSchedule})</span>
+                                                        </div>
+                                                        {/* Bug #6: nút Test Run Now — chạy ngay với profile đã chọn */}
+                                                        {editing?.id && (
+                                                            <button
+                                                                id="btn-schedule-run-now"
+                                                                type="button"
+                                                                disabled={runNowLoading}
+                                                                className="px-2 py-0.5 text-[0.65rem] rounded transition"
+                                                                style={{
+                                                                    background: runNowLoading ? 'var(--glass)' : 'rgba(59,130,246,0.15)',
+                                                                    border: '1px solid rgba(59,130,246,0.4)',
+                                                                    color: runNowLoading ? 'var(--muted)' : '#60a5fa',
+                                                                    cursor: runNowLoading ? 'not-allowed' : 'pointer',
+                                                                    whiteSpace: 'nowrap',
+                                                                }}
+                                                                onClick={async () => {
+                                                                    setRunNowLoading(true);
+                                                                    try {
+                                                                        const res = await window.electronAPI.scriptRunNow(editing.id);
+                                                                        if (res?.success) {
+                                                                            alert(`✅ Script "${editing.name}" chạy thành công!`);
+                                                                        } else if (res?.skipped) {
+                                                                            alert('⚠️ Script đang chạy rồi, không thể chạy song song.');
+                                                                        } else {
+                                                                            alert(`❌ Lỗi: ${res?.error || 'Unknown error'}`);
+                                                                        }
+                                                                    } catch (e) {
+                                                                        alert(`❌ Lỗi: ${e?.message || String(e)}`);
+                                                                    } finally {
+                                                                        setRunNowLoading(false);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                {runNowLoading ? '⏳ Đang chạy...' : '▶ Test Run Now'}
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             )}
                                         </>

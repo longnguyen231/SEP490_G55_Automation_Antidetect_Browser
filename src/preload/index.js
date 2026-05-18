@@ -100,6 +100,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   pauseScript: (profileId) => ipcRenderer.invoke('script-pause', profileId),
   resumeScript: (profileId) => ipcRenderer.invoke('script-resume', profileId),
   isScriptRunning: (profileId) => ipcRenderer.invoke('script-is-running', profileId),
+  // Bug #5 fix: validate cron expression via main process (uses node-cron.validate)
+  validateCron: (expr) => ipcRenderer.invoke('validate-cron', expr),
+  // Bug #6 fix: manually trigger a scheduled script immediately ("Test Run Now")
+  scriptRunNow: (scriptId) => ipcRenderer.invoke('script-run-now', scriptId),
   getTaskLogs: () => ipcRenderer.invoke('task-logs-list'),
   getTaskLog: (id) => ipcRenderer.invoke('task-logs-get', id),
   deleteTaskLog: (id) => ipcRenderer.invoke('task-logs-delete', id),

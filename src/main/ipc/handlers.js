@@ -247,6 +247,59 @@ function registerIpcHandlers(extra = {}) {
     if (r?.success) appendLog('system', `Script deleted: ${id}`);
     return r;
   });
+
+  // [Bug #5 fix] Validate cron expression trên main process dùng node-cron.validate()
+  // Được gọi từ UI trước khi save — đảm bảo expression hợp lệ trước khi ghi xuống file
+  handle('validate-cron', (_e, expr) => {
+    try {
+      const nodeCron = require('node-cron');
+      const valid = typeof expr === 'string' && expr.trim().length > 0 && nodeCron.validate(expr.trim());
+      return { valid, expr: expr?.trim() };
+    } catch (e) {
+      return { valid: false, expr: expr?.trim(), error: e?.message };
+    }
+  });
+
+  // [Bug #6 fix] "Test Run Now" — chạy ngay script theo lịch mà không cần đợi cron tick
+  // Dùng đúng profileId đã cấu hình trong schedule của script
+  handle('script-run-now', async (_e, scriptId) => {
+    try {
+      const scriptResult = await getScriptInternal(scriptId);
+      if (!scriptResult?.success || !scriptResult.script) {
+        return { success: false, error: 'Script not found: ' + scriptId };
+      }
+      const script = scriptResult.script;
+      const profileId = script.schedule?.profileId;
+      if (!profileId) return { success: false, error: 'No profile configured for this schedule. Please set a profile first.' };
+
+      const code       = script.code || '';
+      const scriptName = script.name || scriptId;
+      appendLog(profileId, `[Run Now] Manual trigger for scheduled script "${scriptName}"`);
+
+      // Launch profile nếu chưa chạy
+      const { runningProfiles } = require('../state/runtime');
+      if (!runningProfiles.has(profileId)) {
+        const { readProfiles } = require('../storage/profiles');
+        const profileData  = readProfiles().find(p => p.id === profileId);
+        if (!profileData) return { success: false, error: `Profile "${profileId}" not found. It may have been deleted.` };
+        const engine       = profileData?.settings?.engine || 'playwright';
+        const headless     = script.browserMode === 'headless';
+        const launchResult = await launchProfileInternal(profileId, { headless, engine });
+        if (!launchResult.success) return { success: false, error: 'Failed to launch profile: ' + (launchResult.error || 'unknown') };
+        await new Promise(r => setTimeout(r, 1500));
+      }
+
+      // Thực thi qua helper đầy đủ (linter + task log + skip detection)
+      return await runScriptWithFullChecks(profileId, code, {
+        scriptId,
+        scriptName,
+        source: 'run-now',
+        timeoutMs: 120000,
+      });
+    } catch (e) {
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
   // [UC_17.03] Thực thi script automation trên profile — kiểm tra ethical, tự launch profile nếu chưa chạy
   handle('scripts-execute', async (_e, profileId, scriptId, opts) => {
     const startedAt = new Date().toISOString();
