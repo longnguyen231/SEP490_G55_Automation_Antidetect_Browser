@@ -30,6 +30,8 @@ const { listScriptsInternal, getScriptInternal, saveScriptInternal, deleteScript
 const { addTaskLog, updateTaskLog, getTaskLogs, getTaskLogById, deleteTaskLog, clearTaskLogs } = require('../storage/taskLogs');
 const { listModules, installModule, uninstallModule } = require('../storage/scriptModules');
 const { executeScript, stopScript, pauseScript, resumeScript, isScriptRunning } = require('../engine/scriptRuntime');
+// scriptRunner: helper tập trung áp dụng ethical linter + task log + skip detection (Bug #1/#2/#3)
+const { runScriptWithFullChecks } = require('../engine/scriptRunner');
 const { getAuditLogContent } = require('../logging/auditLogger');
 const {
   getProxiesInternal, getProxyByIdInternal,
@@ -257,18 +259,7 @@ function registerIpcHandlers(extra = {}) {
       const scriptName = scriptResult.script.name || scriptId;
       appendLog(profileId, `Script execute: "${scriptName}"`);
 
-      // Linter: Ethical Domain Checking & Attack Pattern Scanner (BR_01)
-      // Dời Linter lên tận cửa ngõ IPC Handler. Quét code và cấm mở Profile nếu Vi phạm.
-      const restrictedDomainPattern = /\.gov|\.mil|\.edu|\b(bank|paypal|vnpay|momo|zalopay|shopeepay|viettelpay|agribank|vietcombank|techcombank|mbbank|sacombank|vpbank|bidv|crypto|binance|bitcoin|usdt)\b/i;
-      const ddosPattern = /while\s*\(\s*true\s*\)\s*\{[^{}]*(fetch|actions\.)/i;
-      
-      if (restrictedDomainPattern.test(code) || ddosPattern.test(code)) {
-        const { appendAuditLog } = require('../logging/auditLogger');
-        appendAuditLog('VIOLATION_BLOCKED', `Script attempted to access restricted patterns`, profileId);
-        appendLog(profileId, 'EthicalViolationError: Restricted domain access or spam patterns are strictly prohibited.');
-        return { success: false, error: 'EthicalViolationError: Restricted domain access or sensitive patterns are strictly prohibited by system policies.' };
-      }
-
+      // ── Launch profile nếu chưa chạy (logic này giữ nguyên tại IPC handler) ──────
       const { runningProfiles } = require('../state/runtime');
       if (!runningProfiles.has(profileId)) {
         const headless = !!(opts && opts.headless);
@@ -284,19 +275,27 @@ function registerIpcHandlers(extra = {}) {
         await new Promise(r => setTimeout(r, 1500));
       }
 
-      const result = await executeScript(profileId, code, opts || {});
-      const finishedAt = new Date().toISOString();
+      // ── runScriptWithFullChecks: ethical linter + skip detection + task log + execute ──
+      // Bug #1: linter giờ được áp dụng ở scriptRunner.js thay vì inline tại đây
+      // Bug #2: task log được ghi bên trong helper (không cần ghi thêm ở đây)
+      // Bug #3: nếu script đang chạy sẽ log rõ tick bị skip thay vì nuốt im lặng
+      const result = await runScriptWithFullChecks(profileId, code, {
+        scriptId,
+        scriptName,
+        source: 'ipc',
+        timeoutMs: Math.min(opts?.timeoutMs || 120000, 300000),
+      });
       if (result.success) {
         appendLog(profileId, `Script finished OK: "${scriptName}"`);
-        await addTaskLog({ scriptId, scriptName, profileId, status: 'completed', startedAt, finishedAt, logs: result.logs || [] });
-      } else {
+      } else if (!result.skipped) {
         const isStopped = result.error && String(result.error).includes('stopped by user');
         appendLog(profileId, isStopped ? `Script stopped by user` : `Script error: ${result.error}`);
-        await addTaskLog({ scriptId, scriptName, profileId, status: isStopped ? 'stopped' : 'error', startedAt, finishedAt, logs: result.logs || [], error: result.error });
       }
       return result;
     }
     catch (e) {
+      // Catch dành cho lỗi xảy ra TRƯỚC khi runScriptWithFullChecks được gọi
+      // (ví dụ: getScriptInternal throw, hoặc launchProfile throw)
       await addTaskLog({ scriptId, scriptName: scriptId, profileId, status: 'error', startedAt, finishedAt: new Date().toISOString(), logs: [], error: e?.message || String(e) });
       return { success: false, error: e?.message || String(e) };
     }

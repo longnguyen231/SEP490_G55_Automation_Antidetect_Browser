@@ -22,7 +22,9 @@ function safeRequire(mod) { try { return require(mod); } catch { return null; } 
 const cron = safeRequire('node-cron');
 
 // Logger dùng chung — ghi log vào file để debug khi cron chạy ngầm (không có UI)
-const { appendLog } = require('../logging/logger');
+const { appendLog }            = require('../logging/logger');
+// scriptRunner: helper tập trung áp dụng ethical linter + task log + skip detection (Bug #1/#2/#3)
+const { runScriptWithFullChecks } = require('./scriptRunner');
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Map nội bộ: scriptId → instance cron job đang chạy
@@ -86,8 +88,7 @@ function scheduleScript(script) {
     const job = cron.schedule(expr, async () => {
       try {
         // Lazy require để tránh circular dependency khi module load lần đầu
-        const { executeScript } = require('./scriptRuntime');
-        const { readScripts } = require('../storage/scripts');
+        const { readScripts }    = require('../storage/scripts');
         const { runningProfiles } = require('../state/runtime');
 
         // ── Quan trọng: Đọc lại code mới nhất từ file thay vì dùng biến `script` trong closure ──
@@ -106,19 +107,18 @@ function scheduleScript(script) {
         const profileId = fresh.schedule?.profileId;
         if (!profileId) return;
 
-        // ── Auto-launch profile nếu chưa chạy ─────────────────────────
-        // executeScript() yêu cầu profile đã được launch sẵn — nếu chưa thì script
-        // chỉ log "profile not running" rồi thoát. Vì cron tick có thể xảy ra khi
-        // user chưa mở profile, ta phải tự launch trước khi chạy script.
+        // ── Auto-launch profile nếu chưa chạy ─────────────────────────────────
+        // runScriptWithFullChecks() yêu cầu profile đã launch sẵn.
+        // Vì cron tick xảy ra ngầm khi user chưa mở profile, ta tự launch trước.
         if (!runningProfiles.has(profileId)) {
           appendLog(profileId, `scriptScheduler: profile not running — auto-launching for scheduled script "${fresh.name}"`);
           try {
             const { launchProfileInternal } = require('../controllers/profiles');
-            const { readProfiles } = require('../storage/profiles');
+            const { readProfiles }          = require('../storage/profiles');
             const profileForEngine = readProfiles().find(p => p.id === profileId);
-            const profileEngine = profileForEngine?.settings?.engine || 'playwright';
-            const headless = fresh.browserMode === 'headless';
-            const launchResult = await launchProfileInternal(profileId, { headless, engine: profileEngine });
+            const profileEngine    = profileForEngine?.settings?.engine || 'playwright';
+            const headless         = fresh.browserMode === 'headless';
+            const launchResult     = await launchProfileInternal(profileId, { headless, engine: profileEngine });
             if (!launchResult?.success) {
               appendLog(profileId, `scriptScheduler: failed to launch profile — ${launchResult?.error || 'unknown'}`);
               return;
@@ -131,14 +131,24 @@ function scheduleScript(script) {
           }
         }
 
-        // Ghi log trước khi chạy — giúp debug biết script chạy vào lúc nào và với cron nào
-        appendLog(profileId, `scriptScheduler: auto-run script "${fresh.name}" (cron: ${expr})`);
-
-        // Thực thi script với profile được chỉ định
-        // timeoutMs: giới hạn 2 phút để tránh script bị treo vô thời hạn
-        await executeScript(profileId, fresh.code, {
-          timeoutMs: 120000,
+        // ── runScriptWithFullChecks thay thế executeScript trực tiếp ──────────
+        // Bug #1: ethical linter được áp dụng (trước đây scheduler bỏ qua hoàn toàn)
+        // Bug #2: task log được ghi → scheduled runs hiển thị trong Task Logs UI
+        // Bug #3: nếu script đang chạy → log rõ tick bị skip thay vì nuốt im lặng
+        const result = await runScriptWithFullChecks(profileId, fresh.code, {
+          scriptId:   fresh.id,
+          scriptName: fresh.name,
+          source:     'scheduler',
+          timeoutMs:  120000,
         });
+
+        if (result.skipped) {
+          // Đã được log bên trong runScriptWithFullChecks, không cần log thêm
+        } else if (!result.success) {
+          appendLog(profileId, `scriptScheduler: script "${fresh.name}" ended with error: ${result.error}`);
+        } else {
+          appendLog(profileId, `scriptScheduler: script "${fresh.name}" completed OK`);
+        }
       } catch (e) {
         // Bắt lỗi riêng bên trong callback để tránh crash toàn bộ cron system
         appendLog('system', `scriptScheduler: cron run error — ${e?.message || e}`);
