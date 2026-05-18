@@ -103,7 +103,8 @@ export default function FingerprintInspector({ profileId, profileName, configure
   }, [onClose]);
 
   // ── Match helpers — so sánh giá trị thực tế vs configured ─────────────────
-  const matchUA = fp?.identity?.userAgent && configuredFp?.userAgent ? fp.identity.userAgent.includes(configuredFp.userAgent.split(' ')[0]) : undefined;
+  // Bug #2 fix: so sánh full UA string thay vì chỉ token đầu ("Mozilla/5.0" luôn match)
+  const matchUA = fp?.identity?.userAgent && configuredFp?.userAgent ? fp.identity.userAgent === configuredFp.userAgent : undefined;
   const matchLang = fp?.identity?.language && configuredFp?.language ? fp.identity.language === configuredFp.language : undefined;
   const matchTZ = fp?.timezone && configuredFp?.timezone ? fp.timezone === configuredFp.timezone : undefined;
   const matchW = fp?.screen?.width && configuredFp?.screenResolution ? fp.screen.width === Number((configuredFp.screenResolution || '').split('x')[0]) : undefined;
@@ -254,8 +255,9 @@ export default function FingerprintInspector({ profileId, profileName, configure
 
               {/* WebGL */}
               <Section title="WebGL" icon="🔷">
-                <Row label="Renderer" value={fp.webgl?.renderer} configValue={configuredFp?.webglRenderer} />
-                <Row label="Vendor" value={fp.webgl?.vendor} configValue={configuredFp?.webglVendor} />
+                {/* Bug #5 fix: thêm match prop để hiện ✅/⚠️ đúng */}
+                <Row label="Renderer" value={fp.webgl?.renderer} configValue={configuredFp?.webglRenderer} match={fp.webgl?.renderer && configuredFp?.webglRenderer ? fp.webgl.renderer === configuredFp.webglRenderer : undefined} />
+                <Row label="Vendor" value={fp.webgl?.vendor} configValue={configuredFp?.webglVendor} match={fp.webgl?.vendor && configuredFp?.webglVendor ? fp.webgl.vendor === configuredFp.webglVendor : undefined} />
                 <Row label="GL Version" value={fp.webgl?.version} />
                 <Row label="GLSL Version" value={fp.webgl?.shadingVersion} />
                 <Row label="Extensions (first 10)" value={fp.webgl?.extensions} />
@@ -273,7 +275,8 @@ export default function FingerprintInspector({ profileId, profileName, configure
                 {fp.battery ? (
                   <>
                     <Row label="Charging" value={String(fp.battery.charging)} configValue={configuredFp?.batteryCharging} match={String(fp.battery.charging) === (configuredFp?.batteryCharging === 'Yes' ? 'true' : 'false')} />
-                    <Row label="Level" value={`${Math.round((fp.battery.level || 0) * 100)}%`} configValue={configuredFp?.batteryLevel ? `${Math.round(configuredFp.batteryLevel * 100)}%` : null} />
+                    {/* Bug #3 fix: thêm match prop cho battery level */}
+                    <Row label="Level" value={`${Math.round((fp.battery.level || 0) * 100)}%`} configValue={configuredFp?.batteryLevel != null ? `${Math.round(Number(configuredFp.batteryLevel) * 100)}%` : null} match={configuredFp?.batteryLevel != null ? Math.round((fp.battery.level || 0) * 100) === Math.round(Number(configuredFp.batteryLevel) * 100) : undefined} />
                     <Row label="Charging time" value={fp.battery.chargingTime === Infinity ? '∞' : fp.battery.chargingTime} />
                     <Row label="Discharging time" value={fp.battery.dischargingTime === Infinity ? '∞' : fp.battery.dischargingTime} />
                   </>

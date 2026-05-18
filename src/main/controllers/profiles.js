@@ -1200,14 +1200,18 @@ async function inspectFingerprintInternal(profileId) {
 
       // ── Audio ──────────────────────────────────────────────────────────────
       let audio = { sampleRate: null, maxChannelCount: null, state: null };
+      // Bug #4 fix: ctx.close() trong finally — đảm bảo AudioContext không bị leak dù có exception
       safe(() => {
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC) return;
         const ctx = new AC();
-        audio.sampleRate     = ctx.sampleRate;
-        audio.maxChannelCount = ctx.destination.maxChannelCount;
-        audio.state          = ctx.state;
-        ctx.close();
+        try {
+          audio.sampleRate      = ctx.sampleRate;
+          audio.maxChannelCount = ctx.destination.maxChannelCount;
+          audio.state           = ctx.state;
+        } finally {
+          ctx.close();
+        }
       });
 
       // ── Battery ─────────────────────────────────────────────────────────────
