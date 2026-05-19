@@ -1,19 +1,33 @@
-/**
- * ElementPicker.jsx — Interactive element selector panel for a running browser profile.
- * Layout: header + URL toolbar + 3 columns (Live Controls | Selectors | Element Info)
- * Ctrl+hover in the browser highlights & reports the element back here in real-time.
- */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 // ── Copy-to-clipboard helper ──────────────────────────────────────────────────
 function useCopy() {
   const [copied, setCopied] = useState('');
+  const timerRef = useRef(null);
+
+  // Clear pending timer on unmount to avoid setState on unmounted component
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
   const copy = useCallback((text, key) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
     navigator.clipboard.writeText(text).then(() => {
       setCopied(key);
-      setTimeout(() => setCopied(''), 1500);
-    }).catch(() => {});
+      timerRef.current = setTimeout(() => setCopied(''), 1500);
+    }).catch(() => {
+      // Fallback for sandboxed contexts that deny clipboard access
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        setCopied(key);
+        timerRef.current = setTimeout(() => setCopied(''), 1500);
+      } catch { /* nothing we can do */ }
+    });
   }, []);
   return { copied, copy };
 }
@@ -138,16 +152,23 @@ export default function ElementPicker({ profileId, profileName, onClose }) {
   const [statusOk, setStatusOk] = useState(true);
   const { copied, copy } = useCopy();
 
+  const statusTimerRef = useRef(null);
+  useEffect(() => () => { if (statusTimerRef.current) clearTimeout(statusTimerRef.current); }, []);
   const showStatus = useCallback((msg, ok = true) => {
     setStatus(msg);
     setStatusOk(ok);
-    setTimeout(() => setStatus(''), 3000);
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    statusTimerRef.current = setTimeout(() => setStatus(''), 3000);
   }, []);
 
-  // Fetch current browser URL on mount
+  // Fetch current browser URL and auto-start picking on mount
   useEffect(() => {
     window.electronAPI.elementPickerGetUrl(profileId)
       .then(res => { if (res?.success && res.url) setInputUrl(res.url); })
+      .catch(() => {});
+    // Auto-start picking immediately so user doesn't need to click Re-activate manually
+    window.electronAPI.elementPickerStartPicking(profileId)
+      .then(res => { if (res?.success) setIsPicking(true); })
       .catch(() => {});
   }, [profileId]);
 
@@ -173,22 +194,44 @@ export default function ElementPicker({ profileId, profileName, onClose }) {
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
 
+  // Shared: re-inject picking listener + refresh URL after any navigation
+  const afterNavRefresh = async () => {
+    const [pickRes, urlRes] = await Promise.all([
+      window.electronAPI.elementPickerStartPicking(profileId).catch(() => null),
+      window.electronAPI.elementPickerGetUrl(profileId).catch(() => null),
+    ]);
+    if (pickRes?.success) setIsPicking(true);
+    if (urlRes?.success && urlRes.url) setInputUrl(urlRes.url);
+  };
+
   const navigate = async () => {
     if (!inputUrl.trim()) return;
     const res = await window.electronAPI.elementPickerNavigate(profileId, inputUrl.trim());
-    if (res?.success) { setInputUrl(res.url || inputUrl); showStatus('Navigated'); }
-    else showStatus(res?.error || 'Navigation failed', false);
+    if (res?.success) {
+      showStatus('Navigated');
+      // afterNavRefresh also fetches the final URL (handles redirects correctly)
+      await afterNavRefresh();
+    } else showStatus(res?.error || 'Navigation failed', false);
   };
 
-  const togglePicking = async () => {
-    if (isPicking) {
-      await window.electronAPI.elementPickerStopPicking(profileId);
-      setIsPicking(false);
-      showStatus('Picking stopped');
+  // Nav toolbar buttons: back / forward / reload — each re-injects listener + syncs URL
+  const handleNavAction = async (action) => {
+    await window.electronAPI.elementPickerAction(profileId, action).catch(() => {});
+    // Give the browser a moment to finish navigation before re-injecting
+    await new Promise(r => setTimeout(r, 600));
+    await afterNavRefresh();
+  };
+
+  // "Re-activate" always re-injects the picker script — never stops it.
+  // Stopping only happens automatically on component unmount.
+  const reactivatePicking = async () => {
+    const res = await window.electronAPI.elementPickerStartPicking(profileId);
+    if (res?.success) {
+      setIsPicking(true);
+      showStatus('Picking active — hover an element in the browser then press Ctrl');
     } else {
-      const res = await window.electronAPI.elementPickerStartPicking(profileId);
-      if (res?.success) { setIsPicking(true); showStatus('Hover an element then press Ctrl to pick it'); }
-      else showStatus(res?.error || 'Failed to start picking', false);
+      setIsPicking(false);
+      showStatus(res?.error || 'Failed to activate picking', false);
     }
   };
 
@@ -266,13 +309,13 @@ export default function ElementPicker({ profileId, profileName, onClose }) {
           <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
             <Btn onClick={() => window.electronAPI.elementPickerBringToFront(profileId)}>Bring to Front</Btn>
             <Btn
-              onClick={togglePicking}
-              bgColor={isPicking ? 'rgba(0,210,211,0.15)' : undefined}
-              textColor={isPicking ? '#00d2d3' : undefined}
-              borderColor={isPicking ? 'rgba(0,210,211,0.5)' : undefined}
-              title={isPicking ? 'Stop picking' : 'Activate Ctrl+hover picking'}
+              onClick={reactivatePicking}
+              bgColor={isPicking ? 'rgba(0,210,211,0.15)' : 'rgba(245,158,11,0.12)'}
+              textColor={isPicking ? '#00d2d3' : '#f59e0b'}
+              borderColor={isPicking ? 'rgba(0,210,211,0.5)' : 'rgba(245,158,11,0.4)'}
+              title="Re-inject Ctrl+hover listener into the browser page"
             >
-              {isPicking ? '⏹ Stop' : 'Re-activate'}
+              {isPicking ? 'Re-activate' : '⚡ Activate'}
             </Btn>
             <Btn onClick={onClose}>Close</Btn>
           </div>
@@ -284,11 +327,11 @@ export default function ElementPicker({ profileId, profileName, onClose }) {
           background: 'var(--card2)',
           display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0,
         }}>
-          <button onClick={() => window.electronAPI.elementPickerAction(profileId, 'nav-back')}
+          <button onClick={() => handleNavAction('nav-back')}
             style={{ background: 'var(--glass)', border: '1px solid var(--border)', borderRadius: '5px', padding: '4px 9px', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--fg)', fontWeight: 600 }} title="Back">−</button>
-          <button onClick={() => window.electronAPI.elementPickerAction(profileId, 'nav-forward')}
+          <button onClick={() => handleNavAction('nav-forward')}
             style={{ background: 'var(--glass)', border: '1px solid var(--border)', borderRadius: '5px', padding: '4px 9px', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--fg)', fontWeight: 600 }} title="Forward">→</button>
-          <button onClick={() => window.electronAPI.elementPickerAction(profileId, 'nav-reload')}
+          <button onClick={() => handleNavAction('nav-reload')}
             style={{ background: 'var(--glass)', border: '1px solid var(--border)', borderRadius: '5px', padding: '4px 9px', cursor: 'pointer', fontSize: '0.9rem', color: 'var(--fg)' }} title="Reload">↻</button>
 
           <input
@@ -310,12 +353,12 @@ export default function ElementPicker({ profileId, profileName, onClose }) {
           }}>Go</button>
 
           <span style={{
-            fontSize: '0.67rem', color: isPicking ? '#00d2d3' : 'var(--muted)',
+            fontSize: '0.67rem', color: isPicking ? '#00d2d3' : '#f59e0b',
             padding: '4px 8px', background: 'var(--glass)', borderRadius: '5px',
-            border: `1px solid ${isPicking ? 'rgba(0,210,211,0.4)' : 'var(--border)'}`,
-            whiteSpace: 'nowrap', fontWeight: isPicking ? 600 : 400,
+            border: `1px solid ${isPicking ? 'rgba(0,210,211,0.4)' : 'rgba(245,158,11,0.35)'}`,
+            whiteSpace: 'nowrap', fontWeight: 600,
           }}>
-            {isPicking ? '🟢 ' : ''}Hover → Ctrl to pick
+            {isPicking ? '🟢 Hover → Ctrl to pick' : '⚠ Picking inactive — click Activate'}
           </span>
         </div>
 
