@@ -25,6 +25,16 @@ function formatDate(iso) {
   try { return new Date(iso).toLocaleString(); } catch { return iso; }
 }
 
+// Group releases by version to find which is truly latest per platform
+function getLatestIds(releases) {
+  const seen = {};
+  for (const r of releases) {
+    const key = r.platform || 'unknown';
+    if (!seen[key]) seen[key] = r.id; // list is already sorted newest-first
+  }
+  return new Set(Object.values(seen));
+}
+
 export default function Releases() {
   const { listReleases, uploadRelease, deleteRelease } = useAdminApi();
   const [releases, setReleases] = useState([]);
@@ -179,52 +189,87 @@ export default function Releases() {
                   <th className="text-left px-6 py-3">Version</th>
                   <th className="text-left px-6 py-3">Platform</th>
                   <th className="text-left px-6 py-3">File</th>
+                  <th className="text-left px-6 py-3">Notes</th>
                   <th className="text-right px-6 py-3">Size</th>
                   <th className="text-left px-6 py-3">Created</th>
                   <th className="text-right px-6 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {releases.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                    <td className="px-6 py-3 font-semibold text-slate-800 dark:text-slate-100">{r.version || '—'}</td>
-                    <td className="px-6 py-3">
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                        {PLATFORM_LABEL[r.platform] || r.platform}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 font-mono text-xs text-slate-600 dark:text-slate-300 break-all max-w-md">{r.fileName}</td>
-                    <td className="px-6 py-3 text-right text-slate-500">{formatBytes(r.size)}</td>
-                    <td className="px-6 py-3 text-slate-500 whitespace-nowrap">{formatDate(r.createdAt)}</td>
-                    <td className="px-6 py-3 text-right whitespace-nowrap space-x-3">
-                      <a
-                        href={r.downloadUrl}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-                      >
-                        <span className="material-symbols-outlined text-sm">download</span>
-                        Download
-                      </a>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(r.downloadUrl);
-                          toast.success('Download link copied!');
-                        }}
-                        title="Copy download link — paste into Config → Download Links"
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:underline"
-                      >
-                        <span className="material-symbols-outlined text-sm">content_copy</span>
-                        Copy link
-                      </button>
-                      <button
-                        onClick={() => handleDelete(r.id)}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-rose-500 hover:underline"
-                      >
-                        <span className="material-symbols-outlined text-sm">delete</span>
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {(() => {
+                  const latestIds = getLatestIds(releases);
+                  return releases.map((r) => (
+                    <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                      <td className="px-6 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-800 dark:text-slate-100">{r.version || '—'}</span>
+                          {latestIds.has(r.id) && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 leading-none">
+                              LATEST
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-3">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                          {PLATFORM_LABEL[r.platform] || r.platform}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3 font-mono text-xs text-slate-600 dark:text-slate-300 max-w-[180px] truncate" title={r.fileName}>
+                        {r.fileName}
+                      </td>
+                      <td className="px-6 py-3 text-xs text-slate-500 max-w-[180px]">
+                        {r.notes ? (
+                          <span className="truncate block" title={r.notes}>{r.notes}</span>
+                        ) : (
+                          <span className="text-slate-700 dark:text-slate-600">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-3 text-right text-slate-500 whitespace-nowrap">{formatBytes(r.size)}</td>
+                      <td className="px-6 py-3 text-slate-500 whitespace-nowrap">{formatDate(r.createdAt)}</td>
+                      <td className="px-6 py-3 text-right whitespace-nowrap space-x-3">
+                        <a
+                          href={r.downloadUrl}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                        >
+                          <span className="material-symbols-outlined text-sm">download</span>
+                          Download
+                        </a>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(r.downloadUrl);
+                            toast.success('Download link copied!');
+                          }}
+                          title="Copy download link"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:underline"
+                        >
+                          <span className="material-symbols-outlined text-sm">content_copy</span>
+                          Copy link
+                        </button>
+                        {r.sha256 && (
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(r.sha256);
+                              toast.success('SHA256 copied!');
+                            }}
+                            title={`SHA256: ${r.sha256}`}
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:underline"
+                          >
+                            <span className="material-symbols-outlined text-sm">fingerprint</span>
+                            SHA256
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDelete(r.id)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-rose-500 hover:underline"
+                        >
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ));
+                })()}
               </tbody>
             </table>
           </div>

@@ -1038,6 +1038,28 @@ function registerIpcHandlers(extra = {}) {
   }
 
   if (extra.register) { try { extra.register(ipcMain); } catch { } }
+
+  // ── Auto-update ─────────────────────────────────────────────────────────────
+  const { checkForUpdate, downloadAndInstall } = require('../services/UpdateService');
+
+  handle('update:check', async () => {
+    try {
+      return await checkForUpdate();
+    } catch (e) {
+      return { hasUpdate: false, error: e?.message };
+    }
+  });
+
+  handle('update:install', async (_e, release) => {
+    try {
+      appendLog('system', `[Update] Downloading v${release?.version}...`);
+      await downloadAndInstall(release);
+      return { success: true };
+    } catch (e) {
+      appendLog('system', `[Update] Download failed: ${e?.message}`);
+      return { success: false, error: e?.message };
+    }
+  });
 }
 
 module.exports = { registerIpcHandlers };

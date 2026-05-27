@@ -48,6 +48,54 @@ function App() {
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { profileId, profileName }
   const [deleteBulkConfirm, setDeleteBulkConfirm] = useState(null); // { ids, runningCount }
 
+  // Auto-update
+  const [updateInfo, setUpdateInfo] = useState(null);       // release object khi có bản mới
+  const [updatePhase, setUpdatePhase] = useState(null);     // 'downloading' | 'downloaded' | 'installing'
+  const [updateProgress, setUpdateProgress] = useState(0);  // 0–1
+
+  // Kiểm tra bản cập nhật khi app khởi động xong
+  useEffect(() => {
+    if (!window.electronAPI?.checkForUpdate) return;
+    // Đợi 8 giây sau khi load để tránh làm chậm khởi động
+    const timer = setTimeout(async () => {
+      try {
+        const result = await window.electronAPI.checkForUpdate();
+        if (result?.hasUpdate && result?.release) {
+          setUpdateInfo(result.release);
+        }
+      } catch {}
+    }, 8000);
+
+    // Lắng nghe event update-available từ main process (bootstrap tự gửi)
+    const cleanupAvailable = window.electronAPI.onUpdateAvailable?.((release) => {
+      if (release) setUpdateInfo(release);
+    });
+
+    // Lắng nghe tiến trình download
+    const cleanupProgress = window.electronAPI.onUpdateProgress?.((payload) => {
+      setUpdatePhase(payload.phase);
+      setUpdateProgress(payload.progress || 0);
+    });
+
+    return () => {
+      clearTimeout(timer);
+      try { cleanupAvailable?.(); } catch {}
+      try { cleanupProgress?.(); } catch {}
+    };
+  }, []);
+
+  const handleInstallUpdate = async () => {
+    if (!updateInfo || !window.electronAPI?.installUpdate) return;
+    setUpdatePhase('downloading');
+    setUpdateProgress(0);
+    try {
+      await window.electronAPI.installUpdate(updateInfo);
+    } catch (e) {
+      setUpdatePhase(null);
+      console.error('[Update] install error:', e);
+    }
+  };
+
   // Subscribe to app-log events at app level so logs are captured regardless of active tab
   useEffect(() => {
     if (!window.electronAPI?.onAppLog) return;
@@ -653,6 +701,52 @@ function App() {
 
   return (
     <div className="app">
+      {/* ── Update banner ──────────────────────────────────────────────── */}
+      {updateInfo && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+          background: 'linear-gradient(90deg, #0e7490, #0891b2)',
+          color: '#fff', padding: '8px 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          fontSize: '13px', gap: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+        }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>⬆️</span>
+            <strong>Update available: v{updateInfo.version}</strong>
+            {updateInfo.notes && (
+              <span style={{ opacity: 0.75, fontSize: '12px' }}>— {updateInfo.notes.slice(0, 80)}{updateInfo.notes.length > 80 ? '…' : ''}</span>
+            )}
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {updatePhase === 'downloading' && (
+              <span style={{ fontSize: '12px', opacity: 0.85 }}>
+                Downloading… {Math.round(updateProgress * 100)}%
+              </span>
+            )}
+            {updatePhase === 'installing' && (
+              <span style={{ fontSize: '12px', opacity: 0.85 }}>Installing… App will restart shortly.</span>
+            )}
+            {!updatePhase && (
+              <button
+                onClick={handleInstallUpdate}
+                style={{
+                  background: '#fff', color: '#0e7490', border: 'none',
+                  borderRadius: '6px', padding: '4px 14px', fontWeight: 700,
+                  fontSize: '12px', cursor: 'pointer',
+                }}
+              >
+                Update now
+              </button>
+            )}
+            <button
+              onClick={() => setUpdateInfo(null)}
+              style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', opacity: 0.7, fontSize: '16px', lineHeight: 1, padding: '0 4px' }}
+              title="Dismiss"
+            >✕</button>
+          </span>
+        </div>
+      )}
+
       {!showForm && (
         <DashboardSidebar
           activeNav={activeNav}

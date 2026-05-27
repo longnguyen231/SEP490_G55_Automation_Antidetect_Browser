@@ -106,7 +106,7 @@ export const uploadMiddleware = upload.single('file');
 export function listReleases(_req, res) {
   const releases = loadReleases()
     .slice()
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    .sort(compareSemver);
   res.status(200).json({ releases });
 }
 
@@ -178,10 +178,25 @@ export function findReleaseById(id) {
   return loadReleases().find((r) => r.id === id) || null;
 }
 
+function parseSemver(v) {
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(v || '0.0.0'));
+  return m ? [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])] : [0, 0, 0];
+}
+
+function compareSemver(a, b) {
+  const [aMaj, aMin, aPat] = parseSemver(a.version);
+  const [bMaj, bMin, bPat] = parseSemver(b.version);
+  if (bMaj !== aMaj) return bMaj - aMaj;
+  if (bMin !== aMin) return bMin - aMin;
+  if (bPat !== aPat) return bPat - aPat;
+  // Tie-break by upload date
+  return new Date(b.createdAt) - new Date(a.createdAt);
+}
+
 export function findLatestRelease(platform) {
   const all = loadReleases()
     .filter((r) => !platform || r.platform === platform)
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    .sort(compareSemver);
   return all[0] || null;
 }
 

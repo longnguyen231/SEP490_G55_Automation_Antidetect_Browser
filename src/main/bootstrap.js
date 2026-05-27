@@ -104,6 +104,20 @@ app.whenReady().then(async () => {
   mainWindow.webContents.on('did-finish-load', () => {
     try { mainWindow.webContents.send('backend-ready', true); } catch {}
   });
+
+  // 8. Check for updates in background (non-blocking, 10s delay để không làm chậm startup)
+  setTimeout(async () => {
+    try {
+      const { checkForUpdate } = require('./services/UpdateService');
+      const result = await checkForUpdate();
+      if (result?.hasUpdate && result?.release) {
+        appendLog('system', `[Update] New version available: v${result.release.version}`);
+        try { mainWindow.webContents.send('update-available', result.release); } catch {}
+      }
+    } catch (e) {
+      appendLog('system', `[Update] Check failed: ${e?.message || e}`);
+    }
+  }, 10000);
 });
 
 // Graceful shutdown (dev convenience)

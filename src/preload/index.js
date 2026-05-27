@@ -198,4 +198,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Audit Log (Ethical Compliance)
   exportAuditLog: () => ipcRenderer.invoke('system-export-audit'),
+
+  // ── Auto-update ─────────────────────────────────────────────────────────────
+  checkForUpdate: () => ipcRenderer.invoke('update:check'),
+  installUpdate: (release) => ipcRenderer.invoke('update:install', release),
+  onUpdateProgress: (callback) => {
+    const listener = (_e, payload) => callback && callback(payload);
+    ipcRenderer.on('update-progress', listener);
+    return () => ipcRenderer.removeListener('update-progress', listener);
+  },
+  removeAllUpdateProgress: () => ipcRenderer.removeAllListeners('update-progress'),
+  onUpdateAvailable: (callback) => {
+    const listener = (_e, payload) => callback && callback(payload);
+    ipcRenderer.on('update-available', listener);
+    return () => ipcRenderer.removeListener('update-available', listener);
+  },
 });

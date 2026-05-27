@@ -170,15 +170,15 @@ const PRICING_TIERS = [
   },
   {
     id: 'pro',
-    name: 'Pro Trial',
+    name: 'Pro',
     icon: '🚀',
-    price: 'Free',
-    period: '30-day trial',
-    description: 'Unlock all Pro features for 30 days — no payment required.',
+    price: '10.000₫',
+    period: 'one-time license',
+    description: 'Unlock all Pro features with a lifetime license — one-time payment.',
     highlight: true,
-    badge: '🎉 Free Trial',
-    ctaLabel: 'Start Free Trial',
-    ctaHref: '/my-license',
+    badge: '⚡ Most Popular',
+    ctaLabel: 'Buy Now',
+    ctaHref: '/checkout?tier=pro',
     ctaStyle: 'primary',
     features: [
       { text: 'Unlimited browser profiles', included: true },
@@ -736,7 +736,7 @@ const LandingPage = () => {
               Choose the plan that fits your needs
             </h2>
             <p className="mt-4 text-slate-400 max-w-xl mx-auto text-sm leading-relaxed">
-              Start free with 5 profiles. Try Pro features for 30 days — no credit card required.
+              Start free with 5 profiles, or unlock everything with a one-time Pro license.
             </p>
           </div>
 
@@ -757,7 +757,7 @@ const LandingPage = () => {
 
           {/* Bottom note */}
           <p className="text-center text-xs text-slate-500 mt-10">
-            Free trial includes all Pro features. One trial per account. No payment required.
+            Pro license is lifetime — no subscription, no recurring fees.
           </p>
         </div>
       </section>
