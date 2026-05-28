@@ -44,6 +44,7 @@ const { getMachineCode, validateLicenseKey, deactivateLicense } = require('../se
 const { checkBrowserStatus, installBrowser, uninstallBrowser, reinstallBrowser } = require('../services/browserManagerService');
 
 const macroRecorders = new Map();
+const macroRunState = new Map(); // profileId → { cancelled: boolean } — hỗ trợ dừng giữa chừng (Bug #3)
 
 async function injectMacroRecorderScript(page) {
   await page.evaluate(() => {
@@ -75,13 +76,22 @@ async function injectMacroRecorderScript(page) {
     if (window.__obt_rec_click) { document.removeEventListener('click', window.__obt_rec_click, true); window.__obt_rec_click = null; }
     if (window.__obt_rec_change) { document.removeEventListener('change', window.__obt_rec_change, true); window.__obt_rec_change = null; }
     if (window.__obt_rec_keydown) { document.removeEventListener('keydown', window.__obt_rec_keydown, true); window.__obt_rec_keydown = null; }
-    if (!window.__obt_macro_rec) return;
+    // Bug #4 fix: xóa guard cứng "if (!__obt_macro_rec) return" — Playwright tự re-inject exposeFunction
+    // sau navigation, và mỗi listener đã có try-catch riêng nên an toàn khi __obt_macro_rec chưa sẵn sàng.
+    // Bug #2 fix: dọn scroll listener từ lần inject trước để tránh duplicate.
+    if (window.__obt_rec_scroll) { document.removeEventListener('scroll', window.__obt_rec_scroll, true); clearTimeout(window.__obt_scroll_timer); window.__obt_rec_scroll = null; window.__obt_scroll_timer = null; }
     window.__obt_rec_click = function(e) {
       try {
         const el = e.target;
         if (!el || !el.tagName) return;
         const tag = el.tagName.toLowerCase();
-        if (['input', 'textarea', 'select', 'option'].includes(tag)) return;
+        // Bug #1 fix: chỉ bỏ qua input text/textarea/select (đã xử lý qua 'change' event).
+        // Vẫn GHI click cho input[type=submit|button|checkbox|radio|image] để capture đăng nhập.
+        if (['select', 'option'].includes(tag)) return;
+        if (['input', 'textarea'].includes(tag)) {
+          const inputType = (el.getAttribute('type') || 'text').toLowerCase();
+          if (!['submit', 'button', 'checkbox', 'radio', 'image'].includes(inputType)) return;
+        }
         window.__obt_macro_rec({
           type: 'click.element',
           params: { selector: getCssSelector(el) },
@@ -114,6 +124,26 @@ async function injectMacroRecorderScript(page) {
     document.addEventListener('click', window.__obt_rec_click, true);
     document.addEventListener('change', window.__obt_rec_change, true);
     document.addEventListener('keydown', window.__obt_rec_keydown, true);
+    // Bug #2 fix: ghi thao tác scroll với debounce 400ms để tránh spam step.
+    window.__obt_scroll_timer = null;
+    window.__obt_rec_scroll = function() {
+      clearTimeout(window.__obt_scroll_timer);
+      window.__obt_scroll_timer = setTimeout(function() {
+        try {
+          var sx = Math.round(window.scrollX);
+          var sy = Math.round(window.scrollY);
+          if (window.__obt_macro_rec) {
+            window.__obt_macro_rec({
+              type: 'page.scroll',
+              params: { x: sx, y: sy },
+              label: 'Scroll to (' + sx + ', ' + sy + ')',
+              delay: 300,
+            });
+          }
+        } catch {}
+      }, 400);
+    };
+    document.addEventListener('scroll', window.__obt_rec_scroll, true);
   });
 }
 
@@ -927,6 +957,13 @@ function registerIpcHandlers(extra = {}) {
     catch (e) { return { success: false, error: e?.message || String(e) }; }
   });
 
+  // Bug #3 fix: thêm handle 'macro-stop' để hủy giữa chừng
+  handle('macro-stop', (_e, profileId) => {
+    const state = macroRunState.get(profileId);
+    if (state) state.cancelled = true;
+    return { success: true };
+  });
+
   handle('macro-run', async (_e, macroId, profileId) => {
     try {
       const result = await getMacroInternal(macroId);
@@ -934,18 +971,35 @@ function registerIpcHandlers(extra = {}) {
       const macro = result.macro;
       const { runningProfiles } = require('../state/runtime');
       if (!runningProfiles.has(profileId)) return { success: false, error: 'Profile is not running' };
-      for (let i = 0; i < macro.steps.length; i++) {
-        const step = macro.steps[i];
-        if (step.delay && step.delay > 0) {
-          await new Promise(r => setTimeout(r, step.delay));
+      // Bug #3 fix: đăng ký cờ hủy cho profile này
+      const runState = { cancelled: false };
+      macroRunState.set(profileId, runState);
+      try {
+        for (let i = 0; i < macro.steps.length; i++) {
+          // Kiểm tra cờ hủy trước mỗi step — cho phép dừng ngay lập tức
+          if (runState.cancelled) {
+            return { success: false, error: 'Macro stopped by user', stopped: true };
+          }
+          const step = macro.steps[i];
+          if (step.delay && step.delay > 0) {
+            // Chờ delay nhưng vẫn kiểm tra huỷ mỗi 100ms thay vì block hết delay
+            const deadline = Date.now() + step.delay;
+            while (Date.now() < deadline) {
+              if (runState.cancelled) return { success: false, error: 'Macro stopped by user', stopped: true };
+              await new Promise(r => setTimeout(r, Math.min(100, deadline - Date.now())));
+            }
+          }
+          if (runState.cancelled) return { success: false, error: 'Macro stopped by user', stopped: true };
+          try {
+            await performAction(profileId, step.type, step.params || {});
+          } catch (e) {
+            return { success: false, error: `Step ${i + 1} "${step.label || step.type}" failed: ${e?.message || e}`, stepIndex: i };
+          }
         }
-        try {
-          await performAction(profileId, step.type, step.params || {});
-        } catch (e) {
-          return { success: false, error: `Step ${i + 1} "${step.label || step.type}" failed: ${e?.message || e}`, stepIndex: i };
-        }
+        return { success: true };
+      } finally {
+        macroRunState.delete(profileId);
       }
-      return { success: true };
     } catch (e) { return { success: false, error: e?.message || String(e) }; }
   });
 
@@ -999,6 +1053,8 @@ function registerIpcHandlers(extra = {}) {
             if (window.__obt_rec_click) { document.removeEventListener('click', window.__obt_rec_click, true); window.__obt_rec_click = null; }
             if (window.__obt_rec_change) { document.removeEventListener('change', window.__obt_rec_change, true); window.__obt_rec_change = null; }
             if (window.__obt_rec_keydown) { document.removeEventListener('keydown', window.__obt_rec_keydown, true); window.__obt_rec_keydown = null; }
+            // Bug #2 fix: dọn scroll listener khi dừng ghi
+            if (window.__obt_rec_scroll) { document.removeEventListener('scroll', window.__obt_rec_scroll, true); clearTimeout(window.__obt_scroll_timer); window.__obt_rec_scroll = null; window.__obt_scroll_timer = null; }
           }).catch(() => {});
           macroRecorders.delete(profileId);
         },

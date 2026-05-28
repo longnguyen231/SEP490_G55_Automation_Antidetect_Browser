@@ -243,6 +243,8 @@ export default function MacroManager({ profiles = [] }) {
     clearTimeout(statusTimerRef.current);
     try {
       const r = await window.electronAPI.runMacro(selectedId, runProfileId);
+      // stopped by user — không hiện lỗi, chỉ xóa thông báo
+      if (r?.stopped) { setRunResult(null); return; }
       setRunResult(r);
       statusTimerRef.current = setTimeout(() => setRunResult(null), 6000);
     } catch (e) {
@@ -250,6 +252,14 @@ export default function MacroManager({ profiles = [] }) {
     } finally {
       setRunning(false);
     }
+  }
+
+  // Bug #3 fix: dừng macro đang phát lại giữa chừng
+  async function stopMacro() {
+    if (!runProfileId) return;
+    try { await window.electronAPI.stopMacro(runProfileId); } catch {}
+    setRunning(false);
+    setRunResult(null);
   }
 
   useEffect(() => () => clearTimeout(statusTimerRef.current), []);
@@ -419,16 +429,32 @@ export default function MacroManager({ profiles = [] }) {
                   ))}
                 </select>
               </div>
-              <button
-                onClick={runMacro}
-                disabled={running || isRecording || !selectedId || !runProfileId || steps.length === 0}
-                style={{
-                  fontSize: 14, padding: '7px 22px', borderRadius: 7, border: 'none',
-                  background: running ? '#86efac' : '#22c55e',
-                  color: '#fff', cursor: running || isRecording || !selectedId || !runProfileId || steps.length === 0 ? 'not-allowed' : 'pointer',
-                  fontWeight: 700, opacity: (!selectedId || !runProfileId || steps.length === 0) ? 0.5 : 1,
-                }}
-              >{running ? '⏳ Running…' : '▶ Run'}</button>
+              {/* Bug #3 fix: hiển nút Stop khi đang chạy, nút Run khi đứng */}
+              {running ? (
+                <button
+                  onClick={stopMacro}
+                  style={{
+                    fontSize: 14, padding: '7px 22px', borderRadius: 7, border: 'none',
+                    background: '#ef4444',
+                    color: '#fff', cursor: 'pointer',
+                    fontWeight: 700,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  <span style={{ fontSize: 12 }}>&#9632;</span> Stop
+                </button>
+              ) : (
+                <button
+                  onClick={runMacro}
+                  disabled={isRecording || !selectedId || !runProfileId || steps.length === 0}
+                  style={{
+                    fontSize: 14, padding: '7px 22px', borderRadius: 7, border: 'none',
+                    background: '#22c55e',
+                    color: '#fff', cursor: isRecording || !selectedId || !runProfileId || steps.length === 0 ? 'not-allowed' : 'pointer',
+                    fontWeight: 700, opacity: (!selectedId || !runProfileId || steps.length === 0) ? 0.5 : 1,
+                  }}
+                >► Run</button>
+              )}
 
               <div style={{ width: 1, height: 26, background: 'var(--border, #e5e7eb)', flexShrink: 0 }} />
 

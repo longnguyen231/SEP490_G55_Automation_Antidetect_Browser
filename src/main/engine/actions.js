@@ -531,9 +531,9 @@ async function scrollPageAction(profileId, { x = 0, y = 0, selector, timeout = 1
       await loc.scrollIntoViewIfNeeded({ timeout });
       appendLog(profileId, `Action: scroll ${selector} into view`);
     } else {
-      // scrollBy() di chuyển tương đối so với vị trí hiện tại (khác scrollTo là tuyệt đối)
-      await page.evaluate(({ dx, dy }) => window.scrollBy({ left: dx, top: dy, behavior: 'smooth' }), { dx: Number(x), dy: Number(y) });
-      appendLog(profileId, `Action: scrollPage by (${x}, ${y})`);
+      // Bug #2 fix: đổi scrollBy (tương đối) → scrollTo (tuyệt đối) để phát lại macro đúng vị trí đã ghi
+      await page.evaluate(({ dx, dy }) => window.scrollTo({ left: dx, top: dy, behavior: 'smooth' }), { dx: Number(x), dy: Number(y) });
+      appendLog(profileId, `Action: scrollPage to (${x}, ${y})`);
     }
     await cleanup();
     return ok();

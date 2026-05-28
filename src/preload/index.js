@@ -126,6 +126,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveMacro: (macro) => ipcRenderer.invoke('macro-save', macro),
   deleteMacro: (id) => ipcRenderer.invoke('macro-delete', id),
   runMacro: (macroId, profileId) => ipcRenderer.invoke('macro-run', macroId, profileId),
+  stopMacro: (profileId) => ipcRenderer.invoke('macro-stop', profileId), // Bug #3 fix: dừng giữa chừng
   startMacroRecord: (profileId) => ipcRenderer.invoke('macro-record-start', profileId),
   stopMacroRecord: (profileId) => ipcRenderer.invoke('macro-record-stop', profileId),
   onMacroRecordStep: (callback) => {
