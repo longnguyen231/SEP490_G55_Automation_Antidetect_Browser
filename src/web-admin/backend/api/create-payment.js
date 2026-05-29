@@ -1,4 +1,7 @@
 import { PayOS } from '@payos/node';
+import { readFileSync, existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { saveOrder } from './lib/storage.js';
 
 const payos = new PayOS({
@@ -7,9 +10,20 @@ const payos = new PayOS({
   checksumKey: process.env.PAYOS_CHECKSUM_KEY,
 });
 
-const TIER_PRICES = {
-  pro: parseInt(process.env.PRO_PRICE_VND || '299000', 10),
-};
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const CONFIG_FILE = join(__dirname, '../.data/config.json');
+
+// Read price from admin config.json on every request so price changes take
+// effect immediately without restarting the server.
+function getProPrice() {
+  try {
+    if (existsSync(CONFIG_FILE)) {
+      const cfg = JSON.parse(readFileSync(CONFIG_FILE, 'utf8'));
+      if (typeof cfg.proPriceVnd === 'number') return cfg.proPriceVnd;
+    }
+  } catch {}
+  return parseInt(process.env.PRO_PRICE_VND || '299000', 10);
+}
 
 export default async function handler(req, res) {
   const origin = process.env.VITE_WEB_URL || '*';
@@ -23,6 +37,7 @@ export default async function handler(req, res) {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Valid email is required' });
     }
+    const TIER_PRICES = { pro: getProPrice() };
     const amount = TIER_PRICES[tier];
     if (!amount) return res.status(400).json({ error: 'Invalid tier' });
     const orderCode = Date.now();
