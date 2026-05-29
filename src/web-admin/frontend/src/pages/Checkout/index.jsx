@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
+
+function formatVnd(amount) {
+  return new Intl.NumberFormat('vi-VN').format(amount) + '₫';
+}
 
 // ── Tier catalogue ────────────────────────────────────────────────────────────
 const TIER_INFO = {
   pro: {
     name: 'Pro',
-    priceLabel: '10.000₫',
+    priceLabel: null, // loaded dynamically from /api/status
     period: 'one-time license',
     features: [
       'Unlimited browser profiles',
@@ -30,6 +34,16 @@ export default function CheckoutPage() {
 
   const [email, setEmail] = useState(user?.email || '');
   const [loading, setLoading] = useState(false);
+  const [priceLabel, setPriceLabel] = useState('...');
+
+  useEffect(() => {
+    fetch('/api/status')
+      .then(r => r.json())
+      .then(d => { if (d.proPriceVnd) setPriceLabel(formatVnd(d.proPriceVnd)); })
+      .catch(() => { setPriceLabel('—'); });
+  }, []);
+
+  const displayPrice = priceLabel;
 
   if (!tierInfo) {
     return (
@@ -91,7 +105,7 @@ export default function CheckoutPage() {
             </div>
             <div>
               <h2 className="text-white font-bold text-lg leading-tight">{tierInfo.name} License</h2>
-              <p className="text-[#00bcd4] font-semibold text-sm">{tierInfo.priceLabel} · {tierInfo.period}</p>
+              <p className="text-[#00bcd4] font-semibold text-sm">{displayPrice} · {tierInfo.period}</p>
             </div>
           </div>
 
@@ -140,7 +154,7 @@ export default function CheckoutPage() {
                   Redirecting to PayOS…
                 </>
               ) : (
-                `Pay ${tierInfo.priceLabel} with PayOS`
+                `Pay ${displayPrice} with PayOS`
               )}
             </button>
 

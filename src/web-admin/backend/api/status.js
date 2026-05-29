@@ -11,11 +11,19 @@ export default function handler(req, res) {
     const config = existsSync(CONFIG_FILE)
       ? JSON.parse(readFileSync(CONFIG_FILE, 'utf8'))
       : {};
+    const proPriceVnd = typeof config.proPriceVnd === 'number'
+      ? config.proPriceVnd
+      : parseInt(process.env.PRO_PRICE_VND || '299000', 10);
     return res.status(200).json({
       maintenanceMode: Boolean(config.maintenanceMode),
       maintenanceBanner: config.maintenanceBanner || '',
+      proPriceVnd,
     });
   } catch {
-    return res.status(200).json({ maintenanceMode: false, maintenanceBanner: '' });
+    return res.status(200).json({
+      maintenanceMode: false,
+      maintenanceBanner: '',
+      proPriceVnd: parseInt(process.env.PRO_PRICE_VND || '299000', 10),
+    });
   }
 }

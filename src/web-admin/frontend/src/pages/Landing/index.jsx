@@ -172,7 +172,7 @@ const PRICING_TIERS = [
     id: 'pro',
     name: 'Pro',
     icon: '🚀',
-    price: '10.000₫',
+    price: '…',
     period: 'one-time license',
     description: 'Unlock all Pro features with a lifetime license — one-time payment.',
     highlight: true,
@@ -232,7 +232,7 @@ function StatItem({ value, label, index }) {
   );
 }
 
-function PricingCard({ tier, index, isAuthenticated, isPro, isTrial, navigate, scrollTo }) {
+function PricingCard({ tier, index, isAuthenticated, isPro, isTrial, navigate, scrollTo, proPrice }) {
   const [ref, visible] = useInView(0.1);
 
   const handleCta = (e) => {
@@ -274,7 +274,7 @@ function PricingCard({ tier, index, isAuthenticated, isPro, isTrial, navigate, s
           <h3 className="text-xl font-extrabold text-white">{tier.name}</h3>
         </div>
         <div className="flex items-baseline gap-1.5 mb-3">
-          <span className="text-4xl font-black text-white">{tier.price}</span>
+          <span className="text-4xl font-black text-white">{tier.id === 'pro' ? (proPrice || tier.price) : tier.price}</span>
           <span className="text-slate-400 text-sm">/ {tier.period}</span>
         </div>
         <p className="text-sm text-slate-400 leading-relaxed">{tier.description}</p>
@@ -350,12 +350,24 @@ function StepCard({ step, title, desc, icon, index }) {
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────────
+function formatVnd(amount) {
+  return new Intl.NumberFormat('vi-VN').format(amount) + '₫';
+}
+
 const LandingPage = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user, logout, isPro, isTrial } = useAuthStore();
   const downloadInfo = useDownloadInfo();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [proPrice, setProPrice] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/status')
+      .then(r => r.json())
+      .then(d => { if (d.proPriceVnd) setProPrice(formatVnd(d.proPriceVnd)); })
+      .catch(() => {});
+  }, []);
   const [eulaOpen, setEulaOpen] = useState(false);
   const [pendingDownload, setPendingDownload] = useState(null); // { url, label }
 
@@ -751,6 +763,7 @@ const LandingPage = () => {
                 isTrial={isTrial}
                 navigate={navigate}
                 scrollTo={scrollTo}
+                proPrice={proPrice}
               />
             ))}
           </div>
