@@ -58,8 +58,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "longnguyen231",
-        "repo": "SEP490_G55_Automation_Antidetect_Browser",
+        "owner": "XuanKien1",
+        "repo": "hlmck-releases",
         "releaseType": "release"
       }
     ],

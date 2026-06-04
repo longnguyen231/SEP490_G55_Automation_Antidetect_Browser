@@ -18,8 +18,8 @@ const { autoUpdater } = require('electron-updater');
 // Feed cập nhật: GitHub Releases (bền, không giới hạn dung lượng, hỗ trợ delta
 // qua HTTP Range). Có thể override bằng UPDATE_FEED_URL để trỏ feed generic khác.
 const UPDATE_FEED_URL = (process.env.UPDATE_FEED_URL || '').replace(/\/$/, '');
-const GH_OWNER = process.env.UPDATE_GH_OWNER || 'longnguyen231';
-const GH_REPO = process.env.UPDATE_GH_REPO || 'SEP490_G55_Automation_Antidetect_Browser';
+const GH_OWNER = process.env.UPDATE_GH_OWNER || 'XuanKien1';
+const GH_REPO = process.env.UPDATE_GH_REPO || 'hlmck-releases';
 
 // ── Cấu hình electron-updater ───────────────────────────────────────────────
 autoUpdater.autoDownload = false;          // chỉ tải khi user bấm Cập nhật
