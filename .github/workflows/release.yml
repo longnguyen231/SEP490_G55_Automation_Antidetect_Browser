@@ -1,0 +1,78 @@
+name: Build & Publish Draft Release
+
+# Tự động: mỗi khi push code app lên main → tăng patch version → build (không ký)
+# → publish lên XuanKien1/hlmck-releases dưới dạng DRAFT. Admin vào web bấm
+# "Publish" để phát hành chính thức (gate B).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/main/**'
+      - 'src/preload/**'
+      - 'src/renderer/**'
+      - 'src/shared/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'vite.config.js'
+      - '.github/workflows/release.yml'
+  workflow_dispatch: {} # cho phép chạy tay từ tab Actions
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Bỏ qua commit do chính workflow tạo (bump version) để không lặp vô hạn.
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: windows-latest
+    permissions:
+      contents: write # cần để push commit bump version về main
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bump patch version
+        id: bump
+        shell: bash
+        run: |
+          NEW_VERSION=$(npm version patch --no-git-tag-version)
+          echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Bumped to ${NEW_VERSION}"
+
+      - name: Commit version bump
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          git commit -m "chore(release): ${{ steps.bump.outputs.version }} [skip ci]"
+          git push origin main
+
+      - name: Build & publish DRAFT to releases repo
+        env:
+          # PAT của tài khoản XuanKien1 (scope: repo) — push feed lên hlmck-releases.
+          GH_TOKEN: ${{ secrets.RELEASES_GH_TOKEN }}
+        run: |
+          npm run icons
+          npx vite build
+          npx electron-builder --windows --publish always
+
+      - name: Summary
+        shell: bash
+        run: |
+          echo "### Draft release ${{ steps.bump.outputs.version }} đã được tạo" >> "$GITHUB_STEP_SUMMARY"
+          echo "Vào web admin → trang **Releases** để bấm Publish." >> "$GITHUB_STEP_SUMMARY"

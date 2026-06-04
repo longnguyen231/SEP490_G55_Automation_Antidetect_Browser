@@ -60,7 +60,7 @@
         "provider": "github",
         "owner": "XuanKien1",
         "repo": "hlmck-releases",
-        "releaseType": "release"
+        "releaseType": "draft"
       }
     ],
     "extraResources": [

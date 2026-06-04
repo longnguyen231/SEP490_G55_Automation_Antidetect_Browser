@@ -48,6 +48,10 @@ export function useAdminApi() {
   const listReleases = useCallback(() => adminFetch('/api/admin/releases'), []);
   const deleteRelease = useCallback((id) => adminFetch(`/api/admin/releases/${encodeURIComponent(id)}`, { method: 'DELETE' }), []);
 
+  // GitHub Releases feed (auto-update) — list draft/published + publish a draft
+  const listGithubReleases = useCallback(() => adminFetch('/api/admin/github-releases'), []);
+  const publishGithubRelease = useCallback((id) => adminFetch(`/api/admin/github-releases/${encodeURIComponent(id)}/publish`, { method: 'POST' }), []);
+
   /**
    * Upload an Electron build (.exe/.zip/.dmg/.AppImage) from the admin UI.
    * Uses XHR so we can surface upload progress for large (>100MB) files.
@@ -90,5 +94,6 @@ export function useAdminApi() {
     getStats, getOrders, markPaid, getLicenses, resetMachine, revokeLicense,
     getUsers, getNotifications, getConfig, saveConfig,
     listReleases, uploadRelease, deleteRelease,
+    listGithubReleases, publishGithubRelease,
   };
 }

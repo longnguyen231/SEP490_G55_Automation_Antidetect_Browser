@@ -36,7 +36,7 @@ function getLatestIds(releases) {
 }
 
 export default function Releases() {
-  const { listReleases, uploadRelease, deleteRelease } = useAdminApi();
+  const { listReleases, uploadRelease, deleteRelease, listGithubReleases, publishGithubRelease } = useAdminApi();
   const [releases, setReleases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [file, setFile] = useState(null);
@@ -44,6 +44,39 @@ export default function Releases() {
   const [notes, setNotes] = useState('');
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+
+  // GitHub Releases feed (auto-update gate B)
+  const [ghReleases, setGhReleases] = useState([]);
+  const [ghLoading, setGhLoading] = useState(true);
+  const [ghError, setGhError] = useState(null);
+  const [publishingId, setPublishingId] = useState(null);
+
+  const refreshGh = async () => {
+    setGhLoading(true);
+    setGhError(null);
+    try {
+      const data = await listGithubReleases();
+      setGhReleases(data.releases || []);
+    } catch (err) {
+      setGhError(err.message);
+    } finally {
+      setGhLoading(false);
+    }
+  };
+
+  const handlePublish = async (id) => {
+    if (!confirm('Phát hành bản này? App user sẽ nhận được thông báo cập nhật.')) return;
+    setPublishingId(id);
+    try {
+      await publishGithubRelease(id);
+      toast.success('Đã phát hành! App user sẽ thấy bản cập nhật.');
+      await refreshGh();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setPublishingId(null);
+    }
+  };
 
   const refresh = async () => {
     try {
@@ -57,6 +90,7 @@ export default function Releases() {
   };
 
   useEffect(() => { refresh(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => { refreshGh(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
 
   const handleFilePick = (e) => {
     const f = e.target.files?.[0];
@@ -270,6 +304,88 @@ export default function Releases() {
                     </tr>
                   ));
                 })()}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Auto-update feed (GitHub Releases, gate B) ─────────────────────── */}
+      <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden max-w-5xl mt-8">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">Auto-update feed (GitHub)</h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              CI tự build bản nháp (draft). Bấm <b>Publish</b> để phát hành — app user sẽ nhận thông báo cập nhật.
+            </p>
+          </div>
+          <button
+            onClick={refreshGh}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-primary"
+          >
+            <span className="material-symbols-outlined text-sm">refresh</span>
+            Refresh
+          </button>
+        </div>
+
+        {ghLoading ? (
+          <p className="text-slate-400 text-sm py-8 text-center">Loading...</p>
+        ) : ghError ? (
+          <p className="text-rose-400 text-sm py-8 text-center">{ghError}</p>
+        ) : ghReleases.length === 0 ? (
+          <p className="text-slate-400 text-sm py-8 text-center">Chưa có release nào trên repo feed.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-900/40 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <tr>
+                  <th className="text-left px-6 py-3">Version</th>
+                  <th className="text-left px-6 py-3">Status</th>
+                  <th className="text-left px-6 py-3">Assets</th>
+                  <th className="text-left px-6 py-3">Created</th>
+                  <th className="text-right px-6 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                {ghReleases.map((r) => (
+                  <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <td className="px-6 py-3 font-semibold text-slate-800 dark:text-slate-100">{r.tagName || r.name}</td>
+                    <td className="px-6 py-3">
+                      {r.draft ? (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30 leading-none">DRAFT</span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 leading-none">PUBLISHED</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-3 text-xs text-slate-500">{r.assets.length} file</td>
+                    <td className="px-6 py-3 text-slate-500 whitespace-nowrap">{formatDate(r.createdAt)}</td>
+                    <td className="px-6 py-3 text-right whitespace-nowrap space-x-3">
+                      {r.draft ? (
+                        <button
+                          onClick={() => handlePublish(r.id)}
+                          disabled={publishingId === r.id}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-500 hover:underline disabled:opacity-50"
+                        >
+                          <span className="material-symbols-outlined text-sm">rocket_launch</span>
+                          {publishingId === r.id ? 'Publishing...' : 'Publish'}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
+                      {r.htmlUrl && (
+                        <a
+                          href={r.htmlUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:underline"
+                        >
+                          <span className="material-symbols-outlined text-sm">open_in_new</span>
+                          View
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

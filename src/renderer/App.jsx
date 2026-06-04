@@ -56,15 +56,20 @@ function App() {
   // Kiểm tra bản cập nhật khi app khởi động xong
   useEffect(() => {
     if (!window.electronAPI?.checkForUpdate) return;
-    // Đợi 8 giây sau khi load để tránh làm chậm khởi động
-    const timer = setTimeout(async () => {
+    const runCheck = async () => {
       try {
         const result = await window.electronAPI.checkForUpdate();
         if (result?.hasUpdate && result?.release) {
           setUpdateInfo(result.release);
         }
       } catch {}
-    }, 8000);
+    };
+
+    // Đợi 8 giây sau khi load để tránh làm chậm khởi động
+    const timer = setTimeout(runCheck, 8000);
+    // Poll định kỳ mỗi 30 phút để bắt được bản vừa được admin Publish,
+    // không cần user khởi động lại app.
+    const interval = setInterval(runCheck, 30 * 60 * 1000);
 
     // Lắng nghe event update-available từ main process (bootstrap tự gửi)
     const cleanupAvailable = window.electronAPI.onUpdateAvailable?.((release) => {
@@ -79,6 +84,7 @@ function App() {
 
     return () => {
       clearTimeout(timer);
+      clearInterval(interval);
       try { cleanupAvailable?.(); } catch {}
       try { cleanupProgress?.(); } catch {}
     };
