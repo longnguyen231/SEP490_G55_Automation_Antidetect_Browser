@@ -7,9 +7,6 @@ const GITHUB_BASE = 'https://github.com/longnguyen231/SEP490_G55_Automation_Anti
 
 const DEFAULT_DOWNLOAD_URLS = {
   windows: `${GITHUB_BASE}/HL-MCK.Antidetect.Browser.Setup.1.0.0.exe`,
-  portable: `${GITHUB_BASE}/HL-MCK.Antidetect.Browser.Portable.1.0.0.zip`,
-  linux: `${GITHUB_BASE}/HL-MCK.Antidetect.Browser.AppImage`,
-  macos: `${GITHUB_BASE}/HL-MCK.Antidetect.Browser.dmg`,
 };
 
 export default function Config() {
@@ -96,9 +93,6 @@ export default function Config() {
 
             {[
               { key: 'windows', label: 'Windows (.exe)', icon: 'desktop_windows' },
-              { key: 'portable', label: 'Portable (.zip)', icon: 'folder_zip' },
-              { key: 'linux', label: 'Linux (.AppImage)', icon: 'terminal' },
-              { key: 'macos', label: 'macOS (.dmg)', icon: 'laptop_mac' },
             ].map(({ key, label, icon }) => (
               <div key={key}>
                 <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">

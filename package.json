@@ -80,9 +80,6 @@
     ],
     "npmRebuild": false,
     "nodeGypRebuild": false,
-    "mac": {
-      "category": "public.app-category.developer-tools"
-    },
     "win": {
       "target": [
         {
@@ -101,9 +98,6 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "HL-MCK Antidetect Browser"
-    },
-    "linux": {
-      "target": "AppImage"
     },
     "afterPack": "./scripts/afterPack-obfuscate.js"
   },
