@@ -352,7 +352,7 @@ export default function ProfileList({
               + Create Multiple
             </button>
           )}
-          <button className="pl-new-btn" onClick={onCreateProfile} style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)', borderRadius: '8px' }}>
+          <button className="pl-new-btn" onClick={onCreateProfile} style={{ background: 'linear-gradient(135deg, #10b981, #059669)', borderRadius: '8px' }}>
             + New Profile
           </button>
         </div>
