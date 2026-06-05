@@ -352,7 +352,7 @@ export default function ProfileList({
               + Create Multiple
             </button>
           )}
-          <button className="pl-new-btn" onClick={onCreateProfile} style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', borderRadius: '8px' }}>
+          <button className="pl-new-btn" onClick={onCreateProfile} style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)', borderRadius: '8px' }}>
             + New Profile
           </button>
         </div>
@@ -419,7 +419,7 @@ export default function ProfileList({
             </div>
             <h3>No profiles yet</h3>
             <p>Create your first browser profile to get started with antidetect browsing.</p>
-            <button className="pl-new-btn" onClick={onCreateProfile} style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', borderRadius: '8px' }}>
+            <button className="pl-new-btn" onClick={onCreateProfile} style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)', borderRadius: '8px' }}>
               + New Profile
             </button>
           </div>
