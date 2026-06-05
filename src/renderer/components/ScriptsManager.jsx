@@ -165,26 +165,25 @@ function ScriptsTab({ profiles }) {
         setCronError('');
     };
 
-    // Bug #6: mô tả ngắn gọn cron expression bằng tiếng Việt (không cần thư viện ngoài)
     const describeCron = (expr) => {
         if (!expr || !expr.trim()) return '';
         const knownMap = {
-            '* * * * *':     'Mỗi phút',
-            '*/5 * * * *':   'Mỗi 5 phút',
-            '*/10 * * * *':  'Mỗi 10 phút',
-            '*/15 * * * *':  'Mỗi 15 phút',
-            '*/30 * * * *':  'Mỗi 30 phút',
-            '0 * * * *':     'Mỗi giờ (vào phút 0)',
-            '0 9 * * *':     'Mỗi ngày lúc 9:00 sáng',
-            '0 0 * * *':     'Mỗi ngày lúc nửa đêm',
-            '0 9 * * 1-5':   'Thứ 2–Thứ 6 lúc 9:00 sáng',
-            '0 0 * * 0':     'Mỗi Chủ nhật lúc nửa đêm',
-            '0 0 1 * *':     'Ngày 1 hàng tháng lúc nửa đêm',
+            '* * * * *':     'Every minute',
+            '*/5 * * * *':   'Every 5 minutes',
+            '*/10 * * * *':  'Every 10 minutes',
+            '*/15 * * * *':  'Every 15 minutes',
+            '*/30 * * * *':  'Every 30 minutes',
+            '0 * * * *':     'Every hour (at minute 0)',
+            '0 9 * * *':     'Every day at 9:00 AM',
+            '0 0 * * *':     'Every day at midnight',
+            '0 9 * * 1-5':   'Mon-Fri at 9:00 AM',
+            '0 0 * * 0':     'Every Sunday at midnight',
+            '0 0 1 * *':     '1st of every month at midnight',
         };
         if (knownMap[expr.trim()]) return knownMap[expr.trim()];
-        // Mô tả cơ bản từ 5 field
+        // Basic description from 5 fields
         const parts = expr.trim().split(/\s+/);
-        if (parts.length === 5) return `Lịch: phút=${parts[0]} giờ=${parts[1]} ngày=${parts[2]} tháng=${parts[3]} thứ=${parts[4]}`;
+        if (parts.length === 5) return `Schedule: min=${parts[0]} hour=${parts[1]} day=${parts[2]} month=${parts[3]} weekday=${parts[4]}`;
         return expr.trim();
     };
 
@@ -203,21 +202,22 @@ function ScriptsTab({ profiles }) {
 
     const handleSave = async () => {
         if (!editing) return;
+        if (!window.confirm('Are you sure you want to save this script?')) return;
         // Validate schedule trước khi gửi xuống main process — tránh lưu state không hợp lệ
         if (cronEnabled) {
             if (!cronSchedule.trim()) {
-                alert('Vui lòng nhập cron expression (ví dụ: "0 9 * * 1-5") khi bật Auto-schedule.');
+                alert('Please enter a cron expression (e.g., "0 9 * * 1-5") when Auto-schedule is enabled.');
                 return;
             }
             // Bug #5 fix: validate cron expression qua main process (node-cron.validate)
             const validation = await window.electronAPI.validateCron(cronSchedule);
             if (!validation?.valid) {
-                setCronError(`Cron expression không hợp lệ: "${cronSchedule.trim()}" — Hãy dùng định dạng 5 field, ví dụ: "0 9 * * 1-5"`);
+                setCronError(`Invalid cron expression: "${cronSchedule.trim()}" — Please use a 5-field format, e.g., "0 9 * * 1-5"`);
                 return;
             }
             setCronError('');
             if (!cronProfileId) {
-                alert('Vui lòng chọn profile để chạy script tự động.');
+                alert('Please select a profile to run the script automatically.');
                 return;
             }
         }
@@ -389,6 +389,12 @@ function ScriptsTab({ profiles }) {
                                     {state === 'error' && <div className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />}
                                     {state === 'idle' && <FileCode size={12} className="shrink-0" style={{ color: 'var(--muted)' }} />}
                                     <span className="text-[0.75rem] font-semibold truncate flex-1" style={{ color: isActive ? 'var(--primary)' : 'var(--fg)' }}>{s.name || '(untitled)'}</span>
+                                    {s.schedule?.enabled && (
+                                        <div className="flex items-center gap-1 px-1.5 py-[2px] rounded bg-indigo-500/15 border border-indigo-500/30 shrink-0" title={`Auto-schedule active: ${s.schedule.cron}`}>
+                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                                            <span className="text-[0.55rem] font-bold text-indigo-300 tracking-wider">AUTO</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Description */}
@@ -552,7 +558,7 @@ function ScriptsTab({ profiles }) {
                                     </div>
 
                                     <p className="text-[0.66rem]" style={{ color: 'var(--muted)' }}>
-                                        Khi bật, script sẽ tự động chạy theo lịch cron trên profile được chỉ định.
+                                        When enabled, the script will automatically run according to the cron schedule on the specified profile.
                                     </p>
 
                                     {/* Khi bật → hiển thị các field bên dưới */}
@@ -571,23 +577,23 @@ function ScriptsTab({ profiles }) {
                                                     onChange={e => handleCronScheduleChange(e.target.value)}
                                                     placeholder="e.g. 0 9 * * 1-5" />
                                                 <p className="text-[0.62rem] mt-1" style={{ color: 'var(--muted)' }}>
-                                                    Định dạng: <code>phút giờ ngày tháng thứ</code>
+                                                    Format: <code>minute hour day month weekday</code>
                                                 </p>
                                             </div>
 
                                             {/* Preset buttons — nhấn để điền nhanh */}
                                             <div>
                                                 <label className="text-[0.68rem] font-medium mb-1 block" style={{ color: 'var(--muted)' }}>
-                                                    Preset nhanh
+                                                    Quick presets
                                                 </label>
                                                 <div className="flex flex-wrap gap-1">
                                                     {[
-                                                        { label: 'Mỗi phút', expr: '* * * * *' },
-                                                        { label: 'Mỗi 5 phút', expr: '*/5 * * * *' },
-                                                        { label: 'Mỗi giờ', expr: '0 * * * *' },
-                                                        { label: 'Mỗi ngày 9h', expr: '0 9 * * *' },
-                                                        { label: 'T2-T6 9h', expr: '0 9 * * 1-5' },
-                                                        { label: 'Mỗi tuần (CN)', expr: '0 0 * * 0' },
+                                                        { label: 'Every minute', expr: '* * * * *' },
+                                                        { label: 'Every 5 mins', expr: '*/5 * * * *' },
+                                                        { label: 'Every hour', expr: '0 * * * *' },
+                                                        { label: 'Every day 9AM', expr: '0 9 * * *' },
+                                                        { label: 'Mon-Fri 9AM', expr: '0 9 * * 1-5' },
+                                                        { label: 'Every week (Sun)', expr: '0 0 * * 0' },
                                                     ].map(p => (
                                                         <button key={p.expr}
                                                             type="button"
@@ -607,13 +613,13 @@ function ScriptsTab({ profiles }) {
                                             {/* Profile dropdown — script sẽ chạy trên profile này */}
                                             <div>
                                                 <label className="text-[0.68rem] font-medium mb-1 block" style={{ color: 'var(--muted)' }}>
-                                                    Profile chạy
+                                                    Run profile
                                                 </label>
                                                 <select className="w-full rounded px-2 py-1.5 text-[0.75rem]"
                                                     style={{ background: 'var(--glass-input)', border: '1px solid var(--border2)', color: 'var(--fg)' }}
                                                     value={cronProfileId}
                                                     onChange={e => setCronProfileId(e.target.value)}>
-                                                    <option value="">-- Chọn profile --</option>
+                                                    <option value="">-- Select profile --</option>
                                                     {profiles.map(p => (
                                                         <option key={p.id} value={p.id}>{p.name || p.id}</option>
                                                     ))}
