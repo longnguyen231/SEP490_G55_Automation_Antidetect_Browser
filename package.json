@@ -1,6 +1,6 @@
 {
   "name": "hlmckautomationantidetectbrowser",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Browser profile management with antidetect capabilities using Electron and React",
   "main": "src/main/bootstrap.js",
   "scripts": {
