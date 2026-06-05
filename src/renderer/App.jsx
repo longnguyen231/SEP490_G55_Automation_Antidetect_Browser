@@ -65,11 +65,10 @@ function App() {
       } catch {}
     };
 
-    // Đợi 8 giây sau khi load để tránh làm chậm khởi động
-    const timer = setTimeout(runCheck, 8000);
-    // Poll định kỳ mỗi 30 phút để bắt được bản vừa được admin Publish,
-    // không cần user khởi động lại app.
-    const interval = setInterval(runCheck, 30 * 60 * 1000);
+    // Đợi 5 giây sau khi load để tránh làm chậm khởi động
+    const timer = setTimeout(runCheck, 5000);
+    // Poll định kỳ mỗi 3 phút để bắt được bản vừa được admin Publish sớm nhất
+    const interval = setInterval(runCheck, 3 * 60 * 1000);
 
     // Lắng nghe event update-available từ main process (bootstrap tự gửi)
     const cleanupAvailable = window.electronAPI.onUpdateAvailable?.((release) => {
