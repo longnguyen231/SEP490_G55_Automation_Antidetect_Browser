@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Mail, Lock, LogIn, ShieldCheck, Eye, EyeOff, ArrowLeft } from 'lucide-react';
-import { auth, googleProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from '../services/firebase';
+import { Mail, Lock, LogIn, ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import { auth, googleProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from '../services/firebase';
 import './AuthModal.css';
 
 const GoogleIcon = () => (
@@ -17,9 +17,11 @@ const AuthModal = ({ onLoginSuccess }) => {
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   const handleSuccess = async (userCredential) => {
     const user = userCredential.user;
@@ -40,22 +42,36 @@ const AuthModal = ({ onLoginSuccess }) => {
   const handleAuth = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccessMsg('');
     setLoading(true);
 
     try {
-      let cred;
-      if (isLogin) {
-        cred = await signInWithEmailAndPassword(auth, email, password);
+      if (isForgotPassword) {
+        await sendPasswordResetEmail(auth, email);
+        setSuccessMsg('Password reset email sent! Check your inbox.');
+        setIsForgotPassword(false);
+        setPassword('');
       } else {
-        cred = await createUserWithEmailAndPassword(auth, email, password);
+        let cred;
+        if (isLogin) {
+          cred = await signInWithEmailAndPassword(auth, email, password);
+          await handleSuccess(cred);
+        } else {
+          cred = await createUserWithEmailAndPassword(auth, email, password);
+          await auth.signOut();
+          setIsLogin(true);
+          setPassword('');
+          setSuccessMsg('Registration successful! Please sign in.');
+        }
       }
-      await handleSuccess(cred);
     } catch (err) {
       let msg = err.message;
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         msg = 'Invalid email or password.';
       } else if (err.code === 'auth/email-already-in-use') {
         msg = 'Email already exists. Please sign in instead.';
+      } else if (err.code === 'auth/invalid-email') {
+        msg = 'Invalid email format.';
       }
       setError(msg);
     } finally {
@@ -81,7 +97,6 @@ const AuthModal = ({ onLoginSuccess }) => {
   return (
     <div className="auth-overlay">
       <div className="auth-modal-container">
-        {/* Header Logo */}
         <div className="auth-header-logo">
           <div className="auth-logo-box">
             <ShieldCheck size={24} color="#38bdf8" />
@@ -89,39 +104,43 @@ const AuthModal = ({ onLoginSuccess }) => {
           <h1>HL-MCK</h1>
         </div>
 
-        {/* Title */}
         <div className="auth-title">
-          <h2>{isLogin ? 'Welcome back' : 'Create an account'}</h2>
-          <p>{isLogin ? 'Sign in to your account' : 'Sign up to start managing profiles'}</p>
+          <h2>{isForgotPassword ? 'Reset Password' : (isLogin ? 'Welcome back' : 'Create an account')}</h2>
+          <p>{isForgotPassword ? 'Enter your email to receive a reset link' : (isLogin ? 'Sign in to your account' : 'Sign up to start managing profiles')}</p>
         </div>
 
-        {/* Google Auth Button */}
-        <button 
-          className="auth-google-btn" 
-          onClick={handleGoogleAuth} 
-          disabled={oauthLoading || loading}
-        >
-          {oauthLoading ? <div className="auth-spinner mini"></div> : <GoogleIcon />}
-          <span>{isLogin ? 'Sign in with Google' : 'Sign up with Google'}</span>
-        </button>
+        {!isForgotPassword && (
+          <>
+            <button 
+              className="auth-google-btn" 
+              onClick={handleGoogleAuth} 
+              disabled={oauthLoading || loading}
+            >
+              {oauthLoading ? <div className="auth-spinner mini"></div> : <GoogleIcon />}
+              <span>{isLogin ? 'Sign in with Google' : 'Sign up with Google'}</span>
+            </button>
 
-        {/* OR Divider */}
-        <div className="auth-divider">
-          <div className="auth-divider-line"></div>
-          <span className="auth-divider-text">OR</span>
-          <div className="auth-divider-line"></div>
-        </div>
+            <div className="auth-divider">
+              <div className="auth-divider-line"></div>
+              <span className="auth-divider-text">OR</span>
+              <div className="auth-divider-line"></div>
+            </div>
+          </>
+        )}
 
-        {/* Error message */}
+        {successMsg && (
+          <div className="auth-success-box" style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#34d399', padding: '12px 16px', borderRadius: '8px', fontSize: '13px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+            <span>{successMsg}</span>
+          </div>
+        )}
+
         {error && (
           <div className="auth-error-box">
             <span>{error}</span>
           </div>
         )}
 
-        {/* Form */}
         <form onSubmit={handleAuth} className="auth-form-wrapper">
-          {/* Email Field */}
           <div className="auth-field">
             <label className="auth-label">EMAIL</label>
             <div className="auth-input-group">
@@ -138,61 +157,73 @@ const AuthModal = ({ onLoginSuccess }) => {
             </div>
           </div>
           
-          {/* Password Field */}
-          <div className="auth-field">
-            <div className="auth-label-row">
-              <label className="auth-label">PASSWORD</label>
-              {isLogin && <button type="button" className="auth-forgot-link">Forgot password?</button>}
+          {!isForgotPassword && (
+            <div className="auth-field">
+              <div className="auth-label-row">
+                <label className="auth-label">PASSWORD</label>
+                {isLogin && <button type="button" className="auth-forgot-link" onClick={() => { setIsForgotPassword(true); setError(''); setSuccessMsg(''); }}>Forgot password?</button>}
+              </div>
+              <div className="auth-input-group">
+                <Lock className="auth-input-icon" size={18} />
+                <input 
+                  type={showPw ? "text" : "password"} 
+                  className="auth-input"
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  placeholder="••••••••"
+                  required 
+                  minLength={6}
+                  disabled={loading || oauthLoading}
+                />
+                <button 
+                  type="button" 
+                  className="auth-pw-toggle" 
+                  onClick={() => setShowPw(!showPw)}
+                  tabIndex="-1"
+                >
+                  {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
-            <div className="auth-input-group">
-              <Lock className="auth-input-icon" size={18} />
-              <input 
-                type={showPw ? "text" : "password"} 
-                className="auth-input"
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
-                placeholder="••••••••"
-                required 
-                minLength={6}
-                disabled={loading || oauthLoading}
-              />
-              <button 
-                type="button" 
-                className="auth-pw-toggle" 
-                onClick={() => setShowPw(!showPw)}
-                tabIndex="-1"
-              >
-                {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </div>
+          )}
 
-          {/* Submit Button */}
           <button type="submit" disabled={loading || oauthLoading} className="auth-submit-btn">
             {loading ? (
               <div className="auth-spinner"></div>
             ) : (
-              <>
-                <LogIn size={20} />
-                <span>{isLogin ? 'Sign In' : 'Sign Up'}</span>
-              </>
+              isForgotPassword ? 'Send Reset Link' : (isLogin ? 'Sign In' : 'Create Account')
             )}
           </button>
         </form>
 
-        {/* Switch Login / Register */}
         <div className="auth-footer-text">
-          {isLogin ? "Don't have an account? " : "Already have an account? "}
-          <button 
-            type="button" 
-            className="auth-toggle-link"
-            onClick={() => {
-              setIsLogin(!isLogin);
-              setError('');
-            }}
-          >
-            {isLogin ? 'Register now' : 'Sign in now'}
-          </button>
+          {isForgotPassword ? (
+            <>
+              Remember your password?{' '}
+              <button 
+                type="button" 
+                className="auth-toggle-link" 
+                onClick={() => { setIsForgotPassword(false); setError(''); setSuccessMsg(''); }}
+              >
+                Back to Login
+              </button>
+            </>
+          ) : (
+            <>
+              {isLogin ? "Don't have an account?" : "Already have an account?"}{' '}
+              <button 
+                type="button" 
+                className="auth-toggle-link" 
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setError('');
+                  setSuccessMsg('');
+                }}
+              >
+                {isLogin ? 'Register now' : 'Log in here'}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
