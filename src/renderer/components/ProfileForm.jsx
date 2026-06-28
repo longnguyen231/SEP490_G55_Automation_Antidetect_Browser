@@ -35,7 +35,7 @@ const defaultSettings = {
   engine: 'playwright',
   injectFingerprint: true,
   quantity: 1,
-  startupPage: 'https://hlmck.vercel.app/',
+  startupPage: 'https://www.google.com',
   windowWidth: 0,
   windowHeight: 0,
   advanced: {
@@ -237,7 +237,7 @@ function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    startUrl: 'https://hlmck.vercel.app/',
+    startUrl: 'https://www.google.com',
     active: true,
     cookie: '',
     fingerprint: { ...defaultFingerprint },

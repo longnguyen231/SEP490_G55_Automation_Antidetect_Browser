@@ -724,38 +724,40 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
   // mỗi máy/GPU/driver vẽ ra ảnh pixel khác nhau nhỏ → tạo fingerprint duy nhất.
   // Giải pháp: thêm noise ±1 vào một số pixel → mỗi profile có ảnh khác nhau,
   // nhưng noise quá nhỏ để người dùng nhìn thấy sự khác biệt bằng mắt thường.
-  if (applyCanvas) {
+  // Section 6: Canvas 2D noise + WebGL readPixels noise.
+  // doCanvas: fake 2D canvas hash (getImageData, toDataURL, toBlob)
+  // doWebGL:  fake WebGL Image Hash (readPixels) — gated by WebGL section toggle, NOT Canvas
+  if (applyCanvas || applyWebgl) {
     try {
-      await context.addInitScript(({ seed, intensity }) => {
+      await context.addInitScript(({ seed, intensity, doWebGL, doCanvas }) => {
         try {
-          // Seeded PRNG — deterministic per profile
-          // mulberry32: thuật toán sinh số ngẫu nhiên giả (PRNG) rất nhanh, chất lượng tốt.
-          // Nhận seed (số nguyên) → trả về hàm không tham số, mỗi lần gọi trả về số trong [0, 1).
-          // Cùng seed → cùng chuỗi số → cùng nhiễu → fingerprint nhất quán cho 1 profile.
           function mulberry32(a) {
             return function () {
-              a |= 0; a = a + 0x6D2B79F5 | 0;       // Cộng hằng số ma thuật (tăng entropy)
-              let t = Math.imul(a ^ a >>> 15, 1 | a); // XOR và nhân (trộn bit)
-              t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; // Thêm 1 bước trộn nữa
-              return ((t ^ t >>> 14) >>> 0) / 4294967296; // Chuẩn hóa về [0, 1)
+              a |= 0; a = a + 0x6D2B79F5 | 0;
+              let t = Math.imul(a ^ a >>> 15, 1 | a);
+              t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+              return ((t ^ t >>> 14) >>> 0) / 4294967296;
             };
           }
-          const rng = mulberry32(seed); // Khởi tạo PRNG với seed của profile này
-          // Separate PRNG for WebGL noise (XOR'd seed avoids correlation with 2D canvas)
-          const rngWebGL = mulberry32(seed ^ 0xC0FFEE);
+          // Independent PRNGs so 2D canvas and WebGL noise sequences don't correlate
+          const rng      = doCanvas ? mulberry32(seed)            : null;
+          const rngWebGL = doWebGL  ? mulberry32(seed ^ 0xC0FFEE) : null;
 
-          // Capture original WebGL readPixels before patching
-          const origRPWGL1 = window.WebGLRenderingContext ? WebGLRenderingContext.prototype.readPixels : null;
-          const origRPWGL2 = window.WebGL2RenderingContext ? WebGL2RenderingContext.prototype.readPixels : null;
+          // Capture originals BEFORE any patching to avoid capturing wrapped versions
+          const origRPWGL1       = (doWebGL && window.WebGLRenderingContext)  ? WebGLRenderingContext.prototype.readPixels  : null;
+          const origRPWGL2       = (doWebGL && window.WebGL2RenderingContext) ? WebGL2RenderingContext.prototype.readPixels : null;
+          const origGetImageData = doCanvas ? CanvasRenderingContext2D.prototype.getImageData : null;
+          const origToDataURL    = (doCanvas || doWebGL) ? HTMLCanvasElement.prototype.toDataURL : null;
+          const origToBlob       = doCanvas ? HTMLCanvasElement.prototype.toBlob : null;
 
-          // Noise function for raw Uint8Array pixel buffers (used by WebGL readPixels)
+          // Noise for WebGL Uint8Array pixel buffers (readPixels output)
           function perturbRawPixels(pixels) {
             if (!pixels || pixels.length < 4) return;
             const len = pixels.length;
             const divisor = Math.max(40, 400 - (intensity - 1) * 40);
             const step = Math.max(4, Math.floor(len / divisor) * 4);
             for (let i = 0; i < len; i += step) {
-              for (let c = 0; c < 3; c++) { // RGB only, skip Alpha
+              for (let c = 0; c < 3; c++) {
                 const noise = rngWebGL() < 0.5 ? -1 : 1;
                 const val = pixels[i + c] + noise;
                 pixels[i + c] = val < 0 ? 0 : val > 255 ? 255 : val;
@@ -763,141 +765,128 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
             }
           }
 
-          // ── Noise function: intensity 1=sparse(1/400px), 10=denser(1/40px) ──
-          // perturbImageData: hàm thêm nhiễu vào mảng pixel của imageData.
-          // imageData.data là Uint8ClampedArray [R,G,B,A, R,G,B,A, ...] — 4 byte mỗi pixel.
-          // step: bước nhảy giữa các pixel được nhiễu (intensity cao → step nhỏ → nhiều pixel bị nhiễu hơn).
+          // Noise for 2D Canvas ImageData
           function perturbImageData(imageData) {
             const data = imageData.data;
             const len = data.length;
-            // divisor điều chỉnh theo intensity: intensity=1 → divisor=400 (rất thưa), intensity=10 → divisor=40 (dày hơn)
             const divisor = Math.max(40, 400 - (intensity - 1) * 40);
-            const step = Math.max(4, Math.floor(len / divisor) * 4); // Nhân 4 vì 4 byte/pixel
+            const step = Math.max(4, Math.floor(len / divisor) * 4);
             for (let i = 0; i < len; i += step) {
-              for (let c = 0; c < 3; c++) { // Chỉ nhiễu R, G, B — bỏ qua Alpha (c=3)
-                const noise = rng() < 0.5 ? -1 : 1; // Ngẫu nhiên +1 hoặc -1
+              for (let c = 0; c < 3; c++) {
+                const noise = rng() < 0.5 ? -1 : 1;
                 const val = data[i + c] + noise;
-                // Kẹp giá trị trong [0, 255] — Uint8ClampedArray tự kẹp nhưng cần explicit
                 data[i + c] = val < 0 ? 0 : val > 255 ? 255 : val;
               }
             }
             return imageData;
           }
 
-          // Patch WebGL readPixels — intercepts direct gl.readPixels() calls to change WebGL Image Hash
-          const patchRP = (proto, orig) => {
-            if (!proto || !orig) return;
-            Object.defineProperty(proto, 'readPixels', {
-              value: function(x, y, w, h, format, type, pixels, ...rest) {
-                orig.apply(this, arguments);
-                if (pixels instanceof Uint8Array || pixels instanceof Uint8ClampedArray) {
-                  perturbRawPixels(pixels);
+          // ── WebGL: patch readPixels → WebGL Image Hash changes ──
+          // Gated by doWebGL (WebGL section toggle), independent of Canvas section.
+          if (doWebGL) {
+            const patchRP = (proto, orig) => {
+              if (!proto || !orig) return;
+              Object.defineProperty(proto, 'readPixels', {
+                value: function (x, y, w, h, format, type, pixels, ...rest) {
+                  orig.apply(this, arguments);
+                  if (pixels instanceof Uint8Array || pixels instanceof Uint8ClampedArray) {
+                    perturbRawPixels(pixels);
+                  }
+                },
+                configurable: true,
+              });
+            };
+            if (window.WebGLRenderingContext)  patchRP(WebGLRenderingContext.prototype,  origRPWGL1);
+            if (window.WebGL2RenderingContext) patchRP(WebGL2RenderingContext.prototype, origRPWGL2 || origRPWGL1);
+          }
+
+          // _isPerturbing: recursion guard (toDataURL → getImageData → infinite loop)
+          let _isPerturbing = false;
+
+          // ── Canvas 2D: patch getImageData ──
+          if (doCanvas) {
+            Object.defineProperty(CanvasRenderingContext2D.prototype, 'getImageData', {
+              value: function () {
+                const imageData = origGetImageData.apply(this, arguments);
+                if (!_isPerturbing) {
+                  _isPerturbing = true;
+                  try { perturbImageData(imageData); } finally { _isPerturbing = false; }
                 }
+                return imageData;
               },
               configurable: true,
             });
-          };
-          if (window.WebGLRenderingContext) patchRP(WebGLRenderingContext.prototype, origRPWGL1);
-          if (window.WebGL2RenderingContext) patchRP(WebGL2RenderingContext.prototype, origRPWGL2 || origRPWGL1);
+          }
 
-          // Use a flag to prevent recursion when toDataURL calls getImageData internally
-          // _isPerturbing: cờ ngăn đệ quy vô tận.
-          // Khi ta patch getImageData, nếu toDataURL bên trong cũng gọi getImageData → lại kích hoạt patch → vòng lặp.
-          // Giải pháp: set cờ = true trước khi nhiễu, bỏ qua nếu cờ đang bật.
-          let _isPerturbing = false;
-
-          // Patch getImageData (the core extraction API)
-          // getImageData(): API cốt lõi để đọc pixel từ canvas — fingerprint tool dùng hàm này.
-          // Lưu hàm gốc, gọi nó, rồi thêm nhiễu vào kết quả trước khi trả về.
-          const origGetImageData = CanvasRenderingContext2D.prototype.getImageData;
-          Object.defineProperty(CanvasRenderingContext2D.prototype, 'getImageData', {
-            value: function () {
-              const imageData = origGetImageData.apply(this, arguments); // Gọi hàm gốc trước
-              if (!_isPerturbing) { // Chỉ nhiễu nếu không đang trong vòng nhiễu khác
-                _isPerturbing = true;
-                try { perturbImageData(imageData); } finally { _isPerturbing = false; }
-              }
-              return imageData;
-            },
-            configurable: true,
-          });
-
-          // Patch toDataURL — perturb pixels, then call original
-          // toDataURL(): xuất canvas thành chuỗi base64 (ví dụ: "data:image/png;base64,...")
-          // Fingerprint tool thường dùng canvas.toDataURL() để lấy fingerprint.
-          // Chiến lược: đọc pixel, thêm nhiễu, ghi lại vào canvas, rồi mới xuất ảnh.
-          const origToDataURL = HTMLCanvasElement.prototype.toDataURL;
-          Object.defineProperty(HTMLCanvasElement.prototype, 'toDataURL', {
-            value: function () {
-              if (!_isPerturbing) {
-                _isPerturbing = true;
-                try {
-                  const ctx = this.getContext('2d');
-                  if (ctx) {
-                    // 2D canvas: read pixels, add noise, write back
-                    // Đọc toàn bộ pixel canvas (gọi origGetImageData để không trigger patch lại)
-                    const imgData = origGetImageData.call(ctx, 0, 0, this.width, this.height);
-                    perturbImageData(imgData); // Thêm nhiễu vào pixel
-                    ctx.putImageData(imgData, 0, 0); // Ghi pixel đã nhiễu trở lại canvas
-                  } else if (this.width > 0 && this.height > 0) {
-                    // WebGL canvas: getContext('2d') returns null when WebGL context exists.
-                    // Read framebuffer via origReadPixels (unpatched) → add noise → return via temp 2D canvas.
-                    try {
-                      const isWGL2 = window.WebGL2RenderingContext;
-                      const gl = (isWGL2 && this.getContext('webgl2')) || this.getContext('webgl');
-                      const origRP = (isWGL2 && gl instanceof WebGL2RenderingContext)
-                        ? (origRPWGL2 || origRPWGL1) : origRPWGL1;
-                      if (gl && origRP) {
-                        const w = this.width, h = this.height;
-                        const px = new Uint8Array(w * h * 4);
-                        origRP.call(gl, 0, 0, w, h, 0x1908 /*RGBA*/, 0x1401 /*UNSIGNED_BYTE*/, px);
-                        perturbRawPixels(px);
-                        const tmp = document.createElement('canvas');
-                        tmp.width = w; tmp.height = h;
-                        const tmpCtx = tmp.getContext('2d');
-                        if (tmpCtx) {
-                          const id = tmpCtx.createImageData(w, h);
-                          id.data.set(px);
-                          tmpCtx.putImageData(id, 0, 0);
-                          _isPerturbing = false;
-                          return origToDataURL.apply(tmp, arguments);
+          // ── toDataURL: 2D canvas path (doCanvas) + WebGL canvas path (doWebGL) ──
+          if (doCanvas || doWebGL) {
+            Object.defineProperty(HTMLCanvasElement.prototype, 'toDataURL', {
+              value: function () {
+                if (!_isPerturbing) {
+                  _isPerturbing = true;
+                  try {
+                    const ctx = this.getContext('2d');
+                    if (ctx && doCanvas) {
+                      // 2D canvas: read → noise → write back → export
+                      const imgData = origGetImageData.call(ctx, 0, 0, this.width, this.height);
+                      perturbImageData(imgData);
+                      ctx.putImageData(imgData, 0, 0);
+                    } else if (!ctx && doWebGL && this.width > 0 && this.height > 0) {
+                      // WebGL canvas: read framebuffer → noise → export via temp 2D canvas
+                      try {
+                        const isWGL2 = window.WebGL2RenderingContext;
+                        const gl = (isWGL2 && this.getContext('webgl2')) || this.getContext('webgl');
+                        const origRP = (isWGL2 && gl instanceof WebGL2RenderingContext)
+                          ? (origRPWGL2 || origRPWGL1) : origRPWGL1;
+                        if (gl && origRP) {
+                          const w = this.width, h = this.height;
+                          const px = new Uint8Array(w * h * 4);
+                          origRP.call(gl, 0, 0, w, h, 0x1908 /*RGBA*/, 0x1401 /*UNSIGNED_BYTE*/, px);
+                          perturbRawPixels(px);
+                          const tmp = document.createElement('canvas');
+                          tmp.width = w; tmp.height = h;
+                          const tmpCtx = tmp.getContext('2d');
+                          if (tmpCtx) {
+                            const id = tmpCtx.createImageData(w, h);
+                            id.data.set(px);
+                            tmpCtx.putImageData(id, 0, 0);
+                            _isPerturbing = false;
+                            return origToDataURL.apply(tmp, arguments);
+                          }
                         }
-                      }
-                    } catch {}
-                  }
-                } catch {} finally { _isPerturbing = false; }
-              }
-              return origToDataURL.apply(this, arguments); // Xuất canvas đã được nhiễu
-            },
-            configurable: true,
-          });
+                      } catch {}
+                    }
+                  } catch {} finally { _isPerturbing = false; }
+                }
+                return origToDataURL.apply(this, arguments);
+              },
+              configurable: true,
+            });
+          }
 
-          // Patch toBlob
-          // toBlob(): tương tự toDataURL nhưng trả về Blob thay vì chuỗi base64
-          // Cùng chiến lược: nhiễu pixel trước, rồi mới xuất blob
-          const origToBlob = HTMLCanvasElement.prototype.toBlob;
-          Object.defineProperty(HTMLCanvasElement.prototype, 'toBlob', {
-            value: function () {
-              if (!_isPerturbing) {
-                _isPerturbing = true;
-                try {
-                  const ctx = this.getContext('2d');
-                  if (ctx) {
-                    const imgData = origGetImageData.call(ctx, 0, 0, this.width, this.height);
-                    perturbImageData(imgData);
-                    ctx.putImageData(imgData, 0, 0);
-                  }
-                } catch {} finally { _isPerturbing = false; }
-              }
-              return origToBlob.apply(this, arguments);
-            },
-            configurable: true,
-          });
+          // ── toBlob (2D canvas only) ──
+          if (doCanvas) {
+            Object.defineProperty(HTMLCanvasElement.prototype, 'toBlob', {
+              value: function () {
+                if (!_isPerturbing) {
+                  _isPerturbing = true;
+                  try {
+                    const ctx = this.getContext('2d');
+                    if (ctx) {
+                      const imgData = origGetImageData.call(ctx, 0, 0, this.width, this.height);
+                      perturbImageData(imgData);
+                      ctx.putImageData(imgData, 0, 0);
+                    }
+                  } catch {} finally { _isPerturbing = false; }
+                }
+                return origToBlob.apply(this, arguments);
+              },
+              configurable: true,
+            });
+          }
 
-          // Patch OffscreenCanvas.convertToBlob
-          // OffscreenCanvas: canvas chạy ngoài main thread (trong Worker) — cũng cần patch
-          // convertToBlob() là phiên bản của toBlob() dành cho OffscreenCanvas
-          if (typeof OffscreenCanvas !== 'undefined' && OffscreenCanvas.prototype.convertToBlob) {
+          // ── OffscreenCanvas.convertToBlob (2D canvas only) ──
+          if (doCanvas && typeof OffscreenCanvas !== 'undefined' && OffscreenCanvas.prototype.convertToBlob) {
             const origConvert = OffscreenCanvas.prototype.convertToBlob;
             Object.defineProperty(OffscreenCanvas.prototype, 'convertToBlob', {
               value: function () {
@@ -906,7 +895,7 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
                   try {
                     const ctx = this.getContext('2d');
                     if (ctx && ctx.getImageData) {
-                      const imgData = ctx.getImageData(0, 0, this.width, this.height);
+                      const imgData = origGetImageData.call(ctx, 0, 0, this.width, this.height);
                       perturbImageData(imgData);
                       ctx.putImageData(imgData, 0, 0);
                     }
@@ -918,7 +907,7 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
             });
           }
         } catch {}
-      }, { seed: canvasSeed, intensity: canvasIntensity });
+      }, { seed: canvasSeed, intensity: canvasIntensity, doWebGL: applyWebgl, doCanvas: applyCanvas });
     } catch {}
   }
 
