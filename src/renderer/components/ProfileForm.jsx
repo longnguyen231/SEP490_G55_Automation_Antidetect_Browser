@@ -36,8 +36,8 @@ const defaultSettings = {
   injectFingerprint: true,
   quantity: 1,
   startupPage: 'https://hlmck.vercel.app/',
-  windowWidth: 1440,
-  windowHeight: 900,
+  windowWidth: 0,
+  windowHeight: 0,
   advanced: {
     platform: 'Win32',
     locale: 'en-US',
@@ -689,17 +689,6 @@ function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
           <label className="pf-label">Startup Page</label>
           <input type="text" className="pf-input" value={formData.settings.startupPage || formData.startUrl || ''} onChange={e => { setS('startupPage', e.target.value); setFormData(p => ({ ...p, startUrl: e.target.value })); }} placeholder="ex: https://www.google.com/?hl=en" />
         </div>
-        <div className="pf-row">
-          <div className="pf-field">
-            <label className="pf-label">Window Width (px)</label>
-            <input type="number" className="pf-input" value={formData.settings.windowWidth || 1440} onChange={e => setS('windowWidth', Number(e.target.value))} />
-          </div>
-          <div className="pf-field">
-            <label className="pf-label">Window Height (px)</label>
-            <input type="number" className="pf-input" value={formData.settings.windowHeight || 900} onChange={e => setS('windowHeight', Number(e.target.value))} />
-          </div>
-        </div>
-        <p className="pf-hint">Leave width/height at 0 to use the OS default window size.</p>
       </fieldset>
 
       {/* Quick Generate */}
