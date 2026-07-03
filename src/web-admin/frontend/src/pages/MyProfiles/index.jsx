@@ -231,10 +231,14 @@ export default function MyProfiles() {
             signal: controller.signal,
           });
           clearTimeout(timer);
-          if (res.ok) {
-            message.success(`Đã mở "${profile.name}" trong Desktop App!`);
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            const errMsg = errData.error || 'Profile này không thuộc về tài khoản đang đăng nhập trên App.';
+            message.error(`Từ chối mở: ${errMsg}`);
             return;
           }
+          message.success(`Đã mở "${profile.name}" trong Desktop App!`);
+          return;
         } catch {
           clearTimeout(timer);
           // App not running or unreachable — fall through to deep link

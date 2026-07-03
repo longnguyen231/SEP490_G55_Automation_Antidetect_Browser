@@ -23,7 +23,8 @@ if (app.isPackaged) {
   }
 } else {
   // In development mode, force point electron to the right script to overwrite bad registry cache
-  app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
+  // We use app.getAppPath() because electronmon injects --require into argv[1]
+  app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [app.getAppPath()]);
 }
 
 function handleDeepLink(url) {

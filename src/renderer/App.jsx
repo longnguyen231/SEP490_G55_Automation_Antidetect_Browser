@@ -469,6 +469,11 @@ function App() {
       const headless = false;
       setHeadlessPrefs(prev => ({ ...prev, [profileId]: false }));
       const p = profiles.find(x => x.id === profileId);
+      if (!p) {
+        addToast('Lỗi: Profile này không thuộc về tài khoản đang đăng nhập trên App.', 'error', 8000);
+        setErrorProfiles(prev => ({ ...prev, [profileId]: true }));
+        return;
+      }
       const engine = p?.settings?.engine || 'playwright';
 
       const isCamoufox = engine === 'camoufox';
@@ -491,6 +496,11 @@ function App() {
 
   const doLaunchProfile = async (profileId, { headless, engine } = {}) => {
     const p = profiles.find(x => x.id === profileId);
+    if (!p) {
+      addToast('Lỗi: Profile này không thuộc về tài khoản đang đăng nhập trên App.', 'error', 8000);
+      setErrorProfiles(prev => ({ ...prev, [profileId]: true }));
+      return;
+    }
     const h = headless !== undefined ? headless : !!p?.settings?.headless;
     const eng = engine || p?.settings?.engine || 'playwright';
     try {
@@ -523,6 +533,11 @@ function App() {
       // Headless button → always hidden (headless=true), show View button after launch
       setHeadlessPrefs(prev => ({ ...prev, [profileId]: true }));
       const p = profiles.find(x => x.id === profileId);
+      if (!p) {
+        addToast('Lỗi: Profile này không thuộc về tài khoản đang đăng nhập trên App.', 'error', 8000);
+        setErrorProfiles(prev => ({ ...prev, [profileId]: true }));
+        return;
+      }
       const engine = p?.settings?.engine || 'playwright';
       const options = { headless: true, engine };
       const result = await window.electronAPI.launchProfile(profileId, options);
