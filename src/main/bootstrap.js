@@ -11,6 +11,62 @@ const { startAutomationScheduler } = require('./engine/automation');
 const { setMainWindowRef } = require('./services/browserManagerService');
 const { setMainWindowRef: setCamoufoxWindowRef } = require('./services/camoufoxManager');
 
+// ── Deep Link: hlmck://launch/{profileId} ────────────────────────────────────
+// Register as default handler for the hlmck:// protocol.
+// macOS/Linux use the open-url event; Windows uses second-instance argv.
+const PROTOCOL = 'hlmck';
+const path = require('path'); // Ensure path is available if not required above
+
+if (app.isPackaged) {
+  if (!app.isDefaultProtocolClient(PROTOCOL)) {
+    app.setAsDefaultProtocolClient(PROTOCOL);
+  }
+} else {
+  // In development mode, force point electron to the right script to overwrite bad registry cache
+  app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
+}
+
+function handleDeepLink(url) {
+  try {
+    if (!url) return;
+    appendLog('system', `[deeplink] received: ${url}`);
+    const u = new URL(url);
+    // hlmck://launch/{profileId}
+    if (u.hostname === 'launch') {
+      const profileId = u.pathname.replace(/^\//, '');
+      if (!profileId) return;
+      appendLog('system', `[deeplink] launching profile: ${profileId}`);
+      const { BrowserWindow } = require('electron');
+      const wins = BrowserWindow.getAllWindows();
+      if (wins.length > 0) {
+        const win = wins[0];
+        if (win.isMinimized()) win.restore();
+        win.focus();
+        // Tell renderer to launch the profile
+        win.webContents.send('deeplink-launch-profile', profileId);
+      }
+    }
+  } catch (e) {
+    appendLog('system', `[deeplink] parse error: ${e?.message || e}`);
+  }
+}
+
+// Windows / Linux: app already running → second-instance event
+app.on('second-instance', (_event, argv) => {
+  const url = argv.find(a => a.startsWith(`${PROTOCOL}://`));
+  if (url) handleDeepLink(url);
+});
+
+// macOS: open-url event (both cold-start and when app is already open)
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  handleDeepLink(url);
+});
+
+// Single-instance lock so deep links always go to the existing window
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) { app.quit(); }
+
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
 const HEARTBEAT_GRACE_MS = 20000; // don't check profiles started less than 20s ago

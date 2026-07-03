@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Modal, Form, Input, Select, message, ConfigProvider, theme, Drawer, Descriptions, Tag, Popconfirm } from 'antd';
+import { message, ConfigProvider, theme, Drawer, Descriptions, Tag, Popconfirm } from 'antd';
+import ProfileEditDrawer from './ProfileEditDrawer';
 import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuthStore } from '../../store/authStore';
 import dayjs from 'dayjs';
-import { LogOut, ArrowLeft, Shield, Search, X, Info, Settings2, Box, Fingerprint, Eye } from 'lucide-react';
+import { LogOut, ArrowLeft, Shield, Search, X, Info, Settings2, Box, Fingerprint, Eye, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import './ProfileList.css';
@@ -70,12 +71,14 @@ export default function MyProfiles() {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Edit & Details Modals
-  const [modalVisible, setModalVisible] = useState(false);
-  const [form] = Form.useForm();
-  const [editingId, setEditingId] = useState(null);
+  // Edit Drawer
+  const [editDrawerVisible, setEditDrawerVisible] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(null);
+
+  // Details Drawer
   const [detailsVisible, setDetailsVisible] = useState(false);
   const [detailsRecord, setDetailsRecord] = useState(null);
+  const [launchingId, setLaunchingId] = useState(null); // profile being launched via web
   const navigate = useNavigate();
 
   // Search, Filter, Sort, Pagination
@@ -184,43 +187,6 @@ export default function MyProfiles() {
     }
   };
 
-  const handleSave = async (values) => {
-    try {
-      const profileId = editingId || `prof-${Date.now()}`;
-      const profileData = {
-        id: profileId,
-        name: values.name,
-        note: values.note || '',
-        settings: {
-          engine: values.engine || 'playwright',
-          proxy: {
-            type: values.proxyType || 'none',
-            server: values.proxyServer || '',
-            username: values.proxyUsername || '',
-            password: values.proxyPassword || ''
-          }
-        },
-        createdAt: editingId ? (profiles.find(p => p.id === editingId)?.createdAt || Date.now()) : Date.now(),
-        updatedAt: Date.now()
-      };
-
-      if (editingId) {
-        const existing = profiles.find(p => p.id === editingId);
-        if (existing && existing.settings) {
-          profileData.settings = { ...existing.settings, ...profileData.settings };
-          profileData.fingerprint = existing.fingerprint;
-        }
-      }
-
-      await setDoc(doc(db, `users/${user.id}/profiles`, profileId), profileData);
-      message.success(editingId ? 'Profile updated successfully!' : 'Profile created successfully!');
-      setModalVisible(false);
-      form.resetFields();
-    } catch (err) {
-      console.error(err);
-      message.error('Failed to save profile');
-    }
-  };
 
   const handleDelete = async (id) => {
     try {
@@ -234,22 +200,54 @@ export default function MyProfiles() {
   };
 
   const openEdit = (record) => {
-    setEditingId(record.id);
-    form.setFieldsValue({
-      name: record.name,
-      note: record.note,
-      engine: record.settings?.engine || 'playwright',
-      proxyType: record.settings?.proxy?.type || 'none',
-      proxyServer: record.settings?.proxy?.server || '',
-      proxyUsername: record.settings?.proxy?.username || '',
-      proxyPassword: record.settings?.proxy?.password || '',
-    });
-    setModalVisible(true);
+    setEditingProfile(record);
+    setEditDrawerVisible(true);
   };
 
   const openDetails = (record) => {
     setDetailsRecord(record);
     setDetailsVisible(true);
+  };
+
+  // Open profile in Desktop App:
+  // 1. If on HTTP (local dev): try calling the local REST API first (app is running, port 4000)
+  // 2. Fallback to deep link hlmck://launch/{profileId} (works in all environments)
+  //    Note: Browsers block http://localhost calls from HTTPS pages (mixed-content), so
+  //    on production (Vercel/HTTPS) we skip straight to the deep link.
+  const handleOpenInApp = async (profile) => {
+    setLaunchingId(profile.id);
+    try {
+      const isLocalHttp = window.location.protocol === 'http:';
+
+      if (isLocalHttp) {
+        // Attempt 1: Local REST API (only safe on HTTP, avoids mixed-content block on HTTPS)
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 2000);
+        try {
+          const res = await fetch(`http://localhost:4000/api/browsers/${profile.id}/launch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ headless: false }),
+            signal: controller.signal,
+          });
+          clearTimeout(timer);
+          if (res.ok) {
+            message.success(`Đã mở "${profile.name}" trong Desktop App!`);
+            return;
+          }
+        } catch {
+          clearTimeout(timer);
+          // App not running or unreachable — fall through to deep link
+        }
+      }
+
+      // Attempt 2: Deep Link hlmck://launch/{profileId}
+      // Works whether app is open (focuses it) or closed (OS opens it).
+      message.info('Đang mở Desktop App…');
+      window.location.href = `hlmck://launch/${profile.id}`;
+    } finally {
+      setTimeout(() => setLaunchingId(null), 2500);
+    }
   };
 
   const getEngineColor = (engine) => {
@@ -533,6 +531,17 @@ export default function MyProfiles() {
                     </div>
 
                     <div className="pl-actions flex gap-2">
+                      {/* Open in App */}
+                      <button
+                        title="Open in Desktop App"
+                        onClick={() => handleOpenInApp(profile)}
+                        disabled={launchingId === profile.id}
+                        className="w-[28px] h-[28px] border border-emerald-500/30 rounded-md bg-emerald-500/10 cursor-pointer flex items-center justify-center text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+                      >
+                        {launchingId === profile.id
+                          ? <span className="w-3 h-3 border-2 border-emerald-400/40 border-t-emerald-400 rounded-full animate-spin" />
+                          : <Play size={12} fill="currentColor" />}
+                      </button>
                       <button
                         title="View Details"
                         onClick={() => openDetails(profile)}
@@ -630,66 +639,13 @@ export default function MyProfiles() {
       </main>
 
       <ConfigProvider theme={{ algorithm: theme.darkAlgorithm }}>
-        <Modal
-          title={<div className="flex items-center gap-2 text-lg text-white"><Settings2 className="text-primary" size={20} /> Edit Configuration</div>}
-          open={modalVisible}
-          onCancel={() => setModalVisible(false)}
-          onOk={() => form.submit()}
-          okText="Save Changes"
-          destroyOnClose
-          className="premium-dark-modal"
-          centered
-          width={500}
-        >
-          <Form layout="vertical" form={form} onFinish={handleSave} className="mt-6">
-            <Form.Item name="name" label={<span className="text-white/70">Profile Name</span>} rules={[{ required: true }]}>
-              <Input size="large" placeholder="e.g. Amazon US Account" />
-            </Form.Item>
-            <Form.Item name="note" label={<span className="text-white/70">Internal Note</span>}>
-              <Input.TextArea rows={3} placeholder="Add some notes..." />
-            </Form.Item>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Form.Item name="engine" label={<span className="text-white/70">Browser Engine</span>} className="mb-0">
-                <Select size="large">
-                  <Select.Option value="playwright">Chromium</Select.Option>
-                  <Select.Option value="playwright-firefox">Firefox</Select.Option>
-                  <Select.Option value="camoufox">Camoufox</Select.Option>
-                  <Select.Option value="cloakbrowser">CloakBrowser</Select.Option>
-                </Select>
-              </Form.Item>
-              <Form.Item name="proxyType" label={<span className="text-white/70">Proxy Type</span>} className="mb-0">
-                <Select size="large">
-                  <Select.Option value="none">Direct (No Proxy)</Select.Option>
-                  <Select.Option value="http">HTTP / HTTPS</Select.Option>
-                  <Select.Option value="socks5">SOCKS5</Select.Option>
-                </Select>
-              </Form.Item>
-            </div>
-
-            <Form.Item noStyle shouldUpdate={(prev, cur) => prev.proxyType !== cur.proxyType}>
-              {({ getFieldValue }) => {
-                const type = getFieldValue('proxyType');
-                if (type === 'none') return null;
-                return (
-                  <div className="mt-4 p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
-                    <Form.Item name="proxyServer" label={<span className="text-white/70">Server (IP:Port)</span>} className="mb-0">
-                      <Input size="large" placeholder="192.168.1.1:8080" />
-                    </Form.Item>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Form.Item name="proxyUsername" label={<span className="text-white/70">Username</span>} className="mb-0">
-                        <Input size="large" placeholder="Optional" />
-                      </Form.Item>
-                      <Form.Item name="proxyPassword" label={<span className="text-white/70">Password</span>} className="mb-0">
-                        <Input.Password size="large" placeholder="Optional" />
-                      </Form.Item>
-                    </div>
-                  </div>
-                );
-              }}
-            </Form.Item>
-          </Form>
-        </Modal>
+        <ProfileEditDrawer
+          visible={editDrawerVisible}
+          profile={editingProfile}
+          userId={user?.id}
+          onClose={() => setEditDrawerVisible(false)}
+          onSaved={() => { setEditDrawerVisible(false); message.success('Profile updated!'); }}
+        />
 
         <Drawer
           title={<div className="flex items-center gap-2 text-white"><Info className="text-cyan-400" size={20} /> Profile Configuration Details</div>}

@@ -39,6 +39,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   removeAllProfilesUpdated: () => ipcRenderer.removeAllListeners('profiles-updated'),
 
+  // Deep-link: web triggers hlmck://launch/{profileId} → main sends this event
+  onDeeplinkLaunchProfile: (callback) => {
+    const listener = (_event, profileId) => callback && callback(profileId);
+    ipcRenderer.on('deeplink-launch-profile', listener);
+    return () => ipcRenderer.removeListener('deeplink-launch-profile', listener);
+  },
+
   onProxiesUpdated: (callback) => {
     const listener = () => callback && callback();
     ipcRenderer.on('proxies-updated', listener);

@@ -48,6 +48,12 @@
   "build": {
     "appId": "com.hlmck.antidetectbrowser",
     "productName": "HL-MCK Antidetect Browser",
+    "protocols": {
+      "name": "HL-MCK Protocol",
+      "schemes": [
+        "hlmck"
+      ]
+    },
     "asar": true,
     "asarUnpack": [
       "node_modules/playwright-core/**/*"

@@ -341,6 +341,15 @@ function App() {
     };
   }, [api]);
 
+  // Listen for deep-link launch commands from main process (hlmck://launch/{profileId})
+  useEffect(() => {
+    if (!window.electronAPI?.onDeeplinkLaunchProfile) return;
+    const unsub = window.electronAPI.onDeeplinkLaunchProfile((profileId) => {
+      if (profileId) handleLaunchProfile(profileId);
+    });
+    return () => { try { unsub?.(); } catch {} };
+  }, [profiles, profileStatuses]);
+
   useEffect(() => {
     let unsub;
     let pollTimer;

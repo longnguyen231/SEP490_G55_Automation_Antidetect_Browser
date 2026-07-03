@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, X } from 'lucide-react';
+import { Search, X, RefreshCcw } from 'lucide-react';
 import './ProfileList.css';
 import ElementPicker from './ElementPicker';
 
@@ -351,6 +351,11 @@ export default function ProfileList({
       <div className="pl-header">
         <h1 className="pl-title">Profiles {profiles && profiles.length > 0 && <span className="pl-count">({profiles.length})</span>}</h1>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {onReloadProfiles && (
+            <button className="pl-new-btn" onClick={onReloadProfiles} style={{ background: '#3b82f6', borderRadius: '8px', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <RefreshCcw size={16} /> Sync Web
+            </button>
+          )}
           {onCreateBulk && (
             <button className="pl-new-btn" onClick={() => setShowBulkCreate(true)} style={{ background: '#6366f1', borderRadius: '8px' }}>
               + Create Multiple
