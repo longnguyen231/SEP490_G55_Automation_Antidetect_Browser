@@ -48,7 +48,7 @@
   "build": {
     "appId": "com.hlmck.antidetectbrowser",
     "productName": "HL-MCK Antidetect Browser",
-    "artifactName": "Setup.exe",
+    "artifactName": "HL-MCK-Setup.exe",
     "protocols": {
       "name": "HL-MCK Protocol",
       "schemes": [
