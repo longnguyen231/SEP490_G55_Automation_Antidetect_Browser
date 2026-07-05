@@ -27,6 +27,10 @@ export function getPricingUrl() {
 /**
  * Returns the checkout URL for upgrading to Pro.
  */
-export function getCheckoutUrl() {
-  return `${WEB_ADMIN_URL}/checkout?tier=pro`;
+export function getCheckoutUrl(email) {
+  let url = `${WEB_ADMIN_URL}/checkout?tier=pro`;
+  if (email) {
+    url += `&email=${encodeURIComponent(email)}`;
+  }
+  return url;
 }

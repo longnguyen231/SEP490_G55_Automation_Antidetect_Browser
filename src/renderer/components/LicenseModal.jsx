@@ -49,7 +49,7 @@ export default function LicenseModal({ onClose, onActivated }) {
 
                 {/* Upgrade to Pro button */}
                 <button
-                    onClick={() => window.electronAPI.openExternal(getCheckoutUrl())}
+                    onClick={() => window.electronAPI.openExternal(getCheckoutUrl(userEmail))}
                     className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[var(--primary)] to-purple-500 hover:brightness-110 text-white font-bold py-3 rounded-[0.6rem] mb-4 shadow-md transition text-[0.95rem]"
                 >
                     {t('license.buyPro', '⚡ Buy Pro License →')}

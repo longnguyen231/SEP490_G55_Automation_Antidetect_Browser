@@ -175,7 +175,7 @@ export default function SettingsTab({
                         </div>
                         {!licenseStatus && (
                             <button
-                                onClick={() => window.electronAPI.openExternal(getCheckoutUrl())}
+                                onClick={() => window.electronAPI.openExternal(getCheckoutUrl(userEmail))}
                                 className="w-full mt-1 flex items-center justify-center gap-2 bg-gradient-to-r from-[var(--primary)] to-purple-500 hover:brightness-110 text-white font-semibold text-[0.78rem] py-2 px-4 rounded-md transition"
                             >
                                 ⚡ Upgrade to Pro →
