@@ -21,10 +21,10 @@ const GITHUB_BASE = 'https://github.com/HuyPQHE171509/hlmck-releases/releases/la
 function getDefaultUrls(version = '1.0.1') {
   const v = version.replace(/^v/, '');
   return {
-    windows: `${GITHUB_BASE}/HL-MCK-Antidetect-Browser-Setup-${v}.exe`,
-    portable: `${GITHUB_BASE}/HL-MCK-Antidetect-Browser-Portable-${v}.zip`,
-    linux: `${GITHUB_BASE}/HL-MCK-Antidetect-Browser-${v}.AppImage`,
-    macos: `${GITHUB_BASE}/HL-MCK-Antidetect-Browser-${v}.dmg`,
+    windows: `${GITHUB_BASE}/HL-MCK-Setup.exe`,
+    portable: `${GITHUB_BASE}/HL-MCK-Portable.zip`,
+    linux: `${GITHUB_BASE}/HL-MCK-Linux.AppImage`,
+    macos: `${GITHUB_BASE}/HL-MCK-Mac.dmg`,
   };
 }
 
