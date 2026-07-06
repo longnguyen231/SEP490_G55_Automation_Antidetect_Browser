@@ -1,4 +1,4 @@
-import { findOrderByMachine } from './lib/storage.js';
+import { findOrderByMachine, findOrderByLicenseKey } from './lib/storage.js';
 
 /**
  * POST /api/verify-machine
@@ -17,11 +17,17 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { machineCode } = req.body || {};
+  const { machineCode, licenseKey } = req.body || {};
   if (!machineCode) return res.status(400).json({ error: 'machineCode required' });
 
   try {
-    const entry = await findOrderByMachine(machineCode);
+    let entry = null;
+    if (licenseKey) {
+      entry = await findOrderByLicenseKey(licenseKey);
+    }
+    if (!entry) {
+      entry = await findOrderByMachine(machineCode);
+    }
     if (!entry) return res.status(200).json({ status: 'not_found' });
 
     const { order } = entry;

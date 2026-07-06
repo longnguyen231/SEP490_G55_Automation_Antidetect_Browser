@@ -62,12 +62,12 @@ function deriveLicenseKey(machineCode, email) {
 
 // ─── Server sync ──────────────────────────────────────────────────────────────
 // Fetch license metadata from web server. Returns null when offline.
-async function fetchLicenseMeta(machineCode) {
+async function fetchLicenseMeta(machineCode, licenseKey) {
   try {
     const res = await fetch(`${LICENSE_SERVER_URL}/api/verify-machine`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ machineCode }),
+      body: JSON.stringify({ machineCode, licenseKey }),
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return null;
@@ -89,9 +89,9 @@ async function validateLicenseKey(inputKey, email) {
 
     if (isValid) {
       // Check server: reject if revoked; re-bind if machine was deactivated
-      const meta = await fetchLicenseMeta(machineCode);
+      const meta = await fetchLicenseMeta(machineCode, inputKey.trim().toUpperCase());
       if (meta && meta.status === 'revoked') {
-        return { valid: false };
+        return { valid: false, error: 'Your license has been revoked by the administrator.' };
       }
       if (!meta || meta.status === 'not_found') {
         // Machine was deactivated — re-register on server (best-effort)
@@ -166,7 +166,7 @@ async function syncLicenseStatus() {
     if (!fs.existsSync(licensePath)) return;
 
     const machineCode = getMachineCode();
-    const meta = await fetchLicenseMeta(machineCode);
+    const meta = await fetchLicenseMeta(machineCode, current.key);
     if (!meta) return; // offline — keep existing state
 
     if (meta.status === 'revoked') {
