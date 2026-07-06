@@ -146,7 +146,7 @@ async function install() {
       const child = spawn(cmd, ["cloakbrowser", "install"], {
         env: { ...process.env, CLOAKBROWSER_CACHE_DIR: dir },
         cwd: path.resolve(__dirname, "../../.."), // root project
-        shell: true, // required on Windows to execute .cmd files via cmd.exe
+        shell: process.env.ComSpec || "C:\\Windows\\System32\\cmd.exe", // required on Windows to execute .cmd files via cmd.exe
       });
 
       let lastPercent = 0;
