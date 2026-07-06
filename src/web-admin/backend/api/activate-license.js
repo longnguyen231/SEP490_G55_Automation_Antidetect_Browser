@@ -77,7 +77,7 @@ export default async function handler(req, res) {
     }
 
     // First activation — bind machine + email and derive key
-    const normalizedEmail = (userEmail || '').toLowerCase().trim();
+    const normalizedEmail = (userEmail || order.userEmail || '').toLowerCase().trim();
     const licenseKey = deriveLicenseKey(normalizedMachine, normalizedEmail);
     await updateOrder(String(orderCode), {
       activatedMachine: normalizedMachine,
