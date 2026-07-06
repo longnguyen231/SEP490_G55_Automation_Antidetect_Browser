@@ -358,7 +358,7 @@ export default function Releases() {
                       )}
                     </td>
                     <td className="px-6 py-3 text-xs text-slate-500">{r.assets.length} file</td>
-                    <td className="px-6 py-3 text-slate-500 whitespace-nowrap">{formatDate(r.createdAt)}</td>
+                    <td className="px-6 py-3 text-slate-500 whitespace-nowrap">{formatDate(r.publishedAt || r.createdAt)}</td>
                     <td className="px-6 py-3 text-right whitespace-nowrap space-x-3">
                       {r.draft ? (
                         <button
