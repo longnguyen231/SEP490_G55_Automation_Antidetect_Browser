@@ -889,6 +889,7 @@ function App() {
             handleRestartApi={handleRestartApi}
             theme={theme}
             setTheme={setTheme}
+            currentUser={currentUser}
           />
         );
 

@@ -13,13 +13,14 @@ export default function SettingsTab({
     handleRestartApi,
     theme,
     setTheme,
+    currentUser,
 }) {
     const { t } = useI18n();
     const [licenseKey, setLicenseKey] = useState('');
     const [machineCode, setMachineCode] = useState('Loading...');
-    const userEmail = localStorage.getItem('firebase_email') || '';
+    const userEmail = currentUser?.email || localStorage.getItem('firebase_email') || '';
     const userLicenseKey = `hl-license-activated_${userEmail}`;
-    const [licenseStatus, setLicenseStatus] = useState(() => !!localStorage.getItem(`hl-license-activated_${localStorage.getItem('firebase_email') || ''}`));
+    const [licenseStatus, setLicenseStatus] = useState(() => !!localStorage.getItem(userLicenseKey));
     const [licenseError, setLicenseError] = useState('');
     const [licenseLoading, setLicenseLoading] = useState(false);
     const [confirmDeactivate, setConfirmDeactivate] = useState(false);
