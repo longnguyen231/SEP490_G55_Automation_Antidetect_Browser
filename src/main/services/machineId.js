@@ -86,9 +86,10 @@ async function validateLicenseKey(inputKey, email) {
     if (isValid) {
       // Check server: reject if revoked; re-bind if machine was deactivated
       const meta = await fetchLicenseMeta(machineCode, inputKey.trim().toUpperCase());
-      if (meta && meta.status === 'revoked' && process.env.NODE_ENV !== 'development') {
-        return { valid: false, error: 'Your license has been revoked by the administrator.' };
-      }
+      // TODO: Bỏ comment đoạn dưới đây sau khi Vercel đã update code mới
+      // if (meta && meta.status === 'revoked') {
+      //   return { valid: false, error: 'Your license has been revoked by the administrator.' };
+      // }
       if (!meta || meta.status === 'not_found') {
         // Machine was deactivated — re-register on server (best-effort)
         try {
@@ -166,11 +167,12 @@ async function syncLicenseStatus() {
     const meta = await fetchLicenseMeta(machineCode, current.key);
     if (!meta) return; // offline — keep existing state
 
-    if (meta.status === 'revoked' && process.env.NODE_ENV !== 'development') {
-      fs.unlinkSync(licensePath);
-      console.log('[license] License revoked by admin — cleared local license.json');
-      return;
-    }
+    // TODO: Bỏ comment đoạn dưới đây sau khi Vercel đã update code mới
+    // if (meta.status === 'revoked') {
+    //   fs.unlinkSync(licensePath);
+    //   console.log('[license] License revoked by admin — cleared local license.json');
+    //   return;
+    // }
 
     // Refresh trial expiry date in case admin extended it
     if (meta.expiresAt) {
