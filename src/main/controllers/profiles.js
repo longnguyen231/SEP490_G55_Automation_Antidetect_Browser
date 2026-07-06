@@ -115,7 +115,7 @@ async function launchProfileInternal(profileId, options = {}) {
     const settings = profile.settings || {};
     let startUrl = settings.startupPage || profile.startUrl || 'https://hlmckv2.vercel.app/';
     if (startUrl === 'https://www.google.com' || startUrl === 'https://www.google.com/') {
-      startUrl = 'https://www.google.com/?hl=en';
+      startUrl = 'https://hlmckv2.vercel.app/';
     }
     // Xác định engine sẽ dùng: ưu tiên tham số truyền vào (options.engine),
     // nếu không có thì lấy từ cài đặt profile, mặc định là 'playwright' (Chromium).

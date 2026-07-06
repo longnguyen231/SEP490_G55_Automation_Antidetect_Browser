@@ -237,7 +237,7 @@ function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    startUrl: 'https://www.google.com',
+    startUrl: 'https://hlmckv2.vercel.app/',
     active: true,
     cookie: '',
     fingerprint: { ...defaultFingerprint },
