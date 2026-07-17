@@ -427,10 +427,28 @@ export default function ProfileEditDrawer({ visible, profile, onClose, userId, o
     setSaving(true);
     try {
       const finalSettings = { ...formData.settings };
+      
+      // Đồng bộ logic override khi tắt injectFingerprint giống Desktop App
+      if (finalSettings.injectFingerprint === false) {
+        finalSettings.applyOverrides = { hardware: false, navigator: false, userAgent: false, webgl: false, language: false, viewport: false, geolocation: false };
+      } else {
+        delete finalSettings.applyOverrides;
+      }
+      if (!finalSettings.engine) finalSettings.engine = 'playwright';
+
       ['identity', 'display', 'hardware', 'canvas', 'webgl', 'audio', 'media', 'network', 'battery'].forEach(section => {
         finalSettings[section] = { ...(finalSettings[section] || {}), enabled: !!sectionToggles[section] };
       });
-      const payload = { ...formData, settings: finalSettings, updatedAt: Date.now() };
+      
+      // Đảm bảo lưu cả startUrl và sectionToggles ra ngoài root để App đọc được
+      const payload = { 
+        ...formData, 
+        settings: finalSettings, 
+        sectionToggles,
+        startUrl: finalSettings.startupPage || formData.startUrl || '',
+        updatedAt: Date.now() 
+      };
+      
       await setDoc(doc(db, `users/${userId}/profiles`, profile.id), payload);
       antMessage.success('Profile saved!');
       if (onSaved) onSaved();
