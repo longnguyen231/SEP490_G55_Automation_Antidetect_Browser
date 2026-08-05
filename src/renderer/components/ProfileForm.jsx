@@ -268,6 +268,7 @@ function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
   const [proxyRotating, setProxyRotating] = useState(false);
   const [proxyCheckResult, setProxyCheckResult] = useState(null);
   const [proxyRotateResult, setProxyRotateResult] = useState(null);
+  const [proxySynced, setProxySynced] = useState(false); // Proxy-Based Fingerprint Sync feedback
 
   const [engineStatus, setEngineStatus] = useState({
       chromium: { status: 'loading' },
@@ -374,7 +375,13 @@ function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
         password: proxy.password || '',
       });
       if (res) {
-        setProxyCheckResult({ alive: res.alive, latency: res.latency, ip: res.ip, city: res.city, countryCode: res.countryCode, timezone: res.timezone });
+        setProxyCheckResult({
+          alive: res.alive, latency: res.latency, ip: res.ip,
+          city: res.city, countryCode: res.countryCode, timezone: res.timezone,
+          latitude: res.latitude, longitude: res.longitude,
+          locale: res.locale, languages: res.languages,
+        });
+        setProxySynced(false); // Reset sync status on new check
       } else {
         setProxyCheckResult({ alive: false, error: 'Check failed' });
       }
@@ -405,6 +412,56 @@ function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
     } finally {
       setProxyRotating(false);
     }
+  };
+
+  // ═══════════════ Proxy-Based Fingerprint Sync ═══════════════
+  // Automatically update profile fingerprint (timezone, language, geolocation)
+  // to match the geographical location detected from the proxy IP.
+  const handleSyncFingerprintFromProxy = () => {
+    if (!proxyCheckResult || !proxyCheckResult.alive) return;
+    const { timezone, locale, languages, latitude, longitude } = proxyCheckResult;
+
+    setFormData(prev => {
+      const updated = { ...prev };
+
+      // Sync timezone
+      if (timezone) {
+        updated.fingerprint = { ...updated.fingerprint, timezone };
+        updated.settings = { ...updated.settings, timezone };
+      }
+
+      // Sync language / locale
+      if (locale) {
+        updated.fingerprint = { ...updated.fingerprint, language: locale };
+        updated.settings = { ...updated.settings, language: locale };
+      }
+
+      // Sync Accept-Language header (languages string)
+      if (languages) {
+        updated.settings = {
+          ...updated.settings,
+          advanced: { ...(updated.settings.advanced || {}), languages },
+        };
+      }
+
+      // Sync geolocation coordinates
+      if (latitude != null && longitude != null && Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        updated.settings = {
+          ...updated.settings,
+          geolocation: {
+            ...(updated.settings.geolocation || {}),
+            enabled: true,
+            latitude,
+            longitude,
+            accuracy: 50,
+          },
+        };
+      }
+
+      return updated;
+    });
+
+    setProxySynced(true);
   };
 
   /* ── Per-section random generators ── */
@@ -949,6 +1006,92 @@ function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
       <ToggleHeader id="network" label="Network & Navigator" desc="WebRTC IP handling policy and navigator network/privacy properties" enabled={sectionToggles.network} onToggle={() => toggleSection('network')} />
       <div className={sectionToggles.network ? '' : 'pf-section-disabled'}>
         <fieldset className="pf-fieldset">
+<<<<<<< Updated upstream
+=======
+          <legend className="pf-legend">Proxy Settings</legend>
+          <div className="pf-row-3">
+            <div className="pf-field">
+              <label className="pf-label">Type</label>
+              <select className="pf-select" value={proxyType} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...(p.settings.proxy || {}), type: e.target.value } } }))}>
+                <option value="none">Direct (No Proxy)</option>
+                <option value="http">HTTP/HTTPS</option>
+                <option value="socks5">SOCKS5</option>
+              </select>
+            </div>
+            <div className="pf-field" style={{ flex: 2 }}>
+              <label className="pf-label">Server (IP:Port)</label>
+              <input type="text" className="pf-input" placeholder="192.168.1.1:8080" disabled={isNoProxy} value={formData.settings.proxy?.server || ''} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...(p.settings.proxy || {}), server: e.target.value, type: proxyType !== 'none' ? proxyType : 'http' } } }))} />
+            </div>
+          </div>
+          <div className="pf-row">
+            <div className="pf-field">
+              <label className="pf-label">Username (Optional)</label>
+              <input type="text" className="pf-input" disabled={isNoProxy} value={formData.settings.proxy?.username || ''} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...(p.settings.proxy || {}), username: e.target.value, type: proxyType !== 'none' ? proxyType : 'http' } } }))} />
+            </div>
+            <div className="pf-field">
+              <label className="pf-label">Password (Optional)</label>
+              <input type="password" className="pf-input" disabled={isNoProxy} value={formData.settings.proxy?.password || ''} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...(p.settings.proxy || {}), password: e.target.value, type: proxyType !== 'none' ? proxyType : 'http' } } }))} />
+            </div>
+          </div>
+          <div className="pf-field pf-mb">
+            <label className="pf-label">Proxy Rotation URL (Optional)</label>
+            <div className="pf-row" style={{ gap: '8px' }}>
+              <input type="text" className="pf-input" disabled={isNoProxy} value={formData.settings.proxy?.rotateUrl || ''} onChange={e => setFormData(p => ({ ...p, settings: { ...p.settings, proxy: { ...(p.settings.proxy || {}), rotateUrl: e.target.value, type: proxyType !== 'none' ? proxyType : 'http' } } }))} placeholder="https://api.proxyservice.com/rotate?key=..." />
+              <button type="button" className="pf-btn pf-btn-cancel" disabled={isNoProxy || proxyRotating} onClick={handleRotateProxy} style={{ flex: '0 0 auto' }}>
+                {proxyRotating ? 'Rotating...' : 'Rotate'}
+              </button>
+            </div>
+            {proxyRotateResult && (
+              <p style={{ marginTop: '4px', fontSize: '12px', color: proxyRotateResult.success ? '#10b981' : '#ef4444' }}>
+                {proxyRotateResult.success ? `Rotation successful (${proxyRotateResult.latency}ms)` : `Error: ${proxyRotateResult.error}`}
+              </p>
+            )}
+          </div>
+          <div className="pf-row">
+            <button type="button" className="pf-btn pf-btn-create" disabled={isNoProxy || proxyChecking} onClick={handleCheckProxy} style={{ width: 'max-content', padding: '6px 16px', fontSize: '13px' }}>
+              {proxyChecking ? 'Checking...' : 'Check Proxy'}
+            </button>
+          </div>
+          {proxyCheckResult && (
+            <div className="pf-info-box" style={{ marginTop: '12px', borderColor: proxyCheckResult.alive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)', backgroundColor: proxyCheckResult.alive ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)' }}>
+              {proxyCheckResult.alive ? (
+                <>
+                  <div className="pf-info-row"><span style={{ color: '#10b981', fontWeight: 500 }}>Status: Alive</span><span>Latency: {proxyCheckResult.latency}ms</span></div>
+                  <div className="pf-info-row"><span>IP:</span><span>{proxyCheckResult.ip}</span></div>
+                  <div className="pf-info-row"><span>Location:</span><span>{proxyCheckResult.city}, {proxyCheckResult.countryCode}</span></div>
+                  <div className="pf-info-row"><span>Timezone:</span><span>{proxyCheckResult.timezone}</span></div>
+                  {proxyCheckResult.locale && (
+                    <div className="pf-info-row"><span>Locale:</span><span>{proxyCheckResult.locale}</span></div>
+                  )}
+                  {proxyCheckResult.latitude != null && proxyCheckResult.longitude != null && (
+                    <div className="pf-info-row"><span>Coordinates:</span><span>{proxyCheckResult.latitude.toFixed(4)}, {proxyCheckResult.longitude.toFixed(4)}</span></div>
+                  )}
+                  {/* ── Proxy-Based Fingerprint Sync Button ── */}
+                  <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <button
+                      type="button"
+                      className="pf-btn pf-btn-create"
+                      onClick={handleSyncFingerprintFromProxy}
+                      style={{ padding: '5px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                    >
+                      ⚡ Sync Fingerprint to Proxy
+                    </button>
+                    {proxySynced && (
+                      <span style={{ color: '#10b981', fontSize: '12px', fontWeight: 500 }}>
+                        ✓ Synced — Timezone: {proxyCheckResult.timezone}, Locale: {proxyCheckResult.locale}
+                      </span>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="pf-info-row"><span style={{ color: '#ef4444', fontWeight: 500 }}>Status: Dead</span><span style={{ color: '#ef4444' }}>{proxyCheckResult.error}</span></div>
+              )}
+            </div>
+          )}
+        </fieldset>
+
+        <fieldset className="pf-fieldset">
+>>>>>>> Stashed changes
           <legend className="pf-legend">WebRTC</legend>
           <div className="pf-field">
             <label className="pf-label">IP Handling Policy</label>
