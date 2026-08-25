@@ -155,6 +155,13 @@ function ScriptsTab({ profiles }) {
 
     useEffect(() => { load(); }, [load]);
 
+    // Auto-refresh when script data changes from external source (e.g. REST API)
+    useEffect(() => {
+        if (!window.electronAPI?.onScriptsUpdated) return;
+        const unsub = window.electronAPI.onScriptsUpdated(() => { load(); });
+        return () => { if (typeof unsub === 'function') unsub(); };
+    }, [load]);
+
     const handleNew = () => {
         setEditing({ id: null, name: '', description: '', code: DEFAULT_CODE });
         setSelectedId(null);

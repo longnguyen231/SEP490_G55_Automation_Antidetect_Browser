@@ -351,7 +351,7 @@ function App() {
   useEffect(() => {
     let unsub = null;
     if (window.electronAPI?.onProfilesUpdated) {
-      unsub = window.electronAPI.onProfilesUpdated(() => loadProfiles());
+      unsub = window.electronAPI.onProfilesUpdated(() => loadProfilesLocal());
     }
     return () => {
       try { unsub?.(); } catch {}
@@ -427,6 +427,21 @@ function App() {
       setEnginePrefs(prev => { const next = { ...prev }; (data || []).forEach(p => { next[p.id] = p?.settings?.engine || 'playwright'; }); return next; });
       await refreshRunningStatus(data);
     } catch (e) { console.error('Error loading profiles:', e); }
+  };
+
+  // Refresh directly from local storage — used when reacting to 'profiles-updated'
+  // (fired only by local-only changes: REST API / cron automation). Going through
+  // loadProfiles()/api.getProfiles() here would re-fetch Firestore and overwrite the
+  // local change with a stale cloud snapshot, silently reverting it.
+  const loadProfilesLocal = async () => {
+    try {
+      if (!window.electronAPI?.getProfiles) return;
+      const data = await window.electronAPI.getProfiles();
+      setProfiles(data);
+      setHeadlessPrefs(prev => { const next = { ...prev }; (data || []).forEach(p => { if (next[p.id] === undefined) next[p.id] = !!p?.settings?.headless; }); return next; });
+      setEnginePrefs(prev => { const next = { ...prev }; (data || []).forEach(p => { next[p.id] = p?.settings?.engine || 'playwright'; }); return next; });
+      await refreshRunningStatus(data);
+    } catch (e) { console.error('Error loading local profiles:', e); }
   };
 
   // Reload profiles whenever the logged-in user changes (login/logout/switch account)

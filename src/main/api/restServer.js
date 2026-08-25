@@ -456,32 +456,19 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
           genOpts.language = fpOpts.locale;
         }
 
-        // Regenerate fingerprint with new options, merging over existing
+        // Regenerate fingerprint with new options, merging over existing.
+        // generated.fingerprint already matches the current profile schema
+        // (same generator used for new-profile defaults) — merge directly instead
+        // of hand-writing legacy fields (canvasNoise/webglNoise/audioSampleRate/...)
+        // that no longer exist on the fingerprint shape read by the launch flow.
         const {
           generateFingerprint,
         } = require("../engine/fingerprintGenerator");
         const generated = generateFingerprint(genOpts);
-        const randInt = (min, max) =>
-          Math.floor(Math.random() * (max - min + 1)) + min;
-        const randFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
         updatePayload.fingerprint = {
           ...existing.fingerprint,
           ...generated.fingerprint,
-          canvasNoise: randInt(100000000, 2100000000),
-          canvasNoiseIntensity: randFrom([1, 2, 3, 4, 5]),
-          webglNoise: randInt(100000000, 2100000000),
-          maxTextureSize: randFrom([4096, 8192, 16384]),
-          webglExtensions: randFrom([
-            "EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float",
-            "ANGLE_instanced_arrays, OES_texture_float, WEBGL_depth_texture, OES_vertex_array_object",
-            "EXT_texture_filter_anisotropic, WEBGL_compressed_texture_s3tc, OES_element_index_uint",
-          ]),
-          audioNoise: randInt(100000000, 2100000000),
-          audioSampleRate: randFrom([44100, 48000, 96000]),
-          audioChannels: randFrom(["Mono", "Stereo", "Surround"]),
-          colorDepth: randFrom([24, 32]),
-          pixelRatio: randFrom([1, 1, 1, 1.25, 1.5, 2]),
         };
         // Also update settings with new generated hardware values
         updatePayload.settings = {
@@ -1219,11 +1206,15 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       const { getProfilesInternal } = require("../storage/profiles");
       const proxies = await getProxiesInternal();
       const profiles = await getProfilesInternal();
-      // Collect all proxy IDs that are assigned to profiles
-      const assignedIds = new Set(
-        profiles.map((p) => p.proxy?.id).filter(Boolean),
+      // Proxies are embedded into profile.settings.proxy as a host:port string —
+      // no proxy.id reference is stored anywhere, so "assigned" must be matched by server string.
+      const assignedServers = new Set(
+        profiles.map((p) => p.settings?.proxy?.server).filter(Boolean),
       );
-      const unassigned = proxies.filter((px) => !assignedIds.has(px.id));
+      const unassigned = proxies.filter((px) => {
+        const server = px.port ? `${px.host}:${px.port}` : px.host;
+        return !assignedServers.has(server);
+      });
       reply.send({ success: true, proxies: unassigned });
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
@@ -1291,14 +1282,27 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
           .code(404)
           .send({ success: false, error: "Profile not found" });
 
-      const updated = { ...profile, proxy: proxyResult.proxy };
+      // Proxies are embedded into profile.settings.proxy (host:port string), matching
+      // the shape App.jsx's handleLinkProxy() writes — no proxy.id reference is kept.
+      const px = proxyResult.proxy;
+      const proxySettings = {
+        type: (px.type || "http").toLowerCase(),
+        server: px.port ? `${px.host}:${px.port}` : px.host,
+        username: px.username || "",
+        password: px.password || "",
+        rotateUrl: px.rotateUrl || "",
+      };
+      const updated = {
+        ...profile,
+        settings: { ...(profile.settings || {}), proxy: proxySettings },
+      };
       const r = await handlers.saveProfileInternal(updated);
       if (r.success) broadcastProfilesUpdated();
       reply
-        .code()
+        .code(r.success ? 200 : 400)
         .send({
           success: r.success,
-          message: "Proxy assigned",
+          message: r.success ? "Proxy assigned" : r.error,
           proxy: proxyResult.proxy,
         });
     } catch (e) {
@@ -1322,10 +1326,18 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
           .code(404)
           .send({ success: false, error: "Profile not found" });
 
-      const updated = { ...profile, proxy: null };
+      const updated = {
+        ...profile,
+        settings: {
+          ...(profile.settings || {}),
+          proxy: { type: "none", server: "", username: "", password: "", rotateUrl: "" },
+        },
+      };
       const r = await handlers.saveProfileInternal(updated);
       if (r.success) broadcastProfilesUpdated();
-      reply.code().send({ success: r.success, message: "Proxy unassigned" });
+      reply
+        .code(r.success ? 200 : 400)
+        .send({ success: r.success, message: r.success ? "Proxy unassigned" : r.error });
     } catch (e) {
       reply.code(500).send({ success: false, error: e?.message || String(e) });
     }
@@ -1549,21 +1561,11 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
           .code(404)
           .send({ success: false, error: "Profile not found" });
 
-      const seed = fp._meta?.seed || Math.floor(Math.random() * 2100000000);
-      let fonts =
-        fp._meta?.fonts || profile.fingerprint?.fonts || "Arial, Courier New";
-      if (Array.isArray(fonts)) {
-        fonts = fonts.join(", ");
-      }
-      const gpuV =
-        fp.settings?.advanced?.webglVendor ||
-        profile.settings?.gpuVendor ||
-        "Google Inc. (Intel)";
-      const gpuR =
-        fp.settings?.advanced?.webglRenderer ||
-        profile.settings?.gpuRenderer ||
-        "ANGLE (Intel, Intel(R) HD Graphics)";
-
+      // fp.fingerprint / fp.settings already match the current profile schema
+      // (generateFingerprint() is the same generator used for new-profile defaults),
+      // so merge them directly rather than hand-mapping legacy field names
+      // (webglNoise/canvasNoise/gpuVendor/batteryLevel/...) that no longer exist
+      // on the fingerprint/settings shape read by the launch flow.
       // Bật tất cả các cờ enabled cho các section giống như khi bấm Generate trong UI
       const toggles = {
         identity: { enabled: true },
@@ -1579,54 +1581,8 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
 
       const updated = {
         ...profile,
-        fingerprint: {
-          ...profile.fingerprint,
-          ...fp.fingerprint,
-          device:
-            fp.fingerprint?.device || profile.fingerprint?.device || "Desktop",
-          fonts: fonts,
-          webglNoise: seed,
-          canvasNoise: seed,
-          audioNoise: seed,
-          maxTextureSize: profile.fingerprint?.maxTextureSize || 8192,
-          webglExtensions:
-            profile.fingerprint?.webglExtensions ||
-            "EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float",
-          canvasNoiseIntensity: profile.fingerprint?.canvasNoiseIntensity || 2,
-          audioSampleRate: profile.fingerprint?.audioSampleRate || 48000,
-          audioChannels: profile.fingerprint?.audioChannels || "Stereo",
-          connectionType: profile.fingerprint?.connectionType || "Wi-Fi",
-          pdfViewer: profile.fingerprint?.pdfViewer || "Enabled",
-          batteryCharging: profile.fingerprint?.batteryCharging || "No",
-          batteryLevel: profile.fingerprint?.batteryLevel || 0.99,
-          batteryChargingTime: profile.fingerprint?.batteryChargingTime || 0,
-          batteryDischargingTime:
-            profile.fingerprint?.batteryDischargingTime || 15000,
-          colorDepth:
-            fp.fingerprint?.colorDepth || profile.fingerprint?.colorDepth || 24,
-          pixelRatio:
-            fp.fingerprint?.pixelRatio ||
-            fp.settings?.advanced?.devicePixelRatio ||
-            profile.fingerprint?.pixelRatio ||
-            1,
-        },
-        settings: {
-          ...profile.settings,
-          ...fp.settings,
-          ...toggles,
-          gpuVendor: gpuV,
-          gpuRenderer: gpuR,
-          mediaDevices: fp.settings?.mediaDevices ||
-            profile.settings?.mediaDevices || {
-              speakers: 1,
-              microphones: 0,
-              webcams: 1,
-            },
-          webrtc:
-            fp.settings?.webrtc ||
-            profile.settings?.webrtc ||
-            "Public + private",
-        },
+        fingerprint: { ...profile.fingerprint, ...fp.fingerprint },
+        settings: { ...profile.settings, ...fp.settings, ...toggles },
       };
       const r = await handlers.saveProfileInternal(updated);
       if (r.success) broadcastProfilesUpdated();

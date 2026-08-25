@@ -339,6 +339,13 @@ function TaskLogsTab() {
 
   useEffect(() => { loadLogs(); }, [loadLogs]);
 
+  // Auto-refresh when task log data changes from external source (e.g. REST API)
+  useEffect(() => {
+    if (!window.electronAPI?.onTaskLogsUpdated) return;
+    const unsub = window.electronAPI.onTaskLogsUpdated(() => { loadLogs(); });
+    return () => { if (typeof unsub === 'function') unsub(); };
+  }, [loadLogs]);
+
   const handleSelect = async (log) => {
     setSelectedLog(log);
     try {
