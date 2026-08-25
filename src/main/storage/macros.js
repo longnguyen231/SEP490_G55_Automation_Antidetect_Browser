@@ -9,7 +9,7 @@ function macrosFilePath() {
   return path.join(dir, 'macros.json');
 }
 
-function readMacros() {
+function readMacros() {                                                                                                                                                                                             
   try {
     const p = macrosFilePath();
     if (!fs.existsSync(p)) {
