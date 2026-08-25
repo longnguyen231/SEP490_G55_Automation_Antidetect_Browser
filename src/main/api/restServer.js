@@ -244,45 +244,15 @@ async function buildFastifyApp(rest, openapiPath, handlers) {
       }
       // If locale is invalid/placeholder → let generator pick a random realistic locale
 
-      // Generate base fingerprint
+      // Generate base fingerprint — generated.fingerprint / generated.settings already
+      // match the current profile schema (same generator used by the desktop app for
+      // new-profile defaults and the "Quick Generate" button), so use them as-is rather
+      // than hand-adding legacy fields (canvasNoise/webglNoise/batteryLevel/fonts/...)
+      // that no longer exist on the fingerprint shape read by the launch flow.
       const { generateFingerprint } = require("../engine/fingerprintGenerator");
       const generated = generateFingerprint(genOpts);
-      const fp = generated.fingerprint;
+      const enrichedFingerprint = generated.fingerprint;
       const genSettings = generated.settings;
-
-      // ── Enrich fingerprint to match ALL fields UI's generateConsistentFingerprint() produces ──
-      // The backend generator only produces basic fields. UI adds canvas/webgl/audio noise,
-      // fonts, colorDepth, pixelRatio, etc. Missing fields = browser leaks real values.
-      const randInt = (min, max) =>
-        Math.floor(Math.random() * (max - min + 1)) + min;
-      const randFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
-
-      const enrichedFingerprint = {
-        ...fp,
-        canvasNoise: randInt(100000000, 2100000000),
-        canvasNoiseIntensity: randFrom([1, 2, 3, 4, 5]),
-        webglNoise: randInt(100000000, 2100000000),
-        maxTextureSize: randFrom([4096, 8192, 16384]),
-        webglExtensions: randFrom([
-          "EXT_texture_compression_bptc, ANGLE_instanced_arrays, OES_texture_float",
-          "ANGLE_instanced_arrays, OES_texture_float, WEBGL_depth_texture, OES_vertex_array_object",
-          "EXT_texture_filter_anisotropic, WEBGL_compressed_texture_s3tc, OES_element_index_uint",
-        ]),
-        audioNoise: randInt(100000000, 2100000000),
-        audioSampleRate: randFrom([44100, 48000, 96000]),
-        audioChannels: randFrom(["Mono", "Stereo", "Surround"]),
-        colorDepth: randFrom([24, 32]),
-        pixelRatio: randFrom([1, 1, 1, 1.25, 1.5, 2]),
-        maxTouchPoints: 0,
-        connectionType: randFrom(["Ethernet", "Wi-Fi"]),
-        pdfViewer: "Enabled",
-        batteryCharging: "No",
-        batteryLevel: Number((Math.random() * 0.9 + 0.1).toFixed(2)),
-        batteryChargingTime: 0,
-        batteryDischargingTime: randInt(5000, 20000),
-        fonts:
-          "Cambria, Microsoft New Tai Lue, Constantia, Palatino Linotype, Corbel, Arial, Arial Black, Comic Sans MS, Courier New, Georgia, Impact, Lucida Console, Lucida Sans Unicode, Tahoma, Times New Roman, Trebuchet MS, Verdana, Consolas, Segoe UI, Calibri, Candara, Franklin Gothic Medium, Garamond",
-      };
 
       // ── Map proxy from API format → settings.proxy ──
       let proxySettings = { server: "", username: "", password: "" };

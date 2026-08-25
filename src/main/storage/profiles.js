@@ -340,22 +340,21 @@ async function saveProfileInternal(profile) {
   }
 }
 
+// Matches the "prof-<timestamp>" convention used by the desktop app's cloud-sync
+// write path (App.jsx api.saveProfile(): profile.id || `prof-${Date.now()}`), so a
+// profile's id looks and behaves identically whether it was created via the desktop
+// UI or the REST API. A random suffix is appended so the id still changes on every
+// call (needed for the caller's collision-retry loop) even within the same millisecond.
 function generateShortId() {
   const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let suffix = '';
   try {
-    const bytes = crypto.randomBytes(6);
-    let result = '';
-    for (let i = 0; i < 6; i++) {
-      result += CHARS[bytes[i] % CHARS.length];
-    }
-    return result;
+    const bytes = crypto.randomBytes(4);
+    for (let i = 0; i < 4; i++) suffix += CHARS[bytes[i] % CHARS.length];
   } catch {
-    let result = '';
-    for (let i = 0; i < 6; i++) {
-      result += CHARS[Math.floor(Math.random() * CHARS.length)];
-    }
-    return result;
+    for (let i = 0; i < 4; i++) suffix += CHARS[Math.floor(Math.random() * CHARS.length)];
   }
+  return `prof-${Date.now()}${suffix}`;
 }
 
 async function deleteProfileInternal(profileId) {
