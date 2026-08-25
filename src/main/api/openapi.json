@@ -9,7 +9,6 @@
     { "url": "http://127.0.0.1:4000", "description": "Local desktop app" }
   ],
   "tags": [
-    { "name": "health", "description": "Server status" },
     { "name": "profiles", "description": "Browser profile CRUD, lifecycle and session data" },
     { "name": "browsers", "description": "Launch/close/status and generic method dispatch for a running profile" },
     { "name": "browser-actions", "description": "Granular Playwright page actions (navigate, click, type, keyboard, mouse, cookies, ...)" },
@@ -19,7 +18,8 @@
     { "name": "scripts", "description": "Saved automation scripts (CRUD, cron schedule, execute)" },
     { "name": "fingerprints", "description": "Fingerprint generation, preview and per-profile regeneration" },
     { "name": "behavior", "description": "Human-like interaction simulation on a running profile" },
-    { "name": "diagnostics", "description": "Blocked-page detection and proxy connectivity check" }
+    { "name": "diagnostics", "description": "Blocked-page detection and proxy connectivity check" },
+    { "name": "health", "description": "Server status" }
   ],
   "components": {
     "parameters": {
