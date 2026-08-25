@@ -3,1410 +3,1002 @@
   "info": {
     "title": "HL-MCK Automation Antidetect Browser API",
     "version": "1.0.0",
-    "description": "REST API for browser profile management and automation. Access Swagger UI at /docs."
+    "description": "Local REST API for browser profile management and automation. Runs on the desktop app's own machine (default http://127.0.0.1:4000). Every endpoint here mirrors what the desktop UI itself does — profiles, proxies, scripts and tasks created or modified through this API are the exact same records shown in the app. Swagger UI available at /docs."
   },
+  "servers": [
+    { "url": "http://127.0.0.1:4000", "description": "Local desktop app" }
+  ],
+  "tags": [
+    { "name": "health", "description": "Server status" },
+    { "name": "profiles", "description": "Browser profile CRUD, lifecycle and session data" },
+    { "name": "browsers", "description": "Launch/close/status and generic method dispatch for a running profile" },
+    { "name": "browser-actions", "description": "Granular Playwright page actions (navigate, click, type, keyboard, mouse, cookies, ...)" },
+    { "name": "browser-context", "description": "Browser context-level operations (storage state, tabs, permissions, geolocation)" },
+    { "name": "tasks", "description": "Ad-hoc script execution jobs with logged output" },
+    { "name": "proxies", "description": "Proxy pool CRUD and profile assignment" },
+    { "name": "scripts", "description": "Saved automation scripts (CRUD, cron schedule, execute)" },
+    { "name": "fingerprints", "description": "Fingerprint generation, preview and per-profile regeneration" },
+    { "name": "behavior", "description": "Human-like interaction simulation on a running profile" },
+    { "name": "diagnostics", "description": "Blocked-page detection and proxy connectivity check" }
+  ],
   "components": {
-    "schemas": {}
+    "parameters": {
+      "ProfileIdParam": {
+        "name": "profileId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" },
+        "description": "Profile id (see GET /api/profiles/)"
+      },
+      "ProfileIdParamAlt": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" },
+        "description": "Profile id (see GET /api/profiles/)"
+      }
+    },
+    "schemas": {
+      "SuccessResult": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "error": { "type": "string", "nullable": true }
+        }
+      },
+      "ErrorResult": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": { "type": "string" }
+        }
+      },
+      "SectionToggle": {
+        "type": "object",
+        "properties": { "enabled": { "type": "boolean" } }
+      },
+      "Fingerprint": {
+        "type": "object",
+        "description": "Spoofed browser identity applied via engine/fingerprintInit.js before any page script runs.",
+        "properties": {
+          "os": { "type": "string", "enum": ["Windows", "macOS", "Linux"] },
+          "browser": { "type": "string", "enum": ["Chrome", "Edge", "Firefox"] },
+          "browserVersion": { "type": "string", "example": "144.0.7539.110" },
+          "userAgent": { "type": "string" },
+          "language": { "type": "string", "example": "en-US" },
+          "screenResolution": { "type": "string", "example": "1920x1080" },
+          "timezone": { "type": "string", "example": "America/Los_Angeles" },
+          "webgl": { "type": "boolean" },
+          "canvas": { "type": "boolean" },
+          "audio": { "type": "boolean" }
+        }
+      },
+      "ProxySettings": {
+        "type": "object",
+        "description": "Proxy embedded directly on the profile (host:port string, no reference to a Proxies pool record).",
+        "properties": {
+          "server": { "type": "string", "example": "http://1.2.3.4:8080" },
+          "username": { "type": "string" },
+          "password": { "type": "string" }
+        }
+      },
+      "ProfileSettings": {
+        "type": "object",
+        "properties": {
+          "cpuCores": { "type": "integer", "minimum": 1, "maximum": 64 },
+          "memoryGB": { "type": "integer", "minimum": 1, "maximum": 256 },
+          "proxy": { "$ref": "#/components/schemas/ProxySettings" },
+          "webrtc": { "type": "string", "enum": ["default", "disable_udp", "proxy_only", "real"] },
+          "geolocation": {
+            "type": "object",
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "latitude": { "type": "number" },
+              "longitude": { "type": "number" },
+              "accuracy": { "type": "number" }
+            }
+          },
+          "mediaDevices": {
+            "type": "object",
+            "properties": {
+              "audio": { "type": "boolean" },
+              "video": { "type": "boolean" },
+              "speakers": { "type": "integer" },
+              "microphones": { "type": "integer" },
+              "webcams": { "type": "integer" }
+            }
+          },
+          "webgl": { "type": "boolean" },
+          "headless": { "type": "boolean" },
+          "engine": { "type": "string", "enum": ["playwright", "playwright-firefox", "camoufox", "cloakbrowser"] },
+          "network": { "type": "object", "properties": { "antiDetection": { "type": "boolean" } } },
+          "applyOverrides": {
+            "type": "object",
+            "description": "Per-field toggle for whether each fingerprint override is actually applied at launch.",
+            "additionalProperties": { "type": "boolean" }
+          },
+          "advanced": {
+            "type": "object",
+            "properties": {
+              "platform": { "type": "string", "example": "Win32" },
+              "dnt": { "type": "boolean" },
+              "devicePixelRatio": { "type": "number" },
+              "maxTouchPoints": { "type": "integer" },
+              "webglVendor": { "type": "string" },
+              "webglRenderer": { "type": "string" },
+              "plugins": { "type": "integer" },
+              "languages": { "type": "string", "example": "en-US,en" }
+            }
+          },
+          "identity": { "$ref": "#/components/schemas/SectionToggle" },
+          "display": { "$ref": "#/components/schemas/SectionToggle" },
+          "hardware": { "$ref": "#/components/schemas/SectionToggle" },
+          "canvas": { "$ref": "#/components/schemas/SectionToggle" },
+          "webgl_section": { "$ref": "#/components/schemas/SectionToggle" },
+          "audio": { "$ref": "#/components/schemas/SectionToggle" },
+          "media": { "$ref": "#/components/schemas/SectionToggle" },
+          "battery": { "$ref": "#/components/schemas/SectionToggle" },
+          "injectFingerprint": { "type": "boolean" }
+        }
+      },
+      "Profile": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "prof-17876430976650HcI", "description": "Generated by the server; same 'prof-<timestamp><random>' convention whether created via the desktop UI or this API." },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "startUrl": { "type": "string" },
+          "active": { "type": "boolean" },
+          "fingerprint": { "$ref": "#/components/schemas/Fingerprint" },
+          "settings": { "$ref": "#/components/schemas/ProfileSettings" },
+          "automation": {
+            "type": "object",
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "runOnLaunch": { "type": "boolean" },
+              "steps": { "type": "array", "items": { "type": "object" } },
+              "schedule": {
+                "type": "object",
+                "properties": { "enabled": { "type": "boolean" }, "cron": { "type": "string" } }
+              }
+            }
+          },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "FingerprintGenOptions": {
+        "type": "object",
+        "properties": {
+          "os": { "type": "string", "enum": ["windows", "macos", "linux"] },
+          "browser": { "type": "string", "enum": ["chrome", "firefox", "edge"] },
+          "device": { "type": "string", "enum": ["desktop", "mobile"] },
+          "locale": { "type": "string", "example": "en-US", "description": "Must be a real BCP-47 tag (e.g. en-US); invalid/placeholder values are ignored and a random locale is generated instead." }
+        }
+      },
+      "ProfileCreateRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "headless": { "type": "boolean", "default": false },
+          "fingerprintOptions": { "$ref": "#/components/schemas/FingerprintGenOptions" },
+          "proxy": {
+            "type": "object",
+            "required": ["type", "host", "port"],
+            "properties": {
+              "type": { "type": "string", "enum": ["http", "https", "socks4", "socks5"] },
+              "host": { "type": "string" },
+              "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+              "username": { "type": "string" },
+              "password": { "type": "string" }
+            }
+          }
+        }
+      },
+      "ProfileUpdateRequest": {
+        "type": "object",
+        "description": "Partial update — only provided fields are merged into the existing profile.",
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "startUrl": { "type": "string" },
+          "headless": { "type": "boolean" },
+          "engine": { "type": "string", "enum": ["playwright", "playwright-firefox", "camoufox", "cloakbrowser"] },
+          "proxy": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["http", "https", "socks4", "socks5"] },
+              "host": { "type": "string" },
+              "port": { "type": "integer" },
+              "username": { "type": "string" },
+              "password": { "type": "string" },
+              "server": { "type": "string", "description": "Alternative to host/port/type: a raw 'host:port' or 'scheme://host:port' string." }
+            }
+          },
+          "webrtc": { "type": "string", "enum": ["default", "disable_udp", "proxy_only", "real"] },
+          "settings": { "type": "object", "description": "Any raw settings fields, merged in as-is (overlaid over generated/existing settings)." },
+          "fingerprintOptions": { "$ref": "#/components/schemas/FingerprintGenOptions" },
+          "fingerprint": { "type": "object", "description": "Raw fingerprint fields, merged in as-is over the existing fingerprint." }
+        }
+      },
+      "Proxy": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["http", "https", "socks4", "socks5"] },
+          "host": { "type": "string" },
+          "port": { "type": "integer" },
+          "username": { "type": "string" },
+          "password": { "type": "string" },
+          "status": { "type": "string", "example": "unchecked" },
+          "latency": { "type": "number", "nullable": true },
+          "country": { "type": "string" },
+          "countryCode": { "type": "string" },
+          "city": { "type": "string" },
+          "ip": { "type": "string" },
+          "rotateUrl": { "type": "string" },
+          "note": { "type": "string" },
+          "lastChecked": { "type": "string", "format": "date-time", "nullable": true },
+          "lastRotated": { "type": "string", "format": "date-time", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ProxyCreateRequest": {
+        "type": "object",
+        "required": ["host", "port"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["http", "https", "socks4", "socks5"], "default": "http" },
+          "host": { "type": "string" },
+          "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+          "username": { "type": "string" },
+          "password": { "type": "string" },
+          "rotateUrl": { "type": "string" },
+          "note": { "type": "string" }
+        }
+      },
+      "Script": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "language": { "type": "string", "example": "javascript" },
+          "code": { "type": "string" },
+          "browserMode": { "type": "string", "enum": ["visible", "headless"] },
+          "schedule": {
+            "type": "object",
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "cron": { "type": "string", "example": "0 9 * * 1-5" },
+              "profileId": { "type": "string" }
+            }
+          },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ScriptCreateRequest": {
+        "type": "object",
+        "required": ["name", "content"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "content": { "type": "string", "description": "JavaScript source code." },
+          "headless": { "type": "boolean" },
+          "cronEnabled": { "type": "boolean" },
+          "cronSchedule": { "type": "string", "example": "0 9 * * 1-5" },
+          "cronProfileId": { "type": "string" }
+        }
+      },
+      "TaskLog": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "profileId": { "type": "string" },
+          "name": { "type": "string" },
+          "scriptId": { "type": "string" },
+          "scriptType": { "type": "string", "enum": ["inline", "file"] },
+          "scriptContent": { "type": "string" },
+          "headless": { "type": "boolean" },
+          "status": { "type": "string", "enum": ["queued", "running", "completed", "error", "stopped"] },
+          "output": { "type": "string", "nullable": true },
+          "error": { "type": "string", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "startedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "completedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "logs": { "type": "array", "items": { "type": "object" } }
+        }
+      },
+      "TaskCreateRequest": {
+        "type": "object",
+        "required": ["profileId", "name", "scriptContent"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "name": { "type": "string" },
+          "scriptType": { "type": "string", "enum": ["inline", "file"], "default": "inline" },
+          "scriptContent": { "type": "string" },
+          "headless": { "type": "boolean", "default": true }
+        }
+      },
+      "SelectorAction": {
+        "type": "object",
+        "required": ["selector"],
+        "properties": {
+          "selector": { "type": "string", "example": "#submit-button" },
+          "timeout": { "type": "integer", "default": 10000 }
+        }
+      }
+    }
   },
   "paths": {
     "/api/health": {
       "get": {
         "summary": "Server health check",
         "tags": ["health"],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "responses": { "200": { "description": "{ ok: true }" } }
       }
     },
+
     "/api/profiles/": {
       "get": {
         "summary": "List all profiles",
         "tags": ["profiles"],
         "responses": {
-          "200": {
-            "description": "Default Response"
-          }
+          "200": { "description": "Array of profiles", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Profile" } } } } }
         }
       },
       "post": {
         "summary": "Create a new profile",
+        "description": "Behaves identically to creating a profile in the desktop UI — same id convention, same default fingerprint generator, same section-toggle defaults (all OFF).",
         "tags": ["profiles"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["name"],
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100
-                  },
-                  "headless": {
-                    "type": "boolean"
-                  },
-                  "fingerprintOptions": {
-                    "type": "object",
-                    "properties": {
-                      "os": {
-                        "type": "string",
-                        "enum": ["windows", "macos", "linux"]
-                      },
-                      "browser": {
-                        "type": "string",
-                        "enum": ["chrome", "firefox", "edge"]
-                      },
-                      "device": {
-                        "type": "string",
-                        "enum": ["desktop", "mobile"]
-                      },
-                      "locale": {
-                        "type": "string"
-                      }
-                    }
-                  },
-                  "proxy": {
-                    "type": "object",
-                    "required": ["type", "host", "port"],
-                    "properties": {
-                      "type": {
-                        "type": "string",
-                        "enum": ["http", "https", "socks4", "socks5"]
-                      },
-                      "host": {
-                        "type": "string"
-                      },
-                      "port": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 65535
-                      },
-                      "username": {
-                        "type": "string"
-                      },
-                      "password": {
-                        "type": "string"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProfileCreateRequest" } } } },
         "responses": {
-          "200": {
-            "description": "Default Response"
-          }
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResult" }, { "type": "object", "properties": { "profile": { "$ref": "#/components/schemas/Profile" } } }] } } } },
+          "400": { "description": "Validation error or free-plan limit reached", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResult" } } } },
+          "403": { "description": "Free plan is limited to 5 profiles", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResult" } } } }
         }
       }
     },
+    "/api/profiles/bulk": {
+      "post": {
+        "summary": "Create or update up to 100 profiles in one call",
+        "tags": ["profiles"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "array", "items": { "type": "object" }, "maxItems": 100 } } } },
+        "responses": { "200": { "description": "{ success, profiles: Profile[], errors?: [] }" } }
+      },
+      "delete": {
+        "summary": "Delete multiple profiles by id",
+        "tags": ["profiles"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "ids": { "type": "array", "items": { "type": "string" } } } } } } },
+        "responses": { "200": { "description": "{ success, deleted: number, errors?: [] }" } }
+      }
+    },
+    "/api/profiles/bulk-clone": {
+      "post": {
+        "summary": "Clone up to 50 profiles by source id",
+        "tags": ["profiles"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "ids": { "type": "array", "items": { "type": "string" } }, "namePrefix": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "{ success, profiles: Profile[], errors?: [] }" } }
+      }
+    },
+
     "/api/profiles/{id}": {
       "put": {
-        "summary": "Update a profile",
+        "summary": "Update a profile (partial merge)",
         "tags": ["profiles"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100
-                  },
-                  "headless": {
-                    "type": "boolean"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "id",
-            "required": true
-          }
-        ],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParamAlt" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProfileUpdateRequest" } } } },
         "responses": {
-          "200": {
-            "description": "Default Response"
-          }
+          "200": { "description": "Updated", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResult" }, { "type": "object", "properties": { "profile": { "$ref": "#/components/schemas/Profile" } } }] } } } },
+          "404": { "description": "Profile not found" }
         }
       },
       "delete": {
-        "summary": "Delete a profile",
+        "summary": "Delete a profile (stops it first if running)",
+        "tags": ["profiles"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParamAlt" }],
+        "responses": { "200": { "description": "Deleted" }, "404": { "description": "Profile not found" } }
+      }
+    },
+    "/api/profiles/{id}/launch": {
+      "post": {
+        "summary": "Launch a profile's browser (legacy alias of POST /api/browsers/{profileId}/launch)",
+        "tags": ["profiles"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParamAlt" }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "engine": { "type": "string" }, "headless": { "type": "boolean" } } } } } },
+        "responses": { "200": { "description": "{ success, wsEndpoint }" } }
+      }
+    },
+    "/api/profiles/{id}/stop": {
+      "post": {
+        "summary": "Stop a running profile (legacy alias of POST /api/browsers/{profileId}/close)",
+        "tags": ["profiles"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParamAlt" }],
+        "responses": { "200": { "description": "{ success }" } }
+      }
+    },
+    "/api/profiles/{id}/automation/run": {
+      "post": {
+        "summary": "Run a profile's saved automation.steps immediately (profile must be running)",
+        "tags": ["profiles"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParamAlt" }],
+        "responses": { "200": { "description": "{ success, steps: number }" } }
+      }
+    },
+    "/api/stop-all": {
+      "post": {
+        "summary": "Stop every currently running profile",
+        "tags": ["profiles"],
+        "responses": { "200": { "description": "{ success }" } }
+      }
+    },
+    "/api/running-map": {
+      "get": {
+        "summary": "Map of profileId → wsEndpoint ('pipe' for Chromium) for all running profiles",
+        "tags": ["profiles"],
+        "responses": { "200": { "description": "Running map" } }
+      }
+    },
+    "/api/profiles/{id}/ws": {
+      "get": {
+        "summary": "Get a running profile's connection endpoint and health",
+        "tags": ["profiles"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParamAlt" }],
+        "responses": { "200": { "description": "{ success, wsEndpoint, running }" } }
+      }
+    },
+    "/api/profiles/{id}/cookies": {
+      "get": {
+        "summary": "Get a profile's stored cookies",
+        "tags": ["profiles"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParamAlt" }],
+        "responses": { "200": { "description": "{ success, cookies: [] }" } }
+      },
+      "post": {
+        "summary": "Import cookies into a profile",
+        "tags": ["profiles"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParamAlt" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "array", "items": { "type": "object" }, "description": "Array of Playwright-format cookie objects." } } } },
+        "responses": { "200": { "description": "{ success }" } }
+      },
+      "put": {
+        "summary": "Edit a single cookie on a profile",
+        "tags": ["profiles"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParamAlt" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": { "200": { "description": "{ success }" } }
+      },
+      "delete": {
+        "summary": "Delete one cookie (name+domain query params) or clear all cookies (no query params)",
         "tags": ["profiles"],
         "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "id",
-            "required": true
-          }
+          { "$ref": "#/components/parameters/ProfileIdParamAlt" },
+          { "name": "name", "in": "query", "schema": { "type": "string" } },
+          { "name": "domain", "in": "query", "schema": { "type": "string" } },
+          { "name": "path", "in": "query", "schema": { "type": "string" } }
         ],
+        "responses": { "200": { "description": "{ success }" } }
+      }
+    },
+    "/api/profiles/{id}/log": {
+      "get": {
+        "summary": "Get a profile's raw log file contents",
+        "tags": ["profiles"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParamAlt" }],
+        "responses": { "200": { "description": "{ success, log }" } }
+      }
+    },
+    "/api/profiles/{id}/clone": {
+      "post": {
+        "summary": "Clone a profile (copies fingerprint, settings and storage state)",
+        "tags": ["profiles"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParamAlt" }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "name": { "type": "string" }, "namePrefix": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "{ success, profile }" } }
+      }
+    },
+    "/api/profiles/{id}/scripts/{sid}/execute": {
+      "post": {
+        "summary": "Execute a saved script against a profile (runs the ethical linter first)",
+        "tags": ["scripts"],
+        "parameters": [
+          { "$ref": "#/components/parameters/ProfileIdParamAlt" },
+          { "name": "sid", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Script id" }
+        ],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "timeoutMs": { "type": "integer", "default": 120000, "maximum": 300000 } } } } } },
         "responses": {
-          "200": {
-            "description": "Default Response"
-          }
+          "200": { "description": "Execution result" },
+          "403": { "description": "Blocked by the ethical linter" }
         }
       }
     },
-    "/api/browsers/{profileId}/launch": {
+    "/api/profiles/{id}/behavior/simulate": {
       "post": {
-        "summary": "Launch browser for a profile",
-        "tags": ["browsers"],
+        "summary": "Run a human-like interaction (browse/scroll/move/click/type/idle) on a running profile",
+        "tags": ["behavior"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParamAlt" }],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "headless": {
-                    "type": "boolean",
-                    "description": "Run in headless mode"
-                  }
+                  "action": { "type": "string", "enum": ["browse", "scroll", "move", "click", "type", "idle"], "default": "browse" },
+                  "pageIndex": { "type": "integer", "default": 0 },
+                  "options": { "type": "object", "description": "Per-action options, e.g. { selector, text, x, y } depending on the action." }
                 }
               }
             }
           }
         },
+        "responses": { "200": { "description": "{ success, action }" }, "404": { "description": "Profile not running" } }
+      }
+    },
+    "/api/profiles/{id}/blocked": {
+      "get": {
+        "summary": "Check whether a running profile's current page looks blocked (Cloudflare/CAPTCHA/etc.)",
+        "tags": ["diagnostics"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParamAlt" }],
+        "responses": { "200": { "description": "{ success, blocked, pattern? }" }, "404": { "description": "Profile not running" } }
+      }
+    },
+    "/api/profiles/{id}/action/{name}": {
+      "post": {
+        "summary": "Generic dispatcher — run any action by its registry name (see GET /api/actions)",
+        "tags": ["browser-actions"],
         "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
+          { "$ref": "#/components/parameters/ProfileIdParamAlt" },
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" }, "example": "click.element" }
         ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": { "200": { "description": "Action result" } }
+      }
+    },
+    "/api/actions": {
+      "get": {
+        "summary": "List every registered action name usable with the generic dispatcher",
+        "tags": ["browser-actions"],
+        "responses": { "200": { "description": "{ success, actions: string[] }" } }
+      }
+    },
+
+    "/api/browsers/{profileId}/launch": {
+      "post": {
+        "summary": "Launch a profile's browser",
+        "tags": ["browsers"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "headless": { "type": "boolean" } } } } } },
+        "responses": { "200": { "description": "{ success, wsEndpoint }" }, "400": { "description": "Launch failed" } }
       }
     },
     "/api/browsers/{profileId}/close": {
       "post": {
-        "summary": "Close browser for a profile",
+        "summary": "Close a running profile's browser",
         "tags": ["browsers"],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }],
+        "responses": { "200": { "description": "{ success }" } }
       }
     },
     "/api/browsers/{profileId}/status": {
       "get": {
-        "summary": "Check if browser is running for a profile",
+        "summary": "Check whether a profile is currently running",
         "tags": ["browsers"],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "running": {
-                      "type": "boolean"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }],
+        "responses": { "200": { "description": "{ running: boolean }" } }
       }
     },
-    "/api/browsers/{profileId}/actions/navigate": {
+    "/api/browsers/{profileId}/execute": {
       "post": {
-        "summary": "Navigate to a URL",
-        "tags": ["browser-actions"],
+        "summary": "Generic Playwright Page method dispatcher (advanced/escape-hatch — calls page[method](...args), with optional chained calls)",
+        "tags": ["browsers"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["url"],
+                "required": ["method"],
                 "properties": {
-                  "url": {
-                    "type": "string",
-                    "description": "Target URL"
-                  },
-                  "timeout": {
-                    "type": "integer",
-                    "description": "Timeout ms (default 30000)"
-                  }
+                  "method": { "type": "string", "example": "title", "description": "Any Playwright Page/keyboard/mouse/touchscreen method name." },
+                  "args": { "type": "array", "items": {} },
+                  "chain": { "type": "array", "items": { "type": "object", "properties": { "method": { "type": "string" }, "args": { "type": "array", "items": {} } } } }
                 }
               }
             }
           }
         },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "responses": { "200": { "description": "{ success, result }" }, "404": { "description": "Profile not running" } }
+      }
+    },
+
+    "/api/browsers/{profileId}/actions/navigate": {
+      "post": {
+        "summary": "Navigate the active page to a URL",
+        "tags": ["browser-actions"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["url"], "properties": { "url": { "type": "string" }, "waitUntil": { "type": "string", "enum": ["load", "domcontentloaded", "networkidle", "commit"], "default": "load" }, "timeout": { "type": "integer" }, "index": { "type": "integer", "default": 0 }, "newPage": { "type": "boolean", "default": false } } } } } },
+        "responses": { "200": { "description": "Result" } }
       }
     },
     "/api/browsers/{profileId}/actions/reload": {
-      "post": {
-        "summary": "Reload the current page",
-        "tags": ["browser-actions"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "timeout": {
-                    "type": "integer"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
+      "post": { "summary": "Reload the current page", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "responses": { "200": { "description": "Result" } } }
     },
     "/api/browsers/{profileId}/actions/go-back": {
-      "post": {
-        "summary": "Navigate back",
-        "tags": ["browser-actions"],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
+      "post": { "summary": "Navigate back in history", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "responses": { "200": { "description": "Result" } } }
     },
     "/api/browsers/{profileId}/actions/go-forward": {
-      "post": {
-        "summary": "Navigate forward",
-        "tags": ["browser-actions"],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/api/browsers/{profileId}/actions/content": {
-      "get": {
-        "summary": "Get full page HTML content",
-        "tags": ["browser-actions"],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
+      "post": { "summary": "Navigate forward in history", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "responses": { "200": { "description": "Result" } } }
     },
     "/api/browsers/{profileId}/actions/page-info": {
-      "get": {
-        "summary": "Get current URL and page title",
-        "tags": [
-          "browser-actions"
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
+      "get": { "summary": "Get the current page's URL and title", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "responses": { "200": { "description": "{ success, url, title }" } } }
+    },
+    "/api/browsers/{profileId}/actions/content": {
+      "get": { "summary": "Get the current page's full HTML", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "responses": { "200": { "description": "{ success, content }" } } }
     },
     "/api/browsers/{profileId}/actions/screenshot": {
       "post": {
-        "summary": "Take a screenshot (returns base64 PNG)",
-        "tags": [
-          "browser-actions"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "fullPage": {
-                    "type": "boolean",
-                    "description": "Capture full scrollable page"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "summary": "Capture a screenshot (base64 PNG)",
+        "tags": ["browser-actions"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "fullPage": { "type": "boolean", "default": false }, "selector": { "type": "string", "description": "If set, screenshots only this element." } } } } } },
+        "responses": { "200": { "description": "{ success, data (base64) }" } }
       }
     },
     "/api/browsers/{profileId}/actions/click": {
       "post": {
-        "summary": "Click an element",
-        "tags": [
-          "browser-actions"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "selector"
-                ],
-                "properties": {
-                  "selector": {
-                    "type": "string",
-                    "description": "CSS selector or XPath"
-                  },
-                  "button": {
-                    "type": "string",
-                    "enum": [
-                      "left",
-                      "right",
-                      "middle"
-                    ],
-                    "description": "Mouse button"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "summary": "Click a DOM element by selector",
+        "tags": ["browser-actions"],
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["selector"], "properties": { "selector": { "type": "string" }, "button": { "type": "string", "enum": ["left", "right", "middle"], "default": "left" }, "clickCount": { "type": "integer", "default": 1 }, "timeout": { "type": "integer", "default": 10000 }, "position": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } } } } } } },
+        "responses": { "200": { "description": "Result" } }
       }
     },
     "/api/browsers/{profileId}/actions/double-click": {
-      "post": {
-        "summary": "Double-click an element",
-        "tags": [
-          "browser-actions"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "selector"
-                ],
-                "properties": {
-                  "selector": {
-                    "type": "string",
-                    "description": "CSS selector or XPath"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
+      "post": { "summary": "Double-click a DOM element", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SelectorAction" } } } }, "responses": { "200": { "description": "Result" } } }
     },
     "/api/browsers/{profileId}/actions/hover": {
-      "post": {
-        "summary": "Hover over an element",
-        "tags": [
-          "browser-actions"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "selector"
-                ],
-                "properties": {
-                  "selector": {
-                    "type": "string",
-                    "description": "CSS selector or XPath"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
+      "post": { "summary": "Hover over a DOM element", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SelectorAction" } } } }, "responses": { "200": { "description": "Result" } } }
     },
     "/api/browsers/{profileId}/actions/focus": {
-      "post": {
-        "summary": "Focus an element",
-        "tags": [
-          "browser-actions"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "selector"
-                ],
-                "properties": {
-                  "selector": {
-                    "type": "string",
-                    "description": "CSS selector or XPath"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
+      "post": { "summary": "Focus an input/textarea element", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SelectorAction" } } } }, "responses": { "200": { "description": "Result" } } }
     },
     "/api/browsers/{profileId}/actions/fill": {
-      "post": {
-        "summary": "Clear and fill a form field",
-        "tags": [
-          "browser-actions"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "selector",
-                  "value"
-                ],
-                "properties": {
-                  "selector": {
-                    "type": "string"
-                  },
-                  "value": {
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
+      "post": { "summary": "Clear and fill an input field with a value", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["selector", "value"], "properties": { "selector": { "type": "string" }, "value": { "type": "string" }, "timeout": { "type": "integer", "default": 10000 } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/type": {
+      "post": { "summary": "Type text into an element with per-key delay (simulates real typing)", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["selector", "text"], "properties": { "selector": { "type": "string" }, "text": { "type": "string" }, "delay": { "type": "integer", "default": 0 }, "timeout": { "type": "integer", "default": 10000 } } } } } }, "responses": { "200": { "description": "Result" } } }
     },
     "/api/browsers/{profileId}/actions/press-key": {
-      "post": {
-        "summary": "Press a keyboard key (e.g. Enter, Tab, Escape)",
-        "tags": [
-          "browser-actions"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "key"
-                ],
-                "properties": {
-                  "key": {
-                    "type": "string",
-                    "description": "Key name e.g. \"Enter\", \"Tab\", \"ArrowDown\""
-                  },
-                  "selector": {
-                    "type": "string",
-                    "description": "Optional: focus element before pressing key"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
+      "post": { "summary": "Press a keyboard key (Enter, Tab, Escape, ...)", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["key"], "properties": { "key": { "type": "string", "example": "Enter" }, "selector": { "type": "string" } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/select-option": {
+      "post": { "summary": "Select option(s) in a <select> element", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["selector", "values"], "properties": { "selector": { "type": "string" }, "values": { "type": "array", "items": { "type": "string" } }, "timeout": { "type": "integer", "default": 10000 } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/check": {
+      "post": { "summary": "Check a checkbox/radio element", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SelectorAction" } } } }, "responses": { "200": { "description": "Result" } } }
     },
     "/api/browsers/{profileId}/actions/scroll": {
-      "post": {
-        "summary": "Scroll the page or scroll element into view",
-        "tags": [
-          "browser-actions"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "x": {
-                    "type": "integer",
-                    "description": "Horizontal scroll delta (ignored if selector provided)"
-                  },
-                  "y": {
-                    "type": "integer",
-                    "description": "Vertical scroll delta (ignored if selector provided)"
-                  },
-                  "selector": {
-                    "type": "string",
-                    "description": "If set, scrolls this element into view"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
+      "post": { "summary": "Scroll the page or scroll a selector into view", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "x": { "type": "integer", "default": 0 }, "y": { "type": "integer", "default": 0 }, "selector": { "type": "string" }, "timeout": { "type": "integer", "default": 10000 } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/tap": {
+      "post": { "summary": "Tap a DOM element (touchscreen)", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SelectorAction" } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/drag-and-drop": {
+      "post": { "summary": "Drag one element and drop it onto another", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["source", "target"], "properties": { "source": { "type": "string" }, "target": { "type": "string" } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/dispatch-event": {
+      "post": { "summary": "Dispatch a custom DOM event on an element", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["selector", "type"], "properties": { "selector": { "type": "string" }, "type": { "type": "string", "example": "change" }, "eventInit": { "type": "object" } } } } } }, "responses": { "200": { "description": "Result" } } }
     },
     "/api/browsers/{profileId}/actions/set-viewport-size": {
-      "post": {
-        "summary": "Resize the browser viewport",
-        "tags": [
-          "browser-actions"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "width",
-                  "height"
-                ],
-                "properties": {
-                  "width": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "Viewport width in pixels"
-                  },
-                  "height": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "Viewport height in pixels"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
+      "post": { "summary": "Change the browser viewport size", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["width", "height"], "properties": { "width": { "type": "integer" }, "height": { "type": "integer" }, "deviceScaleFactor": { "type": "number" } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/set-content": {
+      "post": { "summary": "Replace the current page's HTML content", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["html"], "properties": { "html": { "type": "string" } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/wait-for-navigation": {
+      "post": { "summary": "Wait for the next navigation to complete", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "timeout": { "type": "integer", "default": 30000 } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/wait-for-selector": {
+      "post": { "summary": "Wait for a selector to appear/reach a state", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["selector"], "properties": { "selector": { "type": "string" }, "state": { "type": "string", "enum": ["attached", "detached", "visible", "hidden"], "default": "visible" }, "timeout": { "type": "integer", "default": 10000 } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/wait-for-url": {
+      "post": { "summary": "Wait until the page URL matches a pattern", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["url"], "properties": { "url": { "type": "string" }, "timeout": { "type": "integer", "default": 30000 } } } } } }, "responses": { "200": { "description": "Result" } } }
     },
     "/api/browsers/{profileId}/actions/get-text": {
-      "post": {
-        "summary": "Get innerText of an element",
-        "tags": [
-          "browser-actions"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "selector"
-                ],
-                "properties": {
-                  "selector": {
-                    "type": "string",
-                    "description": "CSS selector or XPath"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
+      "post": { "summary": "Get an element's innerText", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SelectorAction" } } } }, "responses": { "200": { "description": "{ success, text }" } } }
     },
+    "/api/browsers/{profileId}/actions/get-attribute": {
+      "post": { "summary": "Get an element's attribute value", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["selector", "name"], "properties": { "selector": { "type": "string" }, "name": { "type": "string", "example": "href" } } } } } }, "responses": { "200": { "description": "{ success, value }" } } }
+    },
+    "/api/browsers/{profileId}/actions/get-value": {
+      "post": { "summary": "Get an input element's current value", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SelectorAction" } } } }, "responses": { "200": { "description": "{ success, value }" } } }
+    },
+    "/api/browsers/{profileId}/actions/get-inner-html": {
+      "post": { "summary": "Get an element's innerHTML", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SelectorAction" } } } }, "responses": { "200": { "description": "{ success, html }" } } }
+    },
+    "/api/browsers/{profileId}/actions/evaluate": {
+      "post": { "summary": "Run arbitrary JavaScript in the page and return the result", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["expression"], "properties": { "expression": { "type": "string", "example": "document.title" } } } } } }, "responses": { "200": { "description": "{ success, result }" } } }
+    },
+    "/api/browsers/{profileId}/actions/run-script": {
+      "post": { "summary": "Run an inline script snippet in the page context", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["code"], "properties": { "code": { "type": "string" } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/cookies": {
+      "get": { "summary": "Get cookies for the active page's context", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "responses": { "200": { "description": "{ success, cookies }" } } },
+      "post": { "summary": "Set cookies on the active page's context", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "array", "items": { "type": "object" } } } } }, "responses": { "200": { "description": "Result" } } },
+      "delete": { "summary": "Clear cookies on the active page's context", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/is-visible": {
+      "post": { "summary": "Check whether an element is visible", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SelectorAction" } } } }, "responses": { "200": { "description": "{ success, value: boolean }" } } }
+    },
+    "/api/browsers/{profileId}/actions/is-hidden": {
+      "post": { "summary": "Check whether an element is hidden", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SelectorAction" } } } }, "responses": { "200": { "description": "{ success, value: boolean }" } } }
+    },
+    "/api/browsers/{profileId}/actions/is-checked": {
+      "post": { "summary": "Check whether a checkbox/radio is checked", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SelectorAction" } } } }, "responses": { "200": { "description": "{ success, value: boolean }" } } }
+    },
+    "/api/browsers/{profileId}/actions/is-enabled": {
+      "post": { "summary": "Check whether an element is enabled", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SelectorAction" } } } }, "responses": { "200": { "description": "{ success, value: boolean }" } } }
+    },
+    "/api/browsers/{profileId}/actions/is-disabled": {
+      "post": { "summary": "Check whether an element is disabled", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SelectorAction" } } } }, "responses": { "200": { "description": "{ success, value: boolean }" } } }
+    },
+    "/api/browsers/{profileId}/actions/is-editable": {
+      "post": { "summary": "Check whether an element is editable", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SelectorAction" } } } }, "responses": { "200": { "description": "{ success, value: boolean }" } } }
+    },
+    "/api/browsers/{profileId}/actions/text-content": {
+      "post": { "summary": "Get an element's textContent", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SelectorAction" } } } }, "responses": { "200": { "description": "{ success, value }" } } }
+    },
+    "/api/browsers/{profileId}/actions/wait-for-timeout": {
+      "post": { "summary": "Wait a fixed number of milliseconds", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "timeout": { "type": "integer", "example": 1000 } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/wait-for-load-state": {
+      "post": { "summary": "Wait for a page load-state (load/domcontentloaded/networkidle)", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "state": { "type": "string", "enum": ["load", "domcontentloaded", "networkidle"], "default": "load" }, "timeout": { "type": "integer" } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/set-extra-http-headers": {
+      "post": { "summary": "Set extra HTTP headers sent with every request", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": { "type": "string" }, "example": { "X-Custom-Header": "value" } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/add-init-script": {
+      "post": { "summary": "Inject a script that runs before every page load in this context", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["script"], "properties": { "script": { "type": "string" } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/keyboard/down": {
+      "post": { "summary": "Press and hold a keyboard key", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["key"], "properties": { "key": { "type": "string" } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/keyboard/up": {
+      "post": { "summary": "Release a held keyboard key", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["key"], "properties": { "key": { "type": "string" } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/keyboard/type": {
+      "post": { "summary": "Type text at the page level (not scoped to a selector) with per-key delay", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["text"], "properties": { "text": { "type": "string" }, "delay": { "type": "integer" } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/keyboard/insert-text": {
+      "post": { "summary": "Insert text at the cursor without firing key events (fast, no autocomplete triggers)", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["text"], "properties": { "text": { "type": "string" } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/mouse/click": {
+      "post": { "summary": "Click at absolute page coordinates", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/mouse/move": {
+      "post": { "summary": "Move the mouse cursor to absolute coordinates", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "steps": { "type": "integer", "default": 1 } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/mouse/dblclick": {
+      "post": { "summary": "Double-click at absolute page coordinates", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/mouse/down": {
+      "post": { "summary": "Press the mouse button down", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "button": { "type": "string", "enum": ["left", "right", "middle"], "default": "left" } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/mouse/up": {
+      "post": { "summary": "Release the mouse button", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "button": { "type": "string", "enum": ["left", "right", "middle"], "default": "left" } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/actions/mouse/wheel": {
+      "post": { "summary": "Scroll the mouse wheel by a delta", "tags": ["browser-actions"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "deltaX": { "type": "number", "default": 0 }, "deltaY": { "type": "number", "default": 0 } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+
+    "/api/browsers/{profileId}/context/storage-state": {
+      "get": { "summary": "Get the raw Playwright storage state (cookies + localStorage) for a profile", "tags": ["browser-context"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "responses": { "200": { "description": "{ success, storageState }" } } }
+    },
+    "/api/browsers/{profileId}/context/new-page": {
+      "post": { "summary": "Open a new tab in the profile's context", "tags": ["browser-context"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/context/pages": {
+      "get": { "summary": "List open tabs/pages for a running profile", "tags": ["browser-context"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "responses": { "200": { "description": "{ success, pages: [{ url, title }] }" } } }
+    },
+    "/api/browsers/{profileId}/context/extra-http-headers": {
+      "post": { "summary": "Set extra HTTP headers at the context level (applies to all tabs)", "tags": ["browser-context"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": { "type": "string" } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/context/grant-permissions": {
+      "post": { "summary": "Grant browser permissions (camera, microphone, geolocation, ...)", "tags": ["browser-context"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "permissions": { "type": "array", "items": { "type": "string" }, "example": ["geolocation", "camera"] } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/context/clear-permissions": {
+      "post": { "summary": "Revoke all granted browser permissions", "tags": ["browser-context"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "responses": { "200": { "description": "Result" } } }
+    },
+    "/api/browsers/{profileId}/context/geolocation": {
+      "post": { "summary": "Override the browser's reported geolocation", "tags": ["browser-context"], "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["latitude", "longitude"], "properties": { "latitude": { "type": "number" }, "longitude": { "type": "number" }, "accuracy": { "type": "number", "default": 100 } } } } } }, "responses": { "200": { "description": "Result" } } }
+    },
+
     "/api/tasks/": {
       "get": {
-        "summary": "List tasks, optionally filtered by profileId",
+        "summary": "List task logs (optionally filtered by profileId)",
         "tags": ["tasks"],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "query",
-            "name": "profileId",
-            "required": false,
-            "description": "Filter by profile ID"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "parameters": [{ "name": "profileId", "in": "query", "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "{ success, tasks: TaskLog[] }", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/TaskLog" } } } } } } } }
       },
       "post": {
-        "summary": "Create a new automation task",
+        "summary": "Create a task: run an ad-hoc inline script against a profile",
+        "description": "Does not require the script to be saved in the Scripts library — scriptContent is executed directly. Runs the ethical linter before execution.",
         "tags": ["tasks"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "profileId",
-                  "name",
-                  "scriptType",
-                  "scriptContent"
-                ],
-                "properties": {
-                  "profileId": {
-                    "type": "string",
-                    "description": "ID of the profile to run the task on"
-                  },
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  },
-                  "scriptType": {
-                    "type": "string",
-                    "enum": ["file", "inline"],
-                    "description": "'file' = path to script file, 'inline' = script string"
-                  },
-                  "scriptContent": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Script file path or inline script"
-                  }
-                }
-              }
-            }
-          }
-        },
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TaskCreateRequest" } } } },
         "responses": {
-          "200": {
-            "description": "Default Response"
-          }
+          "201": { "description": "Created (status: queued)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TaskLog" } } } },
+          "400": { "description": "Missing required field or profile not found" }
         }
       }
     },
     "/api/tasks/{id}/run": {
       "post": {
-        "summary": "Enqueue a task for execution",
+        "summary": "Run (or re-run) a task by id",
         "tags": ["tasks"],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "id",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "{ success, message, taskId } — status updates are async, poll GET /api/tasks/" }, "403": { "description": "Blocked by the ethical linter" }, "404": { "description": "Task not found" } }
       }
     },
     "/api/tasks/{id}/cancel": {
       "post": {
-        "summary": "Cancel a queued or running task",
+        "summary": "Cancel a running task",
         "tags": ["tasks"],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "id",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "{ success }" } }
       }
     },
     "/api/tasks/{id}": {
       "delete": {
-        "summary": "Delete a task record",
+        "summary": "Delete a task log record",
         "tags": ["tasks"],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "id",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "{ success }" }, "404": { "description": "Task not found" } }
       }
     },
+
     "/api/proxies/": {
       "get": {
-        "summary": "List all proxies",
+        "summary": "List all proxies in the pool",
         "tags": ["proxies"],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "responses": { "200": { "description": "{ success, proxies: Proxy[] }", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "proxies": { "type": "array", "items": { "$ref": "#/components/schemas/Proxy" } } } } } } } }
       },
       "post": {
-        "summary": "Create a new proxy",
+        "summary": "Create a proxy",
         "tags": ["proxies"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["type", "host", "port"],
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "maxLength": 200,
-                    "description": "Optional proxy label"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": ["http", "https", "socks4", "socks5"]
-                  },
-                  "host": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "port": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 65535
-                  },
-                  "username": {
-                    "type": "string"
-                  },
-                  "password": {
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProxyCreateRequest" } } } },
+        "responses": { "201": { "description": "Created" }, "400": { "description": "Validation error" } }
+      }
+    },
+    "/api/proxies/unassigned": {
+      "get": {
+        "summary": "List proxies not currently used by any profile",
+        "description": "A proxy is considered assigned if its host:port matches some profile's settings.proxy.server (proxies have no stored profile reference — this is a value match, not a foreign key).",
+        "tags": ["proxies"],
+        "responses": { "200": { "description": "{ success, proxies: Proxy[] }" } }
       }
     },
     "/api/proxies/{id}": {
       "put": {
         "summary": "Update a proxy",
         "tags": ["proxies"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "maxLength": 200
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": ["http", "https", "socks4", "socks5"]
-                  },
-                  "host": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "port": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 65535
-                  },
-                  "username": {
-                    "type": "string",
-                    "nullable": true
-                  },
-                  "password": {
-                    "type": "string",
-                    "nullable": true
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "id",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProxyCreateRequest" } } } },
+        "responses": { "200": { "description": "Updated" }, "404": { "description": "Proxy not found" } }
       },
       "delete": {
         "summary": "Delete a proxy",
         "tags": ["proxies"],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "id",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "{ success }" } }
       }
     },
+    "/api/proxies/{id}/assign": {
+      "post": {
+        "summary": "Assign a proxy to a profile",
+        "description": "Writes the proxy's host:port/credentials into profile.settings.proxy (embedded by value) — the same shape and effect as linking a proxy in the desktop UI.",
+        "tags": ["proxies"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Proxy id" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["profileId"], "properties": { "profileId": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "{ success, message, proxy }" }, "404": { "description": "Proxy or profile not found" } }
+      }
+    },
+    "/api/proxies/unassign": {
+      "post": {
+        "summary": "Remove the proxy from a profile (resets settings.proxy to empty)",
+        "tags": ["proxies"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["profileId"], "properties": { "profileId": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "{ success, message }" }, "404": { "description": "Profile not found" } }
+      }
+    },
+    "/api/proxy/check": {
+      "post": {
+        "summary": "Test a proxy's connectivity, latency and exit-IP geolocation (does not need to already exist in the pool)",
+        "tags": ["diagnostics"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["host", "port"], "properties": { "host": { "type": "string" }, "port": { "type": "integer" }, "type": { "type": "string", "enum": ["http", "https", "socks4", "socks5"] }, "username": { "type": "string" }, "password": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "{ success, alive, latency, country, city, timezone, ip }" }, "400": { "description": "host/port missing" } }
+      }
+    },
+
     "/api/scripts/": {
       "get": {
-        "summary": "List all scripts",
+        "summary": "List all saved scripts",
         "tags": ["scripts"],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "responses": { "200": { "description": "Array of scripts", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Script" } } } } } }
       },
       "post": {
-        "summary": "Create a new script",
+        "summary": "Create a script",
         "tags": ["scripts"],
-        "description": "Scripts receive `page`, `context`, `profileId`, and `log(msg)` globals when executed. Optionally schedule with a cron expression.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["name", "content"],
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  },
-                  "description": {
-                    "type": "string",
-                    "description": "Optional description"
-                  },
-                  "content": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Script source code"
-                  },
-                  "headless": {
-                    "type": "boolean",
-                    "description": "Run in headless mode when triggered by cron"
-                  },
-                  "cronSchedule": {
-                    "type": "string",
-                    "nullable": true,
-                    "description": "Cron expression e.g. \"0 * * * *\" (hourly)"
-                  },
-                  "cronEnabled": {
-                    "type": "boolean",
-                    "description": "Enable scheduled execution"
-                  },
-                  "cronProfileId": {
-                    "type": "string",
-                    "nullable": true,
-                    "description": "Profile ID to use for cron-triggered runs"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScriptCreateRequest" } } } },
+        "responses": { "201": { "description": "Created" }, "400": { "description": "Missing name or content" } }
       }
     },
     "/api/scripts/{id}": {
-      "put": {
-        "summary": "Update a script",
+      "get": {
+        "summary": "Get a script by id",
         "tags": ["scripts"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "content": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "headless": {
-                    "type": "boolean"
-                  },
-                  "cronSchedule": {
-                    "type": "string",
-                    "nullable": true
-                  },
-                  "cronEnabled": {
-                    "type": "boolean"
-                  },
-                  "cronProfileId": {
-                    "type": "string",
-                    "nullable": true
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "id",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Script", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Script" } } } }, "404": { "description": "Not found" } }
+      },
+      "put": {
+        "summary": "Update a script (partial — all fields optional)",
+        "tags": ["scripts"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScriptCreateRequest" } } } },
+        "responses": { "200": { "description": "Updated" }, "404": { "description": "Not found" } }
       },
       "delete": {
-        "summary": "Delete a script and cancel its cron job",
+        "summary": "Delete a script (also cancels its cron job)",
         "tags": ["scripts"],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "id",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "{ success }" } }
       }
     },
+
     "/api/fingerprints/preview": {
       "post": {
-        "summary": "Generate a fingerprint preview (not saved)",
+        "summary": "Generate a random fingerprint for preview only (not saved to any profile)",
         "tags": ["fingerprints"],
-        "description": "Returns a generated fingerprint config without persisting it. Useful for previewing before applying.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "os": {
-                    "type": "string",
-                    "enum": ["windows", "macos", "linux"]
-                  },
-                  "browser": {
-                    "type": "string",
-                    "enum": ["chrome", "firefox", "edge"]
-                  },
-                  "device": {
-                    "type": "string",
-                    "enum": ["desktop", "mobile"]
-                  },
-                  "locale": {
-                    "type": "string",
-                    "description": "BCP-47 locale e.g. \"en-US\", \"vi-VN\""
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "os": { "type": "string", "enum": ["windows", "macos", "linux"] }, "browser": { "type": "string", "enum": ["chrome", "firefox", "edge"] }, "locale": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Flattened fingerprint object matching external fingerprinting-lib conventions (userAgent, screen, webgl, canvas, audio, userAgentData, ...)" } }
       }
     },
     "/api/fingerprints/{profileId}/generate": {
       "post": {
-        "summary": "Generate and save a fingerprint for a profile",
+        "summary": "Generate a new fingerprint and save it directly onto a profile",
         "tags": ["fingerprints"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "os": {
-                    "type": "string",
-                    "enum": ["windows", "macos", "linux"]
-                  },
-                  "browser": {
-                    "type": "string",
-                    "enum": ["chrome", "firefox", "edge"]
-                  },
-                  "device": {
-                    "type": "string",
-                    "enum": ["desktop", "mobile"]
-                  },
-                  "locale": {
-                    "type": "string",
-                    "description": "BCP-47 locale e.g. \"en-US\", \"vi-VN\""
-                  }
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "profileId",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
+        "parameters": [{ "$ref": "#/components/parameters/ProfileIdParam" }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "os": { "type": "string", "enum": ["windows", "macos", "linux"] }, "browser": { "type": "string", "enum": ["chrome", "firefox", "edge"] }, "locale": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Flattened fingerprint of the newly-saved profile" }, "404": { "description": "Profile not found" } }
+      }
+    },
+    "/api/fingerprint/generate": {
+      "post": {
+        "summary": "Generate a raw fingerprint object (engine-native shape, not the flattened /api/fingerprints/preview format)",
+        "tags": ["fingerprints"],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "os": { "type": "string" }, "language": { "type": "string" }, "timezone": { "type": "string" }, "seed": { "type": "integer", "description": "Mulberry32 PRNG seed — same seed always reproduces the same fingerprint." } } } } } },
+        "responses": { "200": { "description": "{ success, fingerprint, settings, _meta }" } }
+      }
+    },
+    "/api/fingerprint/generate-batch": {
+      "post": {
+        "summary": "Generate up to 50 unique raw fingerprints at once",
+        "tags": ["fingerprints"],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "count": { "type": "integer", "minimum": 1, "maximum": 50, "default": 1 }, "os": { "type": "string" }, "language": { "type": "string" }, "timezone": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "{ success, count, fingerprints: [] }" } }
+      }
+    },
+
+    "/api/locales-timezones": {
+      "get": {
+        "summary": "List available locale/timezone pairs used by the fingerprint generator",
+        "tags": ["fingerprints"],
+        "responses": { "200": { "description": "{ locales: [], timezones: [] }" } }
       }
     }
-  },
-  "tags": [
-    {
-      "name": "profiles",
-      "description": "Browser profile CRUD"
-    },
-    {
-      "name": "browsers",
-      "description": "Browser lifecycle control"
-    },
-    {
-      "name": "browser-actions",
-      "description": "Full Playwright API over REST: navigation, clicks, keyboard, mouse, waits, evaluate, cookies, screenshots, context operations"
-    },
-    {
-      "name": "tasks",
-      "description": "Automation task management"
-    },
-    {
-      "name": "proxies",
-      "description": "Proxy pool management and profile assignment"
-    },
-    {
-      "name": "scripts",
-      "description": "Script library with optional cron scheduling"
-    },
-    {
-      "name": "fingerprints",
-      "description": "Fingerprint generation and management"
-    }
-  ]
+  }
 }
