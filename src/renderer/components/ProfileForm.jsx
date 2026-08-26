@@ -868,11 +868,11 @@ function ProfileForm({ profile, onSave, onCancel, initialTab = 'general' }) {
         </div>
         <div className="pf-field pf-mb">
           <label className="pf-label">GPU Vendor</label>
-          <input type="text" className="pf-input" value={formData.settings.gpuVendor || ''} onChange={e => setS('gpuVendor', e.target.value)} />
+          <input type="text" className="pf-input" value={formData.settings.advanced?.webglVendor || formData.settings.gpuVendor || ''} onChange={e => setAdv('webglVendor', e.target.value)} />
         </div>
         <div className="pf-field pf-mb">
           <label className="pf-label">GPU Renderer</label>
-          <input type="text" className="pf-input" value={formData.settings.gpuRenderer || ''} onChange={e => setS('gpuRenderer', e.target.value)} />
+          <input type="text" className="pf-input" value={formData.settings.advanced?.webglRenderer || formData.settings.gpuRenderer || ''} onChange={e => setAdv('webglRenderer', e.target.value)} />
         </div>
         <div className="pf-field pf-mb">
           <label className="pf-label">Installed Fonts ({fontCount})</label>
