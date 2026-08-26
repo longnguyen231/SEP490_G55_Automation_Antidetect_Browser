@@ -765,19 +765,42 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
             }
           }
 
+          // ═══════════════════════════════════════════════════════════════
+          // [BẢO VỆ ĐỒ ÁN] HÀM CỐT LÕI: thêm nhiễu vào dữ liệu điểm ảnh (pixel)
+          // của Canvas 2D — đây là nơi pixel THỰC SỰ bị thay đổi giá trị.
+          // ═══════════════════════════════════════════════════════════════
           // Noise for 2D Canvas ImageData
           function perturbImageData(imageData) {
+            // imageData.data là 1 mảng số nguyên (Uint8ClampedArray), cứ 4 phần
+            // tử liên tiếp tạo thành 1 pixel: [R, G, B, A, R, G, B, A, ...]
             const data = imageData.data;
             const len = data.length;
+
+            // divisor: intensity (1-10, người dùng chỉnh ở tab Canvas) càng cao
+            // thì divisor càng nhỏ → càng nhiều pixel bị chọn để nhiễu.
+            // intensity=1 → divisor=400 (rất thưa, ~1/400 pixel bị đổi màu).
+            // intensity=10 → divisor=40 (dày hơn, ~1/40 pixel bị đổi màu).
             const divisor = Math.max(40, 400 - (intensity - 1) * 40);
+
+            // step: khoảng cách nhảy giữa các pixel được xử lý — không duyệt
+            // TẤT CẢ pixel (sẽ chậm và làm ảnh méo rõ ràng), chỉ chọn rải rác.
             const step = Math.max(4, Math.floor(len / divisor) * 4);
+
+            // Duyệt mảng pixel, mỗi "step" phần tử lại xử lý 1 pixel
             for (let i = 0; i < len; i += step) {
+              // Chỉ đổi 3 kênh màu R, G, B (c=0,1,2) — bỏ qua kênh Alpha (c=3)
+              // vì đổi độ trong suốt dễ bị mắt người nhận ra hơn đổi màu.
               for (let c = 0; c < 3; c++) {
+                // rng() sinh số 0-1 dựa theo canvasSeed đã cố định (mulberry32)
+                // → cùng seed luôn ra cùng quyết định +1 hay -1 ở đúng vị trí này.
                 const noise = rng() < 0.5 ? -1 : 1;
+                // Cộng nhiễu vào giá trị màu gốc của pixel
                 const val = data[i + c] + noise;
+                // Chặn giá trị trong khoảng hợp lệ 0-255, tránh lỗi hiển thị
                 data[i + c] = val < 0 ? 0 : val > 255 ? 255 : val;
               }
             }
+            // Trả về dữ liệu ảnh ĐÃ BỊ NHIỄU thay vì dữ liệu gốc chưa sửa
             return imageData;
           }
 
@@ -803,15 +826,33 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
           // _isPerturbing: recursion guard (toDataURL → getImageData → infinite loop)
           let _isPerturbing = false;
 
+          // ═══════════════════════════════════════════════════════════════
+          // [BẢO VỆ ĐỒ ÁN] ĐIỂM CHẶN: ghi đè hàm gốc getImageData() của trình
+          // duyệt — đây là hàm mà MỌI kỹ thuật canvas-fingerprinting đều gọi
+          // để đọc dữ liệu pixel ra ngoài. Object.defineProperty cho phép thay
+          // hoàn toàn hàm gốc bằng hàm mới, vì getImageData vốn không thể gán
+          // đè bằng cú pháp thường (ctx.getImageData = ... sẽ không có tác dụng).
+          // ═══════════════════════════════════════════════════════════════
           // ── Canvas 2D: patch getImageData ──
           if (doCanvas) {
             Object.defineProperty(CanvasRenderingContext2D.prototype, 'getImageData', {
+              // value: hàm MỚI sẽ chạy thay cho hàm gốc mỗi khi bất kỳ đoạn
+              // script nào trên trang gọi ctx.getImageData(...)
               value: function () {
+                // Bước 1: vẫn gọi hàm GỐC trước để lấy dữ liệu ảnh THẬT
+                // (origGetImageData = bản sao hàm gốc, lưu lại từ TRƯỚC khi bị
+                // ghi đè — xem dòng khai báo origGetImageData phía trên).
                 const imageData = origGetImageData.apply(this, arguments);
+                // _isPerturbing: cờ chống đệ quy vô hạn — vì toDataURL() bên
+                // dưới cũng tự gọi lại getImageData(), không có cờ này sẽ lặp mãi.
                 if (!_isPerturbing) {
                   _isPerturbing = true;
+                  // Bước 2: TRƯỚC KHI trả kết quả về cho trang web, âm thầm
+                  // sửa dữ liệu ảnh đó bằng perturbImageData() (hàm ở trên).
                   try { perturbImageData(imageData); } finally { _isPerturbing = false; }
                 }
+                // Trang web tưởng đây là dữ liệu ảnh thật của trình duyệt,
+                // nhưng thực chất đã bị chèn nhiễu ở bước 2.
                 return imageData;
               },
               configurable: true,
