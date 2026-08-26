@@ -750,23 +750,42 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
           const origToDataURL    = (doCanvas || doWebGL) ? HTMLCanvasElement.prototype.toDataURL : null;
           const origToBlob       = doCanvas ? HTMLCanvasElement.prototype.toBlob : null;
 
+          // ═══════════════════════════════════════════════════════════════
+          // HÀM CỐT LÕI: thêm nhiễu vào dữ liệu điểm ảnh (pixel) đọc ra từ
+          // WebGL framebuffer — đây là nơi WebGL Image Hash THỰC SỰ bị thay đổi.
+          // Logic giống hệt perturbImageData() ở dưới, chỉ khác là dữ liệu vào
+          // là mảng pixel thô từ readPixels() (RGBA nối tiếp), không phải
+          // ImageData object của Canvas 2D.
+          // ═══════════════════════════════════════════════════════════════
           // Noise for WebGL Uint8Array pixel buffers (readPixels output)
           function perturbRawPixels(pixels) {
+            // pixels: Uint8Array/Uint8ClampedArray phẳng, mỗi 4 phần tử liên
+            // tiếp là 1 pixel [R, G, B, A, R, G, B, A, ...] — giống ImageData.data
             if (!pixels || pixels.length < 4) return;
             const len = pixels.length;
+
+            // divisor/step: dùng chung công thức mật độ nhiễu với Canvas 2D,
+            // cùng biến "intensity" lấy từ tab Canvas (WebGL không có ô Noise
+            // Intensity riêng — xem giải thích ở closure addInitScript phía trên).
             const divisor = Math.max(40, 400 - (intensity - 1) * 40);
             const step = Math.max(4, Math.floor(len / divisor) * 4);
+
+            // Duyệt rải rác qua mảng, mỗi "step" phần tử xử lý 1 pixel
             for (let i = 0; i < len; i += step) {
+              // Chỉ đổi R, G, B (c=0,1,2), bỏ qua Alpha (c=3)
               for (let c = 0; c < 3; c++) {
+                // rngWebGL(): PRNG RIÊNG cho WebGL (seed khác Canvas bằng XOR
+                // 0xC0FFEE) → chuỗi nhiễu WebGL độc lập, không trùng Canvas
                 const noise = rngWebGL() < 0.5 ? -1 : 1;
                 const val = pixels[i + c] + noise;
+                // Chặn giá trị hợp lệ 0-255
                 pixels[i + c] = val < 0 ? 0 : val > 255 ? 255 : val;
               }
             }
           }
 
           // ═══════════════════════════════════════════════════════════════
-          // [BẢO VỆ ĐỒ ÁN] HÀM CỐT LÕI: thêm nhiễu vào dữ liệu điểm ảnh (pixel)
+          // HÀM CỐT LÕI: thêm nhiễu vào dữ liệu điểm ảnh (pixel)
           // của Canvas 2D — đây là nơi pixel THỰC SỰ bị thay đổi giá trị.
           // ═══════════════════════════════════════════════════════════════
           // Noise for 2D Canvas ImageData
@@ -804,21 +823,42 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
             return imageData;
           }
 
+          // ═══════════════════════════════════════════════════════════════
+          // ĐIỂM CHẶN: ghi đè hàm gốc readPixels() của WebGL/WebGL2 — đây là
+          // hàm DUY NHẤT mà trình duyệt cung cấp để đọc pixel đã render ra
+          // khỏi framebuffer GPU. Mọi kỹ thuật lấy WebGL Image Hash (kể cả
+          // browserleaks.com) đều phải gọi hàm này (trực tiếp hoặc gián tiếp
+          // qua toDataURL/toBlob) — chặn đúng chỗ này là chặn được gốc.
+          // ═══════════════════════════════════════════════════════════════
           // ── WebGL: patch readPixels → WebGL Image Hash changes ──
           // Gated by doWebGL (WebGL section toggle), independent of Canvas section.
           if (doWebGL) {
+            // patchRP(proto, orig): ghi đè readPixels trên prototype dùng chung
+            // (proto = WebGLRenderingContext.prototype hoặc WebGL2...prototype;
+            // orig = bản gốc đã lưu TRƯỚC khi patch, xem origRPWGL1/origRPWGL2 ở trên)
             const patchRP = (proto, orig) => {
               if (!proto || !orig) return;
               Object.defineProperty(proto, 'readPixels', {
+                // value: hàm MỚI chạy thay mỗi khi trang gọi gl.readPixels(...)
                 value: function (x, y, w, h, format, type, pixels, ...rest) {
+                  // Bước 1: vẫn gọi hàm GỐC trước — để GPU đổ dữ liệu pixel
+                  // THẬT vào buffer "pixels" mà trang web đã cấp sẵn (out-param,
+                  // readPixels không return giá trị mà ghi trực tiếp vào mảng truyền vào)
                   orig.apply(this, arguments);
+                  // Bước 2: TRƯỚC KHI trang web đọc "pixels", âm thầm chèn
+                  // nhiễu vào ngay trong buffer đó bằng perturbRawPixels() (hàm ở trên)
                   if (pixels instanceof Uint8Array || pixels instanceof Uint8ClampedArray) {
                     perturbRawPixels(pixels);
                   }
+                  // Trang web tưởng "pixels" là dữ liệu GPU render thật 100%,
+                  // nhưng thực chất đã bị sửa vài giá trị màu ở bước 2.
                 },
                 configurable: true,
               });
             };
+            // Patch cả WebGL 1 và WebGL 2 — dùng chung 1 buffer originals đã
+            // lưu ở trên (origRPWGL2 || origRPWGL1: fallback nếu trình duyệt
+            // không hỗ trợ WebGL2 tách biệt)
             if (window.WebGLRenderingContext)  patchRP(WebGLRenderingContext.prototype,  origRPWGL1);
             if (window.WebGL2RenderingContext) patchRP(WebGL2RenderingContext.prototype, origRPWGL2 || origRPWGL1);
           }
@@ -827,7 +867,7 @@ async function applyFingerprintInitScripts(context, profile, settings, { overrid
           let _isPerturbing = false;
 
           // ═══════════════════════════════════════════════════════════════
-          // [BẢO VỆ ĐỒ ÁN] ĐIỂM CHẶN: ghi đè hàm gốc getImageData() của trình
+          // ĐIỂM CHẶN: ghi đè hàm gốc getImageData() của trình
           // duyệt — đây là hàm mà MỌI kỹ thuật canvas-fingerprinting đều gọi
           // để đọc dữ liệu pixel ra ngoài. Object.defineProperty cho phép thay
           // hoàn toàn hàm gốc bằng hàm mới, vì getImageData vốn không thể gán
